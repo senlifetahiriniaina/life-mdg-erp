@@ -1,0 +1,20 @@
+# Checklist go-live
+
+## Avant le premier déploiement en production
+
+- [ ] Toutes les variables de `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md` "à changer impérativement" sont configurées
+- [ ] Les 6 secrets GitHub requis par `deploy.yml` sont configurés (`DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`)
+- [ ] `scripts/smoke-tests.js` est écrit (référencé par `deploy.yml` mais absent de ce dépôt — voir `docs/07-DEPLOIEMENT/README.md`)
+- [ ] `php artisan migrate:fresh --seed` s'exécute sans erreur sur une base de données de type production (MySQL, pas SQLite)
+- [ ] `vendor/bin/pest` passe (les échecs pré-existants documentés dans `CLAUDE.md` sous "Known gaps" sont acceptés comme backlog, pas comme bloquants — mais aucun échec *nouveau* ne doit apparaître)
+- [ ] `npm run build && npm run type-check` sans erreur
+- [ ] Un parcours manuel du golden path a été testé : onboarding → création contact CRM → devis Sales → mouvement de stock Inventory → facture Accounting → pointage présence HR → cycle de paie Payroll → feuille de temps Timesheets sur un Project → création d'un ticket Helpdesk depuis une autre page → tableau de bord Strategy affichant des ratios cohérents
+- [ ] Sauvegardes configurées et testées (`BACKUP_*` dans `.env`, cf. `spatie/laravel-backup`)
+- [ ] Health check (`GET /api/health`) répond correctement depuis l'infrastructure de monitoring cible
+- [ ] `ANTHROPIC_API_KEY` configurée si les guidances IA dynamiques sont souhaitées dès le lancement (sinon repli statique automatique, non bloquant)
+
+## Après le premier déploiement
+
+- [ ] Vérifier les logs applicatifs pendant les premières 24h (`storage/logs/laravel.log` ou Sentry si configuré)
+- [ ] Vérifier que le job de rollback automatique de `deploy.yml` n'a pas été déclenché
+- [ ] Confirmer que les workflows planifiés (`dependency-check.yml`, `security-audit-scheduled.yml`, `supply-chain.yml`) tournent bien selon leur cron une fois la branche mergée sur `main` (ces workflows ne se déclenchent pas automatiquement sur une branche `claude/**`, seul un déclenchement manuel via `workflow_dispatch` les exerce avant le merge)

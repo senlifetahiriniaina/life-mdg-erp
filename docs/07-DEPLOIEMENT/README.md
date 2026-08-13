@@ -1,0 +1,43 @@
+# Déploiement
+
+## CI/CD
+
+`.github/workflows/` contient 7 workflows GitHub Actions :
+
+| Workflow | Déclencheur | Rôle |
+|---|---|---|
+| `ci.yml` | Push/PR sur `main`, `develop`, `claude/**` | Tests PHP (Pest), PHPStan, Pint, build frontend, `composer audit`/`npm audit` |
+| `docker-build.yml` | Push/PR touchant `Dockerfile`/`infra/**`/`composer.json`/`package.json` | Valide que l'image Docker build (pas de push registre) |
+| `dependency-check.yml` | Hebdomadaire (vendredi 10h UTC) + manuel | Rapport de paquets obsolètes |
+| `security-audit-scheduled.yml` | Hebdomadaire (lundi 02h UTC) + manuel | Audit de sécurité complet, ouvre une issue en cas d'échec |
+| `supply-chain.yml` | Push/PR sur `main` + hebdomadaire | Scan CVE (Trivy), SBOM, détection de secrets (TruffleHog), revue de dépendances |
+| `performance-budget.yml` | Push/PR sur `main`/`develop` | Taille de bundle JS, Lighthouse CI |
+| `deploy.yml` | Push sur `main`/tags `v*.*.*` + manuel | Déploiement SSH+tar vers un serveur, avec rollback automatique |
+
+**Tous les checks sauf `deploy.yml` sont informationnels** (`continue-on-error: true`) — voir `docs/09-RBAC-SECURITE/SECURITE.md` pour la justification de ce choix. Le workflow `mobile-release.yml` présent dans Widehalo-ERP a été retiré : life-mdg-erp n'a pas de module Mobile dans son périmètre de 27 modules.
+
+### Validation effectuée
+
+Chaque workflow a été corrigé pour fonctionner avec la structure réelle de life-mdg-erp (composer.json/package.json à la racine, pas de dossier `webapp/` ni `apps/`, pas de split multi-dépôt) — ces fichiers étaient copiés tels quels depuis Widehalo-ERP au moment de l'extraction et référençaient des chemins inexistants ici. La validation a inclus l'observation de runs réels sur GitHub Actions (pas seulement une relecture du YAML), ce qui a permis de détecter deux SHA de commit invalides (`actions/setup-node`, `actions/cache`) qui faisaient échouer "Set up job" en quelques secondes — invisible auparavant car masqué par `continue-on-error: true`.
+
+## Docker
+
+`Dockerfile` à la racine — build multi-étapes (`php:8.4-fpm` en base). `docker-build.yml` valide que l'image build sur chaque changement pertinent, sans la publier vers un registre.
+
+## Déploiement en production (`deploy.yml`)
+
+Déploiement par tar+SSH (pas de conteneur en production malgré la présence d'un `Dockerfile` — celui-ci sert à la validation CI, pas au déploiement) :
+
+1. Build (`composer install --no-dev`, `npm run build`)
+2. Archive tar de l'application (exclut `.git`, `node_modules`, `.env*`, `storage/logs`, `bootstrap/cache`)
+3. Transfert SCP vers le serveur cible
+4. Extraction, `php artisan migrate --force`, bascule du symlink `current` vers la nouvelle release, purge des anciennes releases (garde les 5 dernières)
+5. Vérification santé (`GET /api/health`), notification Slack
+
+**Secrets requis** (non fournis dans ce dépôt, à configurer dans les paramètres GitHub du dépôt) : `DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`.
+
+**Prérequis non encore présents dans ce dépôt** : le job `post-deploy-tests` de `deploy.yml` appelle `node scripts/smoke-tests.js`, qui n'existe pas encore (`scripts/` n'a pas été porté depuis Widehalo-ERP). Ce script devra être écrit avant la première utilisation réelle de `deploy.yml` — voir `docs/07-DEPLOIEMENT/CHECKLIST-GO-LIVE.md`.
+
+## Runbook de migration
+
+`php artisan migrate --force` en production. Toujours précédé de `php artisan down` (mode maintenance) et suivi de `php artisan up` — voir la séquence complète dans `deploy.yml`.
