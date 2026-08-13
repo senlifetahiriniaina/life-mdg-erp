@@ -1,5 +1,5 @@
 # Build stage
-FROM php:8.4-fpm as builder
+FROM php:8.4-fpm AS builder
 
 WORKDIR /app
 
@@ -24,11 +24,9 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy composer files
-COPY composer.json composer.lock ./
-
-# Copy the vendored core submodule so the path repository resolves during install
-COPY .widehalo-core ./.widehalo-core
+# Copy composer manifest (composer.lock is intentionally gitignored in this
+# repo, see CLAUDE.md — composer install below resolves fresh)
+COPY composer.json ./
 
 # Install PHP dependencies
 RUN composer install --no-scripts --no-dev --prefer-dist --no-interaction
@@ -42,9 +40,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node dependencies and build
-COPY package.json package-lock.json ./
-RUN npm ci --only=prod && npm run build
+# Install Node dependencies and build (package-lock.json is intentionally
+# gitignored — npm install resolves fresh; npm ci would need an existing
+# lockfile, see the .github/workflows/ commit history)
+COPY package.json ./
+RUN npm install --omit=dev && npm run build
 
 # Generate Laravel caches
 RUN php artisan config:cache \

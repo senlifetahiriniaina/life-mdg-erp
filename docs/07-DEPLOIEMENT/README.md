@@ -18,11 +18,18 @@
 
 ### Validation effectuée
 
-Chaque workflow a été corrigé pour fonctionner avec la structure réelle de life-mdg-erp (composer.json/package.json à la racine, pas de dossier `webapp/` ni `apps/`, pas de split multi-dépôt) — ces fichiers étaient copiés tels quels depuis Widehalo-ERP au moment de l'extraction et référençaient des chemins inexistants ici. La validation a inclus l'observation de runs réels sur GitHub Actions (pas seulement une relecture du YAML), ce qui a permis de détecter deux SHA de commit invalides (`actions/setup-node`, `actions/cache`) qui faisaient échouer "Set up job" en quelques secondes — invisible auparavant car masqué par `continue-on-error: true`.
+Chaque workflow a été corrigé pour fonctionner avec la structure réelle de life-mdg-erp (composer.json/package.json à la racine, pas de dossier `webapp/` ni `apps/`, pas de split multi-dépôt) — ces fichiers étaient copiés tels quels depuis Widehalo-ERP au moment de l'extraction et référençaient des chemins inexistants ici. La validation a inclus l'observation de runs réels sur GitHub Actions (pas seulement une relecture du YAML, y compris un déclenchement manuel des workflows à cron pour les exercer avant tout merge), ce qui a permis de détecter plusieurs échecs invisibles jusqu'ici (masqués par `continue-on-error: true` ou jamais exécutés avant cette validation) :
+
+- Deux SHA de commit invalides (`actions/setup-node`, `actions/cache`) qui faisaient échouer "Set up job" en quelques secondes.
+- `actions/setup-node`'s option de cache npm intégrée, qui exige un `package-lock.json` déjà présent pour calculer sa clé de cache — inexistant ici (gitignoré intentionnellement).
+- `npm ci`, qui exige lui-même un lockfile déjà existant plutôt que d'en générer un — cassé pour la même raison, dans tous les workflows qui l'utilisaient.
+- `npm outdated` dans `dependency-check.yml`, qui sort avec un code 1 dès qu'il trouve des paquets obsolètes (comportement normal et documenté de la commande) — sous `set -e` (mode par défaut des blocs `run:` multi-lignes de GitHub Actions), cela tuait toute l'étape avant qu'elle ait pu produire son rapport.
 
 ## Docker
 
 `Dockerfile` à la racine — build multi-étapes (`php:8.4-fpm` en base). `docker-build.yml` valide que l'image build sur chaque changement pertinent, sans la publier vers un registre.
+
+**Le build Docker ne peut pas aboutir en l'état** : le `Dockerfile` copie `docker/supervisor.conf`, `docker/php.ini`, `docker/php-fpm.conf` et `docker/health-check.php`, mais ce dossier `docker/` n'existe dans aucun des deux dépôts (Widehalo-ERP source compris — ce n'est donc pas un oubli de portage, c'est un `Dockerfile` jamais réellement construit avec succès, même dans le dépôt source). Les autres erreurs bloquantes du build (COPY de `.widehalo-core`, supprimé lors de l'extraction ; COPY de `composer.lock`/`package-lock.json`, gitignorés ; `npm ci --only=prod`, syntaxe npm obsolète) ont été corrigées. Écrire les 4 fichiers `docker/*` manquants (configuration PHP-FPM, supervisor, script de health-check) est un vrai travail d'infrastructure à part entière — non traité ici, tracké dans `CLAUDE.md` sous "Known gaps".
 
 ## Déploiement en production (`deploy.yml`)
 
