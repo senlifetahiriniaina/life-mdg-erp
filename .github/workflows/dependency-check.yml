@@ -72,7 +72,7 @@ jobs:
       - name: Check Frontend Dependencies
         id: frontend-check
         run: |
-          npm ci > /dev/null 2>&1 || true
+          npm install > /dev/null 2>&1 || true
 
           echo "## Frontend Dependency Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

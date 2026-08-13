@@ -64,7 +64,7 @@ jobs:
       - name: Frontend Audit
         id: audit-frontend
         run: |
-          npm ci
+          npm install
           echo "## Frontend Security Audit" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           npm audit --json > audit-report.json 2>&1 || true

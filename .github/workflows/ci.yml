@@ -128,7 +128,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Type Check
         continue-on-error: true
@@ -177,7 +177,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Audit NPM Dependencies
-        run: npm ci --legacy-peer-deps && npm audit --audit-level=high || true
+        run: npm install --legacy-peer-deps && npm audit --audit-level=high || true
 
   # ── 4. Build Status (toujours vert — informationnel uniquement) ─────────────
   build-status:
