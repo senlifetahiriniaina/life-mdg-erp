@@ -45,9 +45,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
 # lockfile, see the .github/workflows/ commit history). --legacy-peer-deps
 # matches the same flag already used in ci.yml, needed because
 # vue-apexcharts@1.7.0 (Vue 2 peer dep) coexists with vue@^3.5.0 in
-# package.json.
+# package.json. No --omit=dev here: the build tooling itself (vite, ...)
+# lives in devDependencies and is required to run `npm run build` — the
+# same reason ci.yml's own frontend-build job never omits dev deps either.
 COPY package.json ./
-RUN npm install --omit=dev --legacy-peer-deps && npm run build
+RUN npm install --legacy-peer-deps && npm run build
 
 # Generate Laravel caches
 RUN php artisan config:cache \
