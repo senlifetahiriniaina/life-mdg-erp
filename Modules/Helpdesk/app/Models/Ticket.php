@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Modules\Core\Traits\RecordsActivity;
@@ -86,6 +87,8 @@ class Ticket extends Model
         'resolved_at',
         'sla_due_at',
         'sla_breached',
+        'source_type',
+        'source_id',
     ];
 
     protected $casts = [
@@ -114,5 +117,14 @@ class Ticket extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(TicketComment::class);
+    }
+
+    /**
+     * The record this ticket was raised from, in any other module
+     * (e.g. an Accounting invoice, a CRM contact, an Inventory product).
+     */
+    public function source(): MorphTo
+    {
+        return $this->morphTo();
     }
 }

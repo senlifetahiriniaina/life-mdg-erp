@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Achats\Database\Factories\PurchaseOrderFactory;
 use Modules\Core\Traits\RecordsActivity;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 use Modules\Validation\Models\ApprovalRequest;
 
 /**
@@ -39,7 +40,7 @@ use Modules\Validation\Models\ApprovalRequest;
  */
 class PurchaseOrder extends Model
 {
-    use HasFactory;
+    use HasFactory, HelpdeskLinkable;
     use RecordsActivity, SoftDeletes;
 
     protected $table = 'achats_purchase_orders';

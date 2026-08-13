@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Core\Traits\RecordsActivity;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 use Modules\Projects\Database\Factories\ProjectFactory;
 
 /**
@@ -30,7 +31,7 @@ use Modules\Projects\Database\Factories\ProjectFactory;
  */
 class Project extends Model
 {
-    use HasFactory, RecordsActivity, SoftDeletes;
+    use HasFactory, HelpdeskLinkable, RecordsActivity, SoftDeletes;
 
     protected static string $auditModule = 'Projects';
 

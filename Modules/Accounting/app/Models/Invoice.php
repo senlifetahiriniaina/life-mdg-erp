@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Modules\Accounting\Database\Factories\InvoiceFactory;
 use Modules\Accounting\Models\InvoicePayment;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 
 /**
  * @property int $id
@@ -40,7 +41,7 @@ use Modules\Accounting\Models\InvoicePayment;
  */
 class Invoice extends Model
 {
-    use AuditableActions, HasFactory, SoftDeletes;
+    use AuditableActions, HasFactory, HelpdeskLinkable, SoftDeletes;
 
     protected $table = 'acc_invoices';
 

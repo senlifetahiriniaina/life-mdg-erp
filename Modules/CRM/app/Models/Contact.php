@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Scout\Searchable;
 use Modules\Core\Models\Concerns\BelongsToTenant;
 use Modules\CRM\Database\Factories\ContactFactory;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -40,7 +41,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  */
 class Contact extends Model
 {
-    use BelongsToTenant, HasFactory, LogsActivity, Searchable, SoftDeletes;
+    use BelongsToTenant, HasFactory, HelpdeskLinkable, LogsActivity, Searchable, SoftDeletes;
 
     public function getActivitylogOptions(): LogOptions
     {

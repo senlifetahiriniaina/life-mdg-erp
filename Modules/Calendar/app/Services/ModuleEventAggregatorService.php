@@ -155,22 +155,22 @@ class ModuleEventAggregatorService
 
     private function importHelpdeskSla(int $userId): int
     {
-        if (! Schema::hasTable('helpdesk_tickets')) {
+        if (! Schema::hasTable('hd_tickets')) {
             return 0;
         }
 
         $calendar = $this->getOrCreateModuleCalendar($userId, 'Helpdesk SLA', '#EF4444', 'helpdesk_sla');
         $synced   = 0;
 
-        $tickets = DB::table('helpdesk_tickets')
-            ->where('assigned_to', $userId)
-            ->whereNotNull('sla_deadline')
+        $tickets = DB::table('hd_tickets')
+            ->where('assignee_id', $userId)
+            ->whereNotNull('sla_due_at')
             ->whereNotIn('status', ['resolved', 'closed'])
-            ->select('id', 'subject', 'sla_deadline', 'priority', 'status')
+            ->select('id', 'subject', 'sla_due_at', 'priority', 'status')
             ->get();
 
         foreach ($tickets as $ticket) {
-            $deadline = Carbon::parse($ticket->sla_deadline);
+            $deadline = Carbon::parse($ticket->sla_due_at);
 
             CalendarEvent::updateOrCreate(
                 ['module_type' => 'Ticket', 'module_id' => $ticket->id, 'calendar_id' => $calendar->id],

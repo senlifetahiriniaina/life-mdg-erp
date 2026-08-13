@@ -12,11 +12,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Core\Traits\RecordsActivity;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 use Modules\Logistics\Database\Factories\ShipmentFactory;
 
 class Shipment extends Model
 {
-    use EncryptableTrait;
+    use EncryptableTrait, HelpdeskLinkable;
     use HasFactory;
     use RecordsActivity;
     use SoftDeletes;

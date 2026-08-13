@@ -64,6 +64,7 @@
           <button v-for="l in locales" :key="l.value" :class="currentLocale === l.value ? 'wh-lang-on' : ''" :aria-current="currentLocale === l.value ? 'true' : undefined" :aria-label="`Switch to ${l.label}`" @click="switchLocale(l.value)">{{ l.label }}</button>
         </div>
         <button class="wh-pill wh-pill-ai" @click="toggleAI" :aria-label="$t('ai.assistant')" :aria-pressed="aiPanelOpen" title="WideHalo IA · ⌘J"><i class="pi pi-sparkles" style="font-size: 12px" aria-hidden="true" /><span>IA</span></button>
+        <QuickTicketButton />
         <ThemeSwitcher />
         <NotificationBell />
         <UserMenu />
@@ -94,6 +95,7 @@ import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
 import OfflineStatusPill from '@/Components/UI/OfflineStatusPill.vue'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import QuickTicketButton from '@/Components/Helpdesk/QuickTicketButton.vue'
 import UserMenu from '@/Components/UI/UserMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
 import CookieConsentBanner from '@/Components/UI/CookieConsentBanner.vue'

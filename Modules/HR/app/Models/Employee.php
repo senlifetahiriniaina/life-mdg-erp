@@ -9,10 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\HR\Database\Factories\EmployeeFactory;
 use Modules\HR\Services\BankDetailsMaskingService;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 
 class Employee extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, HelpdeskLinkable, SoftDeletes;
 
     protected static function booted(): void
     {

@@ -2,6 +2,7 @@
 
 namespace Modules\Helpdesk\Providers;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use Modules\Helpdesk\Services\AI\HelpdeskAIService;
@@ -27,8 +28,29 @@ class HelpdeskServiceProvider extends ServiceProvider
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
+        $this->registerTicketSourceMorphMap();
 
-$this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+        $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * Aliases accepted as `source_module` when raising a ticket about a
+     * record from another module (POST /api/v1/helpdesk/tickets, and the
+     * HelpdeskLinkable trait). Deliberately an allowlist — never resolve a
+     * class name coming straight from client input.
+     */
+    private function registerTicketSourceMorphMap(): void
+    {
+        Relation::morphMap([
+            'invoice' => \Modules\Accounting\Models\Invoice::class,
+            'contact' => \Modules\CRM\Models\Contact::class,
+            'product' => \Modules\Inventory\Models\Product::class,
+            'sales_order' => \Modules\Sales\Models\SalesOrder::class,
+            'purchase_order' => \Modules\Achats\Models\PurchaseOrder::class,
+            'project' => \Modules\Projects\Models\Project::class,
+            'shipment' => \Modules\Logistics\Models\Shipment::class,
+            'employee' => \Modules\HR\Models\Employee::class,
+        ]);
     }
 
     /**

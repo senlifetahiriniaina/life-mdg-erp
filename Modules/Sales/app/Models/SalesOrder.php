@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 
 /**
  * @property int $id
@@ -36,7 +37,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class SalesOrder extends Model
 {
-    use AuditableActions, SoftDeletes;
+    use AuditableActions, HelpdeskLinkable, SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
 
     protected $table = 'sales_orders';

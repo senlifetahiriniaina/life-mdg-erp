@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Core\Models\Concerns\BelongsToTenant;
+use Modules\Helpdesk\Traits\HelpdeskLinkable;
 use Modules\Inventory\Database\Factories\ProductFactory;
 
 class Product extends Model
 {
-    use BelongsToTenant, HasFactory, SoftDeletes;
+    use BelongsToTenant, HasFactory, HelpdeskLinkable, SoftDeletes;
 
     protected $table = 'inventory_products';
 

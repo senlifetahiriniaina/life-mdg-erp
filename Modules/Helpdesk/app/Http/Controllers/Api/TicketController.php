@@ -8,11 +8,12 @@ use App\Events\TicketCreated;
 use App\Events\TicketStatusChanged;
 use App\Events\TicketUpdated;
 use App\Http\Controllers\Controller;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Helpdesk\Models\SlaPolicy;
+use Illuminate\Validation\Rule;
 use Modules\Helpdesk\Models\Ticket;
-use Modules\Helpdesk\Services\SlaService;
+use Modules\Helpdesk\Services\TicketService;
 
 /**
  * @group Helpdesk - Ticket
@@ -21,7 +22,7 @@ use Modules\Helpdesk\Services\SlaService;
  */
 class TicketController extends Controller
 {
-    public function __construct(private readonly SlaService $slaService) {}
+    public function __construct(private readonly TicketService $ticketService) {}
 
     /**
      * List tickets
@@ -92,21 +93,30 @@ class TicketController extends Controller
             'priority' => ['nullable', 'in:low,medium,high,urgent'],
             'team_id' => ['nullable', 'exists:hd_teams,id'],
             'type' => ['nullable', 'string'],
+            // Optional: raise this ticket about a record from another module
+            // (e.g. an Accounting invoice, a CRM contact). source_module must
+            // be one of the aliases registered in HelpdeskServiceProvider's
+            // morph map — arbitrary class names are never accepted from the
+            // client.
+            'source_module' => ['nullable', 'string', Rule::in(array_keys(Relation::morphMap()))],
+            'source_id' => ['nullable', 'required_with:source_module', 'integer'],
         ]);
 
         $validated['reporter_id'] = $request->user()->id;
         $validated['status'] = 'open';
 
-        $ticket = Ticket::create($validated);
-
-        $defaultPolicy = SlaPolicy::where('is_default', true)->first();
-        if ($defaultPolicy) {
-            $this->slaService->apply($ticket, $defaultPolicy);
+        $source = null;
+        if (! empty($validated['source_module'])) {
+            $sourceClass = Relation::getMorphedModel($validated['source_module']);
+            $source = $sourceClass::findOrFail($validated['source_id']);
         }
+        unset($validated['source_module'], $validated['source_id']);
+
+        $ticket = $this->ticketService->createFromSource($source, $validated);
 
         TicketCreated::dispatch($ticket);
 
-        return response()->json($ticket->fresh(), 201);
+        return response()->json($ticket, 201);
     }
 
     /**
