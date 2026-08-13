@@ -8,20 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('hr_payrolls')) {
-            Schema::create('hr_payrolls', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('employee_id')->index();
-                $table->decimal('salary', 15, 2)->default(0);
-                $table->string('currency', 8)->default('USD');
-                $table->string('pay_frequency')->nullable();
-                $table->decimal('bonus', 15, 2)->default(0);
-                $table->decimal('allowances', 15, 2)->default(0);
-                $table->decimal('deductions', 15, 2)->default(0);
-                $table->timestamps();
-            });
-        }
-
         if (Schema::hasTable('hr_employees')) {
             Schema::table('hr_employees', function (Blueprint $table) {
                 if (! Schema::hasColumn('hr_employees', 'termination_reason')) {
@@ -48,6 +34,5 @@ return new class extends Migration
                 }
             });
         }
-        Schema::dropIfExists('hr_payrolls');
     }
 };

@@ -1050,25 +1050,25 @@ PROMPT;
             // Manufacturing — QQCD Calendar
             // ------------------------------------------------------------------
             'Manufacturing.qqcd_calendar' => [
-                'what_to_do'          => 'Planifiez les demandes d'échantillons en avance pour ne pas bloquer la production.',
+                'what_to_do'          => 'Planifiez les demandes d\'échantillons en avance pour ne pas bloquer la production.',
                 'how_to_do'           => [
                     'Identifiez les BOM des 3 prochains mois nécessitant des commandes.',
                     'Calculez les délais backward depuis la date de production requise.',
-                    'Déclenchez les demandes d'échantillons avec le buffer nécessaire (min. 14 jours avant commande).',
+                    'Déclenchez les demandes d\'échantillons avec le buffer nécessaire (min. 14 jours avant commande).',
                 ],
                 'decision_indicators' => [
                     ['label' => 'Composants à commander', 'value' => '—', 'status' => 'warning'],
                     ['label' => 'En retard sur planning', 'value' => '—', 'status' => 'critical'],
                 ],
                 'warnings'            => [
-                    'Un retard dans la demande d'échantillons décale toute la chaîne d'approvisionnement.',
+                    'Un retard dans la demande d\'échantillons décale toute la chaîne d\'approvisionnement.',
                 ],
                 'next_actions'        => [
                     ['label' => 'Demander échantillons', 'action' => 'sample_request', 'module' => 'Manufacturing'],
                 ],
                 'tips'                => [
                     'Planifiez les demandes au moins 3 semaines avant la date de commande souhaitée.',
-                    'Regroupez les demandes par fournisseur pour accélérer l'évaluation.',
+                    'Regroupez les demandes par fournisseur pour accélérer l\'évaluation.',
                 ],
             ],
 
@@ -1076,7 +1076,7 @@ PROMPT;
             // Manufacturing — Import international
             // ------------------------------------------------------------------
             'Manufacturing.import_component' => [
-                'what_to_do'          => 'Gérez le processus d'importation du composant en anticipant douanes et transit.',
+                'what_to_do'          => 'Gérez le processus d\'importation du composant en anticipant douanes et transit.',
                 'how_to_do'           => [
                     'Vérifiez le code HS et les droits de douane applicables dans le pays de destination.',
                     'Créez la timeline import depuis la date de besoin (backward planning).',
@@ -4073,7 +4073,7 @@ PROMPT;
             // ─── SMS ───────────────────────────────────────────────────────
             'SMS.view_dashboard' => [
                 'enabled'             => true,
-                'what_to_do'          => 'Gérez vos campagnes SMS et l'état de vos envois.',
+                'what_to_do'          => 'Gérez vos campagnes SMS et l\'état de vos envois.',
                 'how_to_do'           => [
                     'Consultez le tableau de bord pour le taux de livraison et les coûts.',
                     'Créez une campagne en sélectionnant les destinataires depuis le CRM.',
@@ -4096,20 +4096,20 @@ PROMPT;
                 'how_to_do'           => [
                     'Sélectionnez ou importez la liste de destinataires (CRM / CSV).',
                     'Rédigez le message (max 160 caractères par crédit SMS).',
-                    'Planifiez l'heure d'envoi pour maximiser l'ouverture.',
+                    'Planifiez l\'heure d\'envoi pour maximiser l\'ouverture.',
                 ],
                 'decision_indicators' => [],
                 'warnings'            => ['Respectez la réglementation UEMOA sur les messages commerciaux.'],
                 'next_actions'        => [
                     ['label' => 'Voir résultats', 'action' => 'view_dashboard', 'module' => 'SMS'],
                 ],
-                'tips'                => ['Taux d'ouverture SMS moyen : 98% dans les 3 minutes.'],
+                'tips'                => ['Taux d\'ouverture SMS moyen : 98% dans les 3 minutes.'],
             ],
 
             // ─── Payroll ───────────────────────────────────────────────────
             'Payroll.view_dashboard' => [
                 'enabled'             => true,
-                'what_to_do'          => 'Supervisez la paie du mois et l'état des fiches de paie.',
+                'what_to_do'          => 'Supervisez la paie du mois et l\'état des fiches de paie.',
                 'how_to_do'           => [
                     'Vérifiez que tous les employés actifs sont inclus dans la période.',
                     'Contrôlez les ajustements (congés, absences, heures sup).',
@@ -4125,7 +4125,7 @@ PROMPT;
                     ['label' => 'Générer les fiches', 'action' => 'generate_payslips', 'module' => 'Payroll'],
                     ['label' => 'Approuver la paie', 'action' => 'approve_payroll', 'module' => 'Payroll'],
                 ],
-                'tips'                => ['Activez l'IA de détection d'anomalies (écarts > 15% vs mois précédent).'],
+                'tips'                => ['Activez l\'IA de détection d\'anomalies (écarts > 15% vs mois précédent).'],
             ],
             'Payroll.generate_payslips' => [
                 'enabled'             => true,
@@ -4181,7 +4181,7 @@ PROMPT;
             // ─── AuditLog ──────────────────────────────────────────────────
             'AuditLog.view_audit_log' => [
                 'enabled'             => true,
-                'what_to_do'          => 'Consultez le journal d'audit pour la traçabilité et la conformité RGPD.',
+                'what_to_do'          => 'Consultez le journal d\'audit pour la traçabilité et la conformité RGPD.',
                 'how_to_do'           => [
                     'Filtrez par module, utilisateur, action ou plage de dates.',
                     'Exportez le journal en CSV ou PDF pour les audits réglementaires.',
@@ -4190,7 +4190,7 @@ PROMPT;
                 'decision_indicators' => [
                     ['label' => 'Événements critiques', 'value' => '—', 'status' => 'ok'],
                 ],
-                'warnings'            => ['Conservez les journaux d'audit minimum 5 ans (exigence PDPL/RGPD).'],
+                'warnings'            => ['Conservez les journaux d\'audit minimum 5 ans (exigence PDPL/RGPD).'],
                 'next_actions'        => [
                     ['label' => 'Exporter CSV', 'action' => 'export_audit', 'module' => 'AuditLog'],
                 ],
@@ -4202,7 +4202,7 @@ PROMPT;
                 'enabled'             => true,
                 'what_to_do'          => 'Configurez les paramètres globaux de votre entreprise.',
                 'how_to_do'           => [
-                    'Renseignez les informations de l'entreprise (nom, devise, fuseau horaire).',
+                    'Renseignez les informations de l\'entreprise (nom, devise, fuseau horaire).',
                     'Configurez les modules actifs et les intégrations tierces.',
                     'Définissez les préférences de notification par rôle.',
                 ],
@@ -4211,7 +4211,7 @@ PROMPT;
                 'next_actions'        => [
                     ['label' => 'Gérer les intégrations', 'action' => 'manage_integrations', 'module' => 'Settings'],
                 ],
-                'tips'                => ['Activez l'authentification 2FA pour tous les rôles admin.'],
+                'tips'                => ['Activez l\'authentification 2FA pour tous les rôles admin.'],
             ],
 
             // ─── Shared ────────────────────────────────────────────────────
@@ -4219,7 +4219,7 @@ PROMPT;
                 'enabled'             => true,
                 'what_to_do'          => 'Accédez aux ressources partagées et aux utilitaires communs.',
                 'how_to_do'           => [
-                    'Les préférences partagées s'appliquent à tous les modules.',
+                    'Les préférences partagées s\'appliquent à tous les modules.',
                     'Consultez les helpers et composants disponibles pour votre équipe.',
                 ],
                 'decision_indicators' => [],
