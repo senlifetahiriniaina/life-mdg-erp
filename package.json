@@ -24,7 +24,7 @@
         "@tanstack/vue-query": "^5.100.10",
         "@types/dompurify": "^3.0.5",
         "@vee-validate/zod": "^4.13.0",
-        "@vueuse/core": "^11.0.0",
+        "@vueuse/core": "^14.4.0",
         "apexcharts": "^4.0.0",
         "axios": "^1.7.4",
         "dayjs": "^1.11.0",
