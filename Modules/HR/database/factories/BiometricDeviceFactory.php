@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\HR\database\factories;
+namespace Modules\HR\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\HR\app\Models\BiometricDevice;
+use Modules\HR\Models\BiometricDevice;
 
 class BiometricDeviceFactory extends Factory
 {

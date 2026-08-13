@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Security\database\factories;
+namespace Modules\Security\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Security\app\Models\SecurityIncident;
+use Modules\Security\Models\SecurityIncident;
 
 class SecurityIncidentFactory extends Factory
 {

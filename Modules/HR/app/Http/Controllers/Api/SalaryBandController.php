@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\HR\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\AIService;
+use Modules\Core\Services\AI\AIService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\HR\Models\SalaryBand;

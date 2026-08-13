@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\BI\database\factories;
+namespace Modules\BI\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\BI\app\Models\TransformationRule;
+use Modules\BI\Models\TransformationRule;
 
 class TransformationRuleFactory extends Factory
 {

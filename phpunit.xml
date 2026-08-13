@@ -18,21 +18,32 @@
         <include>
             <directory>app</directory>
             <directory>Modules/Core/app</directory>
-            <directory>Modules/CRM/app</directory>
-            <directory>Modules/HR/app</directory>
-            <directory>Modules/Inventory/app</directory>
+            <directory>Modules/AI/app</directory>
+            <directory>Modules/Security/app</directory>
+            <directory>Modules/AuditLog/app</directory>
+            <directory>Modules/API/app</directory>
+            <directory>Modules/Integration/app</directory>
+            <directory>Modules/Validation/app</directory>
+            <directory>Modules/Shared/app</directory>
+            <directory>Modules/Settings/app</directory>
+            <directory>Modules/Setup/app</directory>
+            <directory>Modules/Workflow/app</directory>
+            <directory>Modules/Calendar/app</directory>
             <directory>Modules/Accounting/app</directory>
-            <directory>Modules/Planning/app</directory>
-            <directory>Modules/Projects/app</directory>
-            <directory>Modules/Manufacturing/app</directory>
-            <directory>Modules/POS/app</directory>
-            <directory>Modules/Ecommerce/app</directory>
-            <directory>Modules/Helpdesk/app</directory>
-            <directory>Modules/Documents/app</directory>
+            <directory>Modules/CRM/app</directory>
+            <directory>Modules/Sales/app</directory>
+            <directory>Modules/Inventory/app</directory>
+            <directory>Modules/Logistics/app</directory>
+            <directory>Modules/Achats/app</directory>
             <directory>Modules/BI/app</directory>
-            <directory>Modules/Email/app</directory>
-            <directory>Modules/Quality/app</directory>
-            <directory>Modules/WhatsApp/app</directory>
+            <directory>Modules/Analytics/app</directory>
+            <directory>Modules/Reporting/app</directory>
+            <directory>Modules/Strategy/app</directory>
+            <directory>Modules/HR/app</directory>
+            <directory>Modules/Payroll/app</directory>
+            <directory>Modules/Timesheets/app</directory>
+            <directory>Modules/Projects/app</directory>
+            <directory>Modules/Helpdesk/app</directory>
         </include>
         <exclude>
             <directory>app/Http/Middleware</directory>

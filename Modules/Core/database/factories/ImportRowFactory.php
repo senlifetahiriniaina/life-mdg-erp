@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Core\database\factories;
+namespace Modules\Core\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Core\app\Models\ImportRow;
+use Modules\Core\Models\ImportRow;
 
 class ImportRowFactory extends Factory
 {

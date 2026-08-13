@@ -2,8 +2,8 @@
 
 namespace Modules\CRM\Services\AI;
 
-use App\Services\AI\AIService;
 use Illuminate\Support\Facades\Log;
+use Modules\Core\Services\AI\AIService;
 use Modules\CRM\Models\Contact;
 
 /**
@@ -22,7 +22,7 @@ class DuplicateDetectionService
         try {
             // Generate embedding for contact
             $contactText = $this->generateContactText($contact);
-            $contactEmbedding = $this->ai->embed($contactText);
+            $contactEmbedding = $this->ai->embeddings()->embed($contactText);
 
             // Find similar contacts
             $allContacts = Contact::where('tenant_id', auth()->user()->tenant_id)
@@ -33,7 +33,7 @@ class DuplicateDetectionService
 
             foreach ($allContacts as $other) {
                 $otherText = $this->generateContactText($other);
-                $otherEmbedding = $this->ai->embed($otherText);
+                $otherEmbedding = $this->ai->embeddings()->embed($otherText);
 
                 $similarity = $this->cosineSimilarity($contactEmbedding, $otherEmbedding);
 

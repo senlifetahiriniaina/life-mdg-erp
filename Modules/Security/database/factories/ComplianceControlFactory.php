@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Security\database\factories;
+namespace Modules\Security\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Security\app\Models\ComplianceControl;
+use Modules\Security\Models\ComplianceControl;
 
 class ComplianceControlFactory extends Factory
 {

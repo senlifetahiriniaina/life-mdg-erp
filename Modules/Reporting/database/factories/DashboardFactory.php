@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Reporting\database\factories;
+namespace Modules\Reporting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Reporting\app\Models\Dashboard;
+use Modules\Reporting\Models\Dashboard;
 
 class DashboardFactory extends Factory
 {

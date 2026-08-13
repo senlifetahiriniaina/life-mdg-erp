@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Security\database\factories;
+namespace Modules\Security\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Security\app\Models\ServiceIdentity;
+use Modules\Security\Models\ServiceIdentity;
 
 class ServiceIdentityFactory extends Factory
 {

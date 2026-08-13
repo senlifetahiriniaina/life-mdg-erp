@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\BI\database\factories;
+namespace Modules\BI\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\BI\app\Models\StoryAnalytics;
+use Modules\BI\Models\StoryAnalytics;
 
 class StoryAnalyticsFactory extends Factory
 {

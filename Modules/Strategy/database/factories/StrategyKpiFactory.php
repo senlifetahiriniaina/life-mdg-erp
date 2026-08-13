@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Strategy\database\factories;
+namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Strategy\app\Models\StrategyKpi;
+use Modules\Strategy\Models\StrategyKpi;
 
 class StrategyKpiFactory extends Factory
 {

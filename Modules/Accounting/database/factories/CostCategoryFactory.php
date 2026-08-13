@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Accounting\database\factories;
+namespace Modules\Accounting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Accounting\app\Models\CostCategory;
+use Modules\Accounting\Models\CostCategory;
 
 class CostCategoryFactory extends Factory
 {

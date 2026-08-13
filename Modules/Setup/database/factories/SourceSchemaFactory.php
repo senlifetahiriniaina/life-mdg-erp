@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Setup\database\factories;
+namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Setup\app\Models\SourceSchema;
+use Modules\Setup\Models\SourceSchema;
 
 class SourceSchemaFactory extends Factory
 {

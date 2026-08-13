@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Analytics\App\Services;
+namespace Modules\Analytics\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;

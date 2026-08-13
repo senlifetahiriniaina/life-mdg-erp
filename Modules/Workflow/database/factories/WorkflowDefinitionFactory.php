@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Workflow\database\factories;
+namespace Modules\Workflow\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Workflow\app\Models\WorkflowDefinition;
+use Modules\Workflow\Models\WorkflowDefinition;
 
 class WorkflowDefinitionFactory extends Factory
 {

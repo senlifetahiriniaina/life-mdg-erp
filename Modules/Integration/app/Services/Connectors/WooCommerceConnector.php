@@ -102,7 +102,7 @@ class WooCommerceConnector
      */
     private function upsertProduct(array $product): string
     {
-        $exists = \Modules\Inventory\app\Models\Product::where(
+        $exists = \Modules\Inventory\Models\Product::where(
             'external_id', 'woocommerce_' . $product['id']
         )->exists();
 
@@ -172,7 +172,7 @@ class WooCommerceConnector
      */
     private function upsertOrder(array $order): string
     {
-        $exists = \Modules\Sales\app\Models\Order::where(
+        $exists = \Modules\Sales\Models\Order::where(
             'external_id', 'woocommerce_' . $order['id']
         )->exists();
 

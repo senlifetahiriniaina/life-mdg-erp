@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\CRM\database\factories;
+namespace Modules\CRM\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\CRM\app\Models\EmailSequenceEnrollment;
+use Modules\CRM\Models\EmailSequenceEnrollment;
 
 class EmailSequenceEnrollmentFactory extends Factory
 {

@@ -1,8 +1,8 @@
 <?php
 
-namespace Modules\Security\app\Services;
+namespace Modules\Security\Services;
 
-use Modules\Security\app\Models\ComplianceControl;
+use Modules\Security\Models\ComplianceControl;
 use Illuminate\Support\Facades\Log;
 
 class GdprComplianceService

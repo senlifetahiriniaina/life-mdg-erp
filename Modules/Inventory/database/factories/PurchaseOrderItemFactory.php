@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Inventory\database\factories;
+namespace Modules\Inventory\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Inventory\app\Models\PurchaseOrderItem;
+use Modules\Inventory\Models\PurchaseOrderItem;
 
 class PurchaseOrderItemFactory extends Factory
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Timesheets\database\factories;
+namespace Modules\Timesheets\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Timesheets\app\Models\TimesheetPeriod;
+use Modules\Timesheets\Models\TimesheetPeriod;
 
 class TimesheetPeriodFactory extends Factory
 {

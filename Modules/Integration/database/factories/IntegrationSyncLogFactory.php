@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Integration\database\factories;
+namespace Modules\Integration\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Integration\app\Models\IntegrationSyncLog;
+use Modules\Integration\Models\IntegrationSyncLog;
 
 class IntegrationSyncLogFactory extends Factory
 {

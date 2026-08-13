@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Core\database\factories;
+namespace Modules\Core\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Core\app\Models\Secret;
+use Modules\Core\Models\Secret;
 
 class SecretFactory extends Factory
 {

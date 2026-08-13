@@ -325,7 +325,7 @@ class ForecastingController extends Controller
             'locale'          => 'nullable|string|size:2',
         ]);
 
-        $narrativeService = app(\Modules\Analytics\App\Services\AiForecastNarrativeService::class);
+        $narrativeService = app(\Modules\Analytics\Services\AiForecastNarrativeService::class);
         $result = $narrativeService->generateNarrative(
             $validated['module'],
             $validated['predictions'],

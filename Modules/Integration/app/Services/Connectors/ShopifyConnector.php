@@ -104,7 +104,7 @@ class ShopifyConnector
     {
         // Integration point: map Shopify product → WideHalo Product model
         // Each Shopify variant maps to a WideHalo SKU with its own stock level
-        $exists = \Modules\Inventory\app\Models\Product::where(
+        $exists = \Modules\Inventory\Models\Product::where(
             'external_id', 'shopify_' . $product['id']
         )->exists();
 
@@ -174,7 +174,7 @@ class ShopifyConnector
      */
     private function upsertOrder(array $order): string
     {
-        $exists = \Modules\Sales\app\Models\Order::where(
+        $exists = \Modules\Sales\Models\Order::where(
             'external_id', 'shopify_' . $order['id']
         )->exists();
 

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Projects\database\factories;
+namespace Modules\Projects\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Projects\app\Models\BudgetLine;
+use Modules\Projects\Models\BudgetLine;
 
 class BudgetLineFactory extends Factory
 {

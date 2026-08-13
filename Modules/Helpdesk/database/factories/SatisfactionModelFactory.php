@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Helpdesk\database\factories;
+namespace Modules\Helpdesk\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Helpdesk\app\Models\SatisfactionModel;
+use Modules\Helpdesk\Models\SatisfactionModel;
 
 class SatisfactionModelFactory extends Factory
 {

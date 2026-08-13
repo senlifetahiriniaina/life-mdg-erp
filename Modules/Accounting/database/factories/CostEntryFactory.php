@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Accounting\database\factories;
+namespace Modules\Accounting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Accounting\app\Models\CostEntry;
+use Modules\Accounting\Models\CostEntry;
 
 class CostEntryFactory extends Factory
 {

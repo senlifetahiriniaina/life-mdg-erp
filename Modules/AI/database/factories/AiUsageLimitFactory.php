@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\AI\database\factories;
+namespace Modules\AI\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\AI\app\Models\AiUsageLimit;
+use Modules\AI\Models\AiUsageLimit;
 
 class AiUsageLimitFactory extends Factory
 {

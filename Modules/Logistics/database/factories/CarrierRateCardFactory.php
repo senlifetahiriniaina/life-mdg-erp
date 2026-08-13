@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Logistics\database\factories;
+namespace Modules\Logistics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Logistics\app\Models\CarrierRateCard;
+use Modules\Logistics\Models\CarrierRateCard;
 
 class CarrierRateCardFactory extends Factory
 {

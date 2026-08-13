@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Reporting\database\factories;
+namespace Modules\Reporting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Reporting\app\Models\ReportShare;
+use Modules\Reporting\Models\ReportShare;
 
 class ReportShareFactory extends Factory
 {

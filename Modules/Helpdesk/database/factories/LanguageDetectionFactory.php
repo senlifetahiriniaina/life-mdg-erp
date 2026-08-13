@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Helpdesk\database\factories;
+namespace Modules\Helpdesk\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Helpdesk\app\Models\LanguageDetection;
+use Modules\Helpdesk\Models\LanguageDetection;
 
 class LanguageDetectionFactory extends Factory
 {

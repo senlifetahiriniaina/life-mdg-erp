@@ -2,8 +2,8 @@
 
 namespace Modules\CRM\Services\AI;
 
-use App\Services\AI\AIService;
 use Illuminate\Support\Facades\Log;
+use Modules\Core\Services\AI\AIService;
 use Modules\CRM\Models\Contact;
 
 /**

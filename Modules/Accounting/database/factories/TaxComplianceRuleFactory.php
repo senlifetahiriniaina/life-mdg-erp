@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Accounting\database\factories;
+namespace Modules\Accounting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Accounting\app\Models\TaxComplianceRule;
+use Modules\Accounting\Models\TaxComplianceRule;
 
 class TaxComplianceRuleFactory extends Factory
 {

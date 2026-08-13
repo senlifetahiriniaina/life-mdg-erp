@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Analytics\database\factories;
+namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Analytics\app\Models\DetectedAnomaly;
+use Modules\Analytics\Models\DetectedAnomaly;
 
 class DetectedAnomalyFactory extends Factory
 {

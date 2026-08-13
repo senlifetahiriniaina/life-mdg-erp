@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Security\database\factories;
+namespace Modules\Security\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Security\app\Models\EncryptedField;
+use Modules\Security\Models\EncryptedField;
 
 class EncryptedFieldFactory extends Factory
 {

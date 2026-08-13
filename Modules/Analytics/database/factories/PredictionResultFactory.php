@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Analytics\database\factories;
+namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Analytics\app\Models\PredictionResult;
+use Modules\Analytics\Models\PredictionResult;
 
 class PredictionResultFactory extends Factory
 {

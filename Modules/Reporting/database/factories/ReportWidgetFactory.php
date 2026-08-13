@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Reporting\database\factories;
+namespace Modules\Reporting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Reporting\app\Models\ReportWidget;
+use Modules\Reporting\Models\ReportWidget;
 
 class ReportWidgetFactory extends Factory
 {

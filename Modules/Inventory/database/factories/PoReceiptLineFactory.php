@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Inventory\database\factories;
+namespace Modules\Inventory\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Inventory\app\Models\PoReceiptLine;
+use Modules\Inventory\Models\PoReceiptLine;
 
 class PoReceiptLineFactory extends Factory
 {

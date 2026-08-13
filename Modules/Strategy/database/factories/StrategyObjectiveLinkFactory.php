@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Strategy\database\factories;
+namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Strategy\app\Models\StrategyObjectiveLink;
+use Modules\Strategy\Models\StrategyObjectiveLink;
 
 class StrategyObjectiveLinkFactory extends Factory
 {

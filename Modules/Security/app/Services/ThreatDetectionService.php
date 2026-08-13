@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Security\app\Services;
+namespace Modules\Security\Services;
 
-use Modules\Security\app\Models\ThreatIndicator;
-use Modules\Security\app\Models\SecurityIncident;
+use Modules\Security\Models\ThreatIndicator;
+use Modules\Security\Models\SecurityIncident;
 use Illuminate\Http\Request;
 
 class ThreatDetectionService

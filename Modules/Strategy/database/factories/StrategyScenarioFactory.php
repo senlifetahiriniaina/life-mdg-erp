@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Strategy\database\factories;
+namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Strategy\app\Models\StrategyScenario;
+use Modules\Strategy\Models\StrategyScenario;
 
 class StrategyScenarioFactory extends Factory
 {

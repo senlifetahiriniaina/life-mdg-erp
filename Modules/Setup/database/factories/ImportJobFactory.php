@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Setup\database\factories;
+namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Setup\app\Models\ImportJob;
+use Modules\Setup\Models\ImportJob;
 
 class ImportJobFactory extends Factory
 {

@@ -1,10 +1,10 @@
 <?php
 
-namespace Modules\Security\app\Services;
+namespace Modules\Security\Services;
 
-use Modules\Security\app\Models\AuthenticationEvent;
-use Modules\Security\app\Models\SecurityIncident;
-use Modules\Security\app\Models\ComplianceControl;
+use Modules\Security\Models\AuthenticationEvent;
+use Modules\Security\Models\SecurityIncident;
+use Modules\Security\Models\ComplianceControl;
 use Illuminate\Support\Facades\Cache;
 
 class SecurityAuditService

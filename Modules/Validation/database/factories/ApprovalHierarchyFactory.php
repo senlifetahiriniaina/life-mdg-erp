@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Validation\database\factories;
+namespace Modules\Validation\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Validation\app\Models\ApprovalHierarchy;
+use Modules\Validation\Models\ApprovalHierarchy;
 
 class ApprovalHierarchyFactory extends Factory
 {

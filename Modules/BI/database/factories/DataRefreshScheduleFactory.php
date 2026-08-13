@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\BI\database\factories;
+namespace Modules\BI\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\BI\app\Models\DataRefreshSchedule;
+use Modules\BI\Models\DataRefreshSchedule;
 
 class DataRefreshScheduleFactory extends Factory
 {

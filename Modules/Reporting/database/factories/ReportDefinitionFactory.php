@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Reporting\database\factories;
+namespace Modules\Reporting\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Reporting\app\Models\ReportDefinition;
+use Modules\Reporting\Models\ReportDefinition;
 
 class ReportDefinitionFactory extends Factory
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Strategy\database\factories;
+namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Strategy\app\Models\RatioSnapshot;
+use Modules\Strategy\Models\RatioSnapshot;
 
 class RatioSnapshotFactory extends Factory
 {

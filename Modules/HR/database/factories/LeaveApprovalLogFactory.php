@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\HR\database\factories;
+namespace Modules\HR\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\HR\app\Models\LeaveApprovalLog;
+use Modules\HR\Models\LeaveApprovalLog;
 
 class LeaveApprovalLogFactory extends Factory
 {

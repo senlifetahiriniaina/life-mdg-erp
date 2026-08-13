@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Logistics\database\factories;
+namespace Modules\Logistics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Logistics\app\Models\LgxShipmentItem;
+use Modules\Logistics\Models\LgxShipmentItem;
 
 class LgxShipmentItemFactory extends Factory
 {

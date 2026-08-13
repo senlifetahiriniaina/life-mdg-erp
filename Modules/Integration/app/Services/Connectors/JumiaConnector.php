@@ -158,7 +158,7 @@ class JumiaConnector
     {
         $sellerSku = $product['SellerSku'] ?? $product['seller_sku'] ?? '';
 
-        $exists = \Modules\Inventory\app\Models\Product::where(
+        $exists = \Modules\Inventory\Models\Product::where(
             'external_id', 'jumia_' . $this->market . '_' . $sellerSku
         )->exists();
 
@@ -239,7 +239,7 @@ class JumiaConnector
     {
         $orderId = $order['OrderId'] ?? $order['order_id'] ?? $order['id'] ?? '';
 
-        $exists = \Modules\Sales\app\Models\Order::where(
+        $exists = \Modules\Sales\Models\Order::where(
             'external_id', 'jumia_' . $this->market . '_' . $orderId
         )->exists();
 

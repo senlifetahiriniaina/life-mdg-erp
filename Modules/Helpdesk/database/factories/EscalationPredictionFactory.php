@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Helpdesk\database\factories;
+namespace Modules\Helpdesk\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Helpdesk\app\Models\EscalationPrediction;
+use Modules\Helpdesk\Models\EscalationPrediction;
 
 class EscalationPredictionFactory extends Factory
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Logistics\database\factories;
+namespace Modules\Logistics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Logistics\app\Models\CustomsItem;
+use Modules\Logistics\Models\CustomsItem;
 
 class CustomsItemFactory extends Factory
 {

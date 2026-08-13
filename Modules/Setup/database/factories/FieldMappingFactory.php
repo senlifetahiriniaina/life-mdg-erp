@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Setup\database\factories;
+namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Setup\app\Models\FieldMapping;
+use Modules\Setup\Models\FieldMapping;
 
 class FieldMappingFactory extends Factory
 {

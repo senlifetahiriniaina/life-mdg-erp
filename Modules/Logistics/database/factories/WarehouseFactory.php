@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Logistics\database\factories;
+namespace Modules\Logistics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Logistics\app\Models\Warehouse;
+use Modules\Logistics\Models\Warehouse;
 
 class WarehouseFactory extends Factory
 {

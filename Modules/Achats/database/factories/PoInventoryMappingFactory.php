@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Achats\database\factories;
+namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Achats\app\Models\PoInventoryMapping;
+use Modules\Achats\Models\PoInventoryMapping;
 
 class PoInventoryMappingFactory extends Factory
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Setup\database\factories;
+namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Setup\app\Models\ImportError;
+use Modules\Setup\Models\ImportError;
 
 class ImportErrorFactory extends Factory
 {

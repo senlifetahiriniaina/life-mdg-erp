@@ -1,5 +1,7 @@
 /vendor
 /node_modules
+/composer.lock
+/package-lock.json
 /public/build
 /public/hot
 /bootstrap/cache/*

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\CRM\database\factories;
+namespace Modules\CRM\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\CRM\app\Models\WebFormSubmission;
+use Modules\CRM\Models\WebFormSubmission;
 
 class WebFormSubmissionFactory extends Factory
 {

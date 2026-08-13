@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Strategy\database\factories;
+namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Strategy\app\Models\Correlation;
+use Modules\Strategy\Models\Correlation;
 
 class CorrelationFactory extends Factory
 {

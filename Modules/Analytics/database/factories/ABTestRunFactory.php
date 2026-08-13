@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Analytics\database\factories;
+namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Analytics\app\Models\ABTestRun;
+use Modules\Analytics\Models\ABTestRun;
 
 class ABTestRunFactory extends Factory
 {

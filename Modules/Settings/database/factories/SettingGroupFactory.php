@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Settings\database\factories;
+namespace Modules\Settings\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Settings\app\Models\SettingGroup;
+use Modules\Settings\Models\SettingGroup;
 
 class SettingGroupFactory extends Factory
 {

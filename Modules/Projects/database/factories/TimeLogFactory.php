@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Projects\database\factories;
+namespace Modules\Projects\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Projects\app\Models\TimeLog;
+use Modules\Projects\Models\TimeLog;
 
 class TimeLogFactory extends Factory
 {

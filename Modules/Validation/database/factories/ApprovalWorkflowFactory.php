@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Validation\database\factories;
+namespace Modules\Validation\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Validation\app\Models\ApprovalWorkflow;
+use Modules\Validation\Models\ApprovalWorkflow;
 
 class ApprovalWorkflowFactory extends Factory
 {

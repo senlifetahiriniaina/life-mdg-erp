@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\Workflow\database\factories;
+namespace Modules\Workflow\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Workflow\app\Models\WorkflowExecutionLog;
+use Modules\Workflow\Models\WorkflowExecutionLog;
 
 class WorkflowExecutionLogFactory extends Factory
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Modules\BI\database\factories;
+namespace Modules\BI\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\BI\app\Models\DndSchedule;
+use Modules\BI\Models\DndSchedule;
 
 class DndScheduleFactory extends Factory
 {
