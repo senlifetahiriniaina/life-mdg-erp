@@ -275,7 +275,6 @@ const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const page = usePage()
 const auth = computed(() => page.props.auth)
 
 const periodFilter = ref('month')

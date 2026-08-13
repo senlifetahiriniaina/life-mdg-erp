@@ -239,7 +239,6 @@ const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const page = usePage()
 const user = computed(() => page.props.auth?.user)
 
 const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })

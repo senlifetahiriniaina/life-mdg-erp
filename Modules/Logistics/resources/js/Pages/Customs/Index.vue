@@ -246,7 +246,6 @@ const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const page = usePage()
 const user = computed(() => page.props.auth?.user)
 
 const search = ref('')

@@ -111,8 +111,6 @@ const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
 const refreshing = ref(false)
 const showAlertDrawer = ref(false)
 const selectedAlert = ref(null)

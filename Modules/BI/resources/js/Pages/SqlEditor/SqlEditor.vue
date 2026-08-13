@@ -245,7 +245,6 @@ const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const page = usePage()
 const userRoles: string[] = (page.props.auth as any)?.user?.roles ?? []
 const canRun = userRoles.some(r => ['super_admin','admin','bi_analyst','reporting_manager'].includes(r))
 
