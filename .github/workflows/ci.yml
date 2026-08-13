@@ -54,17 +54,17 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
           extensions: redis, mbstring, pdo, pdo_mysql, bcmath
           coverage: none
 
       - name: Cache Composer Dependencies
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e78fa00d
+        uses: actions/cache@v4
         with:
           path: ~/.composer/cache
           key: ${{ runner.os }}-composer-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
@@ -120,10 +120,10 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload Build Artifact
         if: success()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: public/build/
@@ -159,10 +159,10 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
           extensions: mbstring, pdo, pdo_mysql
@@ -174,7 +174,7 @@ jobs:
         run: composer audit || true
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 

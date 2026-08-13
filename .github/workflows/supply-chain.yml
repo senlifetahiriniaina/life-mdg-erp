@@ -25,10 +25,10 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
 
       - name: Run Trivy (filesystem)
-        uses: aquasecurity/trivy-action@915914de5889378d31cfa13f78ef0a98d4e5eee
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -40,7 +40,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@1b549b9259bda1cb5ddde3b41741a82a2f15a6d9
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         continue-on-error: true
         with:
@@ -48,7 +48,7 @@ jobs:
           category: trivy-fs
 
       - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@v4
         if: always()
         continue-on-error: true
         with:
@@ -63,10 +63,10 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring
@@ -83,7 +83,7 @@ jobs:
           composer make-bom --output-format JSON --output-file sbom-php.cdx.json || true
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
         continue-on-error: true
@@ -95,7 +95,7 @@ jobs:
           npx @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom-frontend.cdx.json || true
 
       - name: Upload SBOMs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
           name: sbom-${{ github.sha }}
@@ -109,12 +109,12 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@d8a81cfa6c05c97ade33756b764d9e0dc9cbf19e
+        uses: trufflesecurity/trufflehog@v3.96.0
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
@@ -130,10 +130,10 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@v6
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@38b3f31d9f31a256dc8274a47b50c2a7d5a78be5
+        uses: actions/dependency-review-action@v5.0.0
         with:
           fail-on-severity: critical
           deny-licenses: GPL-3.0, AGPL-3.0

@@ -28,10 +28,10 @@ jobs:
       url: ${{ steps.deploy.outputs.url }}
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231  # v2.31.1
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: redis, mbstring, pdo, pdo_mysql, bcmath
@@ -41,7 +41,7 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Cache Composer Dependencies
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e78fa00d  # v4.2.2
+        uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -54,7 +54,7 @@ jobs:
         run: php artisan package:discover --ansi
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74  # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
@@ -144,7 +144,7 @@ jobs:
 
       - name: Slack Notification
         if: always()
-        uses: slackapi/slack-github-action@e28cf165c2eba7c5d60e5cf0e64e5c34698da40a  # v1.24.0
+        uses: slackapi/slack-github-action@v4
         with:
           payload: |
             {
@@ -169,7 +169,7 @@ jobs:
     if: success()
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - uses: actions/checkout@v6
 
       - name: Wait for Deployment
         run: sleep 30
@@ -224,7 +224,7 @@ jobs:
           EOF
 
       - name: Notify Rollback
-        uses: slackapi/slack-github-action@e28cf165c2eba7c5d60e5cf0e64e5c34698da40a  # v1.24.0
+        uses: slackapi/slack-github-action@v4
         with:
           payload: |
             {
