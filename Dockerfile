@@ -34,8 +34,9 @@ RUN composer install --no-scripts --no-dev --prefer-dist --no-interaction
 # Copy application
 COPY . .
 
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+# Install Node.js (22.x, matching ci.yml's NODE_VERSION — vite requires
+# Node 20.19+/22.12+ and fails with "CustomEvent is not defined" on 18.x)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
