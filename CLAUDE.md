@@ -73,7 +73,7 @@ vendor/bin/pint --test           # Code style
 
 **Frontend (Vue 3):**
 ```bash
-npm ci
+npm install
 npm run dev                      # Start dev server
 npm run type-check
 npm run lint
@@ -84,7 +84,7 @@ npm run test                     # Vitest unit tests
 ## Known gaps (not blocking launch, tracked here rather than silently left)
 
 - **`composer.json`** intentionally drops the `widehalo/core`/`widehalo/modules` requires and their `.widehalo-core` path-repositories that Widehalo-ERP carried — nothing in the app code actually imports from that namespace (confirmed by grep across the whole tree before removing it), so it was dead weight.
-- **`composer.lock` / `package-lock.json` are gitignored** (matching Widehalo-ERP's own convention) — run `composer install` / `npm ci` fresh; `nunomaduro/larastan` (dev-only, static analysis) may need a working GitHub API connection to install depending on your network — it is not required to run the app or the test suite.
+- **`composer.lock` / `package-lock.json` are gitignored** (matching Widehalo-ERP's own convention) — run `composer install` / `npm install` fresh (not `npm ci`, which requires a lockfile to already exist rather than generating one — this bit CI too, see the GitHub Actions workflows' commit history); `nunomaduro/larastan` (dev-only, static analysis) may need a working GitHub API connection to install depending on your network — it is not required to run the app or the test suite.
 - **A batch of features were already incomplete in the source Widehalo-ERP repo**, not something this extraction broke — multi-company Consolidation (`ConsolidationGroup`), ASC606 Revenue Recognition (`RevenueRecognitionEvent`), some Depreciation/Budget-variance advanced models (`GLJournal`, `BudgetActual`, `BudgetAlert`, `BudgetForecast`, `GLEntry`), a chunk of Security's deeper compliance-audit models (`ComplianceAudit`, `ComplianceViolation`, `EncryptedField`, `EncryptionKey`, `ServiceIdentity`, `TrustZone` — all reference a never-created root `App\Models\Company`), and a handful of Analytics ML-model classes reference model/service classes that were never actually created anywhere in the codebase, source included. These surface as individual test failures, not crashes — `vendor/bin/pest` runs to completion without fatal errors. They're enterprise-scope, not needed for Life MDG's initial launch; treat them as a backlog, not a regression.
 - **Strategy module's `training_roi`/`time_to_fill` HR ratios** return static fallback values (145.0 / 28 days) since they depend on the Training/ATS features that are out of scope — this was already the design pattern used throughout `KPIRegistryService` for any data source that might not exist (every KPI query is wrapped in try/catch with a fallback), so it degrades the same way the rest of the app does when a data source is thin.
 - **`Modules/Projects`' wiki feature was removed** (depended on the excluded `Notes` module) rather than decoupled with a stub — it was a self-contained side feature (`ProjectWikiService`/`ProjectWikiController`), not core project management.

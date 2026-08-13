@@ -24,7 +24,7 @@ Le `.env.example` contient déjà `ENABLED_MODULES` avec la liste des 27 modules
 ## Installation frontend
 
 ```bash
-npm ci
+npm install
 npm run dev
 ```
 
@@ -49,5 +49,5 @@ php -l $(find app Modules -name "*.php") # sweep de syntaxe PHP — utile après
 ## Dépannage courant
 
 - **`nunomaduro/larastan` échoue à l'installation** : ce package (analyse statique, dev uniquement) peut nécessiter un accès réseau à l'API GitHub selon votre environnement. Il n'est pas requis pour lancer l'application ou la suite de tests — vous pouvez le retirer temporairement de `composer.json` si votre réseau le bloque.
-- **`composer.lock` / `package-lock.json` absents du dépôt** : ils sont volontairement dans `.gitignore` (convention héritée de Widehalo-ERP) — relancez `composer install`/`npm ci` pour les régénérer localement.
+- **`composer.lock` / `package-lock.json` absents du dépôt** : ils sont volontairement dans `.gitignore` (convention héritée de Widehalo-ERP) — relancez `composer install`/`npm install` (pas `npm ci`, qui exige un lockfile déjà existant plutôt que d'en générer un — cette confusion a fait échouer les workflows CI avant correction, voir l'historique de commits de `.github/workflows/`) pour les régénérer localement.
 - **Erreurs de namespace PSR-4 après ajout d'un fichier dans `Modules/`** : ce dépôt a un historique de mismatches namespace/nom-de-fichier qui font disparaître silencieusement des classes de l'autoload (voir l'historique git de l'extraction). Un `php -l` large sur les fichiers modifiés est la meilleure protection.

@@ -2,7 +2,7 @@
 
 Life MDG's own ERP, built on the WideHalo ERP platform (Laravel 12 + Vue 3 + Inertia). This repository keeps the core system modules plus four business domains — Compta/Finance, Commercial/CRM, Stock/Logistique, and Pilotage/Reporting — enriched with a basic HR module (attendance, leave, payroll, project timesheets) and a Helpdesk module coupled to every other module for incident/request management.
 
-See [CLAUDE.md](CLAUDE.md) for the full module scope, architecture notes, and known gaps.
+See [CLAUDE.md](CLAUDE.md) for the full module scope, architecture notes, and known gaps, and [docs/INDEX.md](docs/INDEX.md) for the full technical documentation (architecture, per-module deep-dives, API conventions, database, deployment, RBAC/security, testing).
 
 ## Quick start
 
@@ -14,7 +14,7 @@ php artisan key:generate
 php artisan migrate --seed
 
 # Frontend
-npm ci
+npm install
 npm run dev
 
 # Backend dev server
