@@ -14,9 +14,9 @@ updates:
       - "dependencies"
       - "github-actions"
 
-  # PHP / Composer
+  # PHP / Composer (root — single Laravel app, no apps/api split)
   - package-ecosystem: "composer"
-    directory: "/apps/api"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -32,9 +32,9 @@ updates:
       - dependency-name: "laravel/framework"
         update-types: ["version-update:semver-major"]
 
-  # Node — webapp-business
+  # Node / npm (root — frontend lives in resources/js/, no separate webapp/ dir)
   - package-ecosystem: "npm"
-    directory: "/apps/webapp-business"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -44,44 +44,9 @@ updates:
       - "dependencies"
       - "javascript"
 
-  # Node — webapp-ecommerce
-  - package-ecosystem: "npm"
-    directory: "/apps/webapp-ecommerce"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "javascript"
-
-  # Node — mobile
-  - package-ecosystem: "npm"
-    directory: "/apps/mobile"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "react-native"
-
-  # Docker images in root
+  # Docker image (root Dockerfile)
   - package-ecosystem: "docker"
-    directory: "/infrastructure/docker-compose"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  - package-ecosystem: "docker"
-    directory: "/infrastructure/docker"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"

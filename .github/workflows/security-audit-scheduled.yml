@@ -61,14 +61,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: webapp/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Frontend - webapp Audit
-        id: audit-wb
+      - name: Frontend Audit
+        id: audit-frontend
         run: |
-          cd webapp
           npm ci
-          echo "## webapp Security Audit" >> $GITHUB_STEP_SUMMARY
+          echo "## Frontend Security Audit" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           npm audit --json > audit-report.json 2>&1 || true
           cat audit-report.json | jq '.metadata.vulnerabilities' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "0 vulnerabilities" >> $GITHUB_STEP_SUMMARY
@@ -87,8 +86,7 @@ jobs:
 
           This automated security audit checks for known vulnerabilities across:
           - Backend (PHP/Composer)
-          - Frontend web applications (JavaScript/npm)
-          - Mobile application (React Native/npm)
+          - Frontend (JavaScript/npm)
 
           ## Instructions
 
@@ -99,17 +97,14 @@ jobs:
              gh issue create --title "[SECURITY] Vulnerability in package-name" \
                --body "Severity: [Critical/High/Moderate]\nCVE: [if applicable]\nUpdate to: [version]"
              ```
-          4. **Update Log:** Update `VULNERABILITIES.md` with findings
-          5. **Schedule Updates:** Follow `DEPENDENCY-UPDATE-POLICY.md` for timelines
+          4. **Schedule Updates:** Prioritize by severity, test thoroughly before deploying
 
           ## Quick Actions
 
           ### Fix Automatic Vulnerabilities
           ```bash
-          cd webapp && npm audit fix
-          cd apps/webapp-ecommerce && npm audit fix
-          cd apps/mobile && npm audit fix --legacy-peer-deps
-          cd apps/api && composer update
+          npm audit fix
+          composer update
           ```
 
           ### Manual Review Needed
@@ -120,9 +115,6 @@ jobs:
           ## References
 
           - [SECURITY.md](SECURITY.md) - Security Policy
-          - [DEPENDENCY-UPDATE-POLICY.md](DEPENDENCY-UPDATE-POLICY.md) - Update Procedures
-          - [VULNERABILITIES.md](VULNERABILITIES.md) - Vulnerability Log
-          - [security/SECURITY_AUDIT.md](security/SECURITY_AUDIT.md) - Full Audit Report
 
           ---
 
@@ -138,7 +130,7 @@ jobs:
           name: weekly-security-audit-report
           path: |
             SECURITY_AUDIT_REPORT.md
-            webapp/audit-report.json
+            audit-report.json
           retention-days: 90
 
       - name: Create Issue for High Vulnerabilities
@@ -158,9 +150,10 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🔐 **Security Audit Failed**: Please check the workflow logs for details.'
+              title: `🔐 Scheduled security audit failed — ${new Date().toISOString().slice(0, 10)}`,
+              body: 'The weekly scheduled security audit workflow failed. Check the workflow run logs for details.',
+              labels: ['security', 'automated']
             })

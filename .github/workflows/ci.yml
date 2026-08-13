@@ -1,15 +1,9 @@
-name: CI — WideHalo ERP (Hub)
+name: CI — Life MDG ERP
 
 # ───────────────────────────────────────────────────────────────────────────
-# Monorepo principal — scope de ce CI:
-#   apps/api/             → API Laravel 12 (source)
-#   webapp/ → ERP frontend Vue 3
-#
-# CI dédiés dans les sous-dépôts:
-#   apps/webapp-ecommerce → widehalo-erp-ecommerce
-#   apps/mobile           → widehalo-erp-mobile
-#   apps/admin-cli        → widehalo-erp-admin
-#   packages/*            → widehalo-erp-core
+# Dépôt autonome, structure Laravel standard : composer.json/package.json à la
+# racine, backend dans app/+Modules/*, frontend dans resources/js/ (pas de
+# dossier webapp/ séparé, pas de split multi-dépôt comme WideHalo ERP).
 # ───────────────────────────────────────────────────────────────────────────
 
 on:
@@ -19,9 +13,9 @@ on:
     branches: [main, develop]
 
 concurrency:
-  # Include the event name so the push run and the pull_request run for the same
-  # ref do NOT share a group and cancel each other (that self-cancellation marked
-  # every run as failed — cancellation overrides job-level continue-on-error).
+  # Inclut le nom de l'event pour que le run push et le run pull_request d'une
+  # même ref ne partagent pas de groupe et ne s'annulent pas mutuellement
+  # (l'annulation prime sur continue-on-error au niveau job).
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
@@ -41,7 +35,7 @@ jobs:
         image: mysql:8.4.5
         env:
           MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: widehalo_test
+          MYSQL_DATABASE: life_mdg_test
         options: >
           --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot --silent"
           --health-interval=10s
@@ -61,9 +55,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-        with:
-          submodules: recursive
-          token: ${{ secrets.SUBMODULE_PAT || github.token }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
@@ -99,7 +90,7 @@ jobs:
         env:
           APP_ENV: testing
           DB_CONNECTION: mysql
-          DB_DATABASE: widehalo_test
+          DB_DATABASE: life_mdg_test
           DB_USERNAME: root
           DB_PASSWORD: root
           DB_HOST: 127.0.0.1
@@ -109,7 +100,7 @@ jobs:
         env:
           APP_ENV: testing
           DB_CONNECTION: mysql
-          DB_DATABASE: widehalo_test
+          DB_DATABASE: life_mdg_test
           DB_USERNAME: root
           DB_PASSWORD: root
           DB_HOST: 127.0.0.1
@@ -121,53 +112,46 @@ jobs:
       - name: Run Code Style Check (Pint)
         run: vendor/bin/pint --test || true
 
-  # ── 2. Frontend Build — webapp (informationnel) ───────────────────
+  # ── 2. Frontend Build (informationnel) ──────────────────────────────────────
   frontend-build:
-    name: Frontend Build — webapp
+    name: Frontend Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     continue-on-error: true
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-        with:
-          submodules: recursive
-          token: ${{ secrets.SUBMODULE_PAT || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
         with:
           node-version: ${{ env.NODE_VERSION }}
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@senlifetahiriniaina'
           cache: 'npm'
-          cache-dependency-path: webapp/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install Dependencies
-        run: cd webapp && npm install --legacy-peer-deps
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm ci --legacy-peer-deps
 
       - name: Type Check
         continue-on-error: true
-        run: cd webapp && npm run type-check
+        run: npm run type-check
 
       - name: Lint
         continue-on-error: true
-        run: cd webapp && npm run lint
+        run: npm run lint
 
       - name: Build for Production
-        run: cd webapp && npm run build
+        run: npm run build
 
       - name: Upload Build Artifact
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: frontend-dist-webapp
-          path: webapp/dist/
+          name: frontend-dist
+          path: public/build/
           retention-days: 7
 
-  # ── 3. Security Scan (informationnel) ───────────────────────────────────
+  # ── 3. Security Scan (informationnel) ───────────────────────────────────────
   security-scan:
     name: Security Scanning
     runs-on: ubuntu-latest
@@ -176,9 +160,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-        with:
-          submodules: recursive
-          token: ${{ secrets.SUBMODULE_PAT || github.token }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
@@ -196,13 +177,9 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
         with:
           node-version: ${{ env.NODE_VERSION }}
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@senlifetahiriniaina'
 
-      - name: Audit NPM Dependencies (webapp)
-        run: cd webapp && npm install --legacy-peer-deps && npm audit --audit-level=high || true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Audit NPM Dependencies
+        run: npm ci --legacy-peer-deps && npm audit --audit-level=high || true
 
   # ── 4. Build Status (toujours vert — informationnel uniquement) ─────────────
   build-status:
@@ -211,27 +188,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
-    # Informational gate only — never fail the Hub run (matches the all
-    # continue-on-error design of the Supply Chain & Performance Budget workflows,
-    # whose runs already conclude success).
+    # Gate informationnel uniquement — ne fait jamais échouer le run (même
+    # pattern que Supply Chain & Performance Budget, dont les runs concluent
+    # toujours en succès).
     continue-on-error: true
 
     steps:
       - name: Report Results
         run: |
           echo "================================================"
-          echo " WideHalo ERP — CI Status Summary"
+          echo " Life MDG ERP — CI Status Summary"
           echo "================================================"
           echo ""
           echo "PHP Tests:       ${{ needs.php-tests.result }}"
           echo "Frontend Build:  ${{ needs.frontend-build.result }}"
           echo "Security Scan:   ${{ needs.security-scan.result }}"
-          echo ""
-          echo "Sub-repo CIs:"
-          echo "  API:       https://github.com/senlifetahiriniaina/widehalo-erp-api/actions"
-          echo "  Ecommerce: https://github.com/senlifetahiriniaina/widehalo-erp-ecommerce/actions"
-          echo "  Mobile:    https://github.com/senlifetahiriniaina/widehalo-erp-mobile/actions"
-          echo "  Admin:     https://github.com/senlifetahiriniaina/widehalo-erp-admin/actions"
-          echo "  Core:      https://github.com/senlifetahiriniaina/widehalo-erp-core/actions"
           echo "================================================"
           echo "✅ CI report complete (tous les checks sont informationnels)"

@@ -16,10 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [webapp]
 
     steps:
       - name: Checkout code
@@ -30,24 +26,23 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: '${{ matrix.app }}/package-lock.json'
+          cache-dependency-path: package-lock.json
 
-      - name: Install dependencies (${{ matrix.app }})
-        run: cd ${{ matrix.app }} && npm ci --legacy-peer-deps
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
-      - name: Build frontend (${{ matrix.app }})
-        run: cd ${{ matrix.app }} && npm run build
+      - name: Build frontend
+        run: npm run build
         env:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN || '' }}
 
-      - name: Check JavaScript bundle size (${{ matrix.app }})
+      - name: Check JavaScript bundle size
         run: |
-          cd ${{ matrix.app }}
-          echo "📦 JavaScript Bundle Size Analysis (${{ matrix.app }})"
+          echo "📦 JavaScript Bundle Size Analysis"
           echo "=================================================="
 
-          VENDOR_BUNDLE=$(find dist -name 'vendor-core-*.js' -type f 2>/dev/null | head -1)
-          INDEX_BUNDLE=$(find dist -name 'index-*.js' -type f 2>/dev/null | head -1)
+          VENDOR_BUNDLE=$(find public/build -name 'vendor-core-*.js' -type f 2>/dev/null | head -1)
+          INDEX_BUNDLE=$(find public/build -name 'app-*.js' -type f 2>/dev/null | head -1)
           BUNDLE_FILE=${VENDOR_BUNDLE:-$INDEX_BUNDLE}
 
           if [ -z "$BUNDLE_FILE" ]; then
@@ -68,19 +63,13 @@ jobs:
 
       - name: Performance budget summary
         if: always()
-        run: echo "✅ Performance check complete for ${{ matrix.app }}"
+        run: echo "✅ Performance check complete"
 
   lighthouse-ci:
     name: Lighthouse CI
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - app: webapp
-            port: 5173
 
     steps:
       - name: Checkout code
@@ -91,24 +80,23 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: '${{ matrix.app }}/package-lock.json'
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: cd ${{ matrix.app }} && npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps
 
       - name: Build frontend
-        run: cd ${{ matrix.app }} && npm run build || true
+        run: npm run build || true
 
       - name: Run Lighthouse CI
         continue-on-error: true
         run: |
-          cd ${{ matrix.app }}
           npm install -g @lhci/cli@0.10.x
           npm run dev > /tmp/dev.log 2>&1 &
           DEV_PID=$!
-          timeout 30 bash -c "until curl -sf http://localhost:${{ matrix.port }} > /dev/null 2>&1; do sleep 0.5; done" || { kill $DEV_PID 2>/dev/null; echo "Server timeout"; exit 0; }
+          timeout 30 bash -c "until curl -sf http://localhost:5173 > /dev/null 2>&1; do sleep 0.5; done" || { kill $DEV_PID 2>/dev/null; echo "Server timeout"; exit 0; }
           if [ -f lighthouserc.json ]; then
-            BASE_URL=http://localhost:${{ matrix.port }} lhci autorun --config=lighthouserc.json || true
+            BASE_URL=http://localhost:5173 lhci autorun --config=lighthouserc.json || true
           fi
           kill $DEV_PID 2>/dev/null || true
 
@@ -116,10 +104,6 @@ jobs:
     name: Dependency Audit
     runs-on: ubuntu-latest
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [webapp]
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
@@ -129,9 +113,9 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Audit (${{ matrix.app }})
+      - name: Audit
         run: |
-          cd ${{ matrix.app }} && npm ci --legacy-peer-deps --ignore-scripts
+          npm ci --legacy-peer-deps --ignore-scripts
           npm audit --audit-level=moderate || true
 
   comment-pr:

@@ -69,15 +69,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: webapp/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Check webapp Dependencies
-        id: wb-check
+      - name: Check Frontend Dependencies
+        id: frontend-check
         run: |
-          cd webapp
           npm ci > /dev/null 2>&1 || true
 
-          echo "## webapp Dependency Status" >> $GITHUB_STEP_SUMMARY
+          echo "## Frontend Dependency Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -107,7 +106,8 @@ jobs:
 
           ## Overview
 
-          This report shows outdated packages across all applications. Use this to plan dependency updates.
+          This report shows outdated packages across the backend (Composer) and
+          frontend (npm). Use it to plan dependency updates.
 
           ## Update Priority
 
@@ -131,19 +131,19 @@ jobs:
           - [ ] Identify critical updates
           - [ ] Create feature branches for updates
           - [ ] Test thoroughly before deployment
-          - [ ] Update VULNERABILITIES.md
 
           ## Useful Commands
 
           ```bash
           # Check for outdated packages
-          ./scripts/check-all-updates.sh
+          composer show --outdated --direct
+          npm outdated
 
           # Run security audit
-          ./scripts/security-audit.sh
+          composer audit
+          npm audit
 
           # Update specific package
-          cd webapp
           npm update package-name
           npm run test
 
@@ -153,8 +153,6 @@ jobs:
 
           ## References
 
-          - [DEPENDENCY-UPDATE-POLICY.md](DEPENDENCY-UPDATE-POLICY.md)
-          - [VULNERABILITIES.md](VULNERABILITIES.md)
           - [SECURITY.md](SECURITY.md)
 
           ---
@@ -179,5 +177,4 @@ jobs:
           echo ""
           echo "Summary:"
           echo "- Check step summary above for outdated packages"
-          echo "- Run 'npm outdated' locally for full details"
-          echo "- Follow DEPENDENCY-UPDATE-POLICY.md for update procedures"
+          echo "- Run 'npm outdated' / 'composer show --outdated --direct' locally for full details"

@@ -88,11 +88,11 @@ jobs:
           node-version: '22'
         continue-on-error: true
 
-      - name: Generate Node SBOM (webapp)
+      - name: Generate Node SBOM (frontend)
         continue-on-error: true
         run: |
-          cd webapp && npm ci --ignore-scripts 2>/dev/null || true
-          npx @cyclonedx/cyclonedx-npm --output-format JSON --output-file ../sbom-webapp.cdx.json || true
+          npm ci --ignore-scripts 2>/dev/null || true
+          npx @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom-frontend.cdx.json || true
 
       - name: Upload SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

@@ -47,27 +47,13 @@ Brief description of what dependencies were updated and why.
 | spatie/laravel-permission | 6.8.x | 6.9.0 | Patch | No |
 | stripe/stripe-php | 20.0.0 | 20.1.0 | Patch | No |
 
-### Frontend - webapp-business (Vue 3)
+### Frontend (Vue 3)
 
 | Package | Old Version | New Version | Severity | Breaking |
 |---|---|---|---|---|
 | vue | 3.3.x | 3.4.x | Minor | No |
 | primevue | 3.x | 4.x | Major | Yes |
 | axios | 1.6.5 | 1.7.4 | Security | No |
-
-### Frontend - webapp-ecommerce (Vue 3)
-
-| Package | Old Version | New Version | Severity | Breaking |
-|---|---|---|---|---|
-| vue | 3.3.x | 3.4.x | Minor | No |
-| primevue | 3.x | 4.x | Major | Yes |
-
-### Mobile (React Native)
-
-| Package | Old Version | New Version | Severity | Breaking |
-|---|---|---|---|---|
-| react | 18.x | 18.y | Patch | No |
-| expo | 49.x | 50.x | Minor | No |
 
 ---
 
@@ -128,7 +114,6 @@ import { NewComponent } from 'primevue/components';
 
 ### Frontend Tests
 
-**webapp-business**:
 - [x] TypeScript Check: `npm run type-check`
   - **Result**: Clean ✅
   
@@ -144,24 +129,6 @@ import { NewComponent } from 'primevue/components';
 - [x] Production Build: `npm run build`
   - **Result**: Build successful ✅
   - **Bundle Size**: [Size change: +/- X KB]
-
-**webapp-ecommerce**:
-- [x] All tests passing ✅
-- [x] Production build successful ✅
-
-### Mobile Tests
-
-- [x] Jest Tests: `npm run test:ci`
-  - **Result**: X/X passing ✅
-  
-- [x] Linting: `npm run lint`
-  - **Result**: Clean ✅
-  
-- [x] Android Build: `npm run build:android`
-  - **Result**: Build successful ✅
-  
-- [x] iOS Build: `npm run build:ios`
-  - **Result**: Build successful ✅
 
 ### Security Tests
 
@@ -358,5 +325,4 @@ git reset --hard <previous-commit>
 ## Template Version
 
 - **Template Version**: 1.0
-- **Last Updated**: May 22, 2026
-- **See Also**: [DEPENDENCY-MANAGEMENT.md](/docs/09-DEPENDENCY-MANAGEMENT/DEPENDENCY-MANAGEMENT.md)
+- **See Also**: [SECURITY.md](/SECURITY.md)

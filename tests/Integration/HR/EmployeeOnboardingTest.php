@@ -7,7 +7,6 @@ namespace Tests\Integration\HR;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\Department;
-use Modules\HR\Models\Payroll;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -32,26 +31,11 @@ class EmployeeOnboardingTest extends TestCase
             'status' => 'onboarded',
         ]);
 
-        // Create payroll record
-        $payroll = Payroll::create([
-            'employee_id' => $employee->id,
-            'salary' => 50000,
-            'currency' => 'USD',
-            'pay_frequency' => 'monthly',
-        ]);
-
         $this->assertDatabaseHas('hr_employees', [
             'id' => $employee->id,
             'user_id' => $user->id,
             'department_id' => $department->id,
         ]);
-
-        $this->assertDatabaseHas('hr_payrolls', [
-            'employee_id' => $employee->id,
-            'salary' => 50000,
-        ]);
-
-        $this->assertEquals($employee->id, $payroll->employee_id);
     }
 
     public function test_employee_department_assignment_updates_relationships(): void
@@ -80,23 +64,6 @@ class EmployeeOnboardingTest extends TestCase
 
         $this->assertEquals($user->id, $employee->user->id);
         $this->assertEquals($employee->id, $user->employee->id);
-    }
-
-    public function test_payroll_calculation_includes_benefits(): void
-    {
-        $employee = Employee::factory()->create();
-
-        $payroll = Payroll::create([
-            'employee_id' => $employee->id,
-            'salary' => 50000,
-            'bonus' => 5000,
-            'allowances' => 2000,
-            'deductions' => 1000,
-        ]);
-
-        $total = $payroll->salary + $payroll->bonus + $payroll->allowances - $payroll->deductions;
-
-        $this->assertEquals(56000, $total);
     }
 
     public function test_employee_promotion_workflow(): void

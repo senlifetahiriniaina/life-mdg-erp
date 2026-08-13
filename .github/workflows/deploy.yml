@@ -29,9 +29,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-        with:
-          submodules: recursive
-          token: ${{ secrets.SUBMODULE_PAT || github.token }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231  # v2.31.1
@@ -70,10 +67,9 @@ jobs:
 
       - name: Create Deployment Artifact
         run: |
-          tar -czf widehalo-${{ github.sha }}.tar.gz \
+          tar -czf life-mdg-erp-${{ github.sha }}.tar.gz \
             --exclude=.git \
             --exclude=node_modules \
-            --exclude=mobile \
             --exclude=.env \
             --exclude=.env.* \
             --exclude=storage/logs \
@@ -92,7 +88,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
 
-          scp -i ~/.ssh/deploy_key widehalo-${{ github.sha }}.tar.gz \
+          scp -i ~/.ssh/deploy_key life-mdg-erp-${{ github.sha }}.tar.gz \
             $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/releases/
 
       - name: Execute Deployment
@@ -115,7 +111,7 @@ jobs:
 
             # Extract new release
             mkdir -p releases/${{ github.sha }}
-            tar -xzf releases/widehalo-${{ github.sha }}.tar.gz -C releases/${{ github.sha }}
+            tar -xzf releases/life-mdg-erp-${{ github.sha }}.tar.gz -C releases/${{ github.sha }}
 
             # Install dependencies
             cd releases/${{ github.sha }}
@@ -174,9 +170,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-        with:
-          submodules: recursive
-          token: ${{ secrets.SUBMODULE_PAT || github.token }}
 
       - name: Wait for Deployment
         run: sleep 30

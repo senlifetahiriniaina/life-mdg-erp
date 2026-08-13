@@ -11,7 +11,7 @@ assignees: ''
 
 ### Package Information
 
-- **Package Name**: [e.g., laravel/framework, vue, react-native]
+- **Package Name**: [e.g., laravel/framework, vue, spatie/laravel-permission]
 - **Current Version**: [e.g., 11.45.0]
 - **Target Version**: [e.g., 12.0.0]
 - **Update Type**: 
@@ -47,10 +47,8 @@ assignees: ''
 #### Affected Applications
 
 - [ ] Backend (Laravel API)
-- [ ] Frontend - webapp-business (Vue 3)
-- [ ] Frontend - webapp-ecommerce (Vue 3)
-- [ ] Mobile (React Native)
-- [ ] All applications
+- [ ] Frontend (Vue 3)
+- [ ] Both
 
 #### Breaking Changes
 
@@ -88,12 +86,6 @@ Before merging, verify:
 - [ ] `npm run test:e2e` - E2E tests passing
 - [ ] `npm run build` - Production build successful
 - [ ] Bundle size within acceptable range
-
-#### Mobile (React Native)
-- [ ] `npm run test:ci` - Jest tests passing
-- [ ] `npm run lint` - Linting passing
-- [ ] `npm run build:android` - Android build working
-- [ ] `npm run build:ios` - iOS build working
 
 #### Performance
 
@@ -212,7 +204,6 @@ Please add appropriate labels:
 - `routine` - Regular monthly update
 - `backend` - Affects backend only
 - `frontend` - Affects frontend only
-- `mobile` - Affects mobile only
 
 ---
 
