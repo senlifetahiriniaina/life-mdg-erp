@@ -12,11 +12,13 @@ class OpenAIProvider implements AIProviderContract
 {
     private string $model;
     private string $embeddingModel;
+    private bool $configured;
 
     public function __construct()
     {
         $this->model = config('ai.providers.openai.model', 'gpt-4o');
         $this->embeddingModel = config('ai.providers.openai.embedding_model', 'text-embedding-3-small');
+        $this->configured = (config('ai.providers.openai.api_key') ?? '') !== '';
     }
 
     public function chat(array $messages, array $options = []): string
@@ -67,5 +69,10 @@ class OpenAIProvider implements AIProviderContract
     public function getProviderName(): string
     {
         return 'openai';
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->configured;
     }
 }

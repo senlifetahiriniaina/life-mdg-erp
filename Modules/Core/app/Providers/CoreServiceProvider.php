@@ -44,6 +44,16 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         // Bind AI services as singletons
         $this->app->singleton(\Modules\Core\Services\AI\AnthropicProvider::class);
         $this->app->singleton(\Modules\Core\Services\AI\OpenAIProvider::class);
+        // Built via an explicit closure (not left to container auto-wiring):
+        // DeepSeekProvider's constructor accepts an optional OpenAI\Contracts\ClientContract
+        // for test injection, and that interface has a container binding (from
+        // openai-php/laravel) whose factory throws ApiKeyIsMissing when no OpenAI
+        // key is configured. Auto-wiring would eagerly resolve that binding for the
+        // nullable param and crash — the closure below skips that resolution entirely.
+        $this->app->singleton(
+            \Modules\Core\Services\AI\DeepSeekProvider::class,
+            fn () => new \Modules\Core\Services\AI\DeepSeekProvider()
+        );
         $this->app->singleton(\Modules\Core\Services\AI\AIService::class);
         $this->app->singleton(\Modules\Core\Services\ModuleManager::class);
         $this->app->singleton(\Modules\Core\Services\SyncService::class);

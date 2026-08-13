@@ -19,7 +19,7 @@ test('AiContextualAssistantService class exists', function () {
 });
 
 test('AiContextualAssistantService can be instantiated without API key', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service = new AiContextualAssistantService();
     expect($service)->toBeInstanceOf(AiContextualAssistantService::class);
 });
@@ -27,7 +27,7 @@ test('AiContextualAssistantService can be instantiated without API key', functio
 // ─── Fallback behavior ────────────────────────────────────────────────────────
 
 test('getGuidance returns fallback with enabled=false when API key is absent', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->getGuidance('CRM', 'create_contact');
 
@@ -35,7 +35,7 @@ test('getGuidance returns fallback with enabled=false when API key is absent', f
 });
 
 test('getGuidance always returns all 7 required keys', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->getGuidance('HR', 'create_employee');
 
@@ -50,7 +50,7 @@ test('getGuidance always returns all 7 required keys', function () {
 });
 
 test('fallbackGuidance what_to_do is a non-empty string', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Accounting', 'post_invoice', 'fr');
 
@@ -58,7 +58,7 @@ test('fallbackGuidance what_to_do is a non-empty string', function () {
 });
 
 test('fallbackGuidance how_to_do is a non-empty array', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Inventory', 'receive_stock', 'fr');
 
@@ -66,7 +66,7 @@ test('fallbackGuidance how_to_do is a non-empty array', function () {
 });
 
 test('fallbackGuidance tips is an array', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('POS', 'open_session', 'en');
 
@@ -76,7 +76,7 @@ test('fallbackGuidance tips is an array', function () {
 // ─── All 7 supported modules return valid guidance ────────────────────────────
 
 test('CRM create_contact fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('CRM', 'create_contact', 'fr');
 
@@ -85,7 +85,7 @@ test('CRM create_contact fallback returns valid guidance', function () {
 });
 
 test('Accounting post_invoice fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Accounting', 'post_invoice', 'fr');
 
@@ -93,7 +93,7 @@ test('Accounting post_invoice fallback returns valid guidance', function () {
 });
 
 test('HR create_employee fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('HR', 'create_employee', 'fr');
 
@@ -101,7 +101,7 @@ test('HR create_employee fallback returns valid guidance', function () {
 });
 
 test('Inventory receive_stock fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Inventory', 'receive_stock', 'fr');
 
@@ -109,7 +109,7 @@ test('Inventory receive_stock fallback returns valid guidance', function () {
 });
 
 test('Sales create_order fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Sales', 'create_order', 'fr');
 
@@ -117,7 +117,7 @@ test('Sales create_order fallback returns valid guidance', function () {
 });
 
 test('POS process_payment fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('POS', 'process_payment', 'fr');
 
@@ -125,7 +125,7 @@ test('POS process_payment fallback returns valid guidance', function () {
 });
 
 test('Setup import_file fallback returns valid guidance', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Setup', 'import_file', 'fr');
 
@@ -169,7 +169,7 @@ test('Accounting module has 4 actions including ohada_report', function () {
 // ─── Cache key generation ─────────────────────────────────────────────────────
 
 test('getGuidance uses cache so API is only called once for same inputs', function () {
-    Config::set('services.anthropic.key', 'test-key');
+    Config::set('ai.providers.anthropic.api_key', 'test-key');
     Cache::flush();
 
     Http::fake([
@@ -186,7 +186,7 @@ test('getGuidance uses cache so API is only called once for same inputs', functi
 });
 
 test('different locales generate different cache keys', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
     Cache::flush();
 
     $service = new AiContextualAssistantService();
@@ -200,7 +200,7 @@ test('different locales generate different cache keys', function () {
 // ─── API failure graceful degradation ────────────────────────────────────────
 
 test('getGuidance falls back gracefully when API returns 500', function () {
-    Config::set('services.anthropic.key', 'test-key');
+    Config::set('ai.providers.anthropic.api_key', 'test-key');
     Cache::flush();
 
     Http::fake([

@@ -25,7 +25,7 @@ test('AI service provider registers correctly', function () {
 // ---------------------------------------------------------------------------
 
 test('getGuidance returns array with required keys when API disabled', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $result  = $service->getGuidance('CRM', 'create_contact');
@@ -35,7 +35,7 @@ test('getGuidance returns array with required keys when API disabled', function 
 });
 
 test('getGuidance enabled key is false when API key absent', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $result  = $service->getGuidance('CRM', 'create_contact');
@@ -44,7 +44,7 @@ test('getGuidance enabled key is false when API key absent', function () {
 });
 
 test('fallback guidance returns non-empty what_to_do for CRM create_contact in French', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $result   = $service->fallbackGuidance('CRM', 'create_contact', 'fr');
@@ -53,7 +53,7 @@ test('fallback guidance returns non-empty what_to_do for CRM create_contact in F
 });
 
 test('fallback guidance returns non-empty what_to_do for CRM create_contact in English', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $result  = $service->fallbackGuidance('CRM', 'create_contact', 'en');
@@ -62,7 +62,7 @@ test('fallback guidance returns non-empty what_to_do for CRM create_contact in E
 });
 
 test('fallback guidance returns empty string for unknown module', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $result  = $service->fallbackGuidance('NonExistent', 'do_something');
@@ -80,7 +80,7 @@ test('supportedModules returns array with 7 modules', function () {
 });
 
 test('fallback guidance covers all supported module and action pairs', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $modules  = $service->supportedModules();
@@ -96,7 +96,7 @@ test('fallback guidance covers all supported module and action pairs', function 
 });
 
 test('fallback guidance covers all supported module and action pairs in English', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $modules = $service->supportedModules();
@@ -112,7 +112,7 @@ test('fallback guidance covers all supported module and action pairs in English'
 });
 
 test('getGuidance uses cache when API is enabled and HTTP call faked', function () {
-    Config::set('services.anthropic.key', 'fake-key-for-test');
+    Config::set('ai.providers.anthropic.api_key', 'fake-key-for-test');
 
     Http::fake([
         'https://api.anthropic.com/v1/messages' => Http::response([
@@ -142,7 +142,7 @@ test('getGuidance uses cache when API is enabled and HTTP call faked', function 
 });
 
 test('getGuidance falls back gracefully when API returns error', function () {
-    Config::set('services.anthropic.key', 'fake-key-for-test');
+    Config::set('ai.providers.anthropic.api_key', 'fake-key-for-test');
 
     Http::fake([
         'https://api.anthropic.com/v1/messages' => Http::response([], 500),
@@ -158,7 +158,7 @@ test('getGuidance falls back gracefully when API returns error', function () {
 });
 
 test('Accounting post_invoice fallback returns OHADA warning in French', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $result  = $service->fallbackGuidance('Accounting', 'post_invoice', 'fr');
@@ -167,7 +167,7 @@ test('Accounting post_invoice fallback returns OHADA warning in French', functio
 });
 
 test('how_to_do array has at most 3 steps in fallback', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $modules  = $service->supportedModules();
@@ -181,7 +181,7 @@ test('how_to_do array has at most 3 steps in fallback', function () {
 });
 
 test('Setup import_file fallback has next_actions pointing to map_columns', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service = new AiContextualAssistantService();
     $result  = $service->fallbackGuidance('Setup', 'import_file', 'en');

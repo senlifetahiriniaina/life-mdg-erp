@@ -4,20 +4,29 @@ declare(strict_types=1);
 
 namespace Modules\AI\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Modules\Core\Services\AI\AIService;
 
 class AiContextualAssistantService
 {
-    private string $apiKey;
-    private string $model;
+    private AIService $aiService;
     private bool $enabled;
 
-    public function __construct()
+    /**
+     * @param AIService|null $aiService Optional — resolved from the container
+     *   when omitted, so plain `new AiContextualAssistantService()` (used
+     *   throughout this module's tests) keeps working outside of Laravel's
+     *   DI container while `app(AiContextualAssistantService::class)` still
+     *   gets the shared singleton properly injected.
+     */
+    public function __construct(?AIService $aiService = null)
     {
-        $this->apiKey  = config('services.anthropic.key', env('ANTHROPIC_API_KEY', ''));
-        $this->model   = config('services.anthropic.model', 'claude-sonnet-4-6');
-        $this->enabled = $this->apiKey !== '';
+        $this->aiService = $aiService ?? app(AIService::class);
+        // Reflects whichever provider is actually configured for the 'AI'
+        // module (config('ai.module_providers.AI'), falling back to
+        // AI_DEFAULT_PROVIDER) — anthropic, openai, or a self-hosted
+        // deepseek, per config/ai.php.
+        $this->enabled = $this->aiService->forModule('AI')->isConfigured();
     }
 
     /**
@@ -102,7 +111,7 @@ class AiContextualAssistantService
     }
 
     // -------------------------------------------------------------------------
-    // Private — Claude API call
+    // Private — AI provider call (Anthropic/OpenAI/DeepSeek, via AIService)
     // -------------------------------------------------------------------------
 
     private function callClaude(
@@ -122,30 +131,23 @@ class AiContextualAssistantService
             'user_role' => $userRole,
         ]);
 
-        $response = Http::withHeaders([
-            'x-api-key'         => $this->apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(15)->post('https://api.anthropic.com/v1/messages', [
-            'model'      => $this->model,
-            'max_tokens' => 800,
-            'system'     => [
+        try {
+            // 'cache_system' is Anthropic-specific prompt caching
+            // (cache_control: ephemeral) — AnthropicProvider applies it when
+            // present, other providers ignore it, so this system prompt
+            // (identical across every call for a given locale) is still
+            // cached provider-side when the active provider supports it.
+            $text = $this->aiService->forModule('AI')->chat(
+                [['role' => 'user', 'content' => $userMessage]],
                 [
-                    'type'          => 'text',
-                    'text'          => $systemPrompt,
-                    'cache_control' => ['type' => 'ephemeral'],
-                ],
-            ],
-            'messages' => [
-                ['role' => 'user', 'content' => $userMessage],
-            ],
-        ]);
-
-        if (!$response->successful()) {
+                    'system'       => $systemPrompt,
+                    'max_tokens'   => 800,
+                    'cache_system' => true,
+                ]
+            );
+        } catch (\Throwable $e) {
             return $this->fallbackGuidance($module, $action, $locale);
         }
-
-        $text = $response->json('content.0.text', '{}');
 
         return $this->parseResponse($text, $module, $action, $locale);
     }

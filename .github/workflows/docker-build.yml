@@ -3,9 +3,9 @@ name: Docker Build
 on:
   push:
     branches: [ main, "claude/**" ]
-    paths: [ 'Dockerfile', 'infra/**', 'composer.json', 'composer.lock', 'package.json', '.dockerignore', '.github/workflows/docker-build.yml' ]
+    paths: [ 'Dockerfile', 'docker-compose.deepseek.yml', 'infra/**', 'composer.json', 'composer.lock', 'package.json', '.dockerignore', '.github/workflows/docker-build.yml' ]
   pull_request:
-    paths: [ 'Dockerfile', 'infra/**', 'composer.json', 'composer.lock', 'package.json' ]
+    paths: [ 'Dockerfile', 'docker-compose.deepseek.yml', 'infra/**', 'composer.json', 'composer.lock', 'package.json' ]
   workflow_dispatch:
 
 jobs:
@@ -27,3 +27,7 @@ jobs:
           tags: life-mdg-erp:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Validate DeepSeek compose file
+        # Syntax/interpolation check only — does not pull the Ollama image or
+        # the DeepSeek model (too slow/heavy to run on every push).
+        run: docker compose -f docker-compose.deepseek.yml config

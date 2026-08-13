@@ -13,4 +13,12 @@ interface AIProviderContract
     public function analyze(string $context, string $prompt): string;
 
     public function getProviderName(): string;
+
+    /**
+     * Whether this provider has the configuration it needs to make real
+     * calls (API key, base URL, ...). Callers use this to decide whether to
+     * attempt a live call or fall back to static content — never to guard
+     * against exceptions, which chat()/embed()/analyze() can still throw.
+     */
+    public function isConfigured(): bool;
 }

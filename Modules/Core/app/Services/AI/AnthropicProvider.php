@@ -24,6 +24,14 @@ class AnthropicProvider implements AIProviderContract
     {
         $systemPrompt = $options['system'] ?? config('ai.system_prompts.default');
 
+        // Callers with a system prompt that's identical across repeated
+        // calls (e.g. AiContextualAssistantService's guidance panel prompt)
+        // can pass 'cache_system' => true to enable Anthropic prompt
+        // caching — ignored by other providers, since it's Anthropic-only.
+        $system = !empty($options['cache_system'])
+            ? [['type' => 'text', 'text' => $systemPrompt, 'cache_control' => ['type' => 'ephemeral']]]
+            : $systemPrompt;
+
         $response = Http::withHeaders([
             'x-api-key' => $this->apiKey,
             'anthropic-version' => '2023-06-01',
@@ -32,7 +40,7 @@ class AnthropicProvider implements AIProviderContract
             ->post("{$this->baseUrl}/messages", [
                 'model' => $options['model'] ?? $this->model,
                 'max_tokens' => $options['max_tokens'] ?? config('ai.providers.anthropic.max_tokens', 4096),
-                'system' => $systemPrompt,
+                'system' => $system,
                 'messages' => $messages,
             ]);
 
@@ -60,5 +68,10 @@ class AnthropicProvider implements AIProviderContract
     public function getProviderName(): string
     {
         return 'anthropic';
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->apiKey !== '';
     }
 }

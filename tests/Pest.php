@@ -5,6 +5,8 @@ uses(Tests\TestCase::class)->in(
     'Unit',
     '../Modules/Core/tests/Feature',
     '../Modules/Core/tests/Unit',
+    '../Modules/AI/tests/Feature',
+    '../Modules/AI/tests/Unit',
     '../Modules/CRM/tests/Feature',
     '../Modules/CRM/tests/Unit',
     '../Modules/HR/tests/Feature',

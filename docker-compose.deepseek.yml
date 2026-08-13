@@ -1,0 +1,58 @@
+# DeepSeek auto-hébergé (Ollama) — service optionnel pour le module IA
+#
+# Fichier dédié et isolé plutôt que fusionné dans un compose applicatif
+# général (qui n'existe pas encore à la racine, cf. CLAUDE.md "Known gaps" —
+# seul setup/docker-compose.yml existe, gabarit hérité de l'architecture
+# split de Widehalo-ERP). Lancer indépendamment :
+#
+#   docker compose -f docker-compose.deepseek.yml up -d
+#
+# Puis configurer .env : AI_DEFAULT_PROVIDER=deepseek (ou un override
+# module_providers ciblé dans config/ai.php), DEEPSEEK_BASE_URL et
+# DEEPSEEK_MODEL — voir docs/07-DEPLOIEMENT/IA-AUTOHEBERGEE.md.
+#
+# CPU uniquement : Ollama tourne correctement sans GPU (latence plus élevée
+# qu'avec accélération matérielle, mais fonctionnel) avec un modèle DeepSeek
+# distillé/quantifié. Ajuster DEEPSEEK_MODEL selon la RAM disponible :
+# deepseek-r1:7b (~4.7 Go) pour une machine modeste, deepseek-r1:14b pour
+# plus de capacité.
+
+services:
+  deepseek:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - life-mdg-erp
+
+  # Tire le modèle configuré au démarrage si absent du volume, puis
+  # s'arrête (conteneur one-shot, pas un service persistant).
+  deepseek-model-init:
+    image: ollama/ollama:latest
+    depends_on:
+      deepseek:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=deepseek:11434
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-r1:7b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$$DEEPSEEK_MODEL\""]
+    networks:
+      - life-mdg-erp
+    restart: "no"
+
+volumes:
+  ollama_data:
+
+networks:
+  life-mdg-erp:
+    driver: bridge

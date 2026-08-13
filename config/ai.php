@@ -16,6 +16,15 @@ return [
             'embedding_model' => 'text-embedding-3-small',
             'timeout' => 60,
         ],
+        // DeepSeek auto-hébergé (Ollama) — provider additionnel, non actif par
+        // défaut (default_provider reste 'anthropic' ci-dessus). Sélectionnable
+        // via AI_DEFAULT_PROVIDER=deepseek ou un override module_providers.
+        // Pas de clé API réelle : Ollama ne fait pas d'authentification locale.
+        'deepseek' => [
+            'base_url' => env('DEEPSEEK_BASE_URL', 'http://localhost:11434/v1'),
+            'model' => env('DEEPSEEK_MODEL', 'deepseek-r1:7b'),
+            'timeout' => 60,
+        ],
     ],
 
     /*

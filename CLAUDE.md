@@ -103,7 +103,9 @@ Carried over unchanged from WideHalo: GDPR/PDPL/OHADA/OWASP-by-design, RBAC via 
 
 ## AI Assisted First
 
-`Modules\AI\Services\AiContextualAssistantService::getGuidance()` — same contract as WideHalo (see WideHalo's docs for the full call signature). Static fallback guidance already covers CRM, Accounting, HR, Inventory, Sales for this scope. When `ANTHROPIC_API_KEY` is absent, `enabled: false` is returned with static fallback text — never an error.
+`Modules\AI\Services\AiContextualAssistantService::getGuidance()` — same contract as WideHalo (see WideHalo's docs for the full call signature). Static fallback guidance already covers CRM, Accounting, HR, Inventory, Sales for this scope. `getGuidance()` delegates to `Modules\Core\Services\AI\AIService::forModule('AI')`, which resolves whichever provider is active (`AI_DEFAULT_PROVIDER`, default `anthropic`); when that provider isn't configured or the call throws, `enabled: false` is returned with static fallback text — never an error.
+
+**Self-hosted DeepSeek provider**: in addition to Anthropic/OpenAI, a self-hosted DeepSeek provider (served via Ollama, `docker-compose.deepseek.yml`) is available and selectable via `AI_DEFAULT_PROVIDER=deepseek` or a targeted `module_providers` override in `config/ai.php` — additive only, zero behavior change when unset. Covers both `Modules\Core\Services\AI\AIService` (used by the `<Module>AIService` business services) and `AiContextualAssistantService`. See `docs/07-DEPLOIEMENT/IA-AUTOHEBERGEE.md`.
 
 ## Africa First / Asia First
 

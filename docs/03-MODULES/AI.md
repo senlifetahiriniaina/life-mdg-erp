@@ -27,7 +27,7 @@ Tous préfixés `/api/v1/ai/`, protégés `auth:sanctum` (voir `Modules/AI/route
 
 ## Services
 
-- `AiContextualAssistantService` — service central du principe AI Assisted First. `getGuidance(module, action, context, locale, userRole)` retourne un JSON structuré (`what_to_do`, `how_to_do`, `decision_indicators`, `warnings`, `next_actions`, `tips`). Appelle Claude (`claude-sonnet-4-6` par défaut, cache serveur 5 min via `Cache::remember`) quand `ANTHROPIC_API_KEY` est présente, sinon retourne `fallbackGuidance()` avec `enabled: false`. `supportedModules()` liste tous les couples module/action couverts par le fallback statique — la carte couvre bien plus large que les 27 modules du périmètre life-mdg-erp (POS, Manufacturing, Ecommerce, Quality, PLM, Contracts, Assets, MarketingAutomation, etc. y figurent encore alors que ces modules ont été retirés).
+- `AiContextualAssistantService` — service central du principe AI Assisted First. `getGuidance(module, action, context, locale, userRole)` retourne un JSON structuré (`what_to_do`, `how_to_do`, `decision_indicators`, `warnings`, `next_actions`, `tips`). Ne parle plus directement à `api.anthropic.com` : elle délègue à `Modules\Core\Services\AI\AIService::forModule('AI')->chat(...)`, qui résout le provider actif (`AI_DEFAULT_PROVIDER`, ou un override `module_providers.AI` — voir `docs/03-MODULES/Core.md`). `$enabled` reflète `isConfigured()` du provider effectivement résolu (pas seulement `ANTHROPIC_API_KEY`) : avec le provider par défaut `anthropic`, c'est équivalent au comportement historique ; avec `AI_DEFAULT_PROVIDER=deepseek`, `enabled` reflète la présence de `DEEPSEEK_BASE_URL`. Toute exception levée par `chat()` (provider injoignable, erreur HTTP) est absorbée et retombe sur `fallbackGuidance()` — `getGuidance()` ne lève jamais d'exception, quel que soit le provider actif. `supportedModules()` liste tous les couples module/action couverts par le fallback statique — la carte couvre bien plus large que les 27 modules du périmètre life-mdg-erp (POS, Manufacturing, Ecommerce, Quality, PLM, Contracts, Assets, MarketingAutomation, etc. y figurent encore alors que ces modules ont été retirés).
 - `AiActionAdvisorService` / `AiUsageBudgetService` — conseille des actions et calcule l'usage/coût IA par période (`daily/weekly/monthly`), avec tarification codée en dur (`claude-sonnet-4-6` : 3 $/M tokens input, 15 $/M output)
 - `AiAnomalyDetectionService` — détection d'anomalies exposée via `AiAnomalyController`
 - `AiNaturalLanguageSearchService` — recherche en langage naturel exposée via `AiSearchController`
@@ -41,7 +41,11 @@ Le module AI n'a pas de bloc `ai.*.*` dans `RolesAndPermissionsSeeder::MODULES` 
 ## Dépendances avec d'autres modules
 
 - **Utilisé par** : `AiContextualAssistantService` est importé par 33 fichiers hors du module AI, dans quasiment tous les modules métier (CRM, Accounting, HR, Inventory, BI, Helpdesk, Projects…) sous forme de services `<Module>AIService` dédiés qui l'enveloppent (ex. `Modules\CRM\Services\AI\CrmAIService`, `Modules\Accounting\Services\AI\AccountingAIService`, `Modules\HR\Services\AI\HrAIService`).
-- **Utilise** : aucun autre module métier — le module AI n'importe que ses propres classes (`use Modules\AI\...`). C'est la dépendance racine confirmée par le code.
+- **Utilise** : `Modules\Core\Services\AI\AIService` (voir `docs/03-MODULES/Core.md`) pour exécuter réellement l'appel au provider IA actif — c'est la seule dépendance du module AI vers un autre module. Aucun autre module métier n'est importé.
+
+## Provider auto-hébergé (DeepSeek)
+
+En plus d'Anthropic/OpenAI, un provider DeepSeek auto-hébergé (servi via Ollama, voir `docker-compose.deepseek.yml`) est disponible pour ce module au même titre que pour `AIService` en général. Comportement par défaut inchangé (`AI_DEFAULT_PROVIDER=anthropic`) ; activation via `AI_DEFAULT_PROVIDER=deepseek` ou un override `module_providers.AI` dans `config/ai.php`. Détails de mise en place : `docs/07-DEPLOIEMENT/IA-AUTOHEBERGEE.md`.
 
 ## Particularités du périmètre life-mdg-erp
 

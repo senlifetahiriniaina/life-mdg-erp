@@ -16,10 +16,12 @@ class AIService
     public function __construct(
         private readonly AnthropicProvider $anthropic,
         private readonly OpenAIProvider $openai,
+        private readonly DeepSeekProvider $deepseek,
     ) {
         $this->providers = [
             'anthropic' => $this->anthropic,
             'openai' => $this->openai,
+            'deepseek' => $this->deepseek,
         ];
     }
 

@@ -34,7 +34,7 @@ function mockAnthropicResponse(string $jsonText): array
 // ---------------------------------------------------------------------------
 
 test('service returns fallback when ANTHROPIC_API_KEY is empty', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->getGuidance('CRM', 'create_contact');
@@ -47,7 +47,7 @@ test('service returns fallback when ANTHROPIC_API_KEY is empty', function () {
 // ---------------------------------------------------------------------------
 
 test('fallback response contains all required structure keys', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->getGuidance('CRM', 'create_contact');
@@ -67,7 +67,7 @@ test('fallback response contains all required structure keys', function () {
 // ---------------------------------------------------------------------------
 
 test('CRM create_contact fallback has non-empty how_to_do', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('CRM', 'create_contact', 'fr');
@@ -80,7 +80,7 @@ test('CRM create_contact fallback has non-empty how_to_do', function () {
 // ---------------------------------------------------------------------------
 
 test('Accounting post_invoice fallback contains OHADA warning', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Accounting', 'post_invoice', 'fr');
@@ -94,7 +94,7 @@ test('Accounting post_invoice fallback contains OHADA warning', function () {
 // ---------------------------------------------------------------------------
 
 test('Accounting ohada_report English fallback mentions member states', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Accounting', 'ohada_report', 'en');
@@ -108,7 +108,7 @@ test('Accounting ohada_report English fallback mentions member states', function
 // ---------------------------------------------------------------------------
 
 test('unknown module and action returns empty guidance without error', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('UnknownModule', 'unknown_action', 'fr');
@@ -122,7 +122,7 @@ test('unknown module and action returns empty guidance without error', function 
 // ---------------------------------------------------------------------------
 
 test('live API call returns enabled=true and all keys', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     $fakeJson = json_encode([
         'what_to_do'          => 'Create the contact.',
@@ -154,7 +154,7 @@ test('live API call returns enabled=true and all keys', function () {
 // ---------------------------------------------------------------------------
 
 test('API failure returns fallback gracefully without exception', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     Http::fake([
         'api.anthropic.com/*' => Http::response([], 500),
@@ -174,7 +174,7 @@ test('API failure returns fallback gracefully without exception', function () {
 // ---------------------------------------------------------------------------
 
 test('Arabic locale guidance is returned from mocked API', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     $arabicGuidance = json_encode([
         'what_to_do'          => 'أنشئ جهة اتصال جديدة.',
@@ -202,7 +202,7 @@ test('Arabic locale guidance is returned from mocked API', function () {
 // ---------------------------------------------------------------------------
 
 test('cache key varies by module, action and locale', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     $callCount = 0;
 
@@ -233,7 +233,7 @@ test('cache key varies by module, action and locale', function () {
 // ---------------------------------------------------------------------------
 
 test('same cache key is reused and API is called only once', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     $callCount = 0;
 
@@ -263,7 +263,7 @@ test('same cache key is reused and API is called only once', function () {
 // ---------------------------------------------------------------------------
 
 test('parse response merges fallback defaults so no key is missing', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     // API returns only partial data
     $partial = json_encode([
@@ -308,7 +308,7 @@ test('supportedModules returns all expected modules with actions', function () {
 // ---------------------------------------------------------------------------
 
 test('POS close_session fallback has at least one warning', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('POS', 'close_session', 'fr');
@@ -321,7 +321,7 @@ test('POS close_session fallback has at least one warning', function () {
 // ---------------------------------------------------------------------------
 
 test('Setup map_columns fallback suggests execute_import as next action', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service  = new AiContextualAssistantService();
     $guidance = $service->fallbackGuidance('Setup', 'map_columns', 'en');
@@ -335,7 +335,7 @@ test('Setup map_columns fallback suggests execute_import as next action', functi
 // ---------------------------------------------------------------------------
 
 test('Inventory low_stock_alert fallback has a critical decision indicator', function () {
-    Config::set('services.anthropic.key', '');
+    Config::set('ai.providers.anthropic.api_key', '');
 
     $service    = new AiContextualAssistantService();
     $guidance   = $service->fallbackGuidance('Inventory', 'low_stock_alert', 'fr');
@@ -349,7 +349,7 @@ test('Inventory low_stock_alert fallback has a critical decision indicator', fun
 // ---------------------------------------------------------------------------
 
 test('markdown fences in API response are stripped and parsed', function () {
-    Config::set('services.anthropic.key', 'test-key-12345');
+    Config::set('ai.providers.anthropic.api_key', 'test-key-12345');
 
     $withFences = "```json\n" . json_encode([
         'what_to_do'          => 'Guidance with fences.',

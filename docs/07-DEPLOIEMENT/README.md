@@ -48,3 +48,7 @@ Déploiement par tar+SSH (pas de conteneur en production malgré la présence d'
 ## Runbook de migration
 
 `php artisan migrate --force` en production. Toujours précédé de `php artisan down` (mode maintenance) et suivi de `php artisan up` — voir la séquence complète dans `deploy.yml`.
+
+## IA auto-hébergée (DeepSeek)
+
+`docker-compose.deepseek.yml` à la racine lance un serveur Ollama servant un modèle DeepSeek distillé, comme alternative auto-hébergée à Anthropic/OpenAI pour le module IA — additive et non-régressive (comportement par défaut inchangé tant que `AI_DEFAULT_PROVIDER` reste `anthropic`). `docker-build.yml` valide la syntaxe de ce fichier compose (`docker compose config`) à chaque changement pertinent, sans télécharger l'image ni le modèle. Détails complets : `docs/07-DEPLOIEMENT/IA-AUTOHEBERGEE.md`.

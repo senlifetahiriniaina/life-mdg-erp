@@ -56,6 +56,7 @@ Un fichier deep-dive par module gardé (27), groupés comme dans `CLAUDE.md` :
 - [Vue d'ensemble (CI/CD, Docker, déploiement production)](07-DEPLOIEMENT/README.md)
 - [Variables d'environnement — production](07-DEPLOIEMENT/ENV-PRODUCTION.md)
 - [Checklist go-live](07-DEPLOIEMENT/CHECKLIST-GO-LIVE.md)
+- [IA auto-hébergée (DeepSeek via Ollama)](07-DEPLOIEMENT/IA-AUTOHEBERGEE.md)
 
 ## 08 — Tests
 
