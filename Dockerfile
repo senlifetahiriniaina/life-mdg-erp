@@ -57,15 +57,18 @@ FROM php:8.5-fpm
 
 WORKDIR /app
 
-# Install runtime dependencies only
+# Install runtime dependencies only (package names below match Debian
+# trixie, the base image's current release — libpng16-16t64/libzip5/
+# mariadb-client-compat replace the older libpng6/libzip4/mysql-client
+# names used on Debian bookworm)
 RUN apt-get update && apt-get install -y \
     libpq5 \
     libfreetype6 \
     libjpeg62-turbo \
-    libpng6 \
-    libzip4 \
+    libpng16-16t64 \
+    libzip5 \
     redis-tools \
-    mysql-client \
+    mariadb-client-compat \
     git \
     supervisor \
     && apt-get clean \
