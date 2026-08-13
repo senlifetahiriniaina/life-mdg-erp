@@ -42,9 +42,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
 
 # Install Node dependencies and build (package-lock.json is intentionally
 # gitignored — npm install resolves fresh; npm ci would need an existing
-# lockfile, see the .github/workflows/ commit history)
+# lockfile, see the .github/workflows/ commit history). --legacy-peer-deps
+# matches the same flag already used in ci.yml, needed because
+# vue-apexcharts@1.7.0 (Vue 2 peer dep) coexists with vue@^3.5.0 in
+# package.json.
 COPY package.json ./
-RUN npm install --omit=dev && npm run build
+RUN npm install --omit=dev --legacy-peer-deps && npm run build
 
 # Generate Laravel caches
 RUN php artisan config:cache \
