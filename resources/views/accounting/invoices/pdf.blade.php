@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #1a1a2e; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 32px; }
+  .company { font-size: 22px; font-weight: bold; color: #2e5be8; }
+  .meta { text-align: right; font-size: 11px; color: #555; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+  .badge-paid { background: #d1fae5; color: #065f46; }
+  .badge-open { background: #dbeafe; color: #1e40af; }
+  .badge-overdue { background: #fee2e2; color: #991b1b; }
+  .badge-draft { background: #f3f4f6; color: #374151; }
+  .parties { display: flex; justify-content: space-between; margin-bottom: 24px; }
+  .party { width: 48%; }
+  .party-label { font-size: 10px; font-weight: bold; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .party-name { font-size: 14px; font-weight: bold; margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  thead th { background: #2e5be8; color: #fff; padding: 8px 12px; text-align: left; font-size: 11px; }
+  thead th.num { text-align: right; }
+  tbody tr:nth-child(even) { background: #f8faff; }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
+  tbody td.num { text-align: right; }
+  .totals { float: right; width: 240px; }
+  .totals table { margin: 0; }
+  .totals td { padding: 4px 8px; font-size: 11px; }
+  .totals td.label { color: #6b7280; }
+  .totals td.amount { text-align: right; font-weight: 500; }
+  .totals tr.grand td { font-weight: bold; font-size: 14px; border-top: 2px solid #2e5be8; padding-top: 8px; }
+  .notes { clear: both; margin-top: 32px; font-size: 11px; color: #6b7280; }
+  .footer { margin-top: 48px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="company">{{ config('app.name') }}</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px">{{ config('app.url') }}</div>
+  </div>
+  <div class="meta">
+    <div style="font-size:18px;font-weight:bold;margin-bottom:4px">
+      {{ strtoupper($invoice->type ?? 'INVOICE') }}
+    </div>
+    <div>{{ $invoice->number }}</div>
+    <div style="margin-top:6px">
+      <span class="badge badge-{{ $invoice->status }}">{{ $invoice->status }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="parties">
+  <div class="party">
+    <div class="party-label">Billed To</div>
+    <div class="party-name">{{ $invoice->partner_name }}</div>
+    <div style="color:#6b7280;font-size:11px">{{ $invoice->partner_type }}</div>
+  </div>
+  <div class="party" style="text-align:right">
+    <div class="party-label">Invoice Details</div>
+    <div><strong>Date:</strong> {{ $invoice->invoice_date?->format('d M Y') }}</div>
+    @if($invoice->due_date)
+    <div><strong>Due:</strong> {{ $invoice->due_date->format('d M Y') }}</div>
+    @endif
+    <div><strong>Currency:</strong> {{ $invoice->currency }}</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Description</th>
+      <th class="num">Qty</th>
+      <th class="num">Unit Price</th>
+      <th class="num">Tax %</th>
+      <th class="num">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    @forelse($invoice->lines as $i => $line)
+    <tr>
+      <td>{{ $i + 1 }}</td>
+      <td>{{ $line->description }}</td>
+      <td class="num">{{ number_format((float)$line->quantity, 2) }}</td>
+      <td class="num">{{ number_format((float)$line->unit_price, 2) }}</td>
+      <td class="num">{{ number_format((float)$line->tax_percent, 1) }}%</td>
+      <td class="num">{{ number_format((float)$line->subtotal, 2) }}</td>
+    </tr>
+    @empty
+    <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:16px">No line items.</td></tr>
+    @endforelse
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr>
+      <td class="label">Subtotal</td>
+      <td class="amount">{{ $invoice->currency }} {{ number_format((float)$invoice->subtotal, 2) }}</td>
+    </tr>
+    <tr>
+      <td class="label">Tax</td>
+      <td class="amount">{{ $invoice->currency }} {{ number_format((float)$invoice->tax_amount, 2) }}</td>
+    </tr>
+    <tr class="grand">
+      <td class="label">Total</td>
+      <td class="amount">{{ $invoice->currency }} {{ number_format((float)$invoice->total, 2) }}</td>
+    </tr>
+    @if($invoice->amount_due != $invoice->total)
+    <tr>
+      <td class="label" style="color:#dc2626">Amount Due</td>
+      <td class="amount" style="color:#dc2626">{{ $invoice->currency }} {{ number_format((float)$invoice->amount_due, 2) }}</td>
+    </tr>
+    @endif
+  </table>
+</div>
+
+@if($invoice->notes)
+<div class="notes">
+  <strong>Notes:</strong> {{ $invoice->notes }}
+</div>
+@endif
+
+<div class="footer">
+  Generated by {{ config('app.name') }} &bull; {{ now()->format('d M Y H:i') }}
+</div>
+
+</body>
+</html>

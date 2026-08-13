@@ -1,0 +1,28 @@
+{
+    "name": "nwidart/achats",
+    "description": "Purchasing module with RFQ, PO, and supplier management",
+    "authors": [
+        {
+            "name": "Widehalo Team",
+            "email": "team@widehalo.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Achats\\": "app/",
+            "Modules\\Achats\\Database\\Factories\\": "database/factories/",
+            "Modules\\Achats\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Achats\\Tests\\": "tests/"
+        }
+    }
+}

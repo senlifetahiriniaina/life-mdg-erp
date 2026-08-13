@@ -1,0 +1,141 @@
+name: Supply Chain Security
+
+# Informationnel uniquement — tous les jobs sont continue-on-error: true
+# Ces checks ne bloquent pas les PRs mais informent l'équipe.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+jobs:
+  trivy-scan:
+    name: Trivy CVE Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Run Trivy (filesystem)
+        uses: aquasecurity/trivy-action@915914de5889378d31cfa13f78ef0a98d4e5eee
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          skip-dirs: node_modules,.git,storage/logs,vendor
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@1b549b9259bda1cb5ddde3b41741a82a2f15a6d9
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-fs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        continue-on-error: true
+        with:
+          name: trivy-sarif
+          path: trivy-results.sarif
+          retention-days: 30
+
+  sbom:
+    name: Generate SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
+        with:
+          php-version: '8.3'
+          extensions: mbstring
+        continue-on-error: true
+
+      - name: Install Composer (no-dev)
+        continue-on-error: true
+        run: composer install --no-scripts --no-progress --prefer-dist --no-dev
+
+      - name: Generate PHP SBOM
+        continue-on-error: true
+        run: |
+          composer require --dev cyclonedx/cyclonedx-php-composer --no-scripts --quiet || true
+          composer make-bom --output-format JSON --output-file sbom-php.cdx.json || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
+        with:
+          node-version: '22'
+        continue-on-error: true
+
+      - name: Generate Node SBOM (webapp)
+        continue-on-error: true
+        run: |
+          cd webapp && npm ci --ignore-scripts 2>/dev/null || true
+          npx @cyclonedx/cyclonedx-npm --output-format JSON --output-file ../sbom-webapp.cdx.json || true
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        continue-on-error: true
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom-*.cdx.json
+          retention-days: 90
+
+  secret-scan:
+    name: TruffleHog Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@d8a81cfa6c05c97ade33756b764d9e0dc9cbf19e
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+        continue-on-error: true
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@38b3f31d9f31a256dc8274a47b50c2a7d5a78be5
+        with:
+          fail-on-severity: critical
+          deny-licenses: GPL-3.0, AGPL-3.0
+          comment-summary-in-pr: always
+        continue-on-error: true

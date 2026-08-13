@@ -1,0 +1,16 @@
+{
+  "name": "Timesheets",
+  "alias": "timesheets",
+  "description": "Time tracking with approval workflows and billing integration",
+  "keywords": ["timesheets", "time-tracking", "approval", "billing"],
+  "version": "1.0.0",
+  "active": 1,
+  "order": 0,
+  "providers": [
+    "Modules\\Timesheets\\Providers\\TimesheetsServiceProvider",
+    "Modules\\Timesheets\\Providers\\RouteServiceProvider"
+  ],
+  "aliases": {},
+  "files": [],
+  "requires": []
+}

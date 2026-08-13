@@ -1,0 +1,14 @@
+{
+  "name": "Payroll",
+  "alias": "payroll",
+  "description": "Payroll integration module — bridges HR, Payroll processing, and Accounting (OHADA-compliant, multi-country)",
+  "keywords": [],
+  "priority": 5,
+  "providers": [
+    "Modules\\Payroll\\Providers\\PayrollServiceProvider",
+    "Modules\\Payroll\\Providers\\RouteServiceProvider"
+  ],
+  "aliases": {},
+  "files": [],
+  "requires": ["HR", "Accounting"]
+}

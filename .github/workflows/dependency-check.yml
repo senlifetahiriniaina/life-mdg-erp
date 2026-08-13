@@ -1,0 +1,183 @@
+name: Dependency Health Check
+
+on:
+  schedule:
+    # Run every Friday at 10 AM UTC
+    - cron: '0 10 * * 5'
+  # Allow manual trigger
+  workflow_dispatch:
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '22'
+
+jobs:
+  dependency-health-check:
+    name: Dependency Health & Outdated Packages Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: redis, mbstring, pdo, pdo_mysql
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php${{ env.PHP_VERSION }}-
+
+      - name: Check PHP Dependencies
+        id: php-check
+        run: |
+          composer install --no-scripts --no-progress --prefer-dist
+
+          echo "## Backend (PHP/Composer) Dependency Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          OUTDATED=$(composer show --outdated --direct 2>&1)
+          if echo "$OUTDATED" | grep -q "No packages found"; then
+            echo "✓ All packages are up to date" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "$OUTDATED" | tail -n +2 | head -20 >> $GITHUB_STEP_SUMMARY
+            OUTDATED_COUNT=$(echo "$OUTDATED" | tail -n +2 | wc -l)
+            if [ "$OUTDATED_COUNT" -gt 20 ]; then
+              echo "... and $((OUTDATED_COUNT - 20)) more" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Check webapp Dependencies
+        id: wb-check
+        run: |
+          cd webapp
+          npm ci > /dev/null 2>&1 || true
+
+          echo "## webapp Dependency Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          OUTDATED=$(npm outdated 2>&1)
+          OUTDATED_COUNT=$(echo "$OUTDATED" | tail -n +2 | wc -l)
+
+          if [ "$OUTDATED_COUNT" -eq 0 ]; then
+            echo "✓ All packages are up to date" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "$OUTDATED" | tail -n +2 | head -15 >> $GITHUB_STEP_SUMMARY
+            if [ "$OUTDATED_COUNT" -gt 15 ]; then
+              echo "... and $((OUTDATED_COUNT - 15)) more" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate Dependency Report
+        if: always()
+        run: |
+          cat > DEPENDENCY_REPORT.md << 'EOF'
+          # Dependency Health Report
+
+          **Generated:** $(date -u)
+          **Frequency:** Weekly on Friday 10:00 UTC
+
+          ## Overview
+
+          This report shows outdated packages across all applications. Use this to plan dependency updates.
+
+          ## Update Priority
+
+          **Critical (Update Immediately):**
+          - Security vulnerabilities
+          - Breaking changes in core dependencies
+
+          **High (Update Soon):**
+          - Major version updates for stable libraries
+          - Performance improvements
+          - Bug fixes for reported issues
+
+          **Normal (Update in Next Sprint):**
+          - Minor updates
+          - New features
+          - Non-critical improvements
+
+          ## Action Items
+
+          - [ ] Review outdated packages above
+          - [ ] Identify critical updates
+          - [ ] Create feature branches for updates
+          - [ ] Test thoroughly before deployment
+          - [ ] Update VULNERABILITIES.md
+
+          ## Useful Commands
+
+          ```bash
+          # Check for outdated packages
+          ./scripts/check-all-updates.sh
+
+          # Run security audit
+          ./scripts/security-audit.sh
+
+          # Update specific package
+          cd webapp
+          npm update package-name
+          npm run test
+
+          # Create update branch
+          git checkout -b feature/update-dependencies-$(date +%Y%m%d)
+          ```
+
+          ## References
+
+          - [DEPENDENCY-UPDATE-POLICY.md](DEPENDENCY-UPDATE-POLICY.md)
+          - [VULNERABILITIES.md](VULNERABILITIES.md)
+          - [SECURITY.md](SECURITY.md)
+
+          ---
+
+          Next check: Next Friday 10:00 UTC
+          EOF
+
+          cat DEPENDENCY_REPORT.md
+
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-health-report
+          path: DEPENDENCY_REPORT.md
+          retention-days: 90
+
+      - name: Notify Team
+        if: always()
+        run: |
+          echo "Dependency health check completed."
+          echo ""
+          echo "Summary:"
+          echo "- Check step summary above for outdated packages"
+          echo "- Run 'npm outdated' locally for full details"
+          echo "- Follow DEPENDENCY-UPDATE-POLICY.md for update procedures"

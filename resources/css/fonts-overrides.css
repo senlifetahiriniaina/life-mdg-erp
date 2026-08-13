@@ -1,0 +1,86 @@
+/*
+ * Font Metric Overrides for CLS Prevention
+ * Prevents layout shift when custom fonts swap from fallback fonts
+ * Reference: https://web.dev/css-web-fonts/#font-metrics-override-descriptors
+ */
+
+/* Inter Tight - Body text font */
+@supports (font-display: swap) {
+  /* Override metrics to match custom font and prevent layout shift */
+  :root {
+    --inter-tight-ascent-override: 90%;
+    --inter-tight-descent-override: 22%;
+    --inter-tight-line-gap-override: 0%;
+  }
+
+  /* Apply ascent-override via CSS custom properties (when supported in future) */
+  body {
+    font-family: "Inter Tight", InterTight, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+}
+
+/* Geist - Display/heading font */
+@supports (font-display: swap) {
+  :root {
+    --geist-ascent-override: 90%;
+    --geist-descent-override: 22%;
+    --geist-line-gap-override: 0%;
+  }
+
+  h1, h2, h3, h4, h5, h6,
+  .heading, .font-display {
+    font-family: "Geist", "Inter Tight", -apple-system, system-ui, sans-serif;
+  }
+}
+
+/* JetBrains Mono - Code/monospace font */
+@supports (font-display: swap) {
+  :root {
+    --jetbrains-mono-ascent-override: 87%;
+    --jetbrains-mono-descent-override: 23%;
+    --jetbrains-mono-line-gap-override: 0%;
+  }
+
+  code, pre, .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+}
+
+/*
+ * Additional tips for CLS prevention:
+ *
+ * 1. System font fallbacks are close in metrics to custom fonts:
+ *    -apple-system, BlinkMacSystemFont (macOS/iOS)
+ *    "Segoe UI" (Windows)
+ *    system-ui (generic system font)
+ *
+ * 2. For maximum CLS prevention, the fallback font metrics should closely
+ *    match the custom font metrics. The above system fonts are good choices.
+ *
+ * 3. If you move to self-hosted fonts, use ascent-override/descent-override
+ *    in @font-face rules:
+ *
+ *    @font-face {
+ *      font-family: 'Inter Tight';
+ *      src: url('/fonts/inter-tight-400.woff2') format('woff2');
+ *      font-display: swap;
+ *      ascent-override: 90%;
+ *      descent-override: 22%;
+ *      line-gap-override: 0%;
+ *    }
+ */
+
+/* Monitor font swap visually during development */
+@media (prefers-color-scheme: dark) {
+  /* Optional: Add visual indicator during font swap (remove in production) */
+  body.fonts-swapping {
+    border: 2px solid rgba(255, 255, 0, 0.3);
+  }
+}
+
+/* Ensure text rendering is optimized while fonts load */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}

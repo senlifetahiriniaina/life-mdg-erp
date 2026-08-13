@@ -1,0 +1,98 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'contacts' => 'Contatos',
+    'contact' => 'Contato',
+    'accounts' => 'Contas',
+    'account' => 'Conta',
+    'leads' => 'Leads',
+    'lead' => 'Lead',
+    'opportunities' => 'Oportunidades',
+    'opportunity' => 'Oportunidade',
+    'activities' => 'Atividades',
+    'activity' => 'Atividade',
+    'pipelines' => 'Pipelines',
+    'pipeline' => 'Pipeline',
+
+    'fields' => [
+        'first_name' => 'Nome',
+        'last_name' => 'Sobrenome',
+        'full_name' => 'Nome completo',
+        'email' => 'E-mail',
+        'phone' => 'Telefone',
+        'mobile' => 'Celular',
+        'job_title' => 'Cargo',
+        'department' => 'Departamento',
+        'status' => 'Status',
+        'source' => 'Origem',
+        'account' => 'Conta',
+        'owner' => 'Responsável',
+        'amount' => 'Valor',
+        'currency' => 'Moeda',
+        'probability' => 'Probabilidade',
+        'stage' => 'Etapa',
+        'description' => 'Descrição',
+        'score' => 'Pontuação',
+        'estimated_value' => 'Valor estimado',
+        'type' => 'Tipo',
+        'title' => 'Título',
+        'due_at' => 'Data de vencimento',
+        'expected_close_date' => 'Data de fechamento prevista',
+    ],
+
+    'statuses' => [
+        'active' => 'Ativo',
+        'inactive' => 'Inativo',
+        'converted' => 'Convertido',
+        'prospect' => 'Prospecto',
+        'new' => 'Novo',
+        'contacted' => 'Contatado',
+        'qualified' => 'Qualificado',
+        'unqualified' => 'Não qualificado',
+        'open' => 'Aberto',
+        'won' => 'Ganho',
+        'lost' => 'Perdido',
+        'planned' => 'Planejado',
+        'done' => 'Concluído',
+        'cancelled' => 'Cancelado',
+    ],
+
+    'activity_types' => [
+        'call' => 'Ligação',
+        'email' => 'E-mail',
+        'meeting' => 'Reunião',
+        'task' => 'Tarefa',
+        'note' => 'Nota',
+    ],
+
+    'sources' => [
+        'website' => 'Site',
+        'referral' => 'Indicação',
+        'cold_call' => 'Ligação fria',
+        'event' => 'Evento',
+        'social_media' => 'Redes sociais',
+        'other' => 'Outro',
+    ],
+
+    'actions' => [
+        'new_contact' => 'Novo contato',
+        'new_lead' => 'Novo lead',
+        'new_opportunity' => 'Nova oportunidade',
+        'new_activity' => 'Nova atividade',
+        'convert_lead' => 'Converter lead',
+    ],
+
+    'messages' => [
+        'contact_created' => 'Contato criado com sucesso.',
+        'contact_updated' => 'Contato atualizado com sucesso.',
+        'contact_deleted' => 'Contato excluído.',
+        'lead_created' => 'Lead criado com sucesso.',
+        'lead_updated' => 'Lead atualizado com sucesso.',
+        'lead_deleted' => 'Lead excluído.',
+        'opportunity_created' => 'Oportunidade criada com sucesso.',
+        'opportunity_updated' => 'Oportunidade atualizada com sucesso.',
+        'opportunity_deleted' => 'Oportunidade excluída.',
+    ],
+];

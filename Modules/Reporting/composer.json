@@ -1,0 +1,28 @@
+{
+    "name": "widehalo/reporting",
+    "description": "Cross-module report generation engine for WideHalo ERP.",
+    "authors": [
+        {
+            "name": "WideHalo Development Team",
+            "email": "dev@widehalo.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Reporting\\": "app/",
+            "Modules\\Reporting\\Database\\Factories\\": "database/factories/",
+            "Modules\\Reporting\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Reporting\\Tests\\": "tests/"
+        }
+    }
+}

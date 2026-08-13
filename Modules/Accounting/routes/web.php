@@ -1,0 +1,12 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use Modules\Accounting\Http\Controllers\Web\InvoiceWebController;
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/', function () {
+        return view('accounting::dashboard');
+    })->name('dashboard');
+
+    Route::get('invoices', [InvoiceWebController::class, 'index'])->name('invoices.index');
+});

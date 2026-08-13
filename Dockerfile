@@ -1,0 +1,105 @@
+# Build stage
+FROM php:8.4-fpm as builder
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    zip \
+    unzip \
+    libpq-dev \
+    libfreetype6-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    libzip-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) gd exif pcntl pdo pdo_mysql pdo_pgsql zip bcmath \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files
+COPY composer.json composer.lock ./
+
+# Copy the vendored core submodule so the path repository resolves during install
+COPY .widehalo-core ./.widehalo-core
+
+# Install PHP dependencies
+RUN composer install --no-scripts --no-dev --prefer-dist --no-interaction
+
+# Copy application
+COPY . .
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node dependencies and build
+COPY package.json package-lock.json ./
+RUN npm ci --only=prod && npm run build
+
+# Generate Laravel caches
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache
+
+###############################################################################
+# Runtime stage
+FROM php:8.4-fpm
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    libfreetype6 \
+    libjpeg62-turbo \
+    libpng6 \
+    libzip4 \
+    redis-tools \
+    mysql-client \
+    git \
+    supervisor \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy PHP extensions from builder
+COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
+COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
+
+# Copy application from builder
+COPY --from=builder /app /app
+
+# Create app user
+RUN groupadd -g 1000 appgroup && \
+    useradd -u 1000 -G www-data -d /app appuser
+
+# Set permissions
+RUN chown -R appuser:appgroup /app && \
+    chmod -R 755 /app && \
+    chmod -R 775 /app/storage /app/bootstrap/cache
+
+# Copy supervisor config
+COPY docker/supervisor.conf /etc/supervisor/conf.d/
+
+# PHP Configuration
+COPY docker/php.ini /usr/local/etc/php/php.ini
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD php /app/docker/health-check.php
+
+USER appuser
+
+EXPOSE 9000
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

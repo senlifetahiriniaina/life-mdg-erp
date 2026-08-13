@@ -1,0 +1,98 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'contacts' => 'Contacts',
+    'contact' => 'Contact',
+    'accounts' => 'Accounts',
+    'account' => 'Account',
+    'leads' => 'Leads',
+    'lead' => 'Lead',
+    'opportunities' => 'Opportunities',
+    'opportunity' => 'Opportunity',
+    'activities' => 'Activities',
+    'activity' => 'Activity',
+    'pipelines' => 'Pipelines',
+    'pipeline' => 'Pipeline',
+
+    'fields' => [
+        'first_name' => 'First Name',
+        'last_name' => 'Last Name',
+        'full_name' => 'Full Name',
+        'email' => 'Email',
+        'phone' => 'Phone',
+        'mobile' => 'Mobile',
+        'job_title' => 'Job Title',
+        'department' => 'Department',
+        'status' => 'Status',
+        'source' => 'Source',
+        'account' => 'Account',
+        'owner' => 'Owner',
+        'amount' => 'Amount',
+        'currency' => 'Currency',
+        'probability' => 'Probability',
+        'stage' => 'Stage',
+        'description' => 'Description',
+        'score' => 'Score',
+        'estimated_value' => 'Estimated Value',
+        'type' => 'Type',
+        'title' => 'Title',
+        'due_at' => 'Due Date',
+        'expected_close_date' => 'Expected Close Date',
+    ],
+
+    'statuses' => [
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+        'converted' => 'Converted',
+        'prospect' => 'Prospect',
+        'new' => 'New',
+        'contacted' => 'Contacted',
+        'qualified' => 'Qualified',
+        'unqualified' => 'Unqualified',
+        'open' => 'Open',
+        'won' => 'Won',
+        'lost' => 'Lost',
+        'planned' => 'Planned',
+        'done' => 'Done',
+        'cancelled' => 'Cancelled',
+    ],
+
+    'activity_types' => [
+        'call' => 'Call',
+        'email' => 'Email',
+        'meeting' => 'Meeting',
+        'task' => 'Task',
+        'note' => 'Note',
+    ],
+
+    'sources' => [
+        'website' => 'Website',
+        'referral' => 'Referral',
+        'cold_call' => 'Cold Call',
+        'event' => 'Event',
+        'social_media' => 'Social Media',
+        'other' => 'Other',
+    ],
+
+    'actions' => [
+        'new_contact' => 'New Contact',
+        'new_lead' => 'New Lead',
+        'new_opportunity' => 'New Opportunity',
+        'new_activity' => 'New Activity',
+        'convert_lead' => 'Convert Lead',
+    ],
+
+    'messages' => [
+        'contact_created' => 'Contact created successfully.',
+        'contact_updated' => 'Contact updated successfully.',
+        'contact_deleted' => 'Contact deleted.',
+        'lead_created' => 'Lead created successfully.',
+        'lead_updated' => 'Lead updated successfully.',
+        'lead_deleted' => 'Lead deleted.',
+        'opportunity_created' => 'Opportunity created successfully.',
+        'opportunity_updated' => 'Opportunity updated successfully.',
+        'opportunity_deleted' => 'Opportunity deleted.',
+    ],
+];

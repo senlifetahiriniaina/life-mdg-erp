@@ -1,0 +1,11 @@
+{
+    "name": "Integration",
+    "alias": "integration",
+    "description": "Third-party integrations: webhooks, API connectors, OAuth2 providers, sync logs",
+    "priority": 0,
+    "providers": [
+        "Modules\\Integration\\Providers\\IntegrationServiceProvider",
+        "Modules\\Integration\\Providers\\RouteServiceProvider"
+    ],
+    "files": []
+}

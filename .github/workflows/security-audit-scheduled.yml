@@ -1,0 +1,166 @@
+name: Scheduled Security Audit
+
+on:
+  schedule:
+    # Run every Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+  # Allow manual trigger
+  workflow_dispatch:
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '22'
+
+jobs:
+  scheduled-security-audit:
+    name: Weekly Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: redis, mbstring, pdo, pdo_mysql
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php${{ env.PHP_VERSION }}-
+
+      - name: Install Composer Dependencies
+        run: composer install --no-scripts --no-progress --prefer-dist
+
+      - name: Backend Security Audit (Composer)
+        id: composer-audit
+        run: |
+          echo "# Backend Security Audit Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## PHP/Composer Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          composer audit --format=json | jq '.' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Audit completed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          composer audit || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Frontend - webapp Audit
+        id: audit-wb
+        run: |
+          cd webapp
+          npm ci
+          echo "## webapp Security Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          npm audit --json > audit-report.json 2>&1 || true
+          cat audit-report.json | jq '.metadata.vulnerabilities' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "0 vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=moderate || true
+
+      - name: Generate Comprehensive Report
+        if: always()
+        run: |
+          cat > SECURITY_AUDIT_REPORT.md << 'EOF'
+          # Weekly Security Audit Report
+
+          **Date:** $(date -u)
+          **Scheduled:** Every Monday at 02:00 UTC
+
+          ## Summary
+
+          This automated security audit checks for known vulnerabilities across:
+          - Backend (PHP/Composer)
+          - Frontend web applications (JavaScript/npm)
+          - Mobile application (React Native/npm)
+
+          ## Instructions
+
+          1. **Review Results:** Check the audit reports above
+          2. **Identify Issues:** Look for critical and high severity vulnerabilities
+          3. **Create Issues:** For each vulnerability found:
+             ```bash
+             gh issue create --title "[SECURITY] Vulnerability in package-name" \
+               --body "Severity: [Critical/High/Moderate]\nCVE: [if applicable]\nUpdate to: [version]"
+             ```
+          4. **Update Log:** Update `VULNERABILITIES.md` with findings
+          5. **Schedule Updates:** Follow `DEPENDENCY-UPDATE-POLICY.md` for timelines
+
+          ## Quick Actions
+
+          ### Fix Automatic Vulnerabilities
+          ```bash
+          cd webapp && npm audit fix
+          cd apps/webapp-ecommerce && npm audit fix
+          cd apps/mobile && npm audit fix --legacy-peer-deps
+          cd apps/api && composer update
+          ```
+
+          ### Manual Review Needed
+          - Major version updates (breaking changes)
+          - Updates requiring code changes
+          - Security updates with complex dependencies
+
+          ## References
+
+          - [SECURITY.md](SECURITY.md) - Security Policy
+          - [DEPENDENCY-UPDATE-POLICY.md](DEPENDENCY-UPDATE-POLICY.md) - Update Procedures
+          - [VULNERABILITIES.md](VULNERABILITIES.md) - Vulnerability Log
+          - [security/SECURITY_AUDIT.md](security/SECURITY_AUDIT.md) - Full Audit Report
+
+          ---
+
+          **Next Audit:** Next Monday 02:00 UTC
+          EOF
+
+          cat SECURITY_AUDIT_REPORT.md
+
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekly-security-audit-report
+          path: |
+            SECURITY_AUDIT_REPORT.md
+            webapp/audit-report.json
+          retention-days: 90
+
+      - name: Create Issue for High Vulnerabilities
+        if: always()
+        run: |
+          # Check for critical/high vulnerabilities and optionally create issues
+          echo "Security audit completed. Review artifacts for detailed results."
+          echo ""
+          echo "If critical/high vulnerabilities found:"
+          echo "1. Check the uploaded artifacts"
+          echo "2. Run: gh issue create [as shown above]"
+          echo "3. Assign to security team"
+          echo "4. Set appropriate labels and milestone"
+
+      - name: Notify on Failures
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🔐 **Security Audit Failed**: Please check the workflow logs for details.'
+            })

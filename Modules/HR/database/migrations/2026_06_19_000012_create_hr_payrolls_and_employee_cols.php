@@ -1,0 +1,53 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (! Schema::hasTable('hr_payrolls')) {
+            Schema::create('hr_payrolls', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('employee_id')->index();
+                $table->decimal('salary', 15, 2)->default(0);
+                $table->string('currency', 8)->default('USD');
+                $table->string('pay_frequency')->nullable();
+                $table->decimal('bonus', 15, 2)->default(0);
+                $table->decimal('allowances', 15, 2)->default(0);
+                $table->decimal('deductions', 15, 2)->default(0);
+                $table->timestamps();
+            });
+        }
+
+        if (Schema::hasTable('hr_employees')) {
+            Schema::table('hr_employees', function (Blueprint $table) {
+                if (! Schema::hasColumn('hr_employees', 'termination_reason')) {
+                    $table->string('termination_reason')->nullable();
+                }
+                if (! Schema::hasColumn('hr_employees', 'sick_leave_balance')) {
+                    $table->decimal('sick_leave_balance', 8, 2)->nullable();
+                }
+                if (! Schema::hasColumn('hr_employees', 'job_title')) {
+                    $table->string('job_title')->nullable();
+                }
+            });
+        }
+    }
+
+    public function down(): void
+    {
+        if (Schema::hasTable('hr_employees')) {
+            Schema::table('hr_employees', function (Blueprint $table) {
+                foreach (['termination_reason', 'sick_leave_balance'] as $col) {
+                    if (Schema::hasColumn('hr_employees', $col)) {
+                        $table->dropColumn($col);
+                    }
+                }
+            });
+        }
+        Schema::dropIfExists('hr_payrolls');
+    }
+};

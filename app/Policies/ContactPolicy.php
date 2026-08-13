@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1);
+namespace App\Policies;
+class ContactPolicy extends BaseErpPolicy { protected ?string $ownerColumn = 'owner_id'; }

@@ -1,0 +1,14 @@
+{
+    "name": "Settings",
+    "alias": "settings",
+    "description": "Global and per-tenant configuration management module",
+    "keywords": [],
+    "priority": 1,
+    "providers": [
+        "Modules\\Settings\\Providers\\SettingsServiceProvider",
+        "Modules\\Settings\\Providers\\RouteServiceProvider"
+    ],
+    "aliases": {},
+    "files": [],
+    "requires": []
+}

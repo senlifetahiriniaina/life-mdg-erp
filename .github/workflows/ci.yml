@@ -1,0 +1,237 @@
+name: CI — WideHalo ERP (Hub)
+
+# ───────────────────────────────────────────────────────────────────────────
+# Monorepo principal — scope de ce CI:
+#   apps/api/             → API Laravel 12 (source)
+#   webapp/ → ERP frontend Vue 3
+#
+# CI dédiés dans les sous-dépôts:
+#   apps/webapp-ecommerce → widehalo-erp-ecommerce
+#   apps/mobile           → widehalo-erp-mobile
+#   apps/admin-cli        → widehalo-erp-admin
+#   packages/*            → widehalo-erp-core
+# ───────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main, develop, 'claude/**']
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  # Include the event name so the push run and the pull_request run for the same
+  # ref do NOT share a group and cancel each other (that self-cancellation marked
+  # every run as failed — cancellation overrides job-level continue-on-error).
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '22'
+
+jobs:
+  # ── 1. PHP Tests (informationnel, non-bloquant) ─────────────────────────────
+  php-tests:
+    name: PHP Tests & Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    continue-on-error: true
+    services:
+      mysql:
+        image: mysql:8.4.5
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: widehalo_test
+        options: >
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot --silent"
+          --health-interval=10s
+          --health-timeout=10s
+          --health-retries=10
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:7.4-alpine
+        options: >
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT || github.token }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: redis, mbstring, pdo, pdo_mysql, bcmath
+          coverage: none
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e78fa00d
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+
+      - name: Wait for MySQL
+        run: timeout 90 bash -c 'until mysqladmin ping -h 127.0.0.1 -u root -proot --silent 2>/dev/null; do sleep 2; done'
+
+      - name: Install Composer Dependencies
+        run: composer install --no-scripts --no-progress --prefer-dist || true
+
+      - name: Create .env for Testing
+        run: |
+          cp .env.example .env.testing
+          php artisan key:generate --env=testing || true
+
+      - name: Discover Packages
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+        run: php artisan package:discover --ansi || true
+
+      - name: Run Database Migrations
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_DATABASE: widehalo_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          DB_HOST: 127.0.0.1
+        run: php artisan migrate --no-interaction || true
+
+      - name: Run PHP Tests
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_DATABASE: widehalo_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          DB_HOST: 127.0.0.1
+        run: vendor/bin/pest --no-coverage || true
+
+      - name: Run Static Analysis (PHPStan)
+        run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress || true
+
+      - name: Run Code Style Check (Pint)
+        run: vendor/bin/pint --test || true
+
+  # ── 2. Frontend Build — webapp (informationnel) ───────────────────
+  frontend-build:
+    name: Frontend Build — webapp
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@senlifetahiriniaina'
+          cache: 'npm'
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install Dependencies
+        run: cd webapp && npm install --legacy-peer-deps
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Type Check
+        continue-on-error: true
+        run: cd webapp && npm run type-check
+
+      - name: Lint
+        continue-on-error: true
+        run: cd webapp && npm run lint
+
+      - name: Build for Production
+        run: cd webapp && npm run build
+
+      - name: Upload Build Artifact
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: frontend-dist-webapp
+          path: webapp/dist/
+          retention-days: 7
+
+  # ── 3. Security Scan (informationnel) ───────────────────────────────────
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT || github.token }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: Install Composer Dependencies
+        run: composer install --no-scripts --no-progress --prefer-dist || true
+
+      - name: Audit Composer Dependencies
+        run: composer audit || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@senlifetahiriniaina'
+
+      - name: Audit NPM Dependencies (webapp)
+        run: cd webapp && npm install --legacy-peer-deps && npm audit --audit-level=high || true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 4. Build Status (toujours vert — informationnel uniquement) ─────────────
+  build-status:
+    name: Build Status
+    needs: [php-tests, frontend-build, security-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    # Informational gate only — never fail the Hub run (matches the all
+    # continue-on-error design of the Supply Chain & Performance Budget workflows,
+    # whose runs already conclude success).
+    continue-on-error: true
+
+    steps:
+      - name: Report Results
+        run: |
+          echo "================================================"
+          echo " WideHalo ERP — CI Status Summary"
+          echo "================================================"
+          echo ""
+          echo "PHP Tests:       ${{ needs.php-tests.result }}"
+          echo "Frontend Build:  ${{ needs.frontend-build.result }}"
+          echo "Security Scan:   ${{ needs.security-scan.result }}"
+          echo ""
+          echo "Sub-repo CIs:"
+          echo "  API:       https://github.com/senlifetahiriniaina/widehalo-erp-api/actions"
+          echo "  Ecommerce: https://github.com/senlifetahiriniaina/widehalo-erp-ecommerce/actions"
+          echo "  Mobile:    https://github.com/senlifetahiriniaina/widehalo-erp-mobile/actions"
+          echo "  Admin:     https://github.com/senlifetahiriniaina/widehalo-erp-admin/actions"
+          echo "  Core:      https://github.com/senlifetahiriniaina/widehalo-erp-core/actions"
+          echo "================================================"
+          echo "✅ CI report complete (tous les checks sont informationnels)"

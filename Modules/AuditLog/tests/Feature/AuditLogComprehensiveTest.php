@@ -1,0 +1,203 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Modules\AuditLog\Policies\AuditLogPolicy;
+use Modules\AuditLog\Providers\AuditLogServiceProvider;
+use Modules\Core\Models\AuditLog;
+use Modules\Core\Services\AuditService;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+
+uses(RefreshDatabase::class);
+
+// ─── Structural ───────────────────────────────────────────────────────────────
+
+test('AuditLogServiceProvider class exists', function () {
+    expect(class_exists(AuditLogServiceProvider::class))->toBeTrue();
+});
+
+test('AuditLogPolicy class exists and has expected methods', function () {
+    $policy  = new AuditLogPolicy();
+    $methods = get_class_methods($policy);
+
+    expect($methods)->toContain('viewAny')
+        ->toContain('view')
+        ->toContain('create')
+        ->toContain('update')
+        ->toContain('delete')
+        ->toContain('export');
+});
+
+// ─── AuditService — log actions ───────────────────────────────────────────────
+
+test('AuditService logs a create action', function () {
+    $service = app(AuditService::class);
+    $user    = User::factory()->create();
+
+    $log = $service->log(
+        action:    'create',
+        userId:    $user->id,
+        module:    'AuditLog',
+        eventType: 'create',
+    );
+
+    expect($log)->toBeInstanceOf(AuditLog::class)
+        ->and($log->action)->toBe('create')
+        ->and($log->module)->toBe('AuditLog')
+        ->and($log->user_id)->toBe($user->id);
+});
+
+test('AuditService logs an update action with old and new values', function () {
+    $service = app(AuditService::class);
+
+    $log = $service->log(
+        action:    'update',
+        module:    'Inventory',
+        oldValues: ['stock' => 100],
+        newValues: ['stock' => 80],
+    );
+
+    expect($log->old_values)->toBe(['stock' => 100])
+        ->and($log->new_values)->toBe(['stock' => 80]);
+});
+
+test('AuditService logs a delete action', function () {
+    $service = app(AuditService::class);
+
+    $log = $service->log(
+        action:    'delete',
+        module:    'CRM',
+        eventType: 'delete',
+    );
+
+    expect($log->action)->toBe('delete');
+});
+
+test('AuditService logLogin creates login entry', function () {
+    $service = app(AuditService::class);
+    $user    = User::factory()->create();
+
+    $log = $service->logLogin($user->id);
+
+    expect($log->action)->toBe('login')
+        ->and($log->module)->toBe('Auth')
+        ->and($log->event_type)->toBe('login')
+        ->and($log->user_id)->toBe($user->id);
+});
+
+test('AuditService logLogout creates logout entry', function () {
+    $service = app(AuditService::class);
+    $user    = User::factory()->create();
+
+    $log = $service->logLogout($user->id);
+
+    expect($log->action)->toBe('logout')
+        ->and($log->event_type)->toBe('logout');
+});
+
+test('AuditService logLoginFailed creates entry without user_id', function () {
+    $service = app(AuditService::class);
+
+    $log = $service->logLoginFailed('unknown@example.com');
+
+    expect($log->action)->toBe('login_failed')
+        ->and($log->user_id)->toBeNull();
+});
+
+// ─── AuditLog model ───────────────────────────────────────────────────────────
+
+test('AuditLog model uses core_audit_logs table', function () {
+    expect((new AuditLog())->getTable())->toBe('core_audit_logs');
+});
+
+test('AuditLog model can be created via factory', function () {
+    $log = AuditLog::factory()->create();
+
+    expect($log->id)->not->toBeNull()
+        ->and($log->action)->not->toBeEmpty();
+});
+
+test('AuditLog forCreate factory state sets correct action', function () {
+    $log = AuditLog::factory()->forCreate()->create();
+
+    expect($log->action)->toBe('created')
+        ->and($log->old_values)->toBeNull()
+        ->and($log->new_values)->toBeArray();
+});
+
+test('AuditLog forUpdate factory state has old and new values', function () {
+    $log = AuditLog::factory()->forUpdate()->create();
+
+    expect($log->action)->toBe('updated')
+        ->and($log->old_values)->toBeArray()
+        ->and($log->new_values)->toBeArray();
+});
+
+test('AuditLog forDelete factory state clears new_values', function () {
+    $log = AuditLog::factory()->forDelete()->create();
+
+    expect($log->action)->toBe('deleted')
+        ->and($log->new_values)->toBeNull();
+});
+
+// ─── Filtering ────────────────────────────────────────────────────────────────
+
+test('AuditLog can be filtered by action', function () {
+    AuditLog::factory()->count(3)->create(['action' => 'created']);
+    AuditLog::factory()->count(2)->create(['action' => 'updated']);
+
+    expect(AuditLog::where('action', 'created')->count())->toBe(3)
+        ->and(AuditLog::where('action', 'updated')->count())->toBe(2);
+});
+
+test('AuditLog can be filtered by module', function () {
+    AuditLog::factory()->count(4)->create(['module' => 'HR']);
+    AuditLog::factory()->count(2)->create(['module' => 'CRM']);
+
+    expect(AuditLog::where('module', 'HR')->count())->toBe(4);
+});
+
+test('AuditLog can be filtered by user_id', function () {
+    $user = User::factory()->create();
+
+    AuditLog::factory()->count(3)->create(['user_id' => $user->id]);
+    AuditLog::factory()->create(['user_id' => null]);
+
+    expect(AuditLog::where('user_id', $user->id)->count())->toBe(3);
+});
+
+// ─── Policy permissions ───────────────────────────────────────────────────────
+
+test('AuditLogPolicy viewAny returns true with correct permission', function () {
+    $policy = new AuditLogPolicy();
+    $user   = User::factory()->create();
+
+    Permission::firstOrCreate(['name' => 'auditlog.auditlog.view-any', 'guard_name' => 'web']);
+    $role = Role::firstOrCreate(['name' => 'auditor', 'guard_name' => 'web']);
+    $role->givePermissionTo('auditlog.auditlog.view-any');
+    $user->assignRole('auditor');
+
+    expect($policy->viewAny($user))->toBeTrue();
+});
+
+test('AuditLogPolicy viewAny returns false without permission', function () {
+    $policy = new AuditLogPolicy();
+    $user   = User::factory()->create();
+
+    expect($policy->viewAny($user))->toBeFalse();
+});
+
+test('AuditLogPolicy export returns true with export permission', function () {
+    $policy = new AuditLogPolicy();
+    $user   = User::factory()->create();
+
+    Permission::firstOrCreate(['name' => 'auditlog.auditlog.export', 'guard_name' => 'web']);
+    $role = Role::firstOrCreate(['name' => 'export_auditor', 'guard_name' => 'web']);
+    $role->givePermissionTo('auditlog.auditlog.export');
+    $user->assignRole('export_auditor');
+
+    expect($policy->export($user))->toBeTrue();
+});

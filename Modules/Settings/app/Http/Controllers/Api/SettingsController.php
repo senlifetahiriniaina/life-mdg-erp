@@ -1,0 +1,128 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Settings\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Modules\Settings\Models\Setting;
+use Modules\Settings\Services\SettingsService;
+
+/**
+ * @group Settings
+ *
+ * Manage global and per-tenant configuration settings.
+ */
+class SettingsController extends Controller
+{
+    public function __construct(
+        private readonly SettingsService $service,
+    ) {}
+
+    /**
+     * GET /api/v1/settings
+     *
+     * List all settings (admin only).
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $this->authorize('viewAll', Setting::class);
+
+        $settings = Setting::withoutGlobalScopes()
+            ->orderBy('module')
+            ->orderBy('key')
+            ->paginate(100);
+
+        return response()->json($settings);
+    }
+
+    /**
+     * GET /api/v1/settings/{module}
+     *
+     * Return all settings for the given module scoped to the current tenant.
+     */
+    public function showModule(string $module): JsonResponse
+    {
+        $this->authorize('viewAny', Setting::class);
+
+        $settings = $this->service->getModule($module);
+
+        return response()->json([
+            'module'   => $module,
+            'settings' => $settings,
+        ]);
+    }
+
+    /**
+     * PUT /api/v1/settings/{module}/{key}
+     *
+     * Update (or create) a single setting for the current tenant.
+     */
+    public function update(Request $request, string $module, string $key): JsonResponse
+    {
+        $validated = $request->validate([
+            'value'      => ['required'],
+            'value_type' => ['sometimes', 'in:string,integer,boolean,json,encrypted'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'is_public'  => ['sometimes', 'boolean'],
+        ]);
+
+        $valueType = $validated['value_type'] ?? null;
+
+        if ($valueType !== null) {
+            $this->service->setTyped($module, $key, $validated['value'], $valueType);
+        } else {
+            $this->service->set($module, $key, $validated['value']);
+        }
+
+        // Optionally update meta fields
+        if (isset($validated['description']) || isset($validated['is_public'])) {
+            $tenantId = auth()?->user()?->company_id;
+            $setting  = Setting::withoutGlobalScopes()
+                ->where('tenant_id', $tenantId)
+                ->where('module', $module)
+                ->where('key', $key)
+                ->first();
+
+            if ($setting) {
+                $setting->fill(array_filter([
+                    'description' => $validated['description'] ?? null,
+                    'is_public'   => $validated['is_public'] ?? null,
+                ], fn ($v) => $v !== null))->save();
+            }
+        }
+
+        return response()->json([
+            'module'  => $module,
+            'key'     => $key,
+            'value'   => $this->service->get($module, $key),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/settings/{module}/bulk
+     *
+     * Update multiple settings at once for the current tenant.
+     *
+     * Body: { "settings": { "key1": value1, "key2": value2, ... } }
+     */
+    public function bulk(Request $request, string $module): JsonResponse
+    {
+        $this->authorize('create', Setting::class);
+
+        $validated = $request->validate([
+            'settings'   => ['required', 'array'],
+            'settings.*' => ['present'],
+        ]);
+
+        $this->service->setMany($module, $validated['settings']);
+
+        return response()->json([
+            'module'   => $module,
+            'updated'  => count($validated['settings']),
+            'settings' => $this->service->getModule($module),
+        ]);
+    }
+}

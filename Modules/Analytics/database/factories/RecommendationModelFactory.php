@@ -1,0 +1,65 @@
+<?php
+
+namespace Modules\Analytics\database\factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Analytics\app\Models\RecommendationModel;
+
+class RecommendationModelFactory extends Factory
+{
+    protected $model = RecommendationModel::class;
+
+    /**
+     * Define the model's default state.
+     */
+    public function definition(): array
+    {
+        return [
+                        'company_id' => fake()->word(),
+            'model_name' => fake()->word(),
+            'recommendation_type' => fake()->word(),
+            'algorithm' => fake()->word(),
+            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'description' => fake()->text(),
+            'configuration' => fake()->word(),
+            'coverage_percentage' => fake()->word(),
+            'recommendation_count' => fake()->word(),
+            'click_through_count' => fake()->word(),
+            'ctr' => fake()->word(),
+            'last_trained_at' => fake()->word(),
+            'created_by' => fake()->word(),
+            'name' => fake()->word(),
+            'title' => fake()->word(),
+            'slug' => fake()->slug(),
+            'code' => fake()->bothify('??-##'),
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => fake()->phoneNumber(),
+            'amount' => fake()->randomFloat(2, 0, 1000),
+            'quantity' => fake()->numberBetween(1, 100),
+            'price' => fake()->randomFloat(2, 0, 1000),
+            'cost' => fake()->randomFloat(2, 0, 1000),
+            'is_active' => true,
+            'notes' => fake()->text(),
+        ];
+    }
+
+    /**
+     * Indicate model is inactive
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
+    }
+
+    /**
+     * Indicate model is archived
+     */
+    public function archived(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'archived_at' => now(),
+        ]);
+    }
+}

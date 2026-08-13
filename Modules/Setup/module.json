@@ -1,0 +1,12 @@
+{
+    "name": "Setup",
+    "alias": "setup",
+    "description": "Onboarding wizard: data import (Excel/CSV/PDF), ERP migration, AI-assisted field mapping",
+    "keywords": ["setup", "onboarding", "import", "migration", "wizard"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Setup\\Providers\\SetupServiceProvider",
+        "Modules\\Setup\\Providers\\RouteServiceProvider"
+    ],
+    "files": []
+}

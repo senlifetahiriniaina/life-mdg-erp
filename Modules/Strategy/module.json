@@ -1,0 +1,10 @@
+{
+    "name": "Strategy",
+    "alias": "strategy",
+    "description": "Strategic planning, OKR/BSC management, KPI cockpit, scenario planning, AI advisor",
+    "keywords": ["strategy", "okr", "bsc", "kpi", "planning"],
+    "priority": 0,
+    "providers": ["Modules\\Strategy\\Providers\\StrategyServiceProvider"],
+    "aliases": {},
+    "files": []
+}

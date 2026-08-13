@@ -1,0 +1,9 @@
+{
+    "name": "Security",
+    "alias": "security",
+    "description": "Advanced Security & Compliance - Zero-Trust, Encryption, Threat Detection, Compliance",
+    "keywords": ["security", "encryption", "zero-trust", "compliance", "threat-detection"],
+    "priority": 0,
+    "providers": ["Modules\\Security\\Providers\\SecurityServiceProvider"],
+    "files": []
+}

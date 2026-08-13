@@ -1,0 +1,12 @@
+{
+    "name": "Reporting",
+    "alias": "reporting",
+    "description": "Cross-module report generation engine: define, execute, schedule and export reports.",
+    "keywords": ["reporting", "analytics", "export", "pdf", "excel", "schedules"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Reporting\\Providers\\ReportingServiceProvider",
+        "Modules\\Reporting\\Providers\\RouteServiceProvider"
+    ],
+    "files": []
+}

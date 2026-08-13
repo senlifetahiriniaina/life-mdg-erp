@@ -1,0 +1,11 @@
+{
+    "name": "modules/security",
+    "description": "Advanced Security and Compliance",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Modules\\Security\\": ""
+        }
+    }
+}

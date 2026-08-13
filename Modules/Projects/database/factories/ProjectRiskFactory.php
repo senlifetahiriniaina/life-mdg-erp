@@ -1,0 +1,62 @@
+<?php
+
+namespace Modules\Projects\database\factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Projects\app\Models\ProjectRisk;
+
+class ProjectRiskFactory extends Factory
+{
+    protected $model = ProjectRisk::class;
+
+    /**
+     * Define the model's default state.
+     */
+    public function definition(): array
+    {
+        return [
+                        'project_id' => fake()->word(),
+            'title' => fake()->word(),
+            'description' => fake()->text(),
+            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'probability' => fake()->word(),
+            'impact' => fake()->word(),
+            'probability_score' => fake()->word(),
+            'impact_score' => fake()->word(),
+            'mitigation_plan' => fake()->word(),
+            'owner_id' => fake()->word(),
+            'due_date' => fake()->dateTime(),
+            'name' => fake()->word(),
+            'slug' => fake()->slug(),
+            'code' => fake()->bothify('??-##'),
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => fake()->phoneNumber(),
+            'amount' => fake()->randomFloat(2, 0, 1000),
+            'quantity' => fake()->numberBetween(1, 100),
+            'price' => fake()->randomFloat(2, 0, 1000),
+            'cost' => fake()->randomFloat(2, 0, 1000),
+            'is_active' => true,
+            'notes' => fake()->text(),
+        ];
+    }
+
+    /**
+     * Indicate model is inactive
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
+    }
+
+    /**
+     * Indicate model is archived
+     */
+    public function archived(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'archived_at' => now(),
+        ]);
+    }
+}

@@ -1,0 +1,28 @@
+{
+    "name": "widehalo/sales",
+    "description": "Sales order and quotation management module for WideHalo ERP.",
+    "authors": [
+        {
+            "name": "WideHalo Development Team",
+            "email": "dev@widehalo.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Sales\\": "app/",
+            "Modules\\Sales\\Database\\Factories\\": "database/factories/",
+            "Modules\\Sales\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Sales\\Tests\\": "tests/"
+        }
+    }
+}

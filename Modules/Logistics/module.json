@@ -1,0 +1,11 @@
+{
+    "name": "Logistics",
+    "alias": "logistics",
+    "description": "Transport Management System, Last-Mile Delivery, Track & Trace, Freight Billing & Customs Compliance",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Logistics\\Providers\\LogisticsServiceProvider"
+    ],
+    "files": []
+}

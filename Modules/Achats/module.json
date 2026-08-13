@@ -1,0 +1,11 @@
+{
+    "name": "Achats",
+    "alias": "achats",
+    "description": "Purchasing module with RFQ, PO, and supplier management",
+    "keywords": ["purchasing", "procurement", "rfq", "purchase order"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Achats\\Providers\\AchatsServiceProvider"
+    ],
+    "files": []
+}

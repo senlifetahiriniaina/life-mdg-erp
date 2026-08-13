@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WideHalo Timer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      width: 300px;
+      background: #f9fafb;
+      color: #111827;
+    }
+    header {
+      background: #4f46e5;
+      color: white;
+      padding: .75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    header h1 { font-size: .95rem; font-weight: 700; }
+    header .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #86efac;
+      display: none;
+    }
+    header .dot.running { display: block; animation: pulse .8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .body { padding: 1rem; }
+
+    .timer-display {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      color: #111827;
+      margin: .5rem 0 1rem;
+      letter-spacing: 2px;
+    }
+
+    .desc-input {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: .5rem;
+      padding: .5rem .75rem;
+      font-size: .875rem;
+      margin-bottom: .75rem;
+      outline: none;
+      background: #fff;
+    }
+    .desc-input:focus { border-color: #4f46e5; }
+
+    .btn {
+      width: 100%;
+      padding: .65rem 1rem;
+      border: none;
+      border-radius: .5rem;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .88; }
+    .btn-start { background: #22c55e; color: white; }
+    .btn-stop  { background: #ef4444; color: white; }
+    .btn-stop:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    .status-msg {
+      margin-top: .75rem;
+      font-size: .8rem;
+      text-align: center;
+      color: #6b7280;
+      min-height: 1.2em;
+    }
+    .status-msg.error { color: #dc2626; }
+
+    .settings-section {
+      border-top: 1px solid #e5e7eb;
+      padding: 1rem;
+      background: white;
+    }
+    .settings-section h2 { font-size: .85rem; font-weight: 600; margin-bottom: .6rem; color: #374151; }
+    .field { margin-bottom: .5rem; }
+    .field label { font-size: .78rem; color: #6b7280; display: block; margin-bottom: .2rem; }
+    .field input {
+      width: 100%; border: 1px solid #d1d5db; border-radius: .4rem;
+      padding: .4rem .6rem; font-size: .8rem;
+    }
+    .btn-save {
+      width: 100%; margin-top: .5rem; padding: .4rem; border: none;
+      border-radius: .4rem; background: #4f46e5; color: white;
+      font-size: .8rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-save:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="dot" id="runningDot"></div>
+    <h1>WideHalo Timer</h1>
+  </header>
+
+  <div class="body">
+    <div class="timer-display" id="timerDisplay">00:00:00</div>
+
+    <input
+      type="text"
+      id="descInput"
+      class="desc-input"
+      placeholder="Description de la tâche…"
+      maxlength="200"
+      aria-label="Description"
+    />
+
+    <button class="btn btn-start" id="startBtn">▶ Démarrer</button>
+    <button class="btn btn-stop" id="stopBtn" disabled style="margin-top:.4rem;">■ Arrêter</button>
+
+    <p class="status-msg" id="statusMsg" aria-live="polite"></p>
+  </div>
+
+  <div class="settings-section">
+    <h2>⚙️ Configuration</h2>
+    <div class="field">
+      <label for="apiKeyInput">Clé API WideHalo</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-…" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="apiBaseInput">URL de l'instance</label>
+      <input type="url" id="apiBaseInput" placeholder="https://app.widehalo.com" />
+    </div>
+    <div class="field">
+      <label for="projectIdInput">ID Projet (optionnel)</label>
+      <input type="number" id="projectIdInput" placeholder="1" min="1" />
+    </div>
+    <button class="btn-save" id="saveBtn">Sauvegarder</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

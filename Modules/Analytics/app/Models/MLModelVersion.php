@@ -1,0 +1,59 @@
+<?php
+
+namespace Modules\Analytics\Models;
+
+use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class MLModelVersion extends Model
+{
+    use \Modules\AuditLog\Traits\HasAuditLog;
+    protected $table = 'ml_model_versions';
+
+    protected $fillable = [
+        'ml_model_id',
+        'version_number',
+        'change_notes',
+        'validation_accuracy',
+        'validation_precision',
+        'validation_recall',
+        'validation_f1',
+        'training_samples',
+        'validation_samples',
+        'trained_at',
+        'model_path',
+        'training_config',
+        'status',
+        'activated_at',
+        'deactivated_at',
+        'created_by',
+    ];
+
+    protected $casts = [
+        'validation_accuracy' => 'decimal:4',
+        'validation_precision' => 'decimal:4',
+        'validation_recall' => 'decimal:4',
+        'validation_f1' => 'decimal:4',
+        'trained_at' => 'datetime',
+        'activated_at' => 'datetime',
+        'deactivated_at' => 'datetime',
+        'training_config' => 'array',
+    ];
+
+    public function mlModel(): BelongsTo
+    {
+        return $this->belongsTo(MLModel::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function metrics(): HasMany
+    {
+        return $this->hasMany(ModelMetric::class);
+    }
+}

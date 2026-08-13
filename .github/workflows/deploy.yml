@@ -1,0 +1,250 @@
+name: Deploy - Production Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment || 'production' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT || github.token }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231  # v2.31.1
+        with:
+          php-version: '8.3'
+          extensions: redis, mbstring, pdo, pdo_mysql, bcmath
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e78fa00d  # v4.2.2
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer Dependencies
+        run: composer install --no-scripts --no-progress --prefer-dist --no-dev
+
+      - name: Discover Packages
+        run: php artisan package:discover --ansi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84c5d73d06cf23b74  # v4.4.0
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Frontend Assets
+        run: npm run build
+
+      - name: Create Deployment Artifact
+        run: |
+          tar -czf widehalo-${{ github.sha }}.tar.gz \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=mobile \
+            --exclude=.env \
+            --exclude=.env.* \
+            --exclude=storage/logs \
+            --exclude=bootstrap/cache \
+            .
+
+      - name: Upload to Deployment Server
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
+
+          scp -i ~/.ssh/deploy_key widehalo-${{ github.sha }}.tar.gz \
+            $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/releases/
+
+      - name: Execute Deployment
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh -i ~/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # Enable maintenance mode
+            php artisan down
+
+            # Extract new release
+            mkdir -p releases/${{ github.sha }}
+            tar -xzf releases/widehalo-${{ github.sha }}.tar.gz -C releases/${{ github.sha }}
+
+            # Install dependencies
+            cd releases/${{ github.sha }}
+            composer install --no-scripts --no-dev
+            php artisan package:discover --ansi
+
+            # Run migrations
+            php artisan migrate --force
+
+            # Clear caches
+            php artisan cache:clear
+            php artisan view:clear
+            php artisan route:clear
+
+            # Switch symlink
+            rm ../current || true
+            ln -s releases/${{ github.sha }} ../current
+
+            # Cleanup old releases (keep last 5)
+            cd ../releases
+            ls -t | tail -n +6 | xargs -r rm -rf
+
+            # Disable maintenance mode
+            php artisan up
+          EOF
+
+      - name: Health Check
+        run: |
+          curl -f https://${{ secrets.DEPLOY_HOST }}/api/health || exit 1
+
+      - name: Slack Notification
+        if: always()
+        uses: slackapi/slack-github-action@e28cf165c2eba7c5d60e5cf0e64e5c34698da40a  # v1.24.0
+        with:
+          payload: |
+            {
+              "text": "Deployment ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment ${{ job.status }}*\nEnvironment: ${{ inputs.environment || 'production' }}\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  post-deploy-tests:
+    name: Post-Deployment Tests
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT || github.token }}
+
+      - name: Wait for Deployment
+        run: sleep 30
+
+      - name: API Health Check
+        run: |
+          curl -f https://${{ secrets.DEPLOY_HOST }}/api/health
+
+      - name: Smoke Tests
+        env:
+          BASE_URL: https://${{ secrets.DEPLOY_HOST }}
+          API_TOKEN: ${{ secrets.SMOKE_TEST_TOKEN }}
+        run: |
+          npm install axios
+          node scripts/smoke-tests.js
+
+      - name: Performance Baseline
+        run: |
+          curl -s https://${{ secrets.DEPLOY_HOST }}/api/metrics > metrics-post.json
+          echo "Deployment metrics captured"
+
+  rollback:
+    name: Rollback on Failure
+    needs: post-deploy-tests
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+      - name: Rollback Deployment
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh -i ~/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # Get previous release
+            PREVIOUS=$(ls -t releases/ | head -2 | tail -1)
+
+            # Switch back
+            rm current || true
+            ln -s releases/$PREVIOUS current
+
+            # Restart app
+            php artisan up
+          EOF
+
+      - name: Notify Rollback
+        uses: slackapi/slack-github-action@e28cf165c2eba7c5d60e5cf0e64e5c34698da40a  # v1.24.0
+        with:
+          payload: |
+            {
+              "text": "🚨 Deployment Rolled Back",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*🚨 Deployment Rolled Back*\nEnvironment: ${{ inputs.environment || 'production' }}\nCommit: ${{ github.sha }}\nPlease investigate the failure"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

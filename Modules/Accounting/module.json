@@ -1,0 +1,14 @@
+{
+  "name": "Accounting",
+  "alias": "accounting",
+  "description": "Accounting and financial management module",
+  "keywords": [],
+  "priority": 5,
+  "providers": [
+    "Modules\\Accounting\\Providers\\AccountingServiceProvider",
+    "Modules\\Accounting\\Providers\\RouteServiceProvider"
+  ],
+  "aliases": {},
+  "files": [],
+  "requires": []
+}

@@ -1,0 +1,11 @@
+{
+    "name": "Analytics",
+    "alias": "analytics",
+    "description": "AI/ML Intelligence Layer - Predictive Analytics, Recommendations, Anomaly Detection",
+    "keywords": ["ai", "ml", "analytics", "predictions", "recommendations", "anomaly"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Analytics\\Providers\\AnalyticsServiceProvider"
+    ],
+    "files": []
+}

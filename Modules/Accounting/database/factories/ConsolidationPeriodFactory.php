@@ -1,0 +1,47 @@
+<?php
+
+namespace Modules\Accounting\database\factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Accounting\app\Models\ConsolidationPeriod;
+
+class ConsolidationPeriodFactory extends Factory
+{
+    protected $model = ConsolidationPeriod::class;
+
+    /**
+     * Define the model's default state.
+     */
+    public function definition(): array
+    {
+        return [
+                        'consolidation_hierarchy_id' => fake()->word(),
+            'period_start' => fake()->word(),
+            'period_end' => fake()->word(),
+            'frequency' => fake()->word(),
+            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'notes' => fake()->text(),
+            'consolidated_at' => fake()->word(),
+            'consolidated_by' => fake()->word(),
+            'consolidation_rules' => fake()->word(),
+        ];
+    }
+
+    /**
+     * Indicate model is inactive
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+        ]);
+    }
+
+    /**
+     * Indicate model is archived
+     */
+    public function archived(): static
+    {
+        return $this->state(fn (array $attributes) => [
+        ]);
+    }
+}

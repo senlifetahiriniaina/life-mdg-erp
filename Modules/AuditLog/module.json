@@ -1,0 +1,11 @@
+{
+    "name": "AuditLog",
+    "alias": "auditlog",
+    "description": "Module de journalisation des actions utilisateurs et de leurs impacts",
+    "keywords": ["audit", "log", "activity", "security"],
+    "priority": 0,
+    "providers": [
+        "Modules\\AuditLog\\Providers\\AuditLogServiceProvider"
+    ],
+    "files": []
+}

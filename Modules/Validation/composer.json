@@ -1,0 +1,28 @@
+{
+    "name": "nwidart/validation",
+    "description": "Multi-level approval workflow engine module",
+    "authors": [
+        {
+            "name": "Widehalo Team",
+            "email": "team@widehalo.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Validation\\": "app/",
+            "Modules\\Validation\\Database\\Factories\\": "database/factories/",
+            "Modules\\Validation\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Validation\\Tests\\": "tests/"
+        }
+    }
+}

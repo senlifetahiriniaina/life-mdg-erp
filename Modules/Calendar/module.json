@@ -1,0 +1,11 @@
+{
+    "name": "Calendar",
+    "alias": "calendar",
+    "description": "Centralized calendar hub with multi-provider sync (Google, Outlook, Apple) and module event aggregation",
+    "keywords": ["calendar", "events", "sync", "google", "outlook", "apple"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Calendar\\Providers\\CalendarServiceProvider"
+    ],
+    "files": []
+}

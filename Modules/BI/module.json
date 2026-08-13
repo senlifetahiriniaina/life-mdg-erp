@@ -1,0 +1,11 @@
+{
+    "name": "BI",
+    "alias": "bi",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\BI\\Providers\\BIServiceProvider"
+    ],
+    "files": []
+}

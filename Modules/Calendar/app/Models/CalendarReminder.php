@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Calendar\Models;
+
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * @property int $id
+ * @property int $event_id
+ * @property int $user_id
+ * @property int $minutes_before
+ * @property string $method  email|push|popup
+ * @property Carbon|null $sent_at
+ */
+class CalendarReminder extends Model
+{
+    use \Modules\AuditLog\Traits\HasAuditLog;
+    protected $table = 'calendar_reminders';
+
+    protected $fillable = [
+        'event_id', 'user_id', 'minutes_before', 'method', 'sent_at',
+    ];
+
+    protected $casts = [
+        'sent_at'        => 'datetime',
+        'minutes_before' => 'integer',
+    ];
+
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(CalendarEvent::class, 'event_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class);
+    }
+}

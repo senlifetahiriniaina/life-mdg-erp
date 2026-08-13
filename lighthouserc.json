@@ -1,0 +1,40 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 1,
+      "url": [
+        "http://localhost/dashboard",
+        "http://localhost/crm/contacts",
+        "http://localhost/bi/analytics",
+        "http://localhost/accounting/invoices",
+        "http://localhost/hr/employees"
+      ],
+      "settings": {
+        "chromeFlags": ["--no-sandbox", "--disable-gpu"],
+        "throttle": {
+          "rttMs": 40,
+          "downloadThroughputKbps": 10240,
+          "uploadThroughputKbps": 10240,
+          "cpuSlowdownMultiplier": 1
+        },
+        "emulatedFormFactor": "desktop",
+        "skipAudits": ["canonical", "csp-xss-audit"]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage",
+      "maxWaitForLoad": 45000
+    },
+    "assert": {
+      "preset": "lighthouse:recommended",
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.5 }],
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "metrics/first-contentful-paint": ["error", { "maxNumericValue": 3000 }],
+        "metrics/largest-contentful-paint": ["error", { "maxNumericValue": 4000 }],
+        "metrics/cumulative-layout-shift": ["error", { "maxNumericValue": 0.25 }],
+        "metrics/total-blocking-time": ["error", { "maxNumericValue": 350 }]
+      }
+    }
+  }
+}

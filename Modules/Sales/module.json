@@ -1,0 +1,11 @@
+{
+    "name": "Sales",
+    "alias": "sales",
+    "description": "Sales order and quotation management — bridge between CRM opportunities and invoices.",
+    "keywords": ["sales", "orders", "quotations", "crm"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Sales\\Providers\\SalesServiceProvider"
+    ],
+    "files": []
+}

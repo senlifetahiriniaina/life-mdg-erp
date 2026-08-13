@@ -1,0 +1,115 @@
+import defaultTheme from 'tailwindcss/defaultTheme';
+
+/** @type {import('tailwindcss').Config} */
+export default {
+    darkMode: 'class',
+    content: [
+        './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
+        './storage/framework/views/*.php',
+        './resources/**/*.blade.php',
+        './resources/**/*.js',
+        './resources/**/*.vue',
+        './Modules/**/resources/js/**/*.vue',
+    ],
+    theme: {
+        extend: {
+            fontFamily: {
+                sans:    ['"Inter Tight"', 'InterTight', ...defaultTheme.fontFamily.sans],
+                display: ['Geist', '"Inter Tight"', ...defaultTheme.fontFamily.sans],
+                mono:    ['"JetBrains Mono"', ...defaultTheme.fontFamily.mono],
+            },
+            colors: {
+                halo: {
+                    50:  '#EEF3FF',
+                    100: '#DCE6FF',
+                    200: '#B6CAFF',
+                    300: '#87A6FF',
+                    400: '#5781FB',
+                    500: '#2E5BE8',
+                    600: '#1E45C9',
+                    700: '#1A3AA3',
+                    800: '#17307F',
+                    900: '#131F4F',
+                    950: '#0B1437',
+                },
+                amber: {
+                    50:  '#FFF8EB',
+                    100: '#FCEACB',
+                    200: '#F8D08C',
+                    300: '#F2B14F',
+                    400: '#ED9C2B',
+                    500: '#D9831A',
+                    600: '#B0660F',
+                    700: '#855010',
+                },
+                slate: {
+                    0:   '#FFFFFF',
+                    50:  '#F7F8FB',
+                    100: '#EEF1F6',
+                    200: '#D7DCE7',
+                    300: '#C9D0DD',
+                    400: '#98A1B3',
+                    500: '#6B7488',
+                    600: '#4B5366',
+                    700: '#343B4D',
+                    800: '#1F2533',
+                    900: '#11141C',
+                    950: '#0A0C13',
+                },
+            },
+            borderRadius: {
+                xs:  '4px',
+                sm:  '6px',
+                md:  '8px',
+                lg:  '12px',
+                xl:  '16px',
+                '2xl': '24px',
+                pill: '999px',
+            },
+            boxShadow: {
+                xs:   '0 1px 2px rgba(17,31,79,0.08)',
+                sm:   '0 2px 4px rgba(17,31,79,0.08),0 1px 2px rgba(17,31,79,0.06)',
+                md:   '0 6px 14px -2px rgba(17,31,79,0.14),0 3px 6px -2px rgba(17,31,79,0.08)',
+                lg:   '0 16px 28px -8px rgba(17,31,79,0.20),0 6px 12px -4px rgba(17,31,79,0.10)',
+                xl:   '0 32px 56px -12px rgba(17,31,79,0.30),0 10px 20px -8px rgba(17,31,79,0.14)',
+                halo: '0 0 0 4px rgba(46,91,232,0.16),0 0 40px 4px rgba(237,156,43,0.35)',
+            },
+            textColor: {
+                DEFAULT: 'var(--fg-1)',
+                primary: 'var(--fg-1)',
+                secondary: 'var(--fg-2)',
+                tertiary: 'var(--fg-3)',
+                quaternary: 'var(--fg-4)',
+                brand: 'var(--fg-on-brand)',
+                link: 'var(--fg-link)',
+            },
+            backgroundColor: {
+                DEFAULT: 'var(--bg-app)',
+                app: 'var(--bg-app)',
+                canvas: 'var(--bg-canvas)',
+                sunken: 'var(--bg-sunken)',
+                overlay: 'var(--bg-overlay)',
+            },
+            borderColor: {
+                DEFAULT: 'var(--border-subtle)',
+                subtle: 'var(--border-subtle)',
+                strong: 'var(--border-strong)',
+                focus: 'var(--border-focus)',
+            },
+        },
+    },
+    plugins: [
+        function({ addUtilities }) {
+            addUtilities({
+                '.text-fg-1': { color: 'var(--fg-1)' },
+                '.text-fg-2': { color: 'var(--fg-2)' },
+                '.text-fg-3': { color: 'var(--fg-3)' },
+                '.text-fg-4': { color: 'var(--fg-4)' },
+                '.bg-canvas': { backgroundColor: 'var(--bg-canvas)' },
+                '.bg-sunken': { backgroundColor: 'var(--bg-sunken)' },
+                '.border-subtle': { borderColor: 'var(--border-subtle)' },
+                '.border-strong': { borderColor: 'var(--border-strong)' },
+            });
+        },
+    ],
+};

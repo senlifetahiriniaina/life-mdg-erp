@@ -1,0 +1,14 @@
+{
+  "name": "Inventory",
+  "alias": "inventory",
+  "description": "Inventory management module for product and warehouse tracking",
+  "keywords": [],
+  "priority": 3,
+  "providers": [
+    "Modules\\Inventory\\Providers\\InventoryServiceProvider",
+    "Modules\\Inventory\\Providers\\RouteServiceProvider"
+  ],
+  "aliases": {},
+  "files": [],
+  "requires": []
+}

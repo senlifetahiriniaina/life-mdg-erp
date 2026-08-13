@@ -1,0 +1,11 @@
+{
+    "name": "Validation",
+    "alias": "validation",
+    "description": "Multi-level approval workflow engine for ERP operations",
+    "keywords": ["approval", "workflow", "validation"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Validation\\Providers\\ValidationServiceProvider"
+    ],
+    "files": []
+}
