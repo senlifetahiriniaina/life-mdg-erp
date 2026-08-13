@@ -80,7 +80,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          OUTDATED=$(npm outdated 2>&1)
+          # npm outdated exits 1 when it finds outdated packages (by design) — under
+          # `set -e` that would kill this whole step, so don't let it propagate.
+          OUTDATED=$(npm outdated 2>&1 || true)
           OUTDATED_COUNT=$(echo "$OUTDATED" | tail -n +2 | wc -l)
 
           if [ "$OUTDATED_COUNT" -eq 0 ]; then
