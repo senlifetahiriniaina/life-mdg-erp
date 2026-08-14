@@ -97,4 +97,47 @@ class ApprovalRoutingIntegrationTest extends TestCase
         $this->assertEquals($purchasingManager->id, $request->approver_id);
         $this->assertEquals(3, $request->total_levels);
     }
+
+    public function test_marking_a_po_approved_also_approves_its_linked_approval_request()
+    {
+        app(ApprovalRoutingService::class)->createDefaultWorkflows();
+
+        Role::firstOrCreate(['name' => 'purchasing-manager', 'guard_name' => 'web']);
+        $purchasingManager = User::factory()->create();
+        $purchasingManager->assignRole('purchasing-manager');
+
+        $supplier = $this->makeSupplier();
+        $po = $this->makePurchaseOrder(2000, $supplier);
+        $requester = User::factory()->create();
+
+        $service = app(PurchaseOrderService::class);
+        $service->submitForApproval($po, $requester);
+
+        $request = ApprovalRequest::where('approvable_type', PurchaseOrder::class)
+            ->where('approvable_id', $po->id)
+            ->first();
+        $this->assertEquals('pending', $request->status);
+
+        $service->markAsApproved($po, $purchasingManager);
+
+        $this->assertEquals('approved', $po->fresh()->status);
+        $this->assertEquals('approved', $request->fresh()->status);
+        $this->assertDatabaseHas('validation_approval_actions', [
+            'request_id' => $request->id,
+            'approver_id' => $purchasingManager->id,
+            'action' => 'approved',
+        ]);
+    }
+
+    public function test_marking_a_po_approved_without_a_pending_request_does_not_fail()
+    {
+        $supplier = $this->makeSupplier();
+        $po = $this->makePurchaseOrder(2000, $supplier);
+        $approver = User::factory()->create();
+
+        // No submitForApproval() call — no ApprovalRequest exists at all.
+        app(PurchaseOrderService::class)->markAsApproved($po, $approver);
+
+        $this->assertEquals('approved', $po->fresh()->status);
+    }
 }

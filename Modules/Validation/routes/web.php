@@ -6,5 +6,5 @@ use Modules\Validation\Http\Controllers\Web\ApprovalRequestController;
 Route::middleware(['auth'])->group(function () {
     // Approval request dashboard and pages will be served by Inertia
     Route::get('/approval-requests', [ApprovalRequestController::class, 'index'])->name('validation.requests.index');
-    Route::get('/approval-requests/{request}', [ApprovalRequestController::class, 'show'])->name('validation.requests.show');
+    Route::get('/approval-requests/{approval_request}', [ApprovalRequestController::class, 'show'])->name('validation.requests.show');
 });

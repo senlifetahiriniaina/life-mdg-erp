@@ -56,7 +56,7 @@ use App\Policies\PosReturnPolicy;
 use App\Policies\PosSessionPolicy;
 use App\Policies\QualityIssuePolicy;
 use App\Policies\ShiftPolicy;
-use App\Policies\PurchaseOrderPolicy;
+use Modules\Achats\Policies\PurchaseOrderPolicy;
 use App\Policies\SupplierQuotePolicy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;

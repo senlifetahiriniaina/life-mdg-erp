@@ -109,6 +109,24 @@ class PurchaseOrderService
             'approved_at' => now(),
         ]);
 
+        // The PO's own status is the source of truth for the document
+        // lifecycle, but until now nothing ever recorded the decision on
+        // the ApprovalRequest submitForApproval() creates — it stayed
+        // 'pending' forever, so any screen reading real approval
+        // steps/decisions (ApprovalPanel) saw the PO as still awaiting a
+        // decision even after it was approved. Mirrors the same
+        // approvalService->approveRequest() call InvoiceApprovalService
+        // already makes.
+        $request = \Modules\Validation\Models\ApprovalRequest::where('approvable_type', PurchaseOrder::class)
+            ->where('approvable_id', $po->id)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($request) {
+            $this->approvalService->approveRequest($request, $approver);
+        }
+
         event(new PurchaseOrderApproved($po));
     }
 

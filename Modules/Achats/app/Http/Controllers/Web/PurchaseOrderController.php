@@ -20,8 +20,12 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchase_order)
     {
+        $purchase_order->load(['supplier', 'lines', 'requester', 'approver', 'approval.hierarchy.levels', 'approval.actions.approver']);
+
         return Inertia::render('Achats/PurchaseOrders/Show', [
-            'purchaseOrder' => $purchase_order->load(['supplier', 'lines', 'requester', 'approver']),
+            'purchaseOrder' => array_merge($purchase_order->toArray(), [
+                'can_approve' => request()->user()?->can('approve', $purchase_order) ?? false,
+            ]),
         ]);
     }
 

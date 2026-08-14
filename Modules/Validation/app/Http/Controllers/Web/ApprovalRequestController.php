@@ -15,8 +15,13 @@ class ApprovalRequestController extends Controller
 
     public function show(ApprovalRequest $approval_request)
     {
+        $approval_request->load(['workflow.rules', 'hierarchy.levels', 'requester', 'approver', 'actions.approver', 'history.changedBy']);
+
         return Inertia::render('Validation/ApprovalRequests/Show', [
-            'approvalRequest' => $approval_request->load(['workflow', 'requester', 'actions.approver', 'history']),
+            'approvalRequest' => array_merge($approval_request->toArray(), [
+                'can_approve' => auth()->user()?->can('approve', $approval_request) ?? false,
+                'can_reject' => auth()->user()?->can('reject', $approval_request) ?? false,
+            ]),
         ]);
     }
 }

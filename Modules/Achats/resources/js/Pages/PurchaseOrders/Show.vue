@@ -2,125 +2,121 @@
   <div class="max-w-6xl mx-auto">
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Purchase Order</h1>
-        <p class="mt-2 text-surface-600 dark:text-surface-400">{{ po.po_number }}</p>
+        <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Bon de commande</h1>
+        <p class="mt-2 text-surface-600 dark:text-surface-400">{{ purchaseOrder.po_number }}</p>
       </div>
       <Link href="/purchase-orders" class="text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:text-surface-50">
-        ← Back to Purchase Orders
+        ← Retour aux bons de commande
       </Link>
     </div>
 
-    <div v-if="loading" class="text-center py-8">
-      <p class="text-surface-600 dark:text-surface-400">Loading...</p>
-    </div>
-
-    <div v-else-if="po.id" class="space-y-6">
+    <div class="space-y-6">
       <!-- Status Bar -->
-      <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
+      <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Current Status</h2>
-            <div class="flex items-center gap-2">
-              <span
-                :class="[
-                  'px-4 py-2 rounded-lg text-sm font-medium',
-                  statusClasses[po.status] || 'bg-gray-100 dark:bg-surface-700 text-gray-800 dark:text-surface-100'
-                ]"
-              >
-                {{ formatStatus(po.status) }}
-              </span>
-            </div>
+            <h2 class="text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Statut actuel</h2>
+            <span :class="['px-4 py-2 rounded-lg text-sm font-medium', statusClasses[purchaseOrder.status] || 'bg-gray-100 dark:bg-surface-700 text-gray-800 dark:text-surface-100']">
+              {{ formatStatus(purchaseOrder.status) }}
+            </span>
           </div>
           <div class="flex gap-2">
             <button
-              v-if="po.status === 'draft'"
+              v-if="purchaseOrder.status === 'draft'"
               @click="submitForApproval"
-              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+              :disabled="actionPending"
+              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50"
             >
-              Submit for Approval
+              Soumettre pour approbation
             </button>
             <button
-              v-if="po.status === 'approved'"
-              @click="markAsReceived"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+              v-if="purchaseOrder.status === 'submitted' && purchaseOrder.can_approve"
+              @click="approvePO"
+              :disabled="actionPending"
+              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50"
             >
-              Mark as Received
+              Approuver
             </button>
             <button
-              v-if="po.status === 'draft'"
+              v-if="purchaseOrder.status === 'draft'"
               @click="deletePO"
-              class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+              :disabled="actionPending"
+              class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
             >
-              Delete
+              Supprimer
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Approval Panel — visualization only; the real decision goes through
+           the button above (Achats has no reject action yet, only approve/
+           cancel, so ApprovalPanel's built-in per-step form isn't a fit). -->
+      <div v-if="instance" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Progression de l'approbation</h3>
+        <ApprovalPanel :instance="instance" :steps="steps" :decisions="decisions" :can-approve="false" />
       </div>
 
       <!-- Order Details -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
-          <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Order Information</h3>
+        <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Informations de commande</h3>
           <div class="space-y-3">
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">PO Number</p>
-              <p class="text-lg font-medium text-surface-900 dark:text-surface-50">{{ po.po_number }}</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Numéro</p>
+              <p class="text-lg font-medium text-surface-900 dark:text-surface-50">{{ purchaseOrder.po_number }}</p>
             </div>
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Order Date</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ formatDate(po.order_date) }}</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Date de commande</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ formatDate(purchaseOrder.order_date) }}</p>
             </div>
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Delivery Date</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ po.delivery_date ? formatDate(po.delivery_date) : 'Not specified' }}</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Date de livraison</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ purchaseOrder.delivery_date ? formatDate(purchaseOrder.delivery_date) : 'Non spécifiée' }}</p>
             </div>
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Currency</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ po.currency }}</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Devise</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ purchaseOrder.currency }}</p>
             </div>
           </div>
         </div>
 
-        <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
-          <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Supplier Information</h3>
+        <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Fournisseur</h3>
           <div class="space-y-3">
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Supplier</p>
-              <p class="text-lg font-medium text-surface-900 dark:text-surface-50">{{ po.supplier?.name || 'Unknown' }}</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Nom</p>
+              <p class="text-lg font-medium text-surface-900 dark:text-surface-50">{{ purchaseOrder.supplier?.name || 'Inconnu' }}</p>
             </div>
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Contact Email</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ po.supplier?.email || 'N/A' }}</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Email</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ purchaseOrder.supplier?.email || 'N/A' }}</p>
             </div>
             <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Contact Phone</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ po.supplier?.phone || 'N/A' }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Payment Terms</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ po.supplier?.payment_terms || '30' }} days</p>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Téléphone</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ purchaseOrder.supplier?.phone || 'N/A' }}</p>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Line Items -->
-      <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Line Items</h3>
+      <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Lignes</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-50 dark:bg-surface-800 dark:bg-surface-800 border-b border-gray-200 dark:border-surface-700">
+            <thead class="bg-gray-50 dark:bg-surface-800 border-b border-gray-200 dark:border-surface-700">
               <tr>
                 <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300">Description</th>
-                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-20">Quantity</th>
-                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-20">Unit</th>
-                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-24">Unit Price</th>
-                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-16">Tax %</th>
+                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-20">Quantité</th>
+                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-20">Unité</th>
+                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-24">Prix unitaire</th>
+                <th scope="col" class="px-4 py-3 text-left font-medium text-surface-700 dark:text-surface-300 w-16">TVA %</th>
                 <th scope="col" class="px-4 py-3 text-right font-medium text-surface-700 dark:text-surface-300 w-24">Total</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="line in po.lines" :key="line.id" class="border-b border-gray-200 dark:border-surface-700">
+              <tr v-for="line in purchaseOrder.lines" :key="line.id" class="border-b border-gray-200 dark:border-surface-700">
                 <td class="px-4 py-3">{{ line.description }}</td>
                 <td class="px-4 py-3">{{ line.quantity }}</td>
                 <td class="px-4 py-3">{{ line.unit }}</td>
@@ -134,31 +130,31 @@
       </div>
 
       <!-- Totals -->
-      <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
+      <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
         <div class="flex justify-end max-w-md ml-auto space-y-2">
           <div class="flex justify-between w-full text-sm">
-            <span class="text-surface-600 dark:text-surface-400">Subtotal:</span>
+            <span class="text-surface-600 dark:text-surface-400">Sous-total :</span>
             <span class="font-medium">{{ subtotal }}</span>
           </div>
           <div class="flex justify-between w-full text-sm">
-            <span class="text-surface-600 dark:text-surface-400">Tax:</span>
+            <span class="text-surface-600 dark:text-surface-400">TVA :</span>
             <span class="font-medium">{{ taxAmount }}</span>
           </div>
           <div class="flex justify-between w-full text-sm">
-            <span class="text-surface-600 dark:text-surface-400">Shipping:</span>
-            <span class="font-medium">{{ po.shipping_cost || 0 }}</span>
+            <span class="text-surface-600 dark:text-surface-400">Livraison :</span>
+            <span class="font-medium">{{ purchaseOrder.shipping_cost || 0 }}</span>
           </div>
           <div class="border-t border-gray-200 dark:border-surface-700 pt-2 flex justify-between w-full font-semibold text-lg">
-            <span>Total:</span>
-            <span>{{ po.total }}</span>
+            <span>Total :</span>
+            <span>{{ purchaseOrder.total }}</span>
           </div>
         </div>
       </div>
 
       <!-- Notes -->
-      <div v-if="po.notes" class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
+      <div v-if="purchaseOrder.notes" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Notes</h3>
-        <p class="text-surface-700 dark:text-surface-300 whitespace-pre-wrap">{{ po.notes }}</p>
+        <p class="text-surface-700 dark:text-surface-300 whitespace-pre-wrap">{{ purchaseOrder.notes }}</p>
       </div>
     </div>
 
@@ -167,13 +163,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { Link } from '@inertiajs/vue3'
-import { useRouteId } from '@/composables/useRouteId'
-const routeId = useRouteId()
-const po = ref({})
-const loading = ref(true)
+import { computed, ref } from 'vue'
+import { Link, router } from '@inertiajs/vue3'
+import axios from 'axios'
+import ApprovalPanel from '@/Components/UI/ApprovalPanel.vue'
+
+const props = defineProps({
+  purchaseOrder: { type: Object, required: true },
+})
+
 const error = ref('')
+const actionPending = ref(false)
 
 const statusClasses = {
   draft: 'bg-surface-100 dark:bg-surface-700 text-surface-900 dark:text-surface-100',
@@ -181,115 +181,90 @@ const statusClasses = {
   approved: 'bg-blue-100 text-blue-800',
   received: 'bg-purple-100 text-purple-800',
   invoiced: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800'
+  cancelled: 'bg-red-100 text-red-800',
 }
 
-const formatStatus = (status) => {
-  return status.charAt(0).toUpperCase() + status.slice(1)
-}
+const formatStatus = (status) => status ? status.charAt(0).toUpperCase() + status.slice(1) : '—'
 
-const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
+const formatDate = (date) => date
+  ? new Date(date).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })
+  : '—'
 
-const subtotal = computed(() => {
-  return po.value.lines?.reduce((sum, line) => sum + (line.line_total || 0), 0) || 0
-})
+const subtotal = computed(() => (props.purchaseOrder.lines || []).reduce((sum, line) => sum + (Number(line.line_total) || 0), 0))
+const taxAmount = computed(() => (props.purchaseOrder.lines || []).reduce((sum, line) => {
+  return sum + (Number(line.line_total) || 0) * ((Number(line.tax_rate) || 0) / 100)
+}, 0))
 
-const taxAmount = computed(() => {
-  return po.value.lines?.reduce((sum, line) => {
-    const tax = (line.line_total || 0) * ((line.tax_rate || 0) / 100)
-    return sum + tax
-  }, 0) || 0
-})
+// approval is a MorphOne — the single ApprovalRequest this PO's submission
+// created. hierarchy.levels (routed via ApprovalRoutingResolver) gives the
+// real per-level titles when present.
+const approval = computed(() => props.purchaseOrder.approval)
 
-const loadPurchaseOrder = async () => {
-  try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      po.value = await response.json()
-    } else {
-      error.value = 'Failed to load purchase order'
-    }
-  } catch (err) {
-    console.error('Failed to load PO:', err)
-    error.value = 'An error occurred while loading the purchase order'
-  } finally {
-    loading.value = false
+const steps = computed(() => {
+  const levels = approval.value?.hierarchy?.levels
+  if (levels?.length) {
+    return levels.map(l => ({ order: l.level_order, label: l.title, approver_type: 'role', approver_value: l.title }))
   }
-}
+  const total = approval.value?.total_levels || 1
+  return Array.from({ length: total }, (_, i) => ({ order: i + 1, label: `Niveau ${i + 1}`, approver_type: 'role', approver_value: '—' }))
+})
+
+const decisions = computed(() => (approval.value?.actions || []).map((a, idx) => ({
+  step_order: idx + 1,
+  approver_name: a.approver?.name,
+  decision: a.action,
+  comment: a.comment,
+  decided_at: a.acted_at,
+})))
+
+const instance = computed(() => {
+  if (!approval.value) return null
+  return {
+    id: approval.value.id,
+    current_step: props.purchaseOrder.status === 'approved' ? steps.value.length + 1 : (approval.value.current_level || 1),
+    status: approval.value.status,
+    initiated_by: approval.value.requested_by,
+    decisions: decisions.value,
+  }
+})
 
 const submitForApproval = async () => {
-  if (!confirm('Submit this purchase order for approval?')) return
-
+  if (!confirm('Soumettre ce bon de commande pour approbation ?')) return
+  actionPending.value = true
+  error.value = ''
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}/submit`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      loadPurchaseOrder()
-    }
+    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/submit`)
+    router.reload()
   } catch (err) {
-    console.error('Failed to submit PO:', err)
-    error.value = 'Failed to submit for approval'
+    error.value = err.response?.data?.message || 'Échec de la soumission.'
+  } finally {
+    actionPending.value = false
   }
 }
 
-const markAsReceived = async () => {
-  if (!confirm('Mark this purchase order as received?')) return
-
+const approvePO = async () => {
+  actionPending.value = true
+  error.value = ''
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        status: 'received'
-      })
-    })
-    if (response.ok) {
-      loadPurchaseOrder()
-    }
+    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/approve`)
+    router.reload()
   } catch (err) {
-    console.error('Failed to mark as received:', err)
-    error.value = 'Failed to mark as received'
+    error.value = err.response?.data?.message || "Échec de l'approbation."
+  } finally {
+    actionPending.value = false
   }
 }
 
 const deletePO = async () => {
-  if (!confirm('Are you sure you want to delete this purchase order?')) return
-
+  if (!confirm('Voulez-vous vraiment supprimer ce bon de commande ?')) return
+  actionPending.value = true
+  error.value = ''
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      window.location.href = '/purchase-orders'
-    }
+    await axios.delete(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}`)
+    router.visit('/purchase-orders')
   } catch (err) {
-    console.error('Failed to delete PO:', err)
-    error.value = 'Failed to delete purchase order'
+    error.value = err.response?.data?.message || 'Échec de la suppression.'
+    actionPending.value = false
   }
 }
-
-onMounted(() => {
-  loadPurchaseOrder()
-})
 </script>
