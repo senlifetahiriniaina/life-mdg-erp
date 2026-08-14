@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Core\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Modules\Core\Services\SecretsService;
 use Modules\Core\Services\SecretAccessControl;
 use Modules\Core\Services\SecretRotationManager;
@@ -77,11 +79,18 @@ class SecretsController extends Controller
                     'expires_at' => $secret->expires_at,
                 ],
             ], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (Exception $e) {
+            Log::error('Secrets API: create failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $request->input('name'),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create secret',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -107,10 +116,15 @@ class SecretsController extends Controller
                 ],
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: retrieve failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve secret',
-                'error' => $e->getMessage(),
             ], 403);
         }
     }
@@ -140,10 +154,15 @@ class SecretsController extends Controller
                 'data' => $metadata,
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: metadata failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve metadata',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -178,11 +197,18 @@ class SecretsController extends Controller
                     'next_rotation' => $secret->next_rotation,
                 ],
             ]);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (Exception $e) {
+            Log::error('Secrets API: rotate failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to rotate secret',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -205,10 +231,15 @@ class SecretsController extends Controller
                 'message' => 'Secret revoked successfully',
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: revoke failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to revoke secret',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -247,10 +278,14 @@ class SecretsController extends Controller
                 'count' => $secrets->count(),
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: list failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to list secrets',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -268,7 +303,8 @@ class SecretsController extends Controller
         try {
             $validated = $request->validate([
                 'user_id' => 'required|integer|exists:users,id',
-                'scopes' => 'nullable|array|in:read,rotate,revoke',
+                'scopes' => 'nullable|array',
+                'scopes.*' => 'string|in:read,rotate,revoke',
                 'expires_at' => 'nullable|date_format:Y-m-d H:i:s',
                 'reason' => 'nullable|string',
             ]);
@@ -294,11 +330,18 @@ class SecretsController extends Controller
                     'expires_at' => $grant->expires_at,
                 ],
             ], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (Exception $e) {
+            Log::error('Secrets API: grant access failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to grant access',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -322,10 +365,16 @@ class SecretsController extends Controller
                 'message' => 'Access revoked successfully',
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: revoke access failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+                'target_user_id' => $userId,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to revoke access',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -349,10 +398,15 @@ class SecretsController extends Controller
                 'count' => $accessors->count(),
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: get accessors failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+                'secret_name' => $name,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to get accessors',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }
@@ -376,10 +430,14 @@ class SecretsController extends Controller
                 'count' => $rotations->count(),
             ]);
         } catch (Exception $e) {
+            Log::error('Secrets API: get upcoming rotations failed', [
+                'exception' => $e->getMessage(),
+                'user_id' => $request->user()?->id,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to get upcoming rotations',
-                'error' => $e->getMessage(),
             ], 400);
         }
     }

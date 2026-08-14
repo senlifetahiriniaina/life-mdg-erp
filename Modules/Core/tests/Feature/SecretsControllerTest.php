@@ -49,4 +49,52 @@ class SecretsControllerTest extends TestCase
 
         $response->assertUnauthorized();
     }
+
+    /**
+     * SecretsController used to put $e->getMessage() straight into the JSON
+     * response for every failure — a real disclosure risk on a secrets
+     * vault, and one that was only theoretical while these routes were
+     * unreachable (fixed two commits ago). Duplicate-name is a reliable way
+     * to trigger storeSecret()'s real exception path.
+     */
+    public function test_store_failure_does_not_leak_exception_message()
+    {
+        $user = $this->actingAsUser('admin');
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/secrets', [
+            'name' => 'duplicate_key',
+            'value' => 'sk_first',
+            'type' => 'api_key',
+        ])->assertCreated();
+
+        $second = $this->actingAs($user, 'sanctum')->postJson('/api/v1/secrets', [
+            'name' => 'duplicate_key',
+            'value' => 'sk_second',
+            'type' => 'api_key',
+        ]);
+
+        $second->assertStatus(400);
+        $second->assertJsonPath('success', false);
+        $second->assertJsonMissingPath('error');
+    }
+
+    public function test_grant_access_rejects_an_invalid_scope()
+    {
+        $admin = $this->actingAsUser('admin');
+        $target = \App\Models\User::factory()->create();
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/secrets', [
+            'name' => 'grant_scope_test',
+            'value' => 'sk_value',
+            'type' => 'api_key',
+        ])->assertCreated();
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson(
+            '/api/v1/secrets/grant_scope_test/access/grant',
+            ['user_id' => $target->id, 'scopes' => ['read', 'not_a_real_scope']]
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['scopes.1']);
+    }
 }
