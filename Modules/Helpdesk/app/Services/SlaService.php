@@ -10,6 +10,33 @@ use Modules\Helpdesk\Models\Ticket;
 
 class SlaService
 {
+    /**
+     * `TicketService::createFromSource()` (used by every module's
+     * `HelpdeskLinkable::raiseTicket()` and the generic ticket-creation
+     * endpoint) looks up `SlaPolicy::where('is_default', true)->first()`
+     * and silently skips SLA assignment when it finds none — which was
+     * always, since nothing ever seeded a default policy. Idempotent
+     * (firstOrCreate by name), same pattern as
+     * ApprovalRoutingService::createDefaultWorkflows() /
+     * InvoiceApprovalService::getOrCreateWorkflow().
+     *
+     * @return \Illuminate\Support\Collection<int, SlaPolicy>
+     */
+    public function seedDefaultPolicies(): \Illuminate\Support\Collection
+    {
+        $tiers = [
+            ['name' => 'Faible priorité', 'priority' => 'low', 'response_time_minutes' => 480, 'resolution_time_minutes' => 4320],
+            ['name' => 'Priorité moyenne', 'priority' => 'medium', 'response_time_minutes' => 240, 'resolution_time_minutes' => 1440, 'is_default' => true],
+            ['name' => 'Priorité haute', 'priority' => 'high', 'response_time_minutes' => 60, 'resolution_time_minutes' => 480],
+            ['name' => 'Urgent', 'priority' => 'urgent', 'response_time_minutes' => 15, 'resolution_time_minutes' => 240],
+        ];
+
+        return collect($tiers)->map(fn (array $tier) => SlaPolicy::firstOrCreate(
+            ['name' => $tier['name']],
+            $tier + ['escalation_enabled' => true, 'is_active' => true, 'is_default' => false]
+        ));
+    }
+
     /** Apply an SLA policy to a ticket, calculating the due datetime. */
     public function apply(Ticket $ticket, SlaPolicy $policy): void
     {

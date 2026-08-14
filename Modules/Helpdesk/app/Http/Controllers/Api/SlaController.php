@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Helpdesk\Models\SlaPolicy;
 use Modules\Helpdesk\Services\SlaAutomationService;
+use Modules\Helpdesk\Services\SlaService;
 
 /**
  * @group Controllers - Sla
@@ -18,10 +19,17 @@ use Modules\Helpdesk\Services\SlaAutomationService;
  */
 class SlaController extends Controller
 {
-    public function __construct(private readonly SlaAutomationService $service) {}
+    public function __construct(
+        private readonly SlaAutomationService $service,
+        private readonly SlaService $slaService,
+    ) {}
 
     public function indexPolicies(): JsonResponse
     {
+        if (SlaPolicy::count() === 0) {
+            $this->slaService->seedDefaultPolicies();
+        }
+
         $policies = SlaPolicy::where('is_active', true)->get();
 
         return response()->json($policies);
@@ -32,7 +40,7 @@ class SlaController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'priority' => 'required|string|in:low,normal,high,urgent,critical',
+            'priority' => 'required|string|in:low,normal,medium,high,urgent,critical',
             'response_time_minutes' => 'required|integer|min:1',
             'resolution_time_minutes' => 'required|integer|min:1',
             'business_hours_only' => 'nullable|boolean',
@@ -56,7 +64,7 @@ class SlaController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
-            'priority' => 'sometimes|required|string|in:low,normal,high,urgent,critical',
+            'priority' => 'sometimes|required|string|in:low,normal,medium,high,urgent,critical',
             'response_time_minutes' => 'sometimes|required|integer|min:1',
             'resolution_time_minutes' => 'sometimes|required|integer|min:1',
             'business_hours_only' => 'nullable|boolean',
@@ -81,7 +89,7 @@ class SlaController extends Controller
     {
         $validated = $request->validate([
             'ticket_id' => 'required|integer',
-            'priority' => 'required|string|in:low,normal,high,urgent,critical',
+            'priority' => 'required|string|in:low,normal,medium,high,urgent,critical',
             'created_at' => 'required|date',
             'first_response_at' => 'nullable|date',
             'resolved_at' => 'nullable|date',

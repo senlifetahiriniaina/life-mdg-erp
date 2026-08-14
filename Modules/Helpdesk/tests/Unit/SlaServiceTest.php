@@ -111,3 +111,20 @@ it('does not mark resolved tickets as breached', function () {
     expect($count)->toBe(0);
     expect($resolvedTicket->fresh()->sla_breached)->toBeFalse();
 });
+
+it('seeds exactly one default policy among the 4 tiers', function () {
+    $service = new SlaService;
+    $policies = $service->seedDefaultPolicies();
+
+    expect($policies)->toHaveCount(4);
+    expect(SlaPolicy::where('is_default', true)->count())->toBe(1);
+    expect(SlaPolicy::where('is_default', true)->first()->priority)->toBe('medium');
+});
+
+it('seeding default policies twice does not create duplicates', function () {
+    $service = new SlaService;
+    $service->seedDefaultPolicies();
+    $service->seedDefaultPolicies();
+
+    expect(SlaPolicy::count())->toBe(4);
+});

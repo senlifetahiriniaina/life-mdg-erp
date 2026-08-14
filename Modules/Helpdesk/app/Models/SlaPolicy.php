@@ -46,6 +46,7 @@ class SlaPolicy extends Model
         'escalation_enabled',
         'escalation_after_minutes',
         'is_active',
+        'is_default',
     ];
 
     protected $casts = [
@@ -53,6 +54,7 @@ class SlaPolicy extends Model
         'business_hours' => 'array',
         'escalation_enabled' => 'boolean',
         'is_active' => 'boolean',
+        'is_default' => 'boolean',
     ];
 
     public function isActive(): bool
