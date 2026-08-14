@@ -1,9 +1,8 @@
 <template>
   <AppLayout>
-    <Head title="Assistant de configuration — WideHalo ERP" />
+    <Head title="Assistant de configuration — Life MDG ERP" />
 
     <div class="space-y-6 max-w-4xl mx-auto">
-      <!-- Page header -->
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">
@@ -14,507 +13,191 @@
           </p>
         </div>
         <Button
-          v-if="currentStep > 0"
           icon="pi pi-times"
-          label="Annuler"
+          label="Fermer"
           severity="secondary"
           outlined
-          @click="cancelWizard"
+          @click="router.visit('/setup')"
         />
       </div>
 
-      <!-- Step indicator -->
+      <!-- Step indicator: shows where the user is AND what's left, per the
+           user's original complaint that no screen surfaced this. -->
       <div class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6">
-        <Steps :model="steps" :activeStep="currentStep" class="mb-0" />
+        <WorkflowStepper :steps="wizardSteps" :current-step="currentStepKey" :show-actions="false" :show-details="false" />
       </div>
 
-      <!-- Step content -->
       <div class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6">
 
-        <!-- Step 0: Bienvenue + Infos entreprise -->
-        <div v-if="currentStep === 0" class="space-y-6">
-          <div class="text-center mb-6">
+        <!-- Step 1: Entreprise -->
+        <div v-if="currentStepKey === 'company'" class="space-y-6">
+          <StepHeader icon="pi-building" title="Bienvenue sur Life MDG ERP" subtitle="Commençons par les informations de votre entreprise" />
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Nom de l'entreprise" required :error="errors.company_name">
+              <InputText v-model="company.company_name" placeholder="Ex: Life MDG Sarl" class="w-full" :class="{ 'p-invalid': errors.company_name }" />
+            </Field>
+            <Field label="Secteur d'activité">
+              <Select v-model="company.industry" :options="industryOptions" option-label="label" option-value="value" placeholder="Sélectionner un secteur" class="w-full" />
+            </Field>
+            <Field label="Pays" required :error="errors.country_code">
+              <Select v-model="company.country_code" :options="countryOptions" option-label="label" option-value="value" placeholder="Sélectionner un pays" class="w-full" filter :class="{ 'p-invalid': errors.country_code }" @change="onCountryChange" />
+            </Field>
+            <Field label="Devise">
+              <Select v-model="company.currency_code" :options="currencyOptions" option-label="label" option-value="value" placeholder="Sélectionner une devise" class="w-full" />
+            </Field>
+            <Field label="Email de contact">
+              <InputText v-model="company.email" type="email" placeholder="contact@entreprise.com" class="w-full" />
+            </Field>
+            <Field label="Téléphone">
+              <InputText v-model="company.phone" placeholder="+261 34 00 000 00" class="w-full" />
+            </Field>
+          </div>
+        </div>
+
+        <!-- Step 2: Administrateur -->
+        <div v-else-if="currentStepKey === 'admin'" class="space-y-6">
+          <StepHeader icon="pi-user" title="Votre profil administrateur" subtitle="Ce compte reçoit le rôle admin pour piloter la configuration" />
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Nom complet">
+              <InputText v-model="admin.name" class="w-full" />
+            </Field>
+            <Field label="Langue">
+              <Select v-model="admin.locale" :options="localeOptions" option-label="label" option-value="value" class="w-full" />
+            </Field>
+            <Field label="Fuseau horaire">
+              <InputText v-model="admin.timezone" placeholder="Africa/Antananarivo" class="w-full" />
+            </Field>
+          </div>
+
+          <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 flex items-start gap-2">
+            <i class="pi pi-info-circle text-blue-600 mt-0.5" />
+            <span class="text-sm text-blue-700 dark:text-blue-300">
+              Vous pourrez inviter d'autres utilisateurs et leur attribuer des rôles depuis
+              <a href="/admin/users" class="underline font-medium">Admin → Utilisateurs</a> une fois cette étape terminée.
+            </span>
+          </div>
+        </div>
+
+        <!-- Step 3: Modules -->
+        <div v-else-if="currentStepKey === 'modules'" class="space-y-4">
+          <StepHeader icon="pi-th-large" title="Modules à activer" subtitle="Activez ou désactivez les modules dont votre équipe a besoin" />
+
+          <div v-if="modulesLoading" class="text-center py-12">
+            <ProgressSpinner />
+          </div>
+
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div
+              v-for="mod in moduleCatalog"
+              :key="mod.name"
+              class="flex items-center justify-between gap-3 p-3 border rounded-lg border-surface-200 dark:border-surface-700"
+            >
+              <div class="min-w-0">
+                <p class="font-medium text-surface-900 dark:text-surface-50">{{ mod.name }}</p>
+                <p class="text-xs text-surface-500 truncate">{{ mod.description || '—' }}</p>
+              </div>
+              <InputSwitch
+                :model-value="mod.is_active"
+                :disabled="moduleToggling === mod.name"
+                @update:model-value="(val) => toggleModule(mod, val)"
+              />
+            </div>
+          </div>
+          <p v-if="moduleToggleError" class="text-sm text-red-500">{{ moduleToggleError }}</p>
+        </div>
+
+        <!-- Step 4: Règles de base -->
+        <div v-else-if="currentStepKey === 'workflows'" class="space-y-6">
+          <StepHeader icon="pi-sliders-h" title="Règles de base" subtitle="Paramètres transverses appliqués aux processus d'approbation" />
+
+          <div class="flex items-center gap-3">
+            <Checkbox v-model="workflows.approval_required" :binary="true" input-id="approval_required" />
+            <label for="approval_required" class="text-sm text-surface-700 dark:text-surface-300">
+              Exiger une approbation pour les processus sensibles (factures, bons de commande, congés)
+            </label>
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">Canaux de notification</label>
+            <div class="flex flex-wrap gap-4">
+              <div v-for="ch in notificationChannelOptions" :key="ch.value" class="flex items-center gap-2">
+                <Checkbox v-model="workflows.notification_channels" :value="ch.value" :input-id="`ch-${ch.value}`" />
+                <label class="text-sm">{{ ch.label }}</label>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-xs text-surface-400">
+            Les seuils d'approbation détaillés (Achats, Factures), les politiques de congés RH et les SLA Helpdesk
+            se configurent depuis les pages dédiées de chaque module une fois l'assistant terminé.
+          </p>
+        </div>
+
+        <!-- Step 5: Applications -->
+        <div v-else-if="currentStepKey === 'apps'" class="space-y-4">
+          <StepHeader icon="pi-desktop" title="Applications" subtitle="Interfaces à activer pour votre équipe" />
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="app in appOptions" :key="app.value" class="flex items-center gap-3 p-3 border rounded-lg border-surface-200 dark:border-surface-700">
+              <Checkbox v-model="apps[app.value]" :binary="true" :input-id="`app-${app.value}`" />
+              <label :for="`app-${app.value}`" class="text-sm text-surface-700 dark:text-surface-300">{{ app.label }}</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 6: Terminé -->
+        <div v-else-if="currentStepKey === 'complete'" class="space-y-6">
+          <div v-if="!wizardCompleted" class="text-center py-6">
             <div class="w-16 h-16 bg-primary-50 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i class="pi pi-building text-primary-600 dark:text-primary-400 text-2xl" />
+              <i class="pi pi-check text-primary-600 dark:text-primary-400 text-2xl" />
             </div>
-            <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50">Bienvenue sur WideHalo ERP</h2>
-            <p class="text-surface-500 mt-2">Commençons par les informations de votre entreprise</p>
+            <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50">Prêt à terminer</h2>
+            <p class="text-surface-500 mt-2">Vérifiez le récapitulatif puis cliquez sur Terminer.</p>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Nom de l'entreprise <span class="text-red-500">*</span>
-              </label>
-              <InputText
-                v-model="companyInfo.name"
-                placeholder="Ex: Acme Sarl"
-                class="w-full"
-                :class="{ 'p-invalid': errors.name }"
-              />
-              <small v-if="errors.name" class="text-red-500">{{ errors.name }}</small>
+          <div v-if="!wizardCompleted" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-surface-50 dark:bg-surface-700 rounded-xl p-4 space-y-1 text-sm">
+              <h3 class="font-semibold text-surface-700 dark:text-surface-300 mb-2">Entreprise</h3>
+              <p><span class="text-surface-500">Nom :</span> {{ company.company_name || '—' }}</p>
+              <p><span class="text-surface-500">Pays :</span> {{ countryLabel }}</p>
+              <p><span class="text-surface-500">Devise :</span> {{ company.currency_code || '—' }}</p>
             </div>
-
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Secteur d'activité <span class="text-red-500">*</span>
-              </label>
-              <Select
-                v-model="companyInfo.industry"
-                :options="industryOptions"
-                option-label="label"
-                option-value="value"
-                placeholder="Sélectionner un secteur"
-                class="w-full"
-                :class="{ 'p-invalid': errors.industry }"
-              />
-              <small v-if="errors.industry" class="text-red-500">{{ errors.industry }}</small>
-            </div>
-
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Pays <span class="text-red-500">*</span>
-              </label>
-              <Select
-                v-model="companyInfo.country"
-                :options="countryOptions"
-                option-label="label"
-                option-value="value"
-                placeholder="Sélectionner un pays"
-                class="w-full"
-                filter
-                :class="{ 'p-invalid': errors.country }"
-                @change="onCountryChange"
-              />
-              <small v-if="errors.country" class="text-red-500">{{ errors.country }}</small>
-            </div>
-
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Devise <span class="text-red-500">*</span>
-              </label>
-              <Select
-                v-model="companyInfo.currency"
-                :options="currencyOptions"
-                option-label="label"
-                option-value="value"
-                placeholder="Sélectionner une devise"
-                class="w-full"
-                :class="{ 'p-invalid': errors.currency }"
-              />
-              <small v-if="errors.currency" class="text-red-500">{{ errors.currency }}</small>
-            </div>
-
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Email de contact
-              </label>
-              <InputText
-                v-model="companyInfo.email"
-                type="email"
-                placeholder="contact@entreprise.com"
-                class="w-full"
-              />
-            </div>
-
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Téléphone
-              </label>
-              <InputText
-                v-model="companyInfo.phone"
-                placeholder="+221 77 000 00 00"
-                class="w-full"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 1: Source des données -->
-        <div v-else-if="currentStep === 1" class="space-y-6">
-          <div class="text-center mb-6">
-            <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50">Source des données</h2>
-            <p class="text-surface-500 mt-2">Comment souhaitez-vous importer vos données existantes ?</p>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div
-              v-for="source in dataSources"
-              :key="source.value"
-              class="border-2 rounded-xl p-5 cursor-pointer transition-all"
-              :class="[
-                selectedDataSource === source.value
-                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                  : 'border-surface-200 dark:border-surface-700 hover:border-surface-300 dark:hover:border-surface-600'
-              ]"
-              @click="selectedDataSource = source.value"
-             role="button" tabindex="0" @keydown.enter.prevent="selectedDataSource = source.value">
-              <div class="flex items-start gap-3">
-                <div
-                  class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                  :class="source.iconBg"
-                >
-                  <i :class="['text-xl', source.icon, source.iconColor]" />
-                </div>
-                <div>
-                  <h3 class="font-semibold text-surface-900 dark:text-surface-50">{{ source.label }}</h3>
-                  <p class="text-sm text-surface-500 mt-1">{{ source.description }}</p>
-                </div>
-              </div>
+            <div class="bg-surface-50 dark:bg-surface-700 rounded-xl p-4 space-y-1 text-sm">
+              <h3 class="font-semibold text-surface-700 dark:text-surface-300 mb-2">Modules actifs</h3>
+              <p>{{ activeModuleCount }} module(s) activé(s) sur {{ moduleCatalog.length }}</p>
             </div>
           </div>
 
-          <!-- File upload -->
-          <div v-if="selectedDataSource === 'file'" class="mt-4 space-y-4">
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-surface-700 dark:text-surface-300">
-                Choisir un fichier (Excel, CSV ou PDF)
-              </label>
-              <FileUpload
-                mode="basic"
-                accept=".xlsx,.xls,.csv,.pdf"
-                :max-file-size="10000000"
-                choose-label="Parcourir..."
-                class="w-full"
-                @select="onFileSelect"
-              />
-              <small class="text-surface-400">Formats supportés : .xlsx, .xls, .csv, .pdf — max 10 Mo</small>
-            </div>
-            <div v-if="selectedFile" class="flex items-center gap-2 text-sm text-surface-700 dark:text-surface-300 bg-surface-50 dark:bg-surface-700 rounded-lg p-3">
-              <i class="pi pi-file text-primary-500" />
-              <span>{{ selectedFile.name }}</span>
-              <span class="text-surface-400">({{ formatFileSize(selectedFile.size) }})</span>
-              <Button icon="pi pi-times" text severity="danger" size="small" @click="selectedFile = null" />
-            </div>
-          </div>
-
-          <!-- Skip data import -->
-          <div v-if="selectedDataSource === 'skip'" class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <div class="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-              <i class="pi pi-info-circle" />
-              <span class="text-sm">Vous pourrez toujours importer des données ultérieurement depuis le menu Paramètres.</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 2: Analyse du fichier -->
-        <div v-else-if="currentStep === 2" class="space-y-6">
-          <div class="text-center mb-4">
-            <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50">Analyse du fichier</h2>
-            <p class="text-surface-500 mt-2">WideHalo a détecté les colonnes suivantes dans votre fichier</p>
-          </div>
-
-          <div v-if="analysisLoading" class="text-center py-12">
-            <ProgressSpinner />
-            <p class="text-surface-500 mt-4">Analyse en cours…</p>
-          </div>
-
-          <div v-else-if="analysisResult" class="space-y-4">
-            <!-- Summary -->
-            <div class="grid grid-cols-3 gap-4">
-              <div class="bg-surface-50 dark:bg-surface-700 rounded-lg p-4 text-center">
-                <p class="text-2xl font-bold text-surface-900 dark:text-surface-50">{{ analysisResult.row_count }}</p>
-                <p class="text-sm text-surface-500">Lignes détectées</p>
-              </div>
-              <div class="bg-surface-50 dark:bg-surface-700 rounded-lg p-4 text-center">
-                <p class="text-2xl font-bold text-surface-900 dark:text-surface-50">{{ analysisResult.columns?.length ?? 0 }}</p>
-                <p class="text-sm text-surface-500">Colonnes détectées</p>
-              </div>
-              <div class="bg-surface-50 dark:bg-surface-700 rounded-lg p-4 text-center">
-                <p class="text-2xl font-bold text-surface-900 dark:text-surface-50">{{ analysisResult.detected_format?.toUpperCase() }}</p>
-                <p class="text-sm text-surface-500">Format</p>
-              </div>
-            </div>
-
-            <!-- Detected columns -->
+          <div v-if="wizardCompleted" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-center gap-3">
+            <i class="pi pi-check-circle text-green-600 text-2xl" />
             <div>
-              <h3 class="font-medium text-surface-700 dark:text-surface-300 mb-3">Colonnes détectées</h3>
-              <div class="flex flex-wrap gap-2">
-                <Tag
-                  v-for="col in analysisResult.columns"
-                  :key="col"
-                  :value="col"
-                  severity="secondary"
-                />
-              </div>
-            </div>
-
-            <!-- Preview data -->
-            <div v-if="analysisResult.preview_data?.length">
-              <h3 class="font-medium text-surface-700 dark:text-surface-300 mb-3">Aperçu des données (5 premières lignes)</h3>
-              <div class="overflow-x-auto rounded-lg border border-surface-200 dark:border-surface-700">
-                <DataTable
-                  :value="analysisResult.preview_data"
-                  class="p-datatable-sm"
-                  striped-rows
-                >
-                  <Column
-                    v-for="col in analysisResult.columns"
-                    :key="col"
-                    :field="col"
-                    :header="col"
-                    style="min-width: 120px"
-                  />
-                </DataTable>
-              </div>
-            </div>
-
-            <!-- Warnings -->
-            <div v-if="analysisResult.warnings?.length" class="space-y-2">
-              <h3 class="font-medium text-surface-700 dark:text-surface-300">Avertissements</h3>
-              <div
-                v-for="(warning, i) in analysisResult.warnings"
-                :key="i"
-                class="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
-              >
-                <i class="pi pi-exclamation-triangle text-yellow-600 mt-0.5" />
-                <span class="text-sm text-yellow-800 dark:text-yellow-200">{{ warning }}</span>
-              </div>
+              <p class="font-semibold text-green-800 dark:text-green-200">Configuration terminée</p>
+              <p class="text-sm text-green-700 dark:text-green-300">Vous pouvez maintenant importer vos données existantes, ou continuer sans.</p>
             </div>
           </div>
 
-          <div v-else-if="selectedDataSource === 'skip'" class="text-center py-12 text-surface-400">
-            <i class="pi pi-forward text-4xl mb-4 block" />
-            <p>Aucun fichier à analyser — vous avez choisi de démarrer sans données.</p>
+          <!-- Optional data import sub-flow, only reachable after complete() -->
+          <div v-if="wizardCompleted && !importSkipped" class="space-y-4 pt-4 border-t border-surface-200 dark:border-surface-700">
+            <ImportDataFlow @skip="importSkipped = true" />
           </div>
-        </div>
-
-        <!-- Step 3: Correspondance des champs (AI) -->
-        <div v-else-if="currentStep === 3" class="space-y-6">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50">Correspondance des champs</h2>
-              <p class="text-surface-500 mt-1 text-sm">
-                WideHalo AI a suggéré les correspondances ci-dessous. Vous pouvez les ajuster manuellement.
-              </p>
-            </div>
-            <Button
-              icon="pi pi-sparkles"
-              label="Régénérer avec l'IA"
-              outlined
-              size="small"
-              :loading="mappingLoading"
-              @click="fetchMappingSuggestions"
-            />
-          </div>
-
-          <div v-if="mappingLoading" class="text-center py-12">
-            <ProgressSpinner />
-            <p class="text-surface-500 mt-4">L'IA analyse vos colonnes…</p>
-          </div>
-
-          <div v-else-if="fieldMappings.length" class="space-y-3">
-            <!-- AI confidence note -->
-            <div class="flex items-center gap-2 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800">
-              <i class="pi pi-sparkles text-primary-600" />
-              <span class="text-sm text-primary-800 dark:text-primary-200">
-                Les suggestions sont générées par l'IA. Vérifiez les correspondances avant de continuer.
-              </span>
-            </div>
-
-            <!-- Mapping table -->
-            <DataTable :value="fieldMappings" class="p-datatable-sm" striped-rows>
-              <Column field="source_column" header="Colonne source (votre fichier)" style="min-width: 200px">
-                <template #body="{ data }">
-                  <span class="font-mono text-sm text-surface-700 dark:text-surface-300">{{ data.source_column }}</span>
-                </template>
-              </Column>
-              <Column field="target_field" header="Champ WideHalo" style="min-width: 200px">
-                <template #body="{ data }">
-                  <Select
-                    v-model="data.target_field"
-                    :options="targetFieldOptions"
-                    option-label="label"
-                    option-value="value"
-                    placeholder="Ignorer cette colonne"
-                    show-clear
-                    class="w-full text-sm"
-                  />
-                </template>
-              </Column>
-              <Column field="confidence" header="Confiance IA" style="width: 140px">
-                <template #body="{ data }">
-                  <div v-if="data.confidence !== undefined" class="flex items-center gap-2">
-                    <div class="flex-1 bg-surface-200 dark:bg-surface-600 rounded-full h-2">
-                      <div
-                        class="h-2 rounded-full transition-all"
-                        :class="confidenceColor(data.confidence)"
-                        :style="{ width: `${Math.round(data.confidence * 100)}%` }"
-                      />
-                    </div>
-                    <span class="text-xs text-surface-500 w-8 text-right">{{ Math.round(data.confidence * 100) }}%</span>
-                  </div>
-                  <span v-else class="text-surface-400 text-xs">Manuel</span>
-                </template>
-              </Column>
-              <Column header="Statut" style="width: 80px">
-                <template #body="{ data }">
-                  <Tag
-                    v-if="data.target_field"
-                    value="Mappé"
-                    severity="success"
-                    class="text-xs"
-                  />
-                  <Tag
-                    v-else
-                    value="Ignoré"
-                    severity="secondary"
-                    class="text-xs"
-                  />
-                </template>
-              </Column>
-            </DataTable>
-
-            <div class="text-sm text-surface-400">
-              {{ mappedCount }} / {{ fieldMappings.length }} colonnes mappées
-            </div>
-          </div>
-
-          <div v-else-if="selectedDataSource === 'skip'" class="text-center py-12 text-surface-400">
-            <i class="pi pi-forward text-4xl mb-4 block" />
-            <p>Aucune correspondance à configurer.</p>
-          </div>
-        </div>
-
-        <!-- Step 4: Confirmation et import -->
-        <div v-else-if="currentStep === 4" class="space-y-6">
-          <div class="text-center mb-4">
-            <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50">Confirmation et import</h2>
-            <p class="text-surface-500 mt-2">Vérifiez le récapitulatif avant de lancer l'import</p>
-          </div>
-
-          <!-- Summary cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-surface-50 dark:bg-surface-700 rounded-xl p-4 space-y-2">
-              <h3 class="font-semibold text-surface-700 dark:text-surface-300">Entreprise</h3>
-              <dl class="space-y-1 text-sm">
-                <div class="flex justify-between">
-                  <dt class="text-surface-500">Nom</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ companyInfo.name }}</dd>
-                </div>
-                <div class="flex justify-between">
-                  <dt class="text-surface-500">Secteur</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ industryLabel }}</dd>
-                </div>
-                <div class="flex justify-between">
-                  <dt class="text-surface-500">Pays</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ countryLabel }}</dd>
-                </div>
-                <div class="flex justify-between">
-                  <dt class="text-surface-500">Devise</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ companyInfo.currency }}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div class="bg-surface-50 dark:bg-surface-700 rounded-xl p-4 space-y-2">
-              <h3 class="font-semibold text-surface-700 dark:text-surface-300">Import</h3>
-              <dl class="space-y-1 text-sm">
-                <div class="flex justify-between">
-                  <dt class="text-surface-500">Source</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ dataSourceLabel }}</dd>
-                </div>
-                <div v-if="selectedFile" class="flex justify-between">
-                  <dt class="text-surface-500">Fichier</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ selectedFile.name }}</dd>
-                </div>
-                <div v-if="analysisResult" class="flex justify-between">
-                  <dt class="text-surface-500">Lignes</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ analysisResult.row_count }}</dd>
-                </div>
-                <div v-if="fieldMappings.length" class="flex justify-between">
-                  <dt class="text-surface-500">Champs mappés</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-50">{{ mappedCount }} / {{ fieldMappings.length }}</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-
-          <!-- Import progress -->
-          <div v-if="importLoading || importResult" class="space-y-3">
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-surface-700 dark:text-surface-300 font-medium">Progression de l'import</span>
-              <span class="text-surface-500">{{ importProgress }}%</span>
-            </div>
-            <ProgressBar :value="importProgress" class="h-3" />
-            <p v-if="importStatusMessage" class="text-sm text-surface-500">{{ importStatusMessage }}</p>
-          </div>
-
-          <!-- Import result -->
-          <div v-if="importResult && !importLoading">
-            <div
-              v-if="importResult.success"
-              class="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl"
-            >
-              <i class="pi pi-check-circle text-green-600 text-2xl" />
-              <div>
-                <p class="font-semibold text-green-800 dark:text-green-200">Import terminé avec succès</p>
-                <p class="text-sm text-green-700 dark:text-green-300">
-                  {{ importResult.imported_rows }} ligne(s) importée(s) ·
-                  {{ importResult.skipped_rows ?? 0 }} ignorée(s) ·
-                  {{ importResult.errors_count ?? 0 }} erreur(s)
-                </p>
-              </div>
-            </div>
-            <div
-              v-else
-              class="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
-            >
-              <i class="pi pi-times-circle text-red-600 text-2xl mt-0.5" />
-              <div>
-                <p class="font-semibold text-red-800 dark:text-red-200">Erreur lors de l'import</p>
-                <p class="text-sm text-red-700 dark:text-red-300">{{ importResult.message }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Warning before launch -->
-          <div v-if="!importResult && !importLoading" class="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <div class="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
-              <i class="pi pi-info-circle" />
-              <span class="text-sm">Cliquez sur <strong>Lancer l'import</strong> pour démarrer. Cette action peut prendre quelques minutes.</span>
-            </div>
+          <div v-else-if="wizardCompleted && importSkipped" class="text-center py-6 text-surface-400 pt-4 border-t border-surface-200 dark:border-surface-700">
+            <i class="pi pi-forward text-4xl mb-3 block" />
+            <p>Import ignoré — vous pourrez importer vos données plus tard depuis la page Configuration.</p>
           </div>
         </div>
       </div>
 
-      <!-- Navigation buttons -->
+      <!-- Navigation -->
       <div class="flex items-center justify-between">
-        <Button
-          v-if="currentStep > 0 && !importResult?.success"
-          icon="pi pi-arrow-left"
-          label="Précédent"
-          severity="secondary"
-          outlined
-          @click="prevStep"
-        />
+        <Button v-if="!isFirstStep && !wizardCompleted" icon="pi pi-arrow-left" label="Précédent" severity="secondary" outlined @click="prevStep" />
         <div v-else />
 
         <div class="flex gap-3">
-          <!-- Final: go to dashboard -->
-          <Button
-            v-if="importResult?.success"
-            icon="pi pi-home"
-            label="Aller au tableau de bord"
-            @click="goToDashboard"
-          />
-          <!-- Step 4: launch import -->
-          <Button
-            v-else-if="currentStep === 4 && !importLoading"
-            icon="pi pi-play"
-            label="Lancer l'import"
-            :loading="importLoading"
-            @click="executeImport"
-          />
-          <!-- Other steps: next -->
-          <Button
-            v-else-if="currentStep < 4"
-            icon-pos="right"
-            icon="pi pi-arrow-right"
-            :label="currentStep === 1 && selectedDataSource === 'skip' ? 'Ignorer l\'import' : 'Suivant'"
-            :loading="analysisLoading"
-            @click="nextStep"
-          />
+          <Button v-if="wizardCompleted" icon="pi pi-home" label="Aller au tableau de bord" @click="router.visit('/dashboard')" />
+          <Button v-else-if="currentStepKey === 'complete'" icon="pi pi-check" label="Terminer" :loading="saving" @click="completeWizard" />
+          <Button v-else icon-pos="right" icon="pi pi-arrow-right" label="Suivant" :loading="saving" @click="nextStep" />
         </div>
       </div>
     </div>
@@ -522,102 +205,119 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { Head, router, usePage} from '@inertiajs/vue3'
+import { ref, reactive, computed, onMounted, defineComponent, h } from 'vue'
+import { Head, router } from '@inertiajs/vue3'
 import Button from 'primevue/button'
-import Steps from 'primevue/steps'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import FileUpload from 'primevue/fileupload'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
-import Tag from 'primevue/tag'
-import ProgressBar from 'primevue/progressbar'
+import Checkbox from 'primevue/checkbox'
+import InputSwitch from 'primevue/inputswitch'
 import ProgressSpinner from 'primevue/progressspinner'
 import AppLayout from '@/Layouts/AppLayout.vue'
-
-const page = usePage()
-const { isAdmin } = useRoleAccess()
-const canManage = computed(() => isAdmin.value)
-const canCreate = computed(() => canManage.value)
-const canEdit = computed(() => canManage.value)
-const canDelete = computed(() => isAdmin.value)
-
+import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
+import ImportDataFlow from '../Components/ImportDataFlow.vue'
 
 // ────────────────────────────────────────────────────────────
-// Types
+// Small local helpers (kept in-file: purely presentational, not reused elsewhere)
 // ────────────────────────────────────────────────────────────
 
-interface CompanyInfo {
-  name: string
-  country: string
-  industry: string
-  currency: string
-  email: string
-  phone: string
-}
-
-interface AnalysisResult {
-  session_id: string
-  detected_format: string
-  row_count: number
-  columns: string[]
-  preview_data: Record<string, string>[]
-  warnings: string[]
-}
-
-interface FieldMapping {
-  source_column: string
-  target_field: string | null
-  confidence?: number
-}
-
-interface ImportResult {
-  success: boolean
-  message?: string
-  imported_rows: number
-  skipped_rows?: number
-  errors_count?: number
-}
-
-// ────────────────────────────────────────────────────────────
-// Wizard state
-// ────────────────────────────────────────────────────────────
-
-const currentStep = ref(0)
-
-const steps = [
-  { label: 'Entreprise' },
-  { label: 'Source' },
-  { label: 'Analyse' },
-  { label: 'Mapping' },
-  { label: 'Import' },
-]
-
-const companyInfo = reactive<CompanyInfo>({
-  name: '',
-  country: '',
-  industry: '',
-  currency: '',
-  email: '',
-  phone: '',
+const StepHeader = defineComponent({
+  props: { icon: String, title: String, subtitle: String },
+  setup(props) {
+    return () => h('div', { class: 'text-center mb-6' }, [
+      h('div', { class: 'w-16 h-16 bg-primary-50 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4' }, [
+        h('i', { class: `pi ${props.icon} text-primary-600 dark:text-primary-400 text-2xl` }),
+      ]),
+      h('h2', { class: 'text-xl font-semibold text-surface-900 dark:text-surface-50' }, props.title),
+      h('p', { class: 'text-surface-500 mt-2' }, props.subtitle),
+    ])
+  },
 })
 
-const errors = reactive<Partial<Record<keyof CompanyInfo, string>>>({})
+const Field = defineComponent({
+  props: { label: String, required: Boolean, error: String },
+  setup(props, { slots }) {
+    return () => h('div', { class: 'space-y-2' }, [
+      h('label', { class: 'block text-sm font-medium text-surface-700 dark:text-surface-300' }, [
+        props.label,
+        props.required ? h('span', { class: 'text-red-500' }, ' *') : null,
+      ]),
+      slots.default?.(),
+      props.error ? h('small', { class: 'text-red-500' }, props.error) : null,
+    ])
+  },
+})
 
-const selectedDataSource = ref<string>('file')
-const selectedFile = ref<File | null>(null)
+// ────────────────────────────────────────────────────────────
+// Wizard state — mirrors Modules\Setup\Services\SetupWizardService's
+// 6 real steps (company/admin/modules/workflows/apps/complete),
+// server-side-initialized from SetupWebController::wizard().
+// ────────────────────────────────────────────────────────────
 
-const analysisLoading = ref(false)
-const analysisResult = ref<AnalysisResult | null>(null)
+interface WizardState {
+  step: number
+  company: Record<string, unknown> | null
+  admin: Record<string, unknown> | null
+  modules: string[]
+  workflows: { approval_required?: boolean; notification_channels?: string[] }
+  apps: Record<string, boolean>
+  completed: boolean
+}
 
-const mappingLoading = ref(false)
-const fieldMappings = ref<FieldMapping[]>([])
+const props = defineProps<{ state: WizardState }>()
 
-const importLoading = ref(false)
-const importProgress = ref(0)
-const importStatusMessage = ref('')
-const importResult = ref<ImportResult | null>(null)
+const STEP_KEYS = ['company', 'admin', 'modules', 'workflows', 'apps', 'complete'] as const
+type StepKey = typeof STEP_KEYS[number]
+
+const currentStepIndex = ref(Math.max(0, Math.min(props.state.step, STEP_KEYS.length - 1)))
+const currentStepKey = computed<StepKey>(() => STEP_KEYS[currentStepIndex.value])
+const isFirstStep = computed(() => currentStepIndex.value === 0)
+const wizardCompleted = ref(props.state.completed)
+const importSkipped = ref(false)
+const saving = ref(false)
+const errors = reactive<Record<string, string>>({})
+
+const wizardSteps = [
+  { key: 'company', label: 'Entreprise', icon: 'pi pi-building' },
+  { key: 'admin', label: 'Administrateur', icon: 'pi pi-user' },
+  { key: 'modules', label: 'Modules', icon: 'pi pi-th-large' },
+  { key: 'workflows', label: 'Règles', icon: 'pi pi-sliders-h' },
+  { key: 'apps', label: 'Applications', icon: 'pi pi-desktop' },
+  { key: 'complete', label: 'Terminé', icon: 'pi pi-check' },
+]
+
+const company = reactive({
+  company_name: (props.state.company?.company_name as string) ?? '',
+  industry: (props.state.company?.industry as string) ?? '',
+  country_code: (props.state.company?.country_code as string) ?? '',
+  currency_code: (props.state.company?.currency_code as string) ?? '',
+  email: (props.state.company?.email as string) ?? '',
+  phone: (props.state.company?.phone as string) ?? '',
+})
+
+const admin = reactive({
+  name: (props.state.admin?.name as string) ?? '',
+  locale: (props.state.admin?.locale as string) ?? 'fr',
+  timezone: (props.state.admin?.timezone as string) ?? '',
+})
+
+const workflows = reactive({
+  approval_required: props.state.workflows?.approval_required ?? true,
+  notification_channels: [...(props.state.workflows?.notification_channels ?? ['email'])],
+})
+
+// Trimmed to what this trimmed 27-module scope actually ships — the
+// original WideHalo-era list also offered webapp-ecommerce/mobile, which
+// don't correspond to anything real here (Ecommerce is out of scope, and
+// there is no separate mobile app in life-mdg-erp).
+const appOptions = [
+  { value: 'webapp', label: 'Application web' },
+  { value: 'api', label: 'API' },
+]
+const apps = reactive<Record<string, boolean>>({
+  webapp: (props.state.apps?.webapp as boolean) ?? true,
+  api: (props.state.apps?.api as boolean) ?? true,
+})
 
 // ────────────────────────────────────────────────────────────
 // Options
@@ -639,337 +339,188 @@ const industryOptions = [
 ]
 
 const countryOptions = [
-  // Africa
+  { label: 'Madagascar', value: 'MG' },
   { label: 'Sénégal', value: 'SN' },
   { label: 'Côte d\'Ivoire', value: 'CI' },
   { label: 'Mali', value: 'ML' },
   { label: 'Burkina Faso', value: 'BF' },
-  { label: 'Niger', value: 'NE' },
-  { label: 'Togo', value: 'TG' },
-  { label: 'Bénin', value: 'BJ' },
-  { label: 'Guinée', value: 'GN' },
   { label: 'Cameroun', value: 'CM' },
   { label: 'Gabon', value: 'GA' },
-  { label: 'Congo', value: 'CG' },
-  { label: 'Madagascar', value: 'MG' },
   { label: 'Nigeria', value: 'NG' },
   { label: 'Ghana', value: 'GH' },
   { label: 'Kenya', value: 'KE' },
-  { label: 'Tanzanie', value: 'TZ' },
   { label: 'Maroc', value: 'MA' },
   { label: 'Tunisie', value: 'TN' },
-  { label: 'Algérie', value: 'DZ' },
-  { label: 'Égypte', value: 'EG' },
-  // Asia
-  { label: 'Chine', value: 'CN' },
-  { label: 'Inde', value: 'IN' },
-  { label: 'Japon', value: 'JP' },
-  { label: 'Corée du Sud', value: 'KR' },
-  { label: 'Singapour', value: 'SG' },
-  { label: 'Thaïlande', value: 'TH' },
-  { label: 'Vietnam', value: 'VN' },
-  // Other
   { label: 'France', value: 'FR' },
-  { label: 'Belgique', value: 'BE' },
-  { label: 'Suisse', value: 'CH' },
 ]
 
 const countryCurrencyMap: Record<string, string> = {
-  SN: 'XOF', CI: 'XOF', ML: 'XOF', BF: 'XOF', NE: 'XOF', TG: 'XOF', BJ: 'XOF', GN: 'GNF',
-  CM: 'XAF', GA: 'XAF', CG: 'XAF',
-  MG: 'MGA', NG: 'NGN', GH: 'GHS', KE: 'KES', TZ: 'TZS',
-  MA: 'MAD', TN: 'TND', DZ: 'DZD', EG: 'EGP',
-  CN: 'CNY', IN: 'INR', JP: 'JPY', KR: 'KRW', SG: 'SGD', TH: 'THB', VN: 'VND',
-  FR: 'EUR', BE: 'EUR', CH: 'CHF',
+  MG: 'MGA', SN: 'XOF', CI: 'XOF', ML: 'XOF', BF: 'XOF',
+  CM: 'XAF', GA: 'XAF',
+  NG: 'NGN', GH: 'GHS', KE: 'KES', MA: 'MAD', TN: 'TND', FR: 'EUR',
 }
 
 const currencyOptions = [
+  { label: 'MGA — Ariary malgache', value: 'MGA' },
   { label: 'XOF — Franc CFA UEMOA', value: 'XOF' },
   { label: 'XAF — Franc CFA CEMAC', value: 'XAF' },
-  { label: 'GHS — Cedi ghanéen', value: 'GHS' },
   { label: 'NGN — Naira nigérian', value: 'NGN' },
+  { label: 'GHS — Cedi ghanéen', value: 'GHS' },
   { label: 'KES — Shilling kényan', value: 'KES' },
-  { label: 'TZS — Shilling tanzanien', value: 'TZS' },
-  { label: 'MGA — Ariary malgache', value: 'MGA' },
   { label: 'MAD — Dirham marocain', value: 'MAD' },
   { label: 'TND — Dinar tunisien', value: 'TND' },
-  { label: 'DZD — Dinar algérien', value: 'DZD' },
-  { label: 'EGP — Livre égyptienne', value: 'EGP' },
   { label: 'EUR — Euro', value: 'EUR' },
   { label: 'USD — Dollar américain', value: 'USD' },
-  { label: 'CNY — Yuan chinois', value: 'CNY' },
-  { label: 'INR — Roupie indienne', value: 'INR' },
-  { label: 'JPY — Yen japonais', value: 'JPY' },
-  { label: 'SGD — Dollar singapourien', value: 'SGD' },
 ]
 
-const dataSources = [
-  {
-    value: 'file',
-    label: 'Fichier (Excel / CSV / PDF)',
-    description: 'Importez vos données depuis un fichier Excel, CSV ou PDF.',
-    icon: 'pi pi-file-excel',
-    iconBg: 'bg-green-100 dark:bg-green-900/30',
-    iconColor: 'text-green-600 dark:text-green-400',
-  },
-  {
-    value: 'skip',
-    label: 'Démarrer sans données',
-    description: 'Commencez avec un ERP vide et saisissez les données manuellement.',
-    icon: 'pi pi-play',
-    iconBg: 'bg-blue-100 dark:bg-blue-900/30',
-    iconColor: 'text-blue-600 dark:text-blue-400',
-  },
+const localeOptions = [
+  { label: 'Français', value: 'fr' },
+  { label: 'English', value: 'en' },
+  { label: 'Português', value: 'pt' },
+  { label: 'Español', value: 'es' },
 ]
 
-const targetFieldOptions = [
-  // Common
-  { label: 'Nom complet', value: 'full_name' },
-  { label: 'Prénom', value: 'first_name' },
-  { label: 'Nom de famille', value: 'last_name' },
-  { label: 'Email', value: 'email' },
-  { label: 'Téléphone', value: 'phone' },
-  { label: 'Adresse', value: 'address' },
-  { label: 'Ville', value: 'city' },
-  { label: 'Pays', value: 'country' },
-  // Products
-  { label: 'Référence produit', value: 'product_sku' },
-  { label: 'Nom du produit', value: 'product_name' },
-  { label: 'Prix unitaire', value: 'unit_price' },
-  { label: 'Quantité en stock', value: 'stock_quantity' },
-  // Contacts / CRM
-  { label: 'Entreprise', value: 'company_name' },
-  { label: 'Titre / Poste', value: 'job_title' },
-  // Finance
-  { label: 'Montant', value: 'amount' },
-  { label: 'Date de transaction', value: 'transaction_date' },
-  { label: 'Référence facture', value: 'invoice_ref' },
+const notificationChannelOptions = [
+  { value: 'email', label: 'Email' },
+  { value: 'sms', label: 'SMS' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'push', label: 'Notification push' },
 ]
 
-// ────────────────────────────────────────────────────────────
-// Computed
-// ────────────────────────────────────────────────────────────
-
-const mappedCount = computed(() => fieldMappings.value.filter(m => m.target_field).length)
-
-const industryLabel = computed(
-  () => industryOptions.find(o => o.value === companyInfo.industry)?.label ?? companyInfo.industry,
-)
-
-const countryLabel = computed(
-  () => countryOptions.find(o => o.value === companyInfo.country)?.label ?? companyInfo.country,
-)
-
-const dataSourceLabel = computed(
-  () => dataSources.find(d => d.value === selectedDataSource.value)?.label ?? selectedDataSource.value,
-)
-
-// ────────────────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────────────────
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} o`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
-}
-
-const confidenceColor = (confidence: number): string => {
-  if (confidence >= 0.8) return 'bg-green-500'
-  if (confidence >= 0.5) return 'bg-yellow-500'
-  return 'bg-red-400'
-}
-
-// ────────────────────────────────────────────────────────────
-// Validation
-// ────────────────────────────────────────────────────────────
-
-const validateStep0 = (): boolean => {
-  Object.keys(errors).forEach(k => delete (errors as Record<string, string>)[k])
-  let valid = true
-  if (!companyInfo.name.trim()) { errors.name = 'Le nom est requis'; valid = false }
-  if (!companyInfo.country) { errors.country = 'Le pays est requis'; valid = false }
-  if (!companyInfo.industry) { errors.industry = 'Le secteur est requis'; valid = false }
-  if (!companyInfo.currency) { errors.currency = 'La devise est requise'; valid = false }
-  return valid
-}
-
-// ────────────────────────────────────────────────────────────
-// Event handlers
-// ────────────────────────────────────────────────────────────
+const countryLabel = computed(() => countryOptions.find(o => o.value === company.country_code)?.label ?? company.country_code)
 
 const onCountryChange = (event: { value: string }) => {
   const suggested = countryCurrencyMap[event.value]
-  if (suggested) companyInfo.currency = suggested
-}
-
-const onFileSelect = (event: { files: File[] }) => {
-  selectedFile.value = event.files[0] ?? null
+  if (suggested) company.currency_code = suggested
 }
 
 // ────────────────────────────────────────────────────────────
-// API calls
+// Modules step
 // ────────────────────────────────────────────────────────────
 
-const analyzeFile = async () => {
-  if (selectedDataSource.value === 'skip' || !selectedFile.value) return
+interface ModuleEntry {
+  name: string
+  description: string
+  is_active: boolean
+  requires: string[]
+}
 
-  analysisLoading.value = true
-  analysisResult.value = null
+const moduleCatalog = ref<ModuleEntry[]>([])
+const modulesLoading = ref(false)
+const moduleToggling = ref<string | null>(null)
+const moduleToggleError = ref('')
+const activeModuleCount = computed(() => moduleCatalog.value.filter(m => m.is_active).length)
+
+const fetchModuleCatalog = async () => {
+  modulesLoading.value = true
   try {
-    const formData = new FormData()
-    formData.append('file', selectedFile.value)
-    formData.append('company_name', companyInfo.name)
-    formData.append('country', companyInfo.country)
-
-    const res = await fetch('/api/v1/setup/analyze-file', {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-      body: formData,
-    })
-    analysisResult.value = await res.json()
-  } catch (e) {
-    console.error('Erreur analyse fichier', e)
+    const res = await fetch('/api/v1/setup/wizard/modules/catalog', { headers: { Accept: 'application/json' } })
+    const json = await res.json()
+    moduleCatalog.value = json.data ?? []
   } finally {
-    analysisLoading.value = false
+    modulesLoading.value = false
   }
 }
 
-const fetchMappingSuggestions = async () => {
-  if (selectedDataSource.value === 'skip' || !analysisResult.value) return
-
-  mappingLoading.value = true
+const toggleModule = async (mod: ModuleEntry, active: boolean) => {
+  moduleToggling.value = mod.name
+  moduleToggleError.value = ''
   try {
-    const res = await fetch('/api/v1/setup/suggest-mapping', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        session_id: analysisResult.value.session_id,
-        columns: analysisResult.value.columns,
-        industry: companyInfo.industry,
-      }),
+    const res = await fetch(`/api/v1/setup/v1/admin/modules/${mod.name}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ is_active: active }),
     })
-    const data = await res.json()
-    const suggested: Record<string, { target_field: string; confidence: number }> =
-      data.suggested_mapping ?? {}
-
-    fieldMappings.value = (analysisResult.value?.columns ?? []).map(col => ({
-      source_column: col,
-      target_field: suggested[col]?.target_field ?? null,
-      confidence: suggested[col]?.confidence,
-    }))
-  } catch (e) {
-    console.error('Erreur suggestion mapping', e)
-    // Fallback: build empty mappings
-    fieldMappings.value = (analysisResult.value?.columns ?? []).map(col => ({
-      source_column: col,
-      target_field: null,
-    }))
+    const json = await res.json()
+    if (!res.ok) {
+      moduleToggleError.value = json.message ?? 'Action refusée.'
+      return
+    }
+    mod.is_active = json.data.is_active
   } finally {
-    mappingLoading.value = false
+    moduleToggling.value = null
   }
 }
 
-const executeImport = async () => {
-  importLoading.value = true
-  importProgress.value = 0
-  importStatusMessage.value = 'Préparation de l\'import…'
-  importResult.value = null
+// ────────────────────────────────────────────────────────────
+// API calls to the 6-step wizard
+// ────────────────────────────────────────────────────────────
 
+const postStep = async (path: string, payload: Record<string, unknown>): Promise<boolean> => {
+  saving.value = true
+  Object.keys(errors).forEach(k => delete errors[k])
   try {
-    // Simulate incremental progress
-    const progressInterval = setInterval(() => {
-      if (importProgress.value < 85) {
-        importProgress.value += Math.floor(Math.random() * 8) + 2
-        importStatusMessage.value = importProgress.value < 40
-          ? 'Validation des données…'
-          : importProgress.value < 70
-          ? 'Insertion des enregistrements…'
-          : 'Finalisation…'
-      }
-    }, 600)
-
-    const payload: Record<string, unknown> = {
-      company: companyInfo,
-    }
-    if (analysisResult.value) {
-      payload.session_id = analysisResult.value.session_id
-      payload.field_mapping = Object.fromEntries(
-        fieldMappings.value
-          .filter(m => m.target_field)
-          .map(m => [m.source_column, m.target_field]),
-      )
-    }
-
-    const res = await fetch('/api/v1/setup/execute-import', {
+    const res = await fetch(`/api/v1/setup/wizard/${path}`, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(payload),
     })
-
-    clearInterval(progressInterval)
-    importProgress.value = 100
-    importResult.value = await res.json()
-    importStatusMessage.value = importResult.value?.success
-      ? 'Import terminé !'
-      : 'L\'import a rencontré une erreur.'
-  } catch (e) {
-    console.error('Erreur import', e)
-    importResult.value = {
-      success: false,
-      message: 'Erreur réseau ou serveur. Veuillez réessayer.',
-      imported_rows: 0,
+    const json = await res.json()
+    if (!res.ok) {
+      if (json.errors) {
+        for (const [field, messages] of Object.entries(json.errors as Record<string, string[]>)) {
+          errors[field] = messages[0]
+        }
+      }
+      return false
     }
+    return true
+  } catch (e) {
+    console.error(`Erreur étape ${path}`, e)
+    return false
   } finally {
-    importLoading.value = false
+    saving.value = false
   }
 }
 
-// ────────────────────────────────────────────────────────────
-// Navigation
-// ────────────────────────────────────────────────────────────
+const saveCurrentStep = async (): Promise<boolean> => {
+  switch (currentStepKey.value) {
+    case 'company':
+      if (!company.company_name.trim() || !company.country_code) {
+        if (!company.company_name.trim()) errors.company_name = 'Le nom est requis'
+        if (!company.country_code) errors.country_code = 'Le pays est requis'
+        return false
+      }
+      return postStep('company', { ...company })
+    case 'admin':
+      return postStep('admin', { ...admin })
+    case 'modules':
+      return postStep('modules', { modules: moduleCatalog.value.filter(m => m.is_active).map(m => m.name) })
+    case 'workflows':
+      return postStep('workflows', { ...workflows })
+    case 'apps':
+      return postStep('apps', { apps: { ...apps } })
+    default:
+      return true
+  }
+}
 
 const nextStep = async () => {
-  if (currentStep.value === 0) {
-    if (!validateStep0()) return
-  }
-
-  if (currentStep.value === 1) {
-    // Move to analysis step and trigger analysis
-    currentStep.value++
-    await analyzeFile()
-    return
-  }
-
-  if (currentStep.value === 2) {
-    // Move to mapping step and fetch suggestions
-    currentStep.value++
-    await fetchMappingSuggestions()
-    return
-  }
-
-  currentStep.value = Math.min(currentStep.value + 1, steps.length - 1)
+  const ok = await saveCurrentStep()
+  if (!ok) return
+  currentStepIndex.value = Math.min(currentStepIndex.value + 1, STEP_KEYS.length - 1)
 }
 
 const prevStep = () => {
-  currentStep.value = Math.max(currentStep.value - 1, 0)
+  currentStepIndex.value = Math.max(currentStepIndex.value - 1, 0)
 }
 
-const cancelWizard = () => {
-  router.visit('/setup')
-}
-
-const goToDashboard = () => {
-  router.visit('/dashboard')
+const completeWizard = async () => {
+  saving.value = true
+  try {
+    const res = await fetch('/api/v1/setup/wizard/complete', {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    })
+    if (res.ok) wizardCompleted.value = true
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(() => {
-  // Nothing to preload
+  if (currentStepKey.value === 'modules' || !moduleCatalog.value.length) {
+    fetchModuleCatalog()
+  }
 })
 </script>

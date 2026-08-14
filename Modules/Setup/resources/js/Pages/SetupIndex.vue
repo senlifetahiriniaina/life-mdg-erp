@@ -131,11 +131,11 @@
               <span class="text-surface-400 text-xs font-mono">{{ data.id }}</span>
             </template>
           </Column>
-          <Column field="filename" header="Fichier / Source">
+          <Column field="name" header="Fichier / Source">
             <template #body="{ data }">
               <div class="flex items-center gap-2">
                 <i class="pi pi-file text-surface-400" />
-                <span class="font-medium text-surface-900 dark:text-surface-50">{{ data.filename ?? 'Import manuel' }}</span>
+                <span class="font-medium text-surface-900 dark:text-surface-50">{{ data.name ?? data.source_file_path ?? 'Import manuel' }}</span>
               </div>
             </template>
           </Column>
@@ -183,7 +183,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Head, router, usePage} from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -194,18 +194,20 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 
-const page = usePage()
-const { isAdmin } = useRoleAccess()
-const canManage = computed(() => isAdmin.value)
-const canCreate = computed(() => canManage.value)
-const canEdit = computed(() => canManage.value)
-const canDelete = computed(() => isAdmin.value)
+interface WizardState {
+  step: number
+  completed: boolean
+}
 
+const props = defineProps<{
+  wizardState?: WizardState
+}>()
 
 interface ImportSession {
   id: number
-  filename: string | null
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  name: string | null
+  source_file_path: string | null
+  status: 'pending' | 'analyzing' | 'mapping' | 'validating' | 'queued' | 'importing' | 'completed' | 'failed'
   imported_rows: number | null
   created_at: string
 }
@@ -214,17 +216,20 @@ const { guidance } = useAiAssistant('Setup', 'import_file')
 
 const loading = ref(false)
 const sessions = ref<ImportSession[]>([])
-const setupComplete = ref(false)
+const setupComplete = ref(props.wizardState?.completed ?? false)
 
-const setupTasks = [
-  { label: 'Infos entreprise', done: false },
-  { label: 'Devise et pays', done: false },
-  { label: 'Premier import', done: false },
-]
+// Reflects the real 6-step wizard's persisted progress
+// (Modules\Setup\Services\SetupWizardService) rather than a static,
+// always-false placeholder.
+const WIZARD_STEP_LABELS = ['Entreprise', 'Administrateur', 'Modules', 'Règles de base', 'Applications']
+
+const setupTasks = computed(() =>
+  WIZARD_STEP_LABELS.map((label, i) => ({ label, done: (props.wizardState?.step ?? 0) > i })),
+)
 
 const setupProgress = computed(() => {
-  const done = setupTasks.filter(t => t.done).length
-  return Math.round((done / setupTasks.length) * 100)
+  const done = setupTasks.value.filter(t => t.done).length
+  return Math.round((done / setupTasks.value.length) * 100)
 })
 
 const totalImportedRows = computed(() =>
@@ -242,12 +247,14 @@ const lastSessionDate = computed(() => {
 const fetchSessions = async () => {
   loading.value = true
   try {
-    const res = await fetch('/api/v1/setup/sessions', {
+    // Real route: SetupController::listJobs() lists Modules\Setup\Models\ImportJob
+    // rows. There is no /api/v1/setup/sessions endpoint — that call
+    // silently 404'd on every load before this fix.
+    const res = await fetch('/api/v1/setup/import-jobs', {
       headers: { Accept: 'application/json' },
     })
     const data = await res.json()
     sessions.value = data.data ?? data ?? []
-    setupComplete.value = sessions.value.some(s => s.status === 'completed')
   } catch (e) {
     console.error('Erreur chargement sessions', e)
   } finally {
@@ -268,7 +275,11 @@ const formatDate = (dateStr: string): string => {
 const statusLabel = (status: string): string => {
   const labels: Record<string, string> = {
     pending: 'En attente',
-    running: 'En cours',
+    analyzing: 'Analyse en cours',
+    mapping: 'Correspondance des champs',
+    validating: 'Validation',
+    queued: 'En file d\'attente',
+    importing: 'Import en cours',
     completed: 'Terminé',
     failed: 'Échoué',
   }
@@ -278,7 +289,11 @@ const statusLabel = (status: string): string => {
 const statusSeverity = (status: string): string => {
   switch (status) {
     case 'completed': return 'success'
-    case 'running': return 'info'
+    case 'analyzing':
+    case 'mapping':
+    case 'validating':
+    case 'queued':
+    case 'importing': return 'info'
     case 'failed': return 'danger'
     default: return 'secondary'
   }
@@ -289,7 +304,9 @@ const startNewImport = () => {
 }
 
 const viewSession = (session: ImportSession) => {
-  router.visit(`/setup/sessions/${session.id}`)
+  // No standalone import-job detail page exists — the import sub-flow
+  // lives inside the wizard's final step, so resume it there.
+  router.visit(`/setup/wizard?job=${session.id}`)
 }
 
 onMounted(() => {
