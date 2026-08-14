@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Helpdesk\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Helpdesk\Database\Factories\TeamFactory;
 
@@ -35,5 +37,10 @@ class Team extends Model
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);
+    }
+
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'hd_team_members');
     }
 }

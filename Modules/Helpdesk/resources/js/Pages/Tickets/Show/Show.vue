@@ -253,10 +253,21 @@
     </Dialog>
 
     <!-- Reassign Dialog -->
-    <Dialog v-model:visible="showReassignDialog" header="Réassigner le ticket" :style="{ width: '400px' }" modal>
+    <Dialog v-model:visible="showReassignDialog" header="Réassigner le ticket" :style="{ width: '400px' }" modal @show="loadTeamMembers">
       <div class="space-y-3">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">ID du nouvel agent</label>
-        <InputNumber v-model="reassignAgentId" class="w-full" :use-grouping="false" />
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nouvel agent</label>
+        <Select
+          v-model="reassignAgentId"
+          :options="teamMembers"
+          option-label="name"
+          option-value="id"
+          :loading="loadingMembers"
+          placeholder="Sélectionner un agent"
+          class="w-full"
+        />
+        <p v-if="!loadingMembers && !teamMembers.length" class="text-xs text-gray-400">
+          Aucun membre dans l'équipe assignée à ce ticket.
+        </p>
       </div>
       <template #footer>
         <Button label="Annuler" severity="secondary" text @click="showReassignDialog = false" />
@@ -280,7 +291,7 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
-import InputNumber from 'primevue/inputnumber'
+import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import ProgressBar from 'primevue/progressbar'
 import Message from 'primevue/message'
@@ -314,6 +325,8 @@ const showQuickReply = ref(false)
 const showEscalateDialog = ref(false)
 const showReassignDialog = ref(false)
 const reassignAgentId = ref(null)
+const teamMembers = ref([])
+const loadingMembers = ref(false)
 const escaladeRaison = ref('')
 const error = ref('')
 const actionPending = ref(false)
@@ -448,6 +461,23 @@ const escalateTicket = async () => {
     error.value = err.response?.data?.message || "Échec de l'escalade."
   } finally {
     actionPending.value = false
+  }
+}
+
+const loadTeamMembers = async () => {
+  const teamId = props.ticket.team?.id
+  if (!teamId) {
+    teamMembers.value = []
+    return
+  }
+  loadingMembers.value = true
+  try {
+    const { data } = await axios.get(`/api/v1/helpdesk/teams/${teamId}`)
+    teamMembers.value = data.members || []
+  } catch {
+    teamMembers.value = []
+  } finally {
+    loadingMembers.value = false
   }
 }
 

@@ -37,7 +37,7 @@ class TeamController extends Controller
 
     public function show(Team $team): JsonResponse
     {
-        return response()->json($team);
+        return response()->json($team->load('members:id,name,email'));
     }
 
     public function update(Request $request, Team $team): JsonResponse

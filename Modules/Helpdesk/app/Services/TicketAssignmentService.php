@@ -33,7 +33,7 @@ class TicketAssignmentService
             ->whereHas('roles', function ($query) {
                 $query->where('name', 'support-agent');
             })
-            ->where('active', true)
+            ->where('is_active', true)
             ->get();
 
         if ($agents->isEmpty()) {
