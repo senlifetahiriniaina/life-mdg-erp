@@ -155,6 +155,19 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Consumed by App\Http\Middleware\RequestInspectionMiddleware (the mini-WAF):
+        // XSS-pattern matches and known-threat-IP hits, both in shadow (log-only) and
+        // enforce mode. Kept separate from 'audit' (model CRUD trail) since this is
+        // request-level security telemetry meant to be reviewed before the middleware
+        // is switched from shadow to blocking.
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => env('LOG_SECURITY_DAYS', 90),
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

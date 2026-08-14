@@ -7,6 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 class ThreatIndicator extends Model
 {
     use \Modules\AuditLog\Traits\HasAuditLog;
+
+    // Without this, Eloquent's default convention ("threat_indicators")
+    // doesn't match the real table created by
+    // 2026_06_07_000002_create_security_threat_indicators_table.php —
+    // every query against this model failed with "no such table" before
+    // this fix, which is why ThreatDetectionService::isKnownThreatIp()
+    // had never actually run successfully.
+    protected $table = 'security_threat_indicators';
+
     protected $fillable = [
         'indicator_type',
         'indicator_value',

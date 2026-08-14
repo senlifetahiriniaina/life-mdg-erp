@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\CacheHeaders::class,
             \App\Http\Middleware\SecurityHeaders::class,
+            \App\Http\Middleware\RequestInspectionMiddleware::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             \App\Http\Middleware\CacheHeaders::class,
             \App\Http\Middleware\SecurityHeaders::class,
+            \App\Http\Middleware\RequestInspectionMiddleware::class,
             \App\Http\Middleware\RequestTiming::class,
         ]);
 
