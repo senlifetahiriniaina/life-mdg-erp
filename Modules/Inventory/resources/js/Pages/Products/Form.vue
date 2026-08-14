@@ -142,12 +142,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const categories = ref([])
 const errors = ref({})
-const isEdit = computed(() => !!route.params.id)
+const isEdit = computed(() => !!routeId.value)
 
 const formData = ref({
   sku: '',
@@ -189,7 +188,7 @@ const loadCategories = async () => {
 
 const loadProduct = async () => {
   try {
-    const response = await fetch(`/api/v1/inventory/products/${route.params.id}`, {
+    const response = await fetch(`/api/v1/inventory/products/${routeId.value}`, {
       headers: getAuthHeaders()
     })
     if (response.ok) {
@@ -204,7 +203,7 @@ const loadProduct = async () => {
 const handleSubmit = async () => {
   const method = isEdit.value ? 'PATCH' : 'POST'
   const url = isEdit.value
-    ? `/api/v1/inventory/products/${route.params.id}`
+    ? `/api/v1/inventory/products/${routeId.value}`
     : '/api/v1/inventory/products'
 
   try {

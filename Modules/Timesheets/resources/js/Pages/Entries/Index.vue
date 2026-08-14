@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { router } from '@inertiajs/vue3'
 import { useTimesheetsStore } from '../../stores/timesheetsStore'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Card from 'primevue/card'
@@ -87,7 +87,6 @@ import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import Dropdown from 'primevue/dropdown'
 
-const router = useRouter()
 const store = useTimesheetsStore()
 
 const selectedStatus = ref(null)
@@ -120,11 +119,11 @@ const getStatusSeverity = (status: string) => {
 }
 
 const navigateTo = (path: string) => {
-  router.push(path)
+  router.visit(path)
 }
 
 const editEntry = (id: number) => {
-  router.push(`/timesheets/entries/${id}/edit`)
+  router.visit(`/timesheets/entries/${id}/edit`)
 }
 
 const deleteEntry = async (id: number) => {

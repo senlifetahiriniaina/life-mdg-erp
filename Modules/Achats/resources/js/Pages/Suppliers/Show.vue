@@ -199,9 +199,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const supplier = ref({})
 const metrics = ref({})
 const recentOrders = ref([])
@@ -231,7 +230,7 @@ const formatDate = (date) => {
 
 const loadSupplier = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -251,7 +250,7 @@ const loadSupplier = async () => {
 
 const loadMetrics = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${route.params.id}/performance`, {
+    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}/performance`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -267,7 +266,7 @@ const loadMetrics = async () => {
 
 const loadRecentOrders = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${route.params.id}/quotes`, {
+    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}/quotes`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -285,7 +284,7 @@ const deleteSupplier = async () => {
   if (!confirm('Are you sure you want to delete this supplier?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`

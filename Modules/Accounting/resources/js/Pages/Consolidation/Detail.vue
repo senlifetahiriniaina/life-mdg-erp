@@ -200,8 +200,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { usePage } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
+import { useRouteId } from '@/composables/useRouteId'
 const page = usePage()
 const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
 const canManage = computed(() => isElevated.value || hasAnyRole(['finance-manager']))
@@ -210,7 +209,7 @@ const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const route = useRoute()
+const routeId = useRouteId()
 const group = ref(null)
 const loading = ref(true)
 const activeTab = ref('Information')
@@ -251,7 +250,7 @@ const transactionCompanies = computed(() => {
 })
 
 onMounted(async () => {
-  const response = await fetch(`/api/consolidations/${route.params.id}`)
+  const response = await fetch(`/api/consolidations/${routeId.value}`)
   group.value = await response.json()
   loading.value = false
 })

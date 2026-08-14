@@ -191,9 +191,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const rfq = ref({})
 const quotes = ref([])
 const suppliers = ref([])
@@ -244,7 +243,7 @@ const formatDate = (date) => {
 
 const loadRFQ = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -268,7 +267,7 @@ const issueRFQ = async () => {
   if (!confirm('Issue this RFQ to suppliers?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${route.params.id}/issue`, {
+    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}/issue`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
@@ -285,7 +284,7 @@ const issueRFQ = async () => {
 }
 
 const goToComparison = () => {
-  window.location.href = `/rfqs/${route.params.id}/compare`
+  window.location.href = `/rfqs/${routeId.value}/compare`
 }
 
 onMounted(() => {

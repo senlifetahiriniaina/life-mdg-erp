@@ -69,7 +69,7 @@ createInertiaApp({
 
         // Standard resolution
         const key = `./Pages/${name}.vue`;
-        if (pages[key]) return resolvePageComponent(name, pages);
+        if (pages[key]) return resolvePageComponent(key, pages);
 
         // Module-prefixed resolution: "CRM/Contacts/Index"
         const parts = name.split('/');
@@ -79,7 +79,7 @@ createInertiaApp({
             if (pages[moduleKey]) return pages[moduleKey]();
         }
 
-        return resolvePageComponent(name, pages);
+        return resolvePageComponent(key, pages);
     },
 
     setup({ el, App, props, plugin }) {

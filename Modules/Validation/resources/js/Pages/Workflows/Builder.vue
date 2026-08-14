@@ -307,10 +307,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
-const isEditing = ref(!!route.params.id)
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
+const isEditing = ref(!!routeId.value)
 
 const workflow = ref({
   name: '',
@@ -410,7 +409,7 @@ const testWorkflow = () => {
 const loadWorkflow = async () => {
   if (isEditing.value) {
     try {
-      const response = await fetch(`/api/v1/validation/workflows/${route.params.id}`, {
+      const response = await fetch(`/api/v1/validation/workflows/${routeId.value}`, {
         headers: {
           'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
         }

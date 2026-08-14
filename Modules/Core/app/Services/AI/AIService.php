@@ -52,16 +52,19 @@ class AIService
      * Ask the AI a business question with optional context.
      * Results are cached for repeated identical queries.
      */
-    public function ask(string $question, array $context = [], ?string $module = null, ?string $locale = null): string
+    public function ask(string $question, array $context = [], ?string $module = null, ?string $locale = null, ?string $role = null): string
     {
-        $cacheKey = 'ai:' . md5($question . serialize($context) . $module);
+        $cacheKey = 'ai:' . md5($question . serialize($context) . $module . $role);
 
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($question, $context, $module, $locale) {
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($question, $context, $module, $locale, $role) {
             $provider = $module ? $this->forModule($module) : $this->provider();
 
             $systemPrompt = config('ai.system_prompts.default');
             if ($locale && $locale !== 'en' && in_array($locale, self::ALLOWED_LOCALES, true)) {
                 $systemPrompt .= " Always respond in {$locale} language.";
+            }
+            if ($role) {
+                $systemPrompt .= " The user you are assisting holds the '{$role}' role — tailor depth, tone, and suggested actions to what that role is authorized and expected to do.";
             }
 
             $messages = [];

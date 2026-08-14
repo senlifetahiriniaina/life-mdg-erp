@@ -35,7 +35,10 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function mapWebRoutes(): void
     {
-        Route::middleware('web')->group(module_path($this->name, '/routes/web.php'));
+        // routes/web.php has no auth wrapping of its own (unlike most other modules),
+        // so it's applied here — otherwise Route::resource('core', ...) is reachable
+        // without authentication.
+        Route::middleware(['web', 'auth'])->group(module_path($this->name, '/routes/web.php'));
     }
 
     /**

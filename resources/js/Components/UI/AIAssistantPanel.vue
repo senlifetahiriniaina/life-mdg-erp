@@ -93,7 +93,6 @@
 
 <script setup>
 import { ref, nextTick, watch } from 'vue'
-import { usePage } from '@inertiajs/vue3'
 import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
@@ -104,11 +103,14 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  module: {
+    type: String,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['close'])
 const { locale } = useI18n()
-const page = usePage()
 
 const messages = ref([])
 const inputMessage = ref('')
@@ -142,11 +144,11 @@ const sendMessage = async (text = null) => {
 
   try {
     const response = await axios.post('/api/v1/ai/chat', {
-      question,
-      module: page.props.currentModule || null,
+      message: question,
+      module: props.module || null,
     })
 
-    messages.value.push({ role: 'assistant', content: response.data.answer })
+    messages.value.push({ role: 'assistant', content: response.data.reply })
   } catch (error) {
     messages.value.push({
       role: 'assistant',

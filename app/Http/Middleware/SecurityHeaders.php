@@ -31,9 +31,19 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $response = $next($request);
-
         $isApi = $request->is('api/*');
+
+        // Generated before $next() so the Blade view (rendered inside $next()) can read
+        // it via request()->attributes->get('csp_nonce') and tag its own inline scripts —
+        // generating it after the view already rendered means the nonce never reaches the
+        // HTML, so every inline <script> (Ziggy's @routes output included) is silently
+        // blocked by the CSP header set below, even though the header itself is correct.
+        if (! $isApi) {
+            $nonce = base64_encode(random_bytes(16));
+            $request->attributes->set('csp_nonce', $nonce);
+        }
+
+        $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
@@ -50,8 +60,7 @@ class SecurityHeaders
         // which is origin-aware and safe with credentials — do not set CORS headers here.
 
         if (! $isApi) {
-            $nonce = base64_encode(random_bytes(16));
-            $request->attributes->set('csp_nonce', $nonce);
+            $nonce = $request->attributes->get('csp_nonce');
 
             $csp = implode('; ', [
                 "default-src 'self'",
@@ -76,8 +85,12 @@ class SecurityHeaders
 
     private function reverbWsOrigin(): string
     {
-        $host = config('reverb.servers.reverb.host', 'localhost');
-        $port = config('reverb.servers.reverb.port', 8080);
+        // reverb.servers.reverb.host/port (REVERB_SERVER_HOST/PORT) is the server's
+        // bind address (0.0.0.0 by default) — never a valid address for a browser to
+        // connect to. The public-facing host/port the frontend actually connects to
+        // (VITE_REVERB_HOST/PORT) comes from REVERB_HOST/PORT instead.
+        $host = env('REVERB_HOST', 'localhost');
+        $port = env('REVERB_PORT', 8080);
 
         return "ws://{$host}:{$port} wss://{$host}:{$port}";
     }

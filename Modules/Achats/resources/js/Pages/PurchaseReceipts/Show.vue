@@ -193,9 +193,8 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const receipt = ref({})
 const loading = ref(true)
 const error = ref('')
@@ -264,7 +263,7 @@ const acceptableCount = computed(() => {
 
 const loadReceipt = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/purchase-receipts/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/purchase-receipts/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }

@@ -252,10 +252,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
-const isEditing = ref(!!route.params.id)
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
+const isEditing = ref(!!routeId.value)
 const loading = ref(false)
 const submitError = ref('')
 const errors = ref({})
@@ -358,7 +357,7 @@ const handleSubmit = async () => {
 
   try {
     const url = isEditing.value
-      ? `/api/v1/achats/purchase-receipts/${route.params.id}`
+      ? `/api/v1/achats/purchase-receipts/${routeId.value}`
       : '/api/v1/achats/purchase-receipts'
     const method = isEditing.value ? 'PATCH' : 'POST'
 

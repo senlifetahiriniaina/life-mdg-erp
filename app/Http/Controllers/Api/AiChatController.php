@@ -22,11 +22,13 @@ class AiChatController extends Controller
         $message = $request->input('message');
         /** @var array<string, mixed> $context */
         $context = $request->input('context', []);
+        // Role is derived from the authenticated user, never trusted from client input.
+        $role = $request->user()?->getRoleNames()->first();
 
         try {
             /** @var \Modules\Core\Services\AI\AIService $ai */
             $ai = app('ai');
-            $response = $ai->ask($message, $context, $module, app()->getLocale());
+            $response = $ai->ask($message, $context, $module, app()->getLocale(), $role);
         } catch (\Throwable) {
             // Fallback réponse si IA non configurée
             $response = $this->fallbackResponse($module, $message);

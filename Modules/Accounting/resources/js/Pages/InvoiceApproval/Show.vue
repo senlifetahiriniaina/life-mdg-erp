@@ -133,10 +133,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRouteId } from '@/composables/useRouteId'
 import axios from 'axios'
 
-const route = useRoute()
+const routeId = useRouteId()
 
 const invoice = ref({
   invoice_number: '',
@@ -160,7 +160,7 @@ const canApprove = computed(() => {
 const loadInvoiceApprovalDetails = async () => {
   try {
     loading.value = true
-    const response = await axios.get(`/api/v1/accounting/invoices/${route.params.id}/approvals`)
+    const response = await axios.get(`/api/v1/accounting/invoices/${routeId.value}/approvals`)
     invoice.value = response.data
     approvalChain.value = response.data.approvals || []
   } catch (error) {
@@ -228,7 +228,7 @@ const chainItemClass = (approval) => {
 
 const approveInvoice = async () => {
   try {
-    await axios.put(`/api/v1/accounting/invoices/${route.params.id}/approve`, {
+    await axios.put(`/api/v1/accounting/invoices/${routeId.value}/approve`, {
       comments: actionComments.value,
     })
     await loadInvoiceApprovalDetails()
@@ -245,7 +245,7 @@ const openRejectModal = () => {
 
 const submitReject = async () => {
   try {
-    await axios.put(`/api/v1/accounting/invoices/${route.params.id}/reject`, {
+    await axios.put(`/api/v1/accounting/invoices/${routeId.value}/reject`, {
       reason: rejectReason.value,
     })
     showRejectModal.value = false

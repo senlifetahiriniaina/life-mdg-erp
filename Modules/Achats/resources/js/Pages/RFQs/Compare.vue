@@ -194,9 +194,8 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const rfq = ref({})
 const quotes = ref([])
 const selectedQuote = ref(null)
@@ -261,7 +260,7 @@ const acceptedQuotesCount = computed(() => {
 
 const loadRFQAndQuotes = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -289,7 +288,7 @@ const acceptQuote = async (quoteId) => {
 
   actioning.value = true
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${route.params.id}/accept-quote`, {
+    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}/accept-quote`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
@@ -317,7 +316,7 @@ const rejectQuote = async (quoteId) => {
 
   actioning.value = true
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${route.params.id}/reject-quote`, {
+    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}/reject-quote`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,

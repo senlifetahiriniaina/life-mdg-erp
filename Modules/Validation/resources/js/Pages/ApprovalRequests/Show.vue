@@ -217,9 +217,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const approval = ref({})
 const loading = ref(true)
 const submitting = ref(false)
@@ -256,7 +255,7 @@ const formatDate = (date) => {
 
 const loadApprovalRequest = async () => {
   try {
-    const response = await fetch(`/api/v1/validation/approval-requests/${route.params.id}`, {
+    const response = await fetch(`/api/v1/validation/approval-requests/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -294,7 +293,7 @@ const closeModal = () => {
 const submitApproval = async () => {
   submitting.value = true
   try {
-    const response = await fetch(`/api/v1/validation/approval-requests/${route.params.id}/approve`, {
+    const response = await fetch(`/api/v1/validation/approval-requests/${routeId.value}/approve`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
@@ -321,7 +320,7 @@ const submitApproval = async () => {
 const submitRejection = async () => {
   submitting.value = true
   try {
-    const response = await fetch(`/api/v1/validation/approval-requests/${route.params.id}/reject`, {
+    const response = await fetch(`/api/v1/validation/approval-requests/${routeId.value}/reject`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,

@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { router } from '@inertiajs/vue3'
 import { useTimesheetsStore } from '../../stores/timesheetsStore'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Card from 'primevue/card'
@@ -96,7 +96,6 @@ import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
 
-const router = useRouter()
 const store = useTimesheetsStore()
 
 const projects = computed(() => store.projects)
@@ -120,15 +119,15 @@ const formatDate = (date: string) => {
 }
 
 const navigateTo = (path: string) => {
-  router.push(path)
+  router.visit(path)
 }
 
 const viewProject = (id: number) => {
-  router.push(`/timesheets/projects/${id}`)
+  router.visit(`/timesheets/projects/${id}`)
 }
 
 const editProject = (id: number) => {
-  router.push(`/timesheets/projects/${id}/edit`)
+  router.visit(`/timesheets/projects/${id}/edit`)
 }
 
 const deleteProject = async (id: number) => {

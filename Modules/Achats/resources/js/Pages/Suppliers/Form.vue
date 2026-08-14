@@ -286,10 +286,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
-const isEditing = computed(() => !!route.params.id)
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
+const isEditing = computed(() => !!routeId.value)
 const loading = ref(false)
 const submitError = ref('')
 const errors = ref({})
@@ -319,7 +318,7 @@ const loadSupplier = async () => {
   if (!isEditing.value) return
 
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -341,7 +340,7 @@ const handleSubmit = async () => {
 
   try {
     const url = isEditing.value
-      ? `/api/v1/achats/suppliers/${route.params.id}`
+      ? `/api/v1/achats/suppliers/${routeId.value}`
       : '/api/v1/achats/suppliers'
     const method = isEditing.value ? 'PATCH' : 'POST'
 

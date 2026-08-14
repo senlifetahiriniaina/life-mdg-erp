@@ -71,7 +71,6 @@
 <script setup>
 import { ref, onMounted, computed} from 'vue'
 import { usePage } from '@inertiajs/vue3'
-import { useRouter } from 'vue-router'
 
 const page = usePage()
 const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
@@ -80,8 +79,6 @@ const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
-
-const router = useRouter()
 const groups = ref([])
 const loading = ref(true)
 const filters = ref({

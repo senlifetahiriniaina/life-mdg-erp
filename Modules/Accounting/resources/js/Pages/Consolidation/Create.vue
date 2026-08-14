@@ -174,8 +174,7 @@
 
 <script setup>
 import { ref, onMounted, computed} from 'vue'
-import { usePage } from '@inertiajs/vue3'
-import { useRouter } from 'vue-router'
+import { usePage, router } from '@inertiajs/vue3'
 import StrategicContext from '@/Components/StrategicContext.vue'
 import { useStrategicLink } from '@/composables/useStrategicLink'
 
@@ -186,8 +185,6 @@ const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
-
-const router = useRouter()
 const currentStep = ref(0)
 const steps = ['Basic Info', 'Add Members', 'Review']
 const submitting = ref(false)
@@ -264,7 +261,7 @@ const submitForm = async () => {
     
     if (response.ok) {
       const group = await response.json()
-      router.push(`/consolidations/${group.id}`)
+      router.visit(`/consolidations/${group.id}`)
     } else {
       const error = await response.json()
       alert(`Error: ${error.message}`)

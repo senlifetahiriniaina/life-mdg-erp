@@ -169,9 +169,8 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
+import { useRouteId } from '@/composables/useRouteId'
+const routeId = useRouteId()
 const po = ref({})
 const loading = ref(true)
 const error = ref('')
@@ -210,7 +209,7 @@ const taxAmount = computed(() => {
 
 const loadPurchaseOrder = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}`, {
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
       }
@@ -232,7 +231,7 @@ const submitForApproval = async () => {
   if (!confirm('Submit this purchase order for approval?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${route.params.id}/submit`, {
+    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}/submit`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
@@ -252,7 +251,7 @@ const markAsReceived = async () => {
   if (!confirm('Mark this purchase order as received?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
@@ -275,7 +274,7 @@ const deletePO = async () => {
   if (!confirm('Are you sure you want to delete this purchase order?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${route.params.id}`, {
+    const response = await fetch(`/api/v1/achats/purchase-orders/${routeId.value}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`

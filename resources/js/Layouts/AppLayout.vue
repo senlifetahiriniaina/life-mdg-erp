@@ -75,7 +75,7 @@
         <slot />
       </Transition>
     </main>
-    <AIAssistantPanel v-if="aiPanelOpen" @close="aiPanelOpen = false" />
+    <AIAssistantPanel v-if="aiPanelOpen" :module="currentModule" @close="aiPanelOpen = false" />
     <Toast position="bottom-right" />
     <ConfirmDialog />
     <CookieConsentBanner />
@@ -112,15 +112,9 @@ const currentModule = computed(() => {
   if (url.includes('/hr')) return 'HR'
   if (url.includes('/inventory')) return 'Inventory'
   if (url.includes('/accounting')) return 'Accounting'
-  if (url.includes('/manufacturing')) return 'Manufacturing'
-  if (url.includes('/pos')) return 'POS'
-  if (url.includes('/ecommerce')) return 'Ecommerce'
   if (url.includes('/bi')) return 'BI'
-  if (url.includes('/email')) return 'Email'
-  if (url.includes('/documents')) return 'Documents'
   if (url.includes('/helpdesk')) return 'Helpdesk'
   if (url.includes('/projects')) return 'Projects'
-  if (url.includes('/whatsapp')) return 'WhatsApp'
   return 'WideHalo'
 })
 const { isDark } = useTheme()
@@ -145,29 +139,24 @@ const allNavGroups = [
   { label: 'Ventes & clients', items: [
     { key: 'crm', module: 'CRM', href: '/crm/contacts', icon: 'pi pi-users' },
     { key: 'accounting', module: 'Accounting', href: '/accounting/invoices', icon: 'pi pi-receipt' },
-    { key: 'pos', module: 'POS', href: '/pos/orders', icon: 'pi pi-barcode' },
-    { key: 'ecommerce', module: 'Ecommerce', href: '/ecommerce/orders', icon: 'pi pi-shopping-bag' },
-    { key: 'whatsapp', module: 'WhatsApp', href: '/whatsapp', icon: 'pi pi-whatsapp', badge: 'IA' },
     { key: 'helpdesk', module: 'Helpdesk', href: '/helpdesk/tickets', icon: 'pi pi-headphones' },
   ]},
   { label: 'Opérations', items: [
     { key: 'inventory', module: 'Inventory', href: '/inventory/products', icon: 'pi pi-box' },
-    { key: 'manufacturing', module: 'Manufacturing', href: '/manufacturing/orders', icon: 'pi pi-cog', badge: 'MRP' },
     { key: 'projects', module: 'Projects', href: '/projects', icon: 'pi pi-briefcase' },
   ]},
   { label: 'Finance & RH', items: [
     { key: 'hr', module: 'HR', href: '/hr/employees', icon: 'pi pi-id-card' },
-  ]},
-  { label: 'Communication', items: [
-    { key: 'email', module: 'Email', href: '/email/campaigns', icon: 'pi pi-envelope' },
-    { key: 'documents', module: 'Documents', href: '/documents', icon: 'pi pi-folder' },
   ]},
 ]
 
 // Trimmed to life-mdg-erp's 22 seeded roles (database/seeders/RolesAndPermissionsSeeder.php) —
 // cashier/community-manager/production-manager/brand-owner/marketplace-admin/content-admin
 // and modules like POS/WhatsApp/Email/Manufacturing/Ecommerce belong to Widehalo-ERP's wider
-// scope and were never seeded or shipped here.
+// scope and were never seeded or shipped here — their nav entries and orphaned Pages/ dirs
+// were removed to match (they had no backing routes/controllers and 404'd on every fresh
+// tenant, since tenant_modules is never seeded and the module-visibility filter below
+// silently falls back to "show everything" when it's empty).
 const ADMIN_ROLES = ['super-admin', 'admin', 'system-admin', 'security-admin', 'billing-admin', 'support-admin', 'tenant-admin']
 const ROLE_MODULE_ACCESS = {
   'logistics-manager': ['Inventory', 'Logistics'],

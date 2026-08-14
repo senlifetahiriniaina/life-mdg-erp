@@ -26,7 +26,6 @@ class ValidationServiceProvider extends ServiceProvider {
     {
         $this->publishConfig();
         $this->registerMigrations();
-        $this->registerRoutes();
         Gate::policy(ApprovalRequest::class, ApprovalRequestPolicy::class);
     }
 
@@ -60,11 +59,6 @@ class ValidationServiceProvider extends ServiceProvider {
     protected function registerMigrations(): void
     {
 $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
-    }
-
-    protected function registerRoutes(): void
-    {
-        $this->loadRoutesFrom(__DIR__.'/../../routes/api.php');
     }
 
     public function provides(): array
