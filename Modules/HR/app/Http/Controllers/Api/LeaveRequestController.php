@@ -90,7 +90,7 @@ class LeaveRequestController extends Controller
                 ?? \Modules\HR\Models\LeaveType::create([
                     'code' => $typeCode,
                     'name' => ucfirst($data['type']),
-                    'days_per_year' => 30,
+                    'days_per_year' => config('hr.default_leave_days_per_year', 30),
                     'is_paid' => true,
                 ]);
             $data['leave_type_id'] = $leaveType->id;
@@ -168,7 +168,8 @@ class LeaveRequestController extends Controller
         $approved = $this->service->approveLeave(
             $leaveRequest,
             $approverId,
-            $request->input('notes', '')
+            $request->input('notes', ''),
+            $user->getRoleNames()->first()
         );
 
         return new LeaveRequestResource($approved);
@@ -181,7 +182,8 @@ class LeaveRequestController extends Controller
         $rejected = $this->service->rejectLeave(
             $leaveRequest,
             $rejecterId,
-            $request->input('rejection_reason', $request->input('notes', ''))
+            $request->input('rejection_reason', $request->input('notes', '')),
+            $user->getRoleNames()->first()
         );
 
         return new LeaveRequestResource($rejected);

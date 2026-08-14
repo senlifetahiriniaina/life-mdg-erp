@@ -21,6 +21,7 @@ class LeaveType extends Model
         'status',
         'carry_forward',
         'max_carry_forward_days',
+        'approval_levels',
     ];
 
     protected $casts = [

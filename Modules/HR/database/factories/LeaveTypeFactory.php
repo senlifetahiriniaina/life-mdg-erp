@@ -13,6 +13,7 @@ class LeaveTypeFactory extends Factory
     {
         return [
             'name' => $this->faker->unique()->words(2, true),
+            'code' => $this->faker->unique()->lexify('LT-????'),
             'days_per_year' => $this->faker->randomElement([0, 5, 10, 15, 20, 25, 30]),
             'is_paid' => $this->faker->boolean(80),
             'description' => $this->faker->sentence(),

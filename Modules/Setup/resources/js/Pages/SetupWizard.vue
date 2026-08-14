@@ -134,9 +134,12 @@
             <ThresholdEditor module="accounting" title="Seuils d'approbation — Factures (Comptabilité)" currency="XOF" />
           </div>
 
+          <div class="pt-2 border-t border-surface-200 dark:border-surface-700">
+            <LeavePolicyEditor />
+          </div>
+
           <p class="text-xs text-surface-400">
-            Les politiques de congés RH et les SLA Helpdesk se configurent depuis les pages dédiées de chaque module
-            une fois l'assistant terminé.
+            Les SLA Helpdesk se configurent depuis la page dédiée du module une fois l'assistant terminé.
           </p>
         </div>
 
@@ -222,6 +225,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 import ImportDataFlow from '../Components/ImportDataFlow.vue'
 import ThresholdEditor from '../Components/ThresholdEditor.vue'
+import LeavePolicyEditor from '../Components/LeavePolicyEditor.vue'
 
 // ────────────────────────────────────────────────────────────
 // Small local helpers (kept in-file: purely presentational, not reused elsewhere)

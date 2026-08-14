@@ -5,6 +5,7 @@ namespace Modules\HR\Services;
 use Modules\HR\Models\Attendance;
 use Modules\HR\Models\Department;
 use Modules\HR\Models\Employee;
+use Modules\HR\Models\LeaveApprovalLog;
 use Modules\HR\Models\LeaveRequest;
 use Modules\HR\Models\LeaveType;
 use Modules\HR\Models\Position;
@@ -90,7 +91,7 @@ class HRService
         return LeaveRequest::create($data);
     }
 
-    public function approveLeave(LeaveRequest $request, int $approverId, string $notes = ''): LeaveRequest
+    public function approveLeave(LeaveRequest $request, int $approverId, string $notes = '', ?string $approverRole = null): LeaveRequest
     {
         $request->update([
             'status' => 'approved',
@@ -99,10 +100,12 @@ class HRService
             'approved_at' => now(),
         ]);
 
+        $this->logApprovalStep($request, $approverId, $approverRole, 'approved', $notes);
+
         return $request;
     }
 
-    public function rejectLeave(LeaveRequest $request, int $approverId, string $notes = ''): LeaveRequest
+    public function rejectLeave(LeaveRequest $request, int $approverId, string $notes = '', ?string $approverRole = null): LeaveRequest
     {
         $request->update([
             'status' => 'rejected',
@@ -111,7 +114,31 @@ class HRService
             'approved_at' => now(),
         ]);
 
+        $this->logApprovalStep($request, $approverId, $approverRole, 'rejected', $notes);
+
         return $request;
+    }
+
+    /**
+     * Level is simply "how many decisions has this request seen so far,
+     * plus one" — enough to drive a simple submitted → manager → HR stepper
+     * on the front end without routing leave through the full Validation
+     * engine (out of scope, leave approval is time-sensitive HR data).
+     */
+    private function logApprovalStep(LeaveRequest $request, int $approverId, ?string $approverRole, string $action, string $notes): void
+    {
+        $level = LeaveApprovalLog::where('leave_request_id', $request->id)->max('level');
+
+        LeaveApprovalLog::create([
+            'leave_request_id' => $request->id,
+            'level' => ($level ?? 0) + 1,
+            'approver_id' => $approverId,
+            'approver_role' => $approverRole,
+            'action' => $action,
+            'comment' => $notes,
+            'actioned_at' => now(),
+            'created_at' => now(),
+        ]);
     }
 
     public function getPendingLeaveRequests($perPage = 15)

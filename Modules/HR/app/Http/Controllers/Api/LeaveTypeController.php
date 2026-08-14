@@ -60,6 +60,7 @@ class LeaveTypeController extends Controller
             'is_paid' => ['boolean'],
             'carry_forward' => ['boolean'],
             'max_carry_forward_days' => ['nullable', 'integer', 'min:0'],
+            'approval_levels' => ['sometimes', 'integer', 'min:1', 'max:5'],
         ]);
 
         $leaveType->update($validated);

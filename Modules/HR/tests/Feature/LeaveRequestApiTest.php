@@ -37,6 +37,13 @@ describe('Leave Request API', function () {
 
         $response->assertStatus(200);
         expect($request->fresh()->status)->toBe('approved');
+        $this->assertDatabaseHas('hr_leave_approval_log', [
+            'leave_request_id' => $request->id,
+            'level' => 1,
+            'action' => 'approved',
+            'approver_role' => 'admin',
+            'comment' => 'Approved',
+        ]);
     });
 
     test('can reject leave request', function () {
@@ -49,6 +56,29 @@ describe('Leave Request API', function () {
 
         $response->assertStatus(200);
         expect($request->fresh()->status)->toBe('rejected');
+        $this->assertDatabaseHas('hr_leave_approval_log', [
+            'leave_request_id' => $request->id,
+            'level' => 1,
+            'action' => 'rejected',
+            'approver_role' => 'admin',
+        ]);
+    });
+
+    test('approval log level increments across repeated decisions on the same request', function () {
+        $request = LeaveRequest::factory()->create(['status' => 'pending']);
+        $secondApprover = Employee::factory()->create();
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/v1/hr/leave-requests/{$request->id}/approve", ['notes' => 'Step 1']);
+
+        // Simulate a second decision step on the same request (e.g. HR
+        // countersigning after the manager) — level should increment, not
+        // overwrite the first log row.
+        app(\Modules\HR\Services\HRService::class)->approveLeave($request, $secondApprover->id, 'Step 2', 'hr_manager');
+
+        $this->assertDatabaseCount('hr_leave_approval_log', 2);
+        $this->assertDatabaseHas('hr_leave_approval_log', ['leave_request_id' => $request->id, 'level' => 1]);
+        $this->assertDatabaseHas('hr_leave_approval_log', ['leave_request_id' => $request->id, 'level' => 2, 'approver_role' => 'hr_manager']);
     });
 
     test('can get pending leave requests', function () {
