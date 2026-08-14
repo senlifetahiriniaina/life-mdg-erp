@@ -89,6 +89,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'setup'            => ['import', 'mapping', 'wizard'],
         'integration'      => ['connector', 'webhook', 'sync-log'],
         'settings'         => ['setting', 'group'],
+        'validation'       => ['workflow', 'rule', 'hierarchy', 'request'],
     ];
 
     private const ACTIONS = ['view-any', 'view', 'create', 'update', 'delete'];
@@ -316,7 +317,15 @@ class RolesAndPermissionsSeeder extends Seeder
             str_starts_with($p->name, 'hr.')
         ));
 
-        $totalRoles = 22;
+        // approver: can view/action approval requests assigned to them, across
+        // every module that raises one (Achats POs, Accounting invoices, ...).
+        // Referenced by ApprovalRequestPolicy but was never seeded before this.
+        $approver = Role::firstOrCreate(['name' => 'approver', 'guard_name' => 'web']);
+        $approver->syncPermissions(array_filter($allPermissions, fn(Permission $p) =>
+            str_starts_with($p->name, 'validation.request.')
+        ));
+
+        $totalRoles = 23;
         $this->command->info(sprintf(
             'Seeded %d permissions across %d roles.',
             count($allPermissions) + count($adminPermissions),

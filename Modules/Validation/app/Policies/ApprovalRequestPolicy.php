@@ -12,6 +12,11 @@ class ApprovalRequestPolicy
         return $user->hasAnyRole(['admin', 'manager', 'approver']);
     }
 
+    public function create(User $user): bool
+    {
+        return $user->hasPermissionTo('validation.request.create') || $user->hasAnyRole(['admin', 'manager']);
+    }
+
     public function view(User $user, ApprovalRequest $request): bool
     {
         // User can view if they are the requester, approver, or have admin role
@@ -22,7 +27,12 @@ class ApprovalRequestPolicy
 
     public function approve(User $user, ApprovalRequest $request): bool
     {
-        // Only the assigned approver or admin/manager can approve
+        // Only the assigned approver or admin/manager can approve. This
+        // intentionally does NOT grant everyone holding the 'approver' role
+        // blanket approve access — that role only affects viewAny() (seeing
+        // the list). Once ApprovalRoutingResolver (Phase 2) can assign a
+        // level to multiple role-holders, this should also allow whichever
+        // of them the resolver currently resolves for this request/level.
         if ($request->status !== 'pending') {
             return false;
         }

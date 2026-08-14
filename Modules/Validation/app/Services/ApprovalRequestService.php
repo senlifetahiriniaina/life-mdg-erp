@@ -31,17 +31,7 @@ class ApprovalRequestService
 
     public function getNextApprovers(ApprovalRequest $request): Collection
     {
-        // Get the next level of approvers based on workflow rules
-        // This is a simplified implementation
-        $rules = $request->workflow->getRulesByOrder();
-
-        if ($rules->isEmpty()) {
-            return User::whereHas('roles', function ($q) {
-                $q->where('name', 'admin');
-            })->get();
-        }
-
-        return collect();
+        return app(ApprovalRoutingResolver::class)->resolveApprovers($request);
     }
 
     public function submitApprovalRequest(ApprovalRequest $request): void
@@ -71,14 +61,40 @@ class ApprovalRequestService
         event(new ApprovalRejected($request, $reason, $approver));
     }
 
-    public function delegateApproval(ApprovalAction $action, User $delegateTo): void
-    {
+    /**
+     * Delegate an approval request to another user. Reassigns approver_id so
+     * the delegate can actually act on it (ApprovalRequestPolicy checks
+     * approver_id === auth user) — a prior version of this method only wrote
+     * an ApprovalAction log entry without reassigning, so the delegate could
+     * never actually approve/reject.
+     */
+    public function delegateApproval(
+        ApprovalRequest $request,
+        User $from,
+        User $to,
+        ?string $reason = null
+    ): void {
+        $request->update([
+            'approver_id' => $to->id,
+            'escalated_from_id' => $from->id,
+            'escalation_reason' => 'manual_delegation',
+        ]);
+
         ApprovalAction::create([
-            'request_id' => $action->request_id,
-            'approver_id' => $delegateTo->id,
+            'request_id' => $request->id,
+            'approver_id' => $to->id,
             'action' => 'delegated',
-            'comment' => "Delegated from {$action->approver->name}",
+            'comment' => $reason ?? "Delegated from {$from->name}",
             'acted_at' => now(),
+        ]);
+
+        ApprovalHistory::create([
+            'request_id' => $request->id,
+            'action' => 'delegated',
+            'old_status' => $request->status,
+            'new_status' => $request->status,
+            'changed_by' => $from->id,
+            'changed_at' => now(),
         ]);
     }
 

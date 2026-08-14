@@ -32,7 +32,9 @@ class ApprovalHierarchy extends Model
         'name',
         'description',
         'company_id',
+        'module_name',
         'is_active',
+        'escalation_role',
     ];
 
     protected $casts = [

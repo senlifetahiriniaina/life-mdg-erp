@@ -52,6 +52,11 @@ class ApprovalRequest extends Model
         'approved_by',
         'approved_at',
         'rejected_at',
+        'hierarchy_id',
+        'current_level',
+        'total_levels',
+        'escalated_from_id',
+        'escalation_reason',
     ];
 
     protected $casts = [
@@ -62,6 +67,11 @@ class ApprovalRequest extends Model
     public function workflow(): BelongsTo
     {
         return $this->belongsTo(ApprovalWorkflow::class, 'workflow_id');
+    }
+
+    public function hierarchy(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalHierarchy::class, 'hierarchy_id');
     }
 
     public function approvable(): MorphTo

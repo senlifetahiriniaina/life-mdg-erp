@@ -2,6 +2,7 @@
 
 namespace Modules\Validation\Providers;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -26,7 +27,22 @@ class ValidationServiceProvider extends ServiceProvider {
     {
         $this->publishConfig();
         $this->registerMigrations();
+        $this->registerApprovableMorphMap();
         Gate::policy(ApprovalRequest::class, ApprovalRequestPolicy::class);
+    }
+
+    /**
+     * Aliases accepted as `approvable_type` when creating an approval request
+     * (POST /api/v1/validation/approval-requests). Deliberately an allowlist —
+     * never resolve a class name coming straight from client input. Mirrors
+     * the pattern used by HelpdeskServiceProvider's ticket-source morph map.
+     */
+    private function registerApprovableMorphMap(): void
+    {
+        Relation::morphMap([
+            'invoice' => \Modules\Accounting\Models\Invoice::class,
+            'purchase_order' => \Modules\Achats\Models\PurchaseOrder::class,
+        ]);
     }
 
     protected function registerServices(): void

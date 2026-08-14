@@ -24,13 +24,22 @@ class ApprovalRule extends Model
     use HasFactory;
     protected $table = 'validation_approval_rules';
 
+    /** Condition types an admin can currently configure a rule with. */
+    public const CONDITION_TYPES = ['amount', 'category', 'department', 'custom_field'];
+
+    /** Allow-listed comparison operators — never parsed/eval'd from a DB string. */
+    public const OPERATORS = ['>', '<', '>=', '<=', '==', '!='];
+
     protected $fillable = [
         'workflow_id',
         'rule_order',
         'condition_type',
+        'condition_operator',
         'condition_value',
+        'condition_field',
         'required_approvers_count',
         'approval_mode',
+        'hierarchy_id',
         'status',
     ];
 
@@ -43,14 +52,46 @@ class ApprovalRule extends Model
         return $this->belongsTo(ApprovalWorkflow::class, 'workflow_id');
     }
 
-    public function evaluateCondition($value): bool
+    public function hierarchy(): BelongsTo
     {
-        // Example: condition_type = 'amount', condition_value = '>1000'
-        // This is a simplified version; extend based on business logic
-        if ($this->condition_type === 'amount') {
-            return eval("return {$value} {$this->condition_value};");
-        }
+        return $this->belongsTo(ApprovalHierarchy::class, 'hierarchy_id');
+    }
 
-        return true;
+    /**
+     * Evaluate whether this rule applies to the given approvable model.
+     * Never uses eval() — condition_operator is a write-time-validated enum
+     * (see ApprovalRuleController), and condition_type dispatches to a fixed
+     * set of comparison methods below.
+     */
+    public function evaluateCondition($approvable): bool
+    {
+        return match ($this->condition_type) {
+            'amount' => $this->evaluateAmount($approvable),
+            'category' => $this->evaluateEquals(data_get($approvable, 'category')),
+            'department' => $this->evaluateEquals(data_get($approvable, 'department_id')),
+            'custom_field' => $this->evaluateEquals(data_get($approvable, $this->condition_field ?? '')),
+            default => true,
+        };
+    }
+
+    protected function evaluateAmount($approvable): bool
+    {
+        $amount = (float) (data_get($approvable, 'total') ?? data_get($approvable, 'amount') ?? 0);
+        $threshold = (float) $this->condition_value;
+
+        return match ($this->condition_operator) {
+            '>' => $amount > $threshold,
+            '<' => $amount < $threshold,
+            '>=' => $amount >= $threshold,
+            '<=' => $amount <= $threshold,
+            '==' => $amount == $threshold,
+            '!=' => $amount != $threshold,
+            default => true,
+        };
+    }
+
+    protected function evaluateEquals($actual): bool
+    {
+        return (string) $actual === (string) $this->condition_value;
     }
 }

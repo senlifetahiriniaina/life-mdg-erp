@@ -2,10 +2,14 @@
 
 namespace Modules\Validation\Http\Controllers\Api;
 
+use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Validation\Rule;
 use Modules\Validation\Models\ApprovalRequest;
+use Modules\Validation\Models\ApprovalWorkflow;
 use Modules\Validation\Services\ApprovalRequestService;
 
 /**
@@ -39,13 +43,23 @@ class ApprovalRequestController extends Controller
 
     public function store(Request $request)
     {
-        // Manual creation of approval requests - typically triggered by events
+        $this->authorize('create', ApprovalRequest::class);
+
         $data = $request->validate([
-            'approvable_type' => 'required|string',
+            // Allowlisted alias (see ValidationServiceProvider::registerApprovableMorphMap),
+            // never a raw class name from client input.
+            'approvable_type' => ['required', 'string', Rule::in(array_keys(Relation::morphMap()))],
             'approvable_id' => 'required|integer',
+            'workflow_id' => 'required|integer|exists:validation_approval_workflows,id',
         ]);
 
-        // Implementation to follow
+        $approvableClass = Relation::getMorphedModel($data['approvable_type']);
+        $approvable = $approvableClass::findOrFail($data['approvable_id']);
+        $workflow = ApprovalWorkflow::findOrFail($data['workflow_id']);
+
+        $approvalRequest = $this->service->createApprovalRequest($approvable, $workflow, auth()->user());
+
+        return response()->json($approvalRequest, 201);
     }
 
     public function show(ApprovalRequest $approval_request)
@@ -83,7 +97,19 @@ class ApprovalRequestController extends Controller
     {
         $this->authorize('delegate', $approval_request);
 
-        // Implementation to follow
+        $validated = $request->validate([
+            'to_user_id' => 'required|integer|exists:users,id',
+            'reason' => 'nullable|string',
+        ]);
+
+        $this->service->delegateApproval(
+            $approval_request,
+            auth()->user(),
+            User::findOrFail($validated['to_user_id']),
+            $validated['reason'] ?? null
+        );
+
+        return $approval_request->refresh();
     }
 
     public function history(ApprovalRequest $approval_request)

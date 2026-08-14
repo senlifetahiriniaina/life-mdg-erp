@@ -27,8 +27,10 @@ class LevelApprover extends Model
     protected $fillable = [
         'hierarchy_level_id',
         'user_id',
+        'role',
         'approver_order',
         'backup_user_id',
+        'backup_role',
         'is_active',
     ];
 
@@ -54,5 +56,46 @@ class LevelApprover extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeForRole(Builder $query, string $role): Builder
+    {
+        return $query->where('role', $role);
+    }
+
+    /**
+     * The actual User(s) this row resolves to: the specific user_id if set,
+     * otherwise every user currently holding `role`. A row is expected to
+     * have exactly one of user_id/role set (enforced at write time, not by a
+     * DB constraint — matches this codebase's existing convention).
+     */
+    public function resolvesToUsers(): \Illuminate\Support\Collection
+    {
+        if ($this->user_id) {
+            return ($user = User::find($this->user_id)) ? collect([$user]) : collect();
+        }
+
+        if ($this->role) {
+            return User::role($this->role)->get();
+        }
+
+        return collect();
+    }
+
+    /**
+     * The backup User(s) for this row: backup_user_id if set, otherwise every
+     * user holding backup_role. Never reads primary user_id/role as a backup.
+     */
+    public function resolvesToBackupUsers(): \Illuminate\Support\Collection
+    {
+        if ($this->backup_user_id) {
+            return ($user = User::find($this->backup_user_id)) ? collect([$user]) : collect();
+        }
+
+        if ($this->backup_role) {
+            return User::role($this->backup_role)->get();
+        }
+
+        return collect();
     }
 }
