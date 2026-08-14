@@ -7,6 +7,8 @@ namespace Modules\Setup\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use InvalidArgumentException;
+use Modules\Setup\Exceptions\ModuleDeactivationBlockedException;
 use Modules\Setup\Services\ModuleManagerService;
 
 /**
@@ -48,21 +50,31 @@ class AdminModulesController extends Controller
         $tenantId = $request->user()->tenant_id ?? 'default';
         $userId   = $request->user()->id;
 
-        if ($validated['is_active']) {
-            $config = $this->moduleManager->activate($module, $tenantId, $userId);
+        try {
+            if ($validated['is_active']) {
+                $config = $this->moduleManager->activate($module, $tenantId, $userId);
+
+                return response()->json([
+                    'success' => true,
+                    'data'    => $config,
+                ]);
+            }
+
+            $config = $this->moduleManager->deactivate($module, $tenantId, $userId);
 
             return response()->json([
                 'success' => true,
                 'data'    => $config,
             ]);
+        } catch (ModuleDeactivationBlockedException $e) {
+            return response()->json([
+                'success'    => false,
+                'message'    => $e->getMessage(),
+                'dependents' => $e->getDependents(),
+            ], 422);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 404);
         }
-
-        $this->moduleManager->deactivate($module, $tenantId);
-
-        return response()->json([
-            'success' => true,
-            'data'    => ['module_name' => $module, 'is_active' => false],
-        ]);
     }
 
     // -----------------------------------------------------------------------
@@ -80,12 +92,22 @@ class AdminModulesController extends Controller
         $tenantId = $request->user()->tenant_id ?? 'default';
         $userId   = $request->user()->id;
 
-        if ($validated['action'] === 'activate') {
-            $this->moduleManager->bulkActivate($validated['modules'], $tenantId, $userId);
-        } else {
-            foreach ($validated['modules'] as $moduleName) {
-                $this->moduleManager->deactivate($moduleName, $tenantId);
+        try {
+            if ($validated['action'] === 'activate') {
+                $this->moduleManager->bulkActivate($validated['modules'], $tenantId, $userId);
+            } else {
+                foreach ($validated['modules'] as $moduleName) {
+                    $this->moduleManager->deactivate($moduleName, $tenantId, $userId);
+                }
             }
+        } catch (ModuleDeactivationBlockedException $e) {
+            return response()->json([
+                'success'    => false,
+                'message'    => $e->getMessage(),
+                'dependents' => $e->getDependents(),
+            ], 422);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 404);
         }
 
         return response()->json([
