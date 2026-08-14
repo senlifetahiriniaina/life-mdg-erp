@@ -249,9 +249,8 @@ import Textarea from 'primevue/textarea'
 import ProgressBar from 'primevue/progressbar'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const isAdmin = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
-const canManage = computed(() => roles.value.some(r => ['logistics-manager', 'admin', 'super-admin'].includes(r)))
+const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['logistics-manager']))
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)

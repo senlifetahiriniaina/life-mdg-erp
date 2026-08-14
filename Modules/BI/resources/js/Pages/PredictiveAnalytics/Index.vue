@@ -113,8 +113,8 @@ import TabPanel from 'primevue/tabpanel'
 import Select from 'primevue/select'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['analyst','admin','super-admin'].includes(r)))
+const { isElevated } = useRoleAccess()
+const canManage = computed(() => isElevated.value)
 
 const horizon = ref('90 jours')
 const refreshing = ref(false)

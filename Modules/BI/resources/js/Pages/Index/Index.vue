@@ -245,8 +245,8 @@ import { usePage } from '@inertiajs/vue3'
 // const { guidance } = useAiAssistant('BI', 'view_dashboard')
 
 const page = usePage()
-const userRoles: string[] = (page.props.auth as any)?.user?.roles ?? []
-const canCreate = userRoles.some(r => ['super_admin','admin','bi_analyst','reporting_manager'].includes(r))
+const { isElevated } = useRoleAccess()
+const canCreate = computed(() => isElevated.value)
 
 const showDashboardDialog = ref(false)
 const showReportDialog = ref(false)

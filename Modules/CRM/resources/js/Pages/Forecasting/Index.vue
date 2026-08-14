@@ -164,9 +164,8 @@ import InputNumber from 'primevue/inputnumber'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const isAdmin = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
-const canManage = computed(() => roles.value.some(r => ['crm-manager', 'sales-manager', 'admin', 'super-admin'].includes(r)))
+const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['sales-manager']))
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)

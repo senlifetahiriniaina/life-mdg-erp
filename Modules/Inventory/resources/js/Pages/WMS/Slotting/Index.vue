@@ -94,8 +94,8 @@ import Tag from 'primevue/tag'
 import Drawer from 'primevue/drawer'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['warehouse-manager','admin','super-admin'].includes(r)))
+const { isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['warehouse-operator']))
 
 const optimizing = ref(false)
 const showSlotDrawer = ref(false)

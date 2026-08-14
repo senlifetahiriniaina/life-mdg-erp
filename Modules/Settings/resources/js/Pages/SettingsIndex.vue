@@ -447,10 +447,10 @@ import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import ToggleSwitch from 'primevue/toggleswitch'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
-const roles = computed(() => (page.props.auth as any)?.user?.roles?.map((r: any) => r.name) || [])
-const isAdmin = computed(() => roles.value.some((r: string) => ['admin', 'super-admin'].includes(r)))
+const { isAdmin } = useRoleAccess()
 
 const saving = ref(false)
 const saveSuccess = ref(false)

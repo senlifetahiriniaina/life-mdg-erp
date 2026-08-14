@@ -85,8 +85,8 @@ import InputNumber from 'primevue/inputnumber'
 import ToggleSwitch from 'primevue/toggleswitch'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['admin','super-admin','support-manager'].includes(r)))
+const { isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['customer-service']))
 
 const showRuleDialog = ref(false)
 const ruleForm = ref({ name: '', trigger: null, message: '', delay: 5, segment: 'Tous les utilisateurs', channel: 'In-app uniquement' })

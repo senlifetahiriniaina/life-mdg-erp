@@ -1,20 +1,23 @@
 import { computed } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 
+// Matches life-mdg-erp's 22 seeded roles exactly (database/seeders/RolesAndPermissionsSeeder.php).
+// Widehalo-ERP's version of this file also carried cashier/community-manager/production-manager/
+// brand-owner/marketplace-admin/content-admin — roles tied to modules this extraction doesn't ship
+// (POS, WhatsApp/Email, Manufacturing, Ecommerce) — trimmed here since no seeded user can ever hold them.
 export type AppRole =
   | 'super-admin' | 'admin' | 'manager' | 'employee'
   | 'accountant' | 'hr-manager' | 'sales-rep'
   | 'system-admin' | 'security-admin' | 'billing-admin'
-  | 'support-admin' | 'content-admin' | 'tenant-admin'
-  | 'cashier' | 'community-manager' | 'production-manager'
-  | 'logistics-manager' | 'service-partner' | 'brand-owner'
+  | 'support-admin' | 'tenant-admin'
+  | 'logistics-manager' | 'service-partner'
   | 'purchasing-manager' | 'warehouse-operator' | 'sales-manager'
   | 'project-manager' | 'finance-manager' | 'customer-service'
-  | 'inventory-analyst' | 'marketplace-admin'
+  | 'inventory-analyst' | 'payroll-officer'
 
 const ADMIN_ROLES: AppRole[] = [
   'super-admin', 'admin', 'system-admin', 'security-admin',
-  'billing-admin', 'support-admin', 'content-admin', 'tenant-admin',
+  'billing-admin', 'support-admin', 'tenant-admin',
 ]
 
 const ELEVATED_ROLES: AppRole[] = [
@@ -34,14 +37,9 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   'security-admin':     'Admin Sécurité',
   'billing-admin':      'Admin Facturation',
   'support-admin':      'Admin Support',
-  'content-admin':      'Admin Contenu',
   'tenant-admin':       'Admin Tenant',
-  'cashier':            'Caissier',
-  'community-manager':  'Community Manager',
-  'production-manager': 'Responsable de Production',
   'logistics-manager':  'Responsable Logistique',
   'service-partner':    'Partenaire Fournisseur de Service',
-  'brand-owner':        'Partenaire Propriétaire de Marque',
   'purchasing-manager': 'Responsable des Achats',
   'warehouse-operator': 'Opérateur Entrepôt',
   'sales-manager':      'Manager Commercial',
@@ -49,7 +47,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   'finance-manager':    'Responsable Finance',
   'customer-service':   'Service Client',
   'inventory-analyst':  'Analyste Stock',
-  'marketplace-admin':  'Admin Marketplace',
+  'payroll-officer':    'Gestionnaire Paie',
 }
 
 // Role category grouping for the UI
@@ -60,15 +58,15 @@ export const ROLE_GROUPS = [
   },
   {
     label: 'Management',
-    roles: ['manager', 'hr-manager', 'sales-manager', 'production-manager', 'logistics-manager', 'project-manager', 'finance-manager', 'purchasing-manager', 'marketplace-admin'] as AppRole[],
+    roles: ['manager', 'hr-manager', 'sales-manager', 'logistics-manager', 'project-manager', 'finance-manager', 'purchasing-manager'] as AppRole[],
   },
   {
     label: 'Opérations',
-    roles: ['employee', 'accountant', 'sales-rep', 'cashier', 'warehouse-operator', 'inventory-analyst', 'customer-service'] as AppRole[],
+    roles: ['employee', 'accountant', 'sales-rep', 'warehouse-operator', 'inventory-analyst', 'customer-service', 'payroll-officer'] as AppRole[],
   },
   {
     label: 'Partenaires externes',
-    roles: ['service-partner', 'brand-owner', 'community-manager'] as AppRole[],
+    roles: ['service-partner'] as AppRole[],
   },
 ]
 
@@ -104,20 +102,16 @@ export function useRoleAccess() {
     isAdmin.value || !isRestrictedRole.value ||
     userRoles.value.some(role => {
       const access: Record<string, string[]> = {
-        'cashier':            ['POS', 'Inventory'],
-        'community-manager':  ['WhatsApp', 'Email', 'CRM'],
-        'production-manager': ['Manufacturing', 'Inventory'],
-        'logistics-manager':  ['Inventory', 'POS', 'Ecommerce'],
-        'service-partner':    ['Helpdesk', 'Documents', 'Projects'],
-        'brand-owner':        ['Ecommerce'],
-        'purchasing-manager': ['Inventory', 'Accounting'],
-        'warehouse-operator': ['Inventory'],
-        'sales-manager':      ['CRM', 'Accounting', 'BI'],
-        'project-manager':    ['Projects', 'HR', 'Documents'],
+        'logistics-manager':  ['Inventory', 'Logistics'],
+        'service-partner':    ['Helpdesk', 'Projects'],
+        'purchasing-manager': ['Achats', 'Inventory', 'Accounting'],
+        'warehouse-operator': ['Inventory', 'Logistics'],
+        'sales-manager':      ['CRM', 'Sales', 'Accounting', 'BI'],
+        'project-manager':    ['Projects', 'HR'],
         'finance-manager':    ['Accounting', 'BI'],
         'customer-service':   ['Helpdesk', 'CRM'],
         'inventory-analyst':  ['Inventory', 'BI'],
-        'marketplace-admin':  ['Ecommerce', 'Inventory', 'CRM', 'BI'],
+        'payroll-officer':    ['Payroll', 'HR'],
       }
       return (access[role] ?? []).includes(module)
     })

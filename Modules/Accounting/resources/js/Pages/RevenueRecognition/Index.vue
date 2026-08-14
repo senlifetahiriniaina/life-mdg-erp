@@ -289,6 +289,8 @@ import Toast from 'primevue/toast'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AiAssistantPanel from '@/Components/AiAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
+import { useRoleAccess } from '@/composables/useRoleAccess'
+const { isElevated, hasAnyRole } = useRoleAccess()
 
 // --- Types ---
 
@@ -315,9 +317,9 @@ interface ScheduleRow {
 
 // --- RBAC ---
 // Role check: create/execute = accountant + finance-manager + admin; view = all accounting roles
-const userRoles: string[] = (window as any).__ROLES__ ?? []
+
 const canCreate = computed(() =>
-  userRoles.some(r => ['accountant', 'finance-manager', 'admin', 'super-admin'].includes(r))
+  isElevated.value || hasAnyRole(['accountant', 'finance-manager'])
 )
 
 // --- AI assistant ---

@@ -142,8 +142,7 @@ import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['sales-manager', 'admin', 'super-admin'].includes(r)))
+const canManage = computed(() => isElevated.value || hasAnyRole(['sales-manager']))
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
@@ -151,7 +150,7 @@ const canDelete = computed(() => isAdmin.value)
 
 const { guidance } = useAiAssistant('Sales', 'create_order')
 const showAiPanel = ref(false)
-const { isAdmin, hasAnyRole } = useRoleAccess()
+const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
 
 interface SalesOrder {
   id: number

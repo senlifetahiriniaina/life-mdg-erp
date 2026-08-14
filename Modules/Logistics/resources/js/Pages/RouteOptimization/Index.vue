@@ -313,8 +313,8 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import Textarea from 'primevue/textarea'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['logistics-manager', 'admin', 'super-admin'].includes(r)))
+const { isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['logistics-manager']))
 
 const optimizing = ref(false)
 const showRouteDrawer = ref(false)

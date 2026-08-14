@@ -159,8 +159,7 @@ import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['it-admin', 'admin', 'super-admin'].includes(r)))
+const canManage = computed(() => isElevated.value)
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
@@ -168,7 +167,7 @@ const canDelete = computed(() => isAdmin.value)
 
 const { guidance } = useAiAssistant('Integration', 'view_dashboard')
 const showAiPanel = ref(false)
-const { isAdmin } = useRoleAccess()
+const { isAdmin, isElevated } = useRoleAccess()
 
 interface Connector {
   id: number

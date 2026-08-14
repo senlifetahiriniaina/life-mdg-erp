@@ -237,16 +237,14 @@ import { ref, computed } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const isAdmin = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
-const canManage = computed(() => roles.value.some(r => ['bi-analyst', 'reporting-analyst', 'admin', 'super-admin'].includes(r)))
+const { isAdmin, isElevated } = useRoleAccess()
+const canManage = computed(() => isElevated.value)
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
 
-const userRoles: string[] = (page.props.auth as any)?.user?.roles ?? []
-const canRun = userRoles.some(r => ['super_admin','admin','bi_analyst','reporting_manager'].includes(r))
+const canRun = computed(() => isElevated.value)
 
 const showSaveDialog = ref(false)
 const showHistoryDrawer = ref(false)

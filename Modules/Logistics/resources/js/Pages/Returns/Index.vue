@@ -120,8 +120,8 @@ import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['logistics-manager','admin','super-admin'].includes(r)))
+const { isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['logistics-manager']))
 
 const showCreateDialog = ref(false)
 const showDetailDrawer = ref(false)

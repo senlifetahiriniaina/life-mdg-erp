@@ -181,8 +181,8 @@ import StrategicContext from '@/Components/StrategicContext.vue'
 import { useStrategicLink } from '@/composables/useStrategicLink'
 
 const page = usePage()
-const userRoles: string[] = (page.props.auth as any)?.user?.roles ?? []
-const canCreate = userRoles.some(r => ['super_admin','admin','bi_analyst','reporting_manager'].includes(r))
+const { isElevated } = useRoleAccess()
+const canCreate = computed(() => isElevated.value)
 
 const { objective } = useStrategicLink('BI/Report', item?.id)
 

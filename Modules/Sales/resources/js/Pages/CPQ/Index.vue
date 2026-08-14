@@ -122,12 +122,13 @@ import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canCreate = computed(() => roles.value.some(r => ['sales-rep','sales-manager','manager','admin','super-admin'].includes(r)))
-const canApprove = computed(() => roles.value.some(r => ['sales-manager','manager','admin','super-admin'].includes(r)))
-const canDelete = computed(() => roles.value.some(r => ['admin','super-admin'].includes(r)))
+const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
+const canCreate = computed(() => isElevated.value || hasAnyRole(['sales-rep', 'sales-manager']))
+const canApprove = computed(() => isElevated.value)
+const canDelete = computed(() => isAdmin.value)
 
 const { guidance } = useAiAssistant('Sales', 'create_order')
 

@@ -185,6 +185,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Tag from 'primevue/tag'
 import Badge from 'primevue/badge'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const props = defineProps({
   sheet: Object,
@@ -193,15 +194,14 @@ const props = defineProps({
 
 const page = usePage()
 const user = page.props.auth.user
+const { isAdmin, isElevated } = useRoleAccess()
 const loading = ref(false)
 
 const canSubmit = computed(() => {
-  return user.id === props.sheet.employee_id || user.roles?.some(r => r === 'admin')
+  return user.id === props.sheet.employee_id || isAdmin.value
 })
 
-const canApprove = computed(() => {
-  return user.roles?.some(r => ['admin', 'manager'].includes(r))
-})
+const canApprove = computed(() => isElevated.value)
 
 const billableAmount = computed(() => {
   return props.entries

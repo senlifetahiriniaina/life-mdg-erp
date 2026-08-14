@@ -195,9 +195,8 @@ import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const isAdmin = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
-const canManage = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
+const { isAdmin } = useRoleAccess()
+const canManage = computed(() => isAdmin.value)
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)

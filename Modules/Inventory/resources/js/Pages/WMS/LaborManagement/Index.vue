@@ -115,8 +115,8 @@ import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['warehouse-manager','admin','super-admin'].includes(r)))
+const { isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['warehouse-operator']))
 
 const showScheduleDialog = ref(false)
 const schedForm = ref({ date: '', shift: null })

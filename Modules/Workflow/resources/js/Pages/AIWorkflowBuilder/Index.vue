@@ -104,8 +104,8 @@ import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['workflow-admin','admin','super-admin'].includes(r)))
+const { isElevated } = useRoleAccess()
+const canManage = computed(() => isElevated.value)
 
 const showCreateDialog = ref(false)
 const selectedWorkflow = ref(null)

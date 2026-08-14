@@ -158,9 +158,11 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Badge from 'primevue/badge'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
 const user = page.props.auth.user
+const { isAdmin, isElevated } = useRoleAccess()
 
 const entries = ref([])
 const loading = ref(false)
@@ -198,11 +200,11 @@ const statusSeverity = (status) => {
 }
 
 const canEdit = (entry) => {
-  return entry.status === 'draft' && (user.id === entry.employee_id || user.roles?.some(r => ['admin', 'manager'].includes(r)))
+  return entry.status === 'draft' && (user.id === entry.employee_id || isElevated.value)
 }
 
 const canDelete = (entry) => {
-  return entry.status === 'draft' && user.roles?.some(r => ['admin'].includes(r))
+  return entry.status === 'draft' && isAdmin.value
 }
 
 const loadEntries = async () => {

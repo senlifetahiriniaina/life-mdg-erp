@@ -54,8 +54,8 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['analyst','admin','super-admin'].includes(r)))
+const { isElevated } = useRoleAccess()
+const canManage = computed(() => isElevated.value)
 
 const generating = ref(false)
 const generate = async () => { generating.value = true; await new Promise(r => setTimeout(r, 2000)); generating.value = false }

@@ -120,8 +120,8 @@ import ProgressBar from 'primevue/progressbar'
 import Slider from 'primevue/slider'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['admin','super-admin','support-manager'].includes(r)))
+const { isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['customer-service']))
 
 const showDetailDrawer = ref(false)
 const showCriteriaDialog = ref(false)

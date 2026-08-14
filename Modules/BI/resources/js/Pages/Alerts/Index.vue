@@ -217,8 +217,8 @@ import { ref, computed } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 
 const page = usePage()
-const userRoles: string[] = (page.props.auth as any)?.user?.roles ?? []
-const canCreate = userRoles.some(r => ['super_admin','admin','bi_analyst','reporting_manager'].includes(r))
+const { isElevated } = useRoleAccess()
+const canCreate = computed(() => isElevated.value)
 
 const showCreateDialog = ref(false)
 const showHistoryDrawer = ref(false)

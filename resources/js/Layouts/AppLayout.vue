@@ -164,22 +164,22 @@ const allNavGroups = [
   ]},
 ]
 
-const ADMIN_ROLES = ['super-admin', 'admin', 'system-admin', 'security-admin', 'billing-admin', 'support-admin', 'content-admin', 'tenant-admin']
+// Trimmed to life-mdg-erp's 22 seeded roles (database/seeders/RolesAndPermissionsSeeder.php) —
+// cashier/community-manager/production-manager/brand-owner/marketplace-admin/content-admin
+// and modules like POS/WhatsApp/Email/Manufacturing/Ecommerce belong to Widehalo-ERP's wider
+// scope and were never seeded or shipped here.
+const ADMIN_ROLES = ['super-admin', 'admin', 'system-admin', 'security-admin', 'billing-admin', 'support-admin', 'tenant-admin']
 const ROLE_MODULE_ACCESS = {
-  'cashier': ['POS', 'Inventory'],
-  'community-manager': ['WhatsApp', 'Email', 'CRM'],
-  'production-manager': ['Manufacturing', 'Inventory'],
-  'logistics-manager': ['Inventory', 'POS', 'Ecommerce'],
-  'service-partner': ['Helpdesk', 'Documents', 'Projects'],
-  'brand-owner': ['Ecommerce'],
-  'purchasing-manager': ['Inventory', 'Accounting'],
-  'warehouse-operator': ['Inventory'],
-  'sales-manager': ['CRM', 'Accounting', 'BI'],
-  'project-manager': ['Projects', 'HR', 'Documents'],
+  'logistics-manager': ['Inventory', 'Logistics'],
+  'service-partner': ['Helpdesk', 'Projects'],
+  'purchasing-manager': ['Achats', 'Inventory', 'Accounting'],
+  'warehouse-operator': ['Inventory', 'Logistics'],
+  'sales-manager': ['CRM', 'Sales', 'Accounting', 'BI'],
+  'project-manager': ['Projects', 'HR'],
   'finance-manager': ['Accounting', 'BI'],
   'customer-service': ['Helpdesk', 'CRM'],
   'inventory-analyst': ['Inventory', 'BI'],
-  'marketplace-admin': ['Ecommerce', 'Inventory', 'CRM', 'BI'],
+  'payroll-officer': ['Payroll', 'HR'],
 }
 
 const userRoles = computed(() => user.value?.roles ?? [])

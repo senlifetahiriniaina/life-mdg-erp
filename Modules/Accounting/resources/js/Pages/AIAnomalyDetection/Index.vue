@@ -337,9 +337,8 @@ import AiAssistantPanel from '@/Components/AiAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const isAdmin = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
-const canManage = computed(() => roles.value.some(r => ['accounting-manager', 'admin', 'super-admin'].includes(r)))
+const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
+const canManage = computed(() => isElevated.value || hasAnyRole(['finance-manager']))
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
@@ -372,10 +371,7 @@ interface Anomaly {
 
 // --- RBAC ---
 // view = accountant+; resolve = finance-manager + admin
-const userRoles: string[] = (window as any).__ROLES__ ?? []
-const canResolve = computed(() =>
-  userRoles.some(r => ['finance-manager', 'admin', 'super-admin'].includes(r))
-)
+const canResolve = computed(() => isElevated.value || hasAnyRole(['finance-manager']))
 
 // --- AI assistant ---
 const { guidance } = useAiAssistant('Accounting', 'reconcile')

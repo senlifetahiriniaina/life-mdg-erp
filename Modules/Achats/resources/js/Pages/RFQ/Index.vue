@@ -290,8 +290,7 @@ import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
-const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const canManage = computed(() => roles.value.some(r => ['purchasing-manager', 'admin', 'super-admin'].includes(r)))
+const canManage = computed(() => isElevated.value || hasAnyRole(['purchasing-manager']))
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
@@ -299,7 +298,7 @@ const canDelete = computed(() => isAdmin.value)
 
 const { guidance } = useAiAssistant('Achats', 'view_dashboard')
 const showAiPanel = ref(false)
-const { isAdmin, hasRole } = useRoleAccess()
+const { isAdmin, hasRole, isElevated, hasAnyRole } = useRoleAccess()
 
 const showCreateDialog = ref(false)
 const selectedRFQ = ref(null)

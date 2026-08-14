@@ -17,7 +17,7 @@ const MODULE_ROLES: Record<string, string[]> = {
   Documents: ['documents-manager', 'employee', 'admin', 'super-admin'],
   Ecommerce: ['ecommerce-manager', 'ecommerce-operator', 'admin', 'super-admin'],
   Email: ['marketing-manager', 'email-specialist', 'admin', 'super-admin'],
-  Helpdesk: ['helpdesk-agent', 'helpdesk-manager', 'admin', 'super-admin'],
+  Helpdesk: ['customer-service', 'admin', 'super-admin'],
   HR: ['hr-manager', 'hr-employee', 'admin', 'super-admin'],
   Integration: ['it-admin', 'admin', 'super-admin'],
   Inventory: ['inventory-manager', 'warehouse-staff', 'admin', 'super-admin'],
@@ -32,7 +32,7 @@ const MODULE_ROLES: Record<string, string[]> = {
   Planning: ['hr-manager', 'planning-manager', 'admin', 'super-admin'],
   PLM: ['manufacturing-manager', 'product-manager', 'admin', 'super-admin'],
   POS: ['pos-manager', 'pos-cashier', 'admin', 'super-admin'],
-  Projects: ['project-manager', 'project-member', 'admin', 'super-admin'],
+  Projects: ['project-manager', 'admin', 'super-admin'],
   Quality: ['quality-inspector', 'quality-manager', 'admin', 'super-admin'],
   RealTime: ['admin', 'super-admin', 'it-admin'],
   Reporting: ['bi-analyst', 'reporting-analyst', 'strategy-analyst', 'accountant', 'finance-manager', 'admin', 'super-admin'],
@@ -55,17 +55,17 @@ const MODULE_ROLES: Record<string, string[]> = {
   default: ['admin', 'super-admin'],
 }
 
+// Trimmed to life-mdg-erp's actual 22 seeded roles (database/seeders/RolesAndPermissionsSeeder.php) —
+// Widehalo-ERP's version of this list references manager roles from modules this
+// extraction doesn't ship (crm-manager, accounting-manager, manufacturing-manager,
+// ecommerce-manager, helpdesk-manager, pos-manager, quality-manager, planning-manager,
+// marketing-manager, it-admin, compliance-officer, assets-manager, bi-analyst,
+// reporting-analyst, documents-manager, contracts-manager, product-manager, ai-analyst,
+// api-manager, api-admin, messaging-manager, strategy-analyst, workflow-manager,
+// payroll-manager, customer-service-agent), which would never match any real user.
 const MANAGER_ROLES: string[] = [
-  'crm-manager', 'sales-manager', 'hr-manager', 'accounting-manager', 'inventory-manager',
-  'manufacturing-manager', 'logistics-manager', 'ecommerce-manager', 'helpdesk-manager',
-  'pos-manager', 'project-manager', 'quality-manager', 'planning-manager', 'purchasing-manager',
-  'marketing-manager', 'it-admin', 'security-admin', 'compliance-officer', 'assets-manager',
-  'bi-analyst', 'reporting-analyst', 'documents-manager', 'contracts-manager', 'product-manager',
-  'manager',
-  // New roles (Phase RBAC extension)
-  'ai-analyst', 'api-manager', 'api-admin', 'messaging-manager', 'strategy-analyst',
-  'workflow-manager', 'payroll-manager', 'customer-service', 'customer-service-agent',
-  'finance-manager',
+  'manager', 'hr-manager', 'sales-manager', 'logistics-manager', 'project-manager',
+  'finance-manager', 'purchasing-manager', 'customer-service', 'security-admin',
 ]
 
 interface UserRole {

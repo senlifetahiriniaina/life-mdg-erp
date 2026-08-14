@@ -150,9 +150,11 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
 const user = page.props.auth.user
+const { isElevated } = useRoleAccess()
 
 const sheets = ref([])
 const loading = ref(false)
@@ -176,7 +178,7 @@ const stats = reactive({
   approved: 0,
 })
 
-const canApprove = computed(() => user.roles?.some(r => ['admin', 'manager'].includes(r)))
+const canApprove = computed(() => isElevated.value)
 
 const formatDate = (date) => {
   return new Date(date).toLocaleDateString()
