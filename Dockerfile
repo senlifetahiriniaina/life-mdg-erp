@@ -58,10 +58,14 @@ RUN npm install --legacy-peer-deps && npm run build
 # without them existing first.
 RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache storage/framework/testing bootstrap/cache
 
-# Generate Laravel caches
+# Generate Laravel caches. No view:cache: nwidart/laravel-modules registers a
+# view namespace path for every module regardless of whether it ships Blade
+# templates, and this repo has 19 API/Vue-Inertia-only modules with no
+# resources/views directory at all — artisan view:cache walks every
+# registered path via Symfony Finder and hard-fails on the first missing one.
+# Views still compile fine lazily at runtime; only the precompile step is skipped.
 RUN php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
+    && php artisan route:cache
 
 ###############################################################################
 # Runtime stage
