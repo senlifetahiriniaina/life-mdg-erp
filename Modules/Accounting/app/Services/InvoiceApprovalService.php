@@ -34,13 +34,23 @@ use Modules\Validation\Services\ApprovalRoutingResolver;
  */
 class InvoiceApprovalService
 {
+    /**
+     * Bootstrap defaults ONLY — used by getOrCreateWorkflow()'s
+     * firstOrCreate() the first time this workflow is seeded. Once seeded,
+     * these are no longer authoritative: getApprovalLevel()/getThreshold()
+     * read the live validation_approval_rules rows instead, so editing a
+     * rule's condition_value through the (now admin-gated) Validation API
+     * actually changes routing, exactly like Achats\ApprovalRoutingService
+     * already does. Before this fix, editing those rows had zero effect on
+     * submitForApproval()'s actual routing level.
+     */
     private const THRESHOLDS = [
         1 => 100_000,    // <= 100K XOF - manager
         2 => 500_000,    // <= 500K XOF - finance-manager
         3 => 10_000_000, // <= 10M XOF - admin (above that, still level 3)
     ];
 
-    /** Role that resolves each level's approvers, once no specific user_id is set. */
+    /** Bootstrap defaults only — see THRESHOLDS docblock. */
     private const LEVEL_ROLES = [
         1 => 'manager',
         2 => 'finance-manager',
@@ -52,17 +62,26 @@ class InvoiceApprovalService
         private readonly ApprovalRoutingResolver $resolver,
     ) {}
 
+    /**
+     * Live-reads the seeded workflow's rules (descending rule_order —
+     * same "most specific tier wins" convention ApprovalRoutingResolver
+     * already uses) instead of the bootstrap THRESHOLDS constant.
+     */
     public function getApprovalLevel(float $amount): int
     {
-        if ($amount <= self::THRESHOLDS[1]) {
-            return 1;
-        }
+        $rule = $this->matchingRule($amount);
 
-        if ($amount <= self::THRESHOLDS[2]) {
-            return 2;
-        }
+        return $rule ? (int) $rule->rule_order : 3;
+    }
 
-        return 3;
+    protected function matchingRule(float $amount): ?ApprovalRule
+    {
+        $workflow = $this->getOrCreateWorkflow();
+
+        return $workflow->rules()
+            ->orderByDesc('rule_order')
+            ->get()
+            ->first(fn (ApprovalRule $rule) => $rule->evaluateCondition((object) ['total' => $amount]));
     }
 
     public function getLevelLabel(int $level): string
@@ -75,9 +94,16 @@ class InvoiceApprovalService
         };
     }
 
+    /**
+     * Live threshold for a level, read from its rule's condition_value —
+     * reflects real-time edits made through the Validation API instead of
+     * the bootstrap constant.
+     */
     public function getThreshold(int $level): float
     {
-        return self::THRESHOLDS[$level] ?? 0;
+        $rule = $this->getOrCreateWorkflow()->rules()->where('rule_order', $level)->first();
+
+        return $rule ? (float) $rule->condition_value : (self::THRESHOLDS[$level] ?? 0);
     }
 
     /**

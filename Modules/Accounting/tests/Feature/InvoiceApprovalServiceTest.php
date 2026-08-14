@@ -7,6 +7,8 @@ use Modules\Accounting\Models\Invoice;
 use Modules\Accounting\Models\InvoiceApproval;
 use Modules\Accounting\Services\InvoiceApprovalService;
 use Modules\Validation\Models\ApprovalRequest;
+use Modules\Validation\Models\ApprovalRule;
+use Modules\Validation\Models\ApprovalWorkflow;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -101,6 +103,48 @@ class InvoiceApprovalServiceTest extends TestCase
         $projection = InvoiceApproval::where('invoice_id', $invoice->id)->first();
         $this->assertEquals('rejected', $projection->status);
         $this->assertEquals('Missing documentation', $projection->rejection_reason);
+    }
+
+    public function test_editing_a_rule_through_the_validation_api_changes_the_live_routing_level()
+    {
+        // Regression test for the fix itself: getApprovalLevel()/
+        // getThreshold() used to read a hardcoded const totally
+        // disconnected from the validation_approval_rules rows
+        // getOrCreateWorkflow() writes — editing a rule via the real,
+        // admin-gated Validation API had zero effect on invoice routing
+        // before this change.
+        $this->service->getOrCreateWorkflow();
+        $this->assertEquals(2, $this->service->getApprovalLevel(150_000), 'sanity: 150K starts out level 2, not level 1');
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $workflow = ApprovalWorkflow::where('name', 'Invoice Approval (OHADA thresholds)')->firstOrFail();
+        $levelOneRule = ApprovalRule::where('workflow_id', $workflow->id)->where('rule_order', 1)->firstOrFail();
+        $levelTwoRule = ApprovalRule::where('workflow_id', $workflow->id)->where('rule_order', 2)->firstOrFail();
+
+        // Raise the level-1/level-2 boundary from 100K to 200K via the
+        // real Validation API (now admin-gated by Phase C1). Both rules'
+        // independently-stored boundaries are updated together — each
+        // tier's condition_value is its own row, not derived from its
+        // neighbour, so a Setup UI editing "the threshold between level 1
+        // and 2" must write both sides (tracked as a known limitation of
+        // this one-sided-comparison tiering scheme, not something this
+        // phase's live-read fix is meant to solve).
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/v1/validation/approval-workflows/{$workflow->id}/rules/{$levelOneRule->id}", [
+                'condition_value' => '200000',
+            ])
+            ->assertOk();
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/v1/validation/approval-workflows/{$workflow->id}/rules/{$levelTwoRule->id}", [
+                'condition_value' => '200000',
+            ])
+            ->assertOk();
+
+        $this->assertEquals(200_000.0, $this->service->getThreshold(1));
+        $this->assertEquals(1, $this->service->getApprovalLevel(150_000), 'now level 1, reflecting the edited threshold');
+        $this->assertEquals(2, $this->service->getApprovalLevel(250_000), 'still level 2, above the new boundary');
     }
 
     public function test_it_creates_only_one_shared_workflow_across_submissions()
