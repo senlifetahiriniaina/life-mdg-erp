@@ -5,7 +5,9 @@ namespace Modules\Achats\Providers;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\Achats\Models\PurchaseOrder;
+use Modules\Achats\Models\SupplierQuote;
 use Modules\Achats\Policies\PurchaseOrderPolicy;
+use Modules\Achats\Policies\SupplierQuotePolicy;
 use Modules\Achats\Services\ApprovalRoutingService;
 use Modules\Achats\Services\PurchaseIntegrationService;
 use Modules\Achats\Services\PurchaseOrderService;
@@ -32,6 +34,7 @@ class AchatsServiceProvider extends ServiceProvider
         $this->publishConfig();
         $this->registerMigrations();
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
+        Gate::policy(SupplierQuote::class, SupplierQuotePolicy::class);
     }
 
     protected function registerServices(): void
