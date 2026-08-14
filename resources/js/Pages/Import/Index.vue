@@ -8,17 +8,7 @@
 
       <!-- Step indicators -->
       <div class="steps-bar">
-        <div
-          v-for="(step, i) in steps"
-          :key="step.key"
-          :class="['step-item', currentStep === i ? 'active' : '', currentStep > i ? 'done' : '']"
-        >
-          <div class="step-circle">
-            <i v-if="currentStep > i" class="pi pi-check" />
-            <span v-else>{{ i + 1 }}</span>
-          </div>
-          <span class="step-label">{{ step.label }}</span>
-        </div>
+        <WorkflowStepper :steps="steps" :current-step="steps[currentStep].key" :show-actions="false" :show-details="false" />
       </div>
 
       <!-- STEP 1: Upload -->
@@ -244,6 +234,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 
 const { t } = useI18n()
 
@@ -267,10 +258,10 @@ let pollInterval: ReturnType<typeof setInterval> | null = null
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const steps = [
-  { key: 'upload',    label: 'Upload' },
-  { key: 'extract',   label: 'Extract' },
-  { key: 'mapping',   label: 'Mapping' },
-  { key: 'import',    label: 'Import' },
+  { key: 'upload',    label: 'Upload',   icon: 'pi pi-upload' },
+  { key: 'extract',   label: 'Extract',  icon: 'pi pi-cog' },
+  { key: 'mapping',   label: 'Mapping',  icon: 'pi pi-sitemap' },
+  { key: 'import',    label: 'Import',   icon: 'pi pi-check' },
 ]
 
 const entities: Record<string, string> = {
@@ -552,34 +543,8 @@ onUnmounted(() => {
 .subtitle { color: var(--fg-3, #888); margin-top: 4px; }
 
 .steps-bar {
-  display: flex;
-  align-items: center;
-  gap: 0;
   margin: 24px 0;
 }
-.step-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--surface-2, #f5f5f5);
-  color: var(--fg-3, #888);
-}
-.step-item.active { background: var(--primary-50, #eff6ff); color: var(--primary, #2563eb); font-weight: 600; }
-.step-item.done { background: var(--green-50, #f0fdf4); color: var(--green-600, #16a34a); }
-.step-circle {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: currentColor;
-  color: white;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.step-item.active .step-circle { background: var(--primary, #2563eb); }
-.step-item.done .step-circle { background: var(--green-600, #16a34a); }
 
 .step-panel { background: var(--surface-1, #fff); border-radius: 12px; padding: 32px; margin-bottom: 24px; border: 1px solid var(--border, #e5e7eb); }
 .step-panel.center { display: flex; flex-direction: column; align-items: center; gap: 16px; }
