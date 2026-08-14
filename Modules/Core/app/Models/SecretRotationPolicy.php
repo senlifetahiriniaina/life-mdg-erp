@@ -85,7 +85,7 @@ class SecretRotationPolicy extends Model
             return null;
         }
 
-        $days = now()->diffInDays($this->next_rotation_at);
+        $days = (int) now()->diffInDays($this->next_rotation_at);
         return $days < 0 ? null : $days;
     }
 

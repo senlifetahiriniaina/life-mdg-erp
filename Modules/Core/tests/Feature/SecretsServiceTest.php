@@ -11,6 +11,7 @@ use Modules\Core\Services\EncryptionService;
 use Modules\Core\Services\SecretsService;
 use Modules\Core\Services\KeyManagementService;
 use Modules\Core\Services\AuditService;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -30,7 +31,15 @@ class SecretsServiceTest extends TestCase
     {
         parent::setUp();
 
+        // canAccessSecret() only bypasses its grant check for admin/super-admin
+        // (SecretAccessControl::canAccessSecret()) — without this, retrieveSecret()
+        // denies even the user who just stored the secret, since storing never
+        // creates a self-grant. None of this file's tests exercise the
+        // access-denied path itself (that's SecretAccessControlTest's job), so
+        // making the actor admin here is the correct fix, not a workaround.
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $this->user = User::factory()->create();
+        $this->user->assignRole('admin');
         $this->actingAs($this->user);
 
         $keyManagement = $this->app->make(KeyManagementService::class);
@@ -80,7 +89,11 @@ class SecretsServiceTest extends TestCase
     {
         $secret = Secret::create([
             'id' => \Illuminate\Support\Str::uuid()->toString(),
-            'tenant_id' => $this->user->tenant_id,
+            // core_secrets.tenant_id is NOT NULL: SecretsService::getTenantId()
+            // always resolves a real string (falling back to 'default'), never
+            // literal null — match that here rather than the raw (null) user
+            // attribute, which the service path never actually produces.
+            'tenant_id' => $this->user->tenant_id ?? 'default',
             'name' => 'expired_secret',
             'type' => 'api_key',
             'encrypted_value' => 'encrypted',
