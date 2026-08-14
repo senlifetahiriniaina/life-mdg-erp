@@ -72,16 +72,31 @@ const load = async () => {
   }
 }
 
+const patchRuleValue = (ruleId: number, value: string | number) =>
+  fetch(`/api/v1/validation/approval-workflows/${workflowId.value}/rules/${ruleId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ condition_value: String(value) }),
+  })
+
 const save = async (rule: Rule) => {
   if (!workflowId.value) return
   savingId.value = rule.id
   savedId.value = null
   try {
-    await fetch(`/api/v1/validation/approval-workflows/${workflowId.value}/rules/${rule.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ condition_value: String(rule.condition_value) }),
-    })
+    await patchRuleValue(rule.id, rule.condition_value)
+
+    // Each tier stores its own condition_value independently, but adjacent
+    // tiers share a boundary number (e.g. Achats' "<5000" / ">=5000" pair):
+    // rule i's own value is also rule (i+1)'s lower bound. Editing only
+    // rule i left the pair mismatched — a gap or overlap between tiers.
+    const idx = rules.value.findIndex((r) => r.id === rule.id)
+    const next = rules.value[idx + 1]
+    if (next) {
+      next.condition_value = rule.condition_value
+      await patchRuleValue(next.id, next.condition_value)
+    }
+
     savedId.value = rule.id
   } finally {
     savingId.value = null
