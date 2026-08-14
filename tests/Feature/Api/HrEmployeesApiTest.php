@@ -184,13 +184,27 @@ test('can terminate an employee', function () {
 // ── Destroy ───────────────────────────────────────────────────────────────────
 
 test('can delete an employee', function () {
-     $user = actingAsUser('employee');
+    // Deletion requires hr.employee.delete, which the seeder deliberately withholds
+    // from the base 'employee' role (see RolesAndPermissionsSeeder/
+    // EnhancedRolesAndPermissionsSeeder: employee gets every permission except
+    // .delete). Use a role that actually has it.
+    $user = actingAsUser('hr-manager');
     $employee = Employee::factory()->create();
         $response = $this
         ->deleteJson("/api/v1/hr/employees/{$employee->id}")
         ->assertNoContent();
 
     expect(Employee::find($employee->id))->toBeNull();
+});
+
+test('employee role cannot delete another employee', function () {
+    $user = actingAsUser('employee');
+    $employee = Employee::factory()->create();
+
+    $this->deleteJson("/api/v1/hr/employees/{$employee->id}")
+        ->assertForbidden();
+
+    expect(Employee::find($employee->id))->not->toBeNull();
 });
 
 // ── Departments ───────────────────────────────────────────────────────────────

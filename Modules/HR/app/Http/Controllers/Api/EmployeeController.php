@@ -2,8 +2,8 @@
 
 namespace Modules\HR\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use Modules\HR\Http\Requests\StoreEmployeeRequest;
 use Modules\HR\Http\Requests\UpdateEmployeeRequest;
 use Modules\HR\Http\Resources\EmployeeResource;
@@ -29,6 +29,8 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Employee::class);
+
         $search = $request->query('search');
         $department = $request->query('department_id') ?? $request->query('department');
         $status = $request->query('status');
@@ -65,6 +67,8 @@ class EmployeeController extends Controller
 
     public function store(StoreEmployeeRequest $request)
     {
+        $this->authorize('create', Employee::class);
+
         $employee = $this->service->createEmployee($request->validated());
 
         return (new EmployeeResource($employee))->response()->setStatusCode(201);
@@ -75,6 +79,8 @@ class EmployeeController extends Controller
      */
     public function show(Employee $employee)
     {
+        $this->authorize('view', $employee);
+
         $employee->load('department', 'jobPosition', 'manager', 'user');
 
         return new EmployeeResource($employee);
@@ -82,6 +88,13 @@ class EmployeeController extends Controller
 
     public function export(Request $request)
     {
+        // Reuses the 'viewAny' permission (hr.employee.view-any) rather than the
+        // policy's 'export' method: hr.employee.export was never seeded as a real
+        // permission (RolesAndPermissionsSeeder only generates view-any/view/create/
+        // update/delete per resource), so gating on it would 403 every non-super-admin
+        // user including hr-manager/admin — a functional regression, not a fix.
+        $this->authorize('viewAny', Employee::class);
+
         $employees = Employee::with('department', 'jobPosition', 'manager')->get();
         $csv = "Name,Title,Department,Manager,Reports\n";
         foreach ($employees as $emp) {
@@ -103,6 +116,8 @@ class EmployeeController extends Controller
 
     public function update(UpdateEmployeeRequest $request, Employee $employee)
     {
+        $this->authorize('update', $employee);
+
         $data = $request->validated();
 
         // Prevent circular management hierarchy
@@ -132,6 +147,8 @@ class EmployeeController extends Controller
 
     public function destroy(Employee $employee)
     {
+        $this->authorize('delete', $employee);
+
         $employee->delete();
 
         return response()->noContent();
@@ -139,6 +156,8 @@ class EmployeeController extends Controller
 
     public function byDepartment(int $departmentId)
     {
+        $this->authorize('viewAny', Employee::class);
+
         $employees = $this->service->getEmployeesByDepartment($departmentId);
 
         return EmployeeResource::collection($employees);
@@ -146,6 +165,8 @@ class EmployeeController extends Controller
 
     public function metrics()
     {
+        $this->authorize('viewAny', Employee::class);
+
         return response()->json($this->service->getHRMetrics());
     }
 }

@@ -10,10 +10,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Modules\Core\Services\SessionSecurityService;
 
 class JwtAuthController
 {
-    public function __construct(private JwtService $jwtService)
+    public function __construct(private JwtService $jwtService, private SessionSecurityService $sessionSecurity)
     {
     }
 
@@ -33,7 +35,18 @@ class JwtAuthController
 
         $user = User::where('email', $request->input('email'))->first();
 
+        if ($user && $user->isAccountLocked()) {
+            return response()->json([
+                'error' => 'Account locked due to too many failed login attempts. Please try again later.',
+                'locked_until' => $user->getLockedUntilFormatted(),
+            ], 429);
+        }
+
         if (!$user || !Hash::check($request->input('password'), $user->password)) {
+            if ($user) {
+                $user->recordFailedLoginAttempt();
+            }
+
             return response()->json(['error' => 'Invalid credentials'], 401);
         }
 
@@ -41,11 +54,26 @@ class JwtAuthController
             return response()->json(['error' => 'Account is inactive'], 403);
         }
 
+        $user->resetLoginAttempts();
+
+        // Own jti (rather than the default one JwtService would generate) so we can
+        // key the session-security record the same way createSession() is keyed for
+        // Sanctum tokens elsewhere. NB: unlike the Sanctum flow, no per-request
+        // validation middleware currently consumes this — JwtAuthenticate (the
+        // middleware that would verify these tokens on protected routes) exists but
+        // isn't registered anywhere, so JWT tokens aren't actually used to
+        // authenticate any route today. This still gives the audit trail and
+        // concurrent-session accounting real value at issuance time.
+        $sessionId = (string) Str::uuid();
+
         $accessToken = $this->jwtService->generateToken($user->id, [
             'email' => $user->email,
             'name' => $user->name,
             'type' => 'access',
+            'jti' => $sessionId,
         ], 15 * 60); // 15 minutes
+
+        $this->sessionSecurity->createSession($sessionId, $user->id, $request);
 
         $refreshToken = $this->jwtService->generateRefreshToken($user->id);
 

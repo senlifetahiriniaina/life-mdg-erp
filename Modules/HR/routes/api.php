@@ -17,7 +17,7 @@ use Modules\HR\Http\Controllers\Api\SalaryBandController;
 use Modules\HR\Http\Controllers\Api\SkillController;
 
 // Default: Simple GET throttle (1000 req/min) — overridden for specific endpoint groups
-Route::middleware(['auth:sanctum', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->group(function () {
     // Employee routes - custom routes first to avoid being shadowed by apiResource
     Route::middleware('cache.api:1')->group(function () {
         Route::get('employees/by-department/{department}', [EmployeeController::class, 'byDepartment']);

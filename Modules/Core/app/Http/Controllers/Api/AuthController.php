@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Modules\Core\Http\Requests\LoginRequest;
 use Modules\Core\Http\Requests\RegisterRequest;
+use Modules\Core\Services\SessionSecurityService;
 
 /**
  * @group Core - Auth
@@ -21,6 +22,8 @@ use Modules\Core\Http\Requests\RegisterRequest;
  */
 class AuthController extends Controller
 {
+    public function __construct(private SessionSecurityService $sessionSecurity) {}
+
     /**
      * Register a new user account.
      *
@@ -39,11 +42,12 @@ class AuthController extends Controller
             'locale' => $request->locale ?? app()->getLocale(),
         ]);
 
-        $token = $user->createToken('api')->plainTextToken;
+        $newToken = $user->createToken('api');
+        $this->sessionSecurity->createSession((string) $newToken->accessToken->id, $user->id, $request);
 
         return response()->json([
             'user' => $user,
-            'token' => $token,
+            'token' => $newToken->plainTextToken,
         ], 201);
     }
 
@@ -106,11 +110,12 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = $user->createToken($request->device_name ?? 'api')->plainTextToken;
+        $newToken = $user->createToken($request->device_name ?? 'api');
+        $this->sessionSecurity->createSession((string) $newToken->accessToken->id, $user->id, $request);
 
         return response()->json([
             'user' => $user->load('roles'),
-            'token' => $token,
+            'token' => $newToken->plainTextToken,
         ]);
     }
 

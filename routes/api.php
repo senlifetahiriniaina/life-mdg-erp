@@ -32,7 +32,7 @@ Route::get('/v1/openapi', [\App\Http\Controllers\Api\OpenApiController::class, '
 
 // JWT Authentication — public endpoints for token issuance/refresh
 Route::prefix('v1/auth/jwt')->group(function () {
-    Route::post('/login', [\App\Http\Controllers\Api\JwtAuthController::class, 'login']);
+    Route::middleware('throttle:auth')->post('/login', [\App\Http\Controllers\Api\JwtAuthController::class, 'login']);
     Route::post('/refresh', [\App\Http\Controllers\Api\JwtAuthController::class, 'refresh']);
     Route::post('/verify', [\App\Http\Controllers\Api\JwtAuthController::class, 'verify']);
     Route::post('/logout', [\App\Http\Controllers\Api\JwtAuthController::class, 'logout']);

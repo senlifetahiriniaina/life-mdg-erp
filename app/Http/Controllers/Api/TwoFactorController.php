@@ -11,6 +11,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Core\Services\SessionSecurityService;
 use PragmaRX\Google2FA\Google2FA;
 
 /**
@@ -23,7 +24,7 @@ use PragmaRX\Google2FA\Google2FA;
  */
 class TwoFactorController extends Controller
 {
-    public function __construct(private Google2FA $google2fa)
+    public function __construct(private Google2FA $google2fa, private SessionSecurityService $sessionSecurity)
     {
     }
 
@@ -108,11 +109,12 @@ class TwoFactorController extends Controller
 
         // Revoke the challenge token and issue a real one.
         $request->user()->currentAccessToken()->delete();
-        $token = $user->createToken('api')->plainTextToken;
+        $newToken = $user->createToken('api');
+        $this->sessionSecurity->createSession((string) $newToken->accessToken->id, $user->id, $request);
 
         return response()->json([
             'user' => $user->load('roles'),
-            'token' => $token,
+            'token' => $newToken->plainTextToken,
         ]);
     }
 

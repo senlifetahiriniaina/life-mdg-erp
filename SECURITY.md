@@ -23,13 +23,13 @@ Ce dépôt (`life-mdg-erp`) est un ERP Laravel 12 + Vue 3 à 27 modules. Le pér
 
 ## Dispositifs de sécurité en place
 
-Conformément aux principes **Compliance First** documentés dans `CLAUDE.md` :
+**État détaillé et sourcé (chaque ligne ci-dessous) : voir `docs/09-RBAC-SECURITE/STANDARDS-SECURITE-MADAGASCAR.md`.**
 
-- RBAC via `spatie/laravel-permission` (22 rôles, cf. `database/seeders/RolesAndPermissionsSeeder.php`)
-- Journalisation d'audit (`Modules/AuditLog`)
-- Chiffrement au repos AES-256-GCM pour les champs sensibles
-- Webhooks signés HMAC
-- Conformité RGPD/PDPL/OHADA/OWASP by design
+- RBAC via `spatie/laravel-permission` (22 rôles, cf. `database/seeders/RolesAndPermissionsSeeder.php`) — application au niveau contrôleur en cours de généralisation, la faille sur les données RH a été corrigée
+- Journalisation d'audit partielle (`Modules/AuditLog`)
+- Chiffrement au repos (AES-256-CBC, champs PII via `EncryptableTrait`) — le coffre-fort de secrets applicatif n'est pas fonctionnel (classe manquante), voir le document ci-dessus
+- Webhooks signés HMAC (sortant réel ; entrant partiel)
+- Conformité : cadre légal malgache détaillé (Loi 2014-038, Décret 2023-1541, CMIL, Convention de Malabo/Loi 2024-004, ANSSI-Madagascar) dans le document ci-dessus — plus rigoureux que la mention générique RGPD/PDPL/OHADA/OWASP précédemment affichée ici
 
 ## Analyse automatisée
 

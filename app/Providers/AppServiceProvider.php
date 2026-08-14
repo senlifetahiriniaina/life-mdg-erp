@@ -24,7 +24,7 @@ use App\Policies\DashboardPolicy;
 use App\Policies\DocumentPolicy;
 use App\Policies\EmailSegmentPolicy;
 use App\Policies\EmailTemplatePolicy;
-use App\Policies\EmployeePolicy;
+use Modules\HR\Policies\EmployeePolicy;
 use App\Policies\FolderPolicy;
 use App\Policies\InvoicePolicy;
 use App\Policies\JournalEntryPolicy;

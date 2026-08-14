@@ -1,12 +1,13 @@
 # Sécurité et conformité
 
-Voir aussi `SECURITY.md` à la racine pour la politique de signalement de vulnérabilité.
+Voir aussi `SECURITY.md` à la racine pour la politique de signalement de vulnérabilité, et **`STANDARDS-SECURITE-MADAGASCAR.md`** dans ce même dossier pour le cadre légal malgache détaillé et l'état réel (vérifié, sourcé fichier:ligne) de chaque dispositif de sécurité — c'est la source de vérité, ce fichier-ci ne fait que couvrir le fonctionnement opérationnel RBAC/webhooks/rate-limiting.
 
 ## Conformité (Compliance First)
 
-- **RGPD / PDPL** : tables de consentement (`consent_logs`/`gdpr_*`) dans les migrations racine, gestion des demandes d'accès/suppression de données personnelles.
+Cadre légal détaillé (Loi 2014-038, Décret 2023-1541, CMIL, Convention de Malabo/Loi 2024-004, ANSSI-Madagascar) : voir `STANDARDS-SECURITE-MADAGASCAR.md`.
+
 - **OHADA/SYSCOHADA** : normes comptables africaines implémentées dans le module `Accounting`.
-- **OWASP by design** : hérité de WideHalo — validation des entrées, encodage des sorties, protection CSRF, en-têtes de sécurité.
+- **OWASP by design** : validation des entrées, protection CSRF, en-têtes de sécurité — état détaillé (réel/partiel/mort/inactif) dans `STANDARDS-SECURITE-MADAGASCAR.md`.
 
 ## RBAC
 
@@ -14,11 +15,11 @@ Voir aussi `SECURITY.md` à la racine pour la politique de signalement de vulné
 
 ## Journalisation d'audit
 
-Module `AuditLog` : toutes les actions sensibles sont tracées avec horodatage et utilisateur. Permission dédiée `admin.audit.view` pour la consultation.
+Module `AuditLog` — état réel (couverture partielle, deux mécanismes disjoints) détaillé dans `STANDARDS-SECURITE-MADAGASCAR.md`. Permission dédiée `admin.audit.view` pour la consultation.
 
 ## Chiffrement
 
-AES-256-GCM au repos pour les champs sensibles (héritage WideHalo — voir `Modules/Security`).
+AES-256-CBC au repos pour les champs sensibles via `App\Traits\EncryptableTrait`/casts `encrypted` Laravel (pas AES-256-GCM — voir `STANDARDS-SECURITE-MADAGASCAR.md` pour le détail, y compris le coffre-fort de secrets non fonctionnel de `Modules/Security`).
 
 ## Webhooks
 

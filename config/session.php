@@ -214,4 +214,30 @@ return [
 
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Session Security Hardening (Modules\Core\Services\SessionSecurityService)
+    |--------------------------------------------------------------------------
+    |
+    | Device fingerprinting, hijack detection, idle/absolute timeouts, and
+    | concurrent-session limits for both the stateful web session
+    | (App\Http\Middleware\SessionSecurityMiddleware) and Sanctum
+    | token-based API sessions (App\Http\Middleware\SanctumSessionSecurity).
+    | Previously read only via config()'s hardcoded fallback defaults —
+    | these keys make them operator-configurable per environment.
+    |
+    */
+
+    'session_timeout' => env('SESSION_SECURITY_TIMEOUT', 3600),
+    'idle_timeout' => env('SESSION_SECURITY_IDLE_TIMEOUT', 900),
+    'idle_grace_period' => env('SESSION_SECURITY_IDLE_GRACE', 60),
+    'concurrent_session_limit' => env('SESSION_SECURITY_CONCURRENT_LIMIT', 3),
+    'fingerprinting_enabled' => env('SESSION_SECURITY_FINGERPRINTING', true),
+    'fingerprinting_strict' => env('SESSION_SECURITY_FINGERPRINTING_STRICT', true),
+    'regenerate_on_login' => env('SESSION_SECURITY_REGENERATE_ON_LOGIN', true),
+    'regenerate_every_requests' => env('SESSION_SECURITY_REGENERATE_REQUESTS', 50),
+    'regenerate_every_minutes' => env('SESSION_SECURITY_REGENERATE_MINUTES', 15),
+    'ip_binding' => env('SESSION_SECURITY_IP_BINDING', true),
+    'user_agent_binding' => env('SESSION_SECURITY_UA_BINDING', true),
+
 ];

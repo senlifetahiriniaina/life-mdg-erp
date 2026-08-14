@@ -143,6 +143,18 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Consumed by Modules\AuditLog\Traits\HasAuditLog (created/updated/deleted model
+        // events on ~200 models). Previously undefined, so every write silently no-op'd
+        // inside the trait's catch(\Throwable){} — this channel must exist for that audit
+        // trail to actually persist.
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => env('LOG_AUDIT_DAYS', 365),
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
