@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Policies\PurchaseOrderPolicy;
+use Modules\Achats\Services\ApprovalRoutingService;
 use Modules\Achats\Services\PurchaseIntegrationService;
 use Modules\Achats\Services\PurchaseOrderService;
 use Modules\Achats\Services\PurchaseReceiptService;
@@ -41,7 +42,8 @@ class AchatsServiceProvider extends ServiceProvider
 
         $this->app->singleton(PurchaseOrderService::class, function ($app) {
             return new PurchaseOrderService(
-                $app->make(ApprovalRequestService::class)
+                $app->make(ApprovalRequestService::class),
+                $app->make(ApprovalRoutingService::class)
             );
         });
 

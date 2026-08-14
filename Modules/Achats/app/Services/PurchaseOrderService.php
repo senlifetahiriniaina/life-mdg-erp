@@ -11,16 +11,17 @@ use Modules\Achats\Events\PurchaseOrderReceived;
 use Modules\Achats\Events\PurchaseOrderSubmittedForApproval;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\PurchaseOrderLine;
-use Modules\Validation\Models\ApprovalWorkflow;
 use Modules\Validation\Services\ApprovalRequestService;
 
 class PurchaseOrderService
 {
     protected ApprovalRequestService $approvalService;
+    protected ApprovalRoutingService $routingService;
 
-    public function __construct(ApprovalRequestService $approvalService)
+    public function __construct(ApprovalRequestService $approvalService, ApprovalRoutingService $routingService)
     {
         $this->approvalService = $approvalService;
+        $this->routingService = $routingService;
     }
 
     public function createPurchaseOrder(array $data): PurchaseOrder
@@ -82,12 +83,19 @@ class PurchaseOrderService
             'requested_by' => $requestedBy->id,
         ]);
 
-        // Create approval request
-        $workflow = ApprovalWorkflow::where('module_name', 'Achats')->first();
+        // Create approval request — routed through the workflow whose rules
+        // actually match this PO's amount (getApplicableWorkflow), not just
+        // whichever Achats workflow happened to be created first.
+        $workflow = $this->routingService->getApplicableWorkflow($po);
 
         if ($workflow) {
             $approvalRequest = $this->approvalService->createApprovalRequest($po, $workflow, $requestedBy);
             $this->approvalService->submitApprovalRequest($approvalRequest);
+
+            $approvers = $this->routingService->getApproversForPO($po);
+            if ($approvers->isNotEmpty()) {
+                $approvalRequest->update(['approver_id' => $approvers->first()->id]);
+            }
         }
 
         event(new PurchaseOrderSubmittedForApproval($po));

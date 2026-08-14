@@ -5,11 +5,18 @@ namespace Modules\Achats\Services;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Modules\Achats\Models\PurchaseOrder;
+use Modules\Validation\Models\ApprovalHierarchy;
+use Modules\Validation\Models\ApprovalRequest;
 use Modules\Validation\Models\ApprovalRule;
 use Modules\Validation\Models\ApprovalWorkflow;
+use Modules\Validation\Models\HierarchyLevel;
+use Modules\Validation\Models\LevelApprover;
+use Modules\Validation\Services\ApprovalRoutingResolver;
 
 class ApprovalRoutingService
 {
+    public function __construct(protected ApprovalRoutingResolver $resolver) {}
+
     /**
      * Determine the appropriate approval workflow for a PO
      */
@@ -46,116 +53,64 @@ class ApprovalRoutingService
     }
 
     /**
-     * Check if a single rule applies to a PO
+     * Check if a single rule applies to a PO. Delegates to
+     * ApprovalRule::evaluateCondition() (the shared, eval()-free evaluator)
+     * instead of re-parsing condition_value itself — this used to have its
+     * own regex operator parser, duplicating (and slightly diverging from)
+     * the one now on the model.
      */
     protected function ruleAppliesToPO(ApprovalRule $rule, PurchaseOrder $po): bool
     {
-        switch ($rule->condition_type) {
-            case 'amount':
-                return $this->evaluateAmountCondition($po->total, $rule->condition_value);
-
-            case 'supplier':
-                return $po->supplier_id == $rule->condition_value;
-
-            case 'supplier_category':
-                // Example: could check supplier type or tier
-                return true;
-
-            case 'department':
-                // Example: could check user's department
-                return true;
-
-            default:
-                return true;
-        }
+        return $rule->evaluateCondition($po);
     }
 
     /**
-     * Evaluate numeric conditions like '> 5000' or '< 10000'
-     */
-    protected function evaluateAmountCondition(float $amount, string $condition): bool
-    {
-        // Parse conditions like "> 5000", "< 1000", ">= 500", etc.
-        preg_match('/^(>=|<=|>|<|==|!=)\s*(.+)$/', trim($condition), $matches);
-
-        if (count($matches) < 3) {
-            return true;
-        }
-
-        $operator = $matches[1];
-        $value = (float) $matches[2];
-
-        return match ($operator) {
-            '>' => $amount > $value,
-            '<' => $amount < $value,
-            '>=' => $amount >= $value,
-            '<=' => $amount <= $value,
-            '==' => $amount == $value,
-            '!=' => $amount != $value,
-            default => true,
-        };
-    }
-
-    /**
-     * Get list of approvers for a PO based on rules
+     * Get list of approvers for a PO, leave/working-hours-aware. Delegates to
+     * ApprovalRoutingResolver — this used to hardcode `User::role('manager')`
+     * regardless of what the matched rule/hierarchy actually configures.
      */
     public function getApproversForPO(PurchaseOrder $po): Collection
     {
         $workflow = $this->getApplicableWorkflow($po);
 
         if (! $workflow) {
-            // Fallback: get admins
             return User::role('admin')->get();
         }
 
-        // Find first matching rule
-        $applicableRule = $workflow->rules()
-            ->orderBy('rule_order')
-            ->get()
-            ->first(fn ($rule) => $this->ruleAppliesToPO($rule, $po));
+        $request = ApprovalRequest::where('approvable_type', PurchaseOrder::class)
+            ->where('approvable_id', $po->id)
+            ->where('workflow_id', $workflow->id)
+            ->latest()
+            ->first();
 
-        if (! $applicableRule) {
+        if (! $request) {
             return User::role('admin')->get();
         }
 
-        // Get approvers based on rule count requirement
-        return User::role('manager')
-            ->limit($applicableRule->required_approvers_count)
-            ->get();
+        return $this->resolver->resolveApprovers($request);
     }
 
     /**
-     * Create default approval workflows for common scenarios
+     * Create default approval workflows for common scenarios. Each rule now
+     * also gets a matching role-based hierarchy (escalating through
+     * purchasing-manager -> manager -> admin as the tier count grows), so
+     * ApprovalRoutingResolver has something real to resolve against instead
+     * of falling back to a hardcoded role. condition_value/condition_operator
+     * are stored split (was a single combined string like '< 5000' before).
      */
     public function createDefaultWorkflows(): void
     {
+        $escalationChain = ['purchasing-manager', 'manager', 'admin'];
+
         $workflows = [
             [
                 'name' => 'Standard PO Approval',
                 'description' => 'Amount-based approval routing',
                 'module_name' => 'Achats',
                 'rules' => [
-                    [
-                        'rule_order' => 1,
-                        'condition_type' => 'amount',
-                        'condition_value' => '< 5000',
-                        'required_approvers_count' => 1,
-                        'approval_mode' => 'sequential',
-                    ],
-                    [
-                        'rule_order' => 2,
-                        'condition_type' => 'amount',
-                        'condition_value' => '>= 5000',
-                        'required_approvers_count' => 2,
-                        'approval_mode' => 'sequential',
-                    ],
-                    [
-                        'rule_order' => 3,
-                        'condition_type' => 'amount',
-                        'condition_value' => '>= 50000',
-                        'required_approvers_count' => 3,
-                        'approval_mode' => 'sequential',
-                    ],
+                    ['rule_order' => 1, 'condition_type' => 'amount', 'condition_operator' => '<', 'condition_value' => '5000', 'required_approvers_count' => 1, 'approval_mode' => 'sequential', 'levels' => 1],
+                    ['rule_order' => 2, 'condition_type' => 'amount', 'condition_operator' => '>=', 'condition_value' => '5000', 'required_approvers_count' => 2, 'approval_mode' => 'sequential', 'levels' => 2],
+                    ['rule_order' => 3, 'condition_type' => 'amount', 'condition_operator' => '>=', 'condition_value' => '50000', 'required_approvers_count' => 3, 'approval_mode' => 'sequential', 'levels' => 3],
                 ],
             ],
             [
@@ -163,13 +118,7 @@ class ApprovalRoutingService
                 'description' => 'Fast-track approval for urgent orders',
                 'module_name' => 'Achats',
                 'rules' => [
-                    [
-                        'rule_order' => 1,
-                        'condition_type' => 'amount',
-                        'condition_value' => '< 1000',
-                        'required_approvers_count' => 1,
-                        'approval_mode' => 'sequential',
-                    ],
+                    ['rule_order' => 1, 'condition_type' => 'amount', 'condition_operator' => '<', 'condition_value' => '1000', 'required_approvers_count' => 1, 'approval_mode' => 'sequential', 'levels' => 1],
                 ],
             ],
         ];
@@ -184,12 +133,33 @@ class ApprovalRoutingService
             $workflow = ApprovalWorkflow::firstOrCreate(['name' => $workflowData['name']], $workflowData);
 
             foreach ($rules as $ruleData) {
-                ApprovalRule::firstOrCreate(
+                $levelCount = $ruleData['levels'];
+                unset($ruleData['levels']);
+
+                $hierarchy = ApprovalHierarchy::firstOrCreate(
+                    ['name' => "{$workflow->name} - Tier {$ruleData['rule_order']}"],
                     [
-                        'workflow_id' => $workflow->id,
-                        'rule_order' => $ruleData['rule_order'],
-                    ],
-                    $ruleData
+                        'module_name' => 'Achats',
+                        'is_active' => true,
+                        'escalation_role' => 'admin',
+                    ]
+                );
+
+                foreach (range(1, $levelCount) as $order) {
+                    $level = HierarchyLevel::firstOrCreate(
+                        ['hierarchy_id' => $hierarchy->id, 'level_order' => $order],
+                        ['title' => "Level {$order}", 'approver_count' => 1, 'delegation_allowed' => true]
+                    );
+
+                    LevelApprover::firstOrCreate(
+                        ['hierarchy_level_id' => $level->id, 'role' => $escalationChain[$order - 1] ?? 'admin'],
+                        ['is_active' => true]
+                    );
+                }
+
+                ApprovalRule::firstOrCreate(
+                    ['workflow_id' => $workflow->id, 'rule_order' => $ruleData['rule_order']],
+                    array_merge($ruleData, ['hierarchy_id' => $hierarchy->id])
                 );
             }
         }
