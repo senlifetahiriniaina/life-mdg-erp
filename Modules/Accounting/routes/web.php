@@ -9,5 +9,6 @@ Route::middleware(['auth'])->group(function () {
     })->name('dashboard');
 
     Route::get('invoices', [InvoiceWebController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/approvals', [InvoiceWebController::class, 'approvalQueue'])->name('invoices.approvals.index');
     Route::get('invoices/{invoice}/approval', [InvoiceWebController::class, 'showApproval'])->name('invoices.approval.show');
 });

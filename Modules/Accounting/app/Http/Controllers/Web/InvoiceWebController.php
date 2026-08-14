@@ -26,6 +26,46 @@ class InvoiceWebController extends Controller
     }
 
     /**
+     * Had no route at all until now — InvoiceApproval/Index.vue existed with
+     * a full UI but fetched a nonexistent /api/v1/accounting/approval-queue
+     * endpoint and used <router-link> (this app is Inertia-only, no
+     * vue-router). Mirrors showApproval()'s per-invoice shape below.
+     */
+    public function approvalQueue(): Response
+    {
+        $invoices = Invoice::where('approval_status', 'pending')
+            ->latest('created_at')
+            ->get()
+            ->map(function (Invoice $invoice) {
+                $level = $this->approvalService->getApprovalLevel((float) $invoice->total);
+
+                return [
+                    'id' => $invoice->id,
+                    'invoice_number' => $invoice->number,
+                    'supplier_name' => $invoice->partner_name ?: $invoice->customer_name,
+                    'total_amount' => (float) $invoice->total,
+                    'currency' => $invoice->currency,
+                    'approval_status' => $invoice->approval_status,
+                    'required_approval_level' => $level,
+                    'required_approval_label' => $this->approvalService->getLevelLabel($level),
+                    'days_pending' => (int) $invoice->created_at->diffInDays(now()),
+                ];
+            });
+
+        $analytics = $this->approvalService->getAnalytics(now()->subDays(30), now());
+
+        return Inertia::render('Accounting/InvoiceApproval/Index', [
+            'invoices' => $invoices->values(),
+            'levels' => collect([1, 2, 3])->map(fn ($l) => ['level' => $l, 'label' => $this->approvalService->getLevelLabel($l)]),
+            'stats' => [
+                'pending_count' => $invoices->count(),
+                'urgent_count' => $invoices->where('days_pending', '>', 5)->count(),
+                'approval_rate_percent' => round($analytics['approved_pct'] ?? 0, 1),
+            ],
+        ]);
+    }
+
+    /**
      * Had no route at all until now — InvoiceApproval/Show.vue existed with
      * a full UI but nothing in routes/web.php ever pointed to it.
      */
