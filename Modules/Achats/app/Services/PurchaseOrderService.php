@@ -102,22 +102,20 @@ class PurchaseOrderService
         event(new PurchaseOrderSubmittedForApproval($po));
     }
 
+    /**
+     * The PO's own status is the source of truth for the document lifecycle,
+     * but it must not flip to 'approved' until the linked ApprovalRequest
+     * actually finishes — POs >= 50K XOF route through 3 real approver
+     * levels (ApprovalRoutingService::createDefaultWorkflows()) now that
+     * ApprovalRequestService::approveRequest() advances current_level
+     * instead of finalizing on the first decision. Finalizing the PO here
+     * regardless of level would silently skip levels 2/3 one layer up from
+     * where that bug used to live. Requests with no request at all (no
+     * submitForApproval() call) or a single-level workflow still finalize
+     * on this first call, matching the previous behavior exactly.
+     */
     public function markAsApproved(PurchaseOrder $po, User $approver): void
     {
-        $po->update([
-            'status' => 'approved',
-            'approved_by' => $approver->id,
-            'approved_at' => now(),
-        ]);
-
-        // The PO's own status is the source of truth for the document
-        // lifecycle, but until now nothing ever recorded the decision on
-        // the ApprovalRequest submitForApproval() creates — it stayed
-        // 'pending' forever, so any screen reading real approval
-        // steps/decisions (ApprovalPanel) saw the PO as still awaiting a
-        // decision even after it was approved. Mirrors the same
-        // approvalService->approveRequest() call InvoiceApprovalService
-        // already makes.
         $request = \Modules\Validation\Models\ApprovalRequest::where('approvable_type', PurchaseOrder::class)
             ->where('approvable_id', $po->id)
             ->where('status', 'pending')
@@ -126,7 +124,17 @@ class PurchaseOrderService
 
         if ($request) {
             $this->approvalService->approveRequest($request, $approver);
+
+            if ($request->fresh()->status !== 'approved') {
+                return;
+            }
         }
+
+        $po->update([
+            'status' => 'approved',
+            'approved_by' => $approver->id,
+            'approved_at' => now(),
+        ]);
 
         event(new PurchaseOrderApproved($po));
     }

@@ -4,6 +4,7 @@ namespace Modules\Validation\Services;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Modules\Validation\Events\ApprovalApproved;
 use Modules\Validation\Events\ApprovalCompleted;
 use Modules\Validation\Events\ApprovalRejected;
@@ -29,7 +30,14 @@ class ApprovalRequestService
         ]);
     }
 
-    public function getNextApprovers(ApprovalRequest $request): Collection
+    /**
+     * Return type was Eloquent\Collection, but ApprovalRoutingResolver::
+     * resolveApprovers() has always built and returned a plain
+     * Support\Collection (collect()->unique('id')->values()) — a dormant
+     * TypeError nothing had actually exercised until approveRequest() below
+     * became the first real caller of this method.
+     */
+    public function getNextApprovers(ApprovalRequest $request): SupportCollection
     {
         return app(ApprovalRoutingResolver::class)->resolveApprovers($request);
     }
@@ -41,11 +49,39 @@ class ApprovalRequestService
         event(new ApprovalRequestCreated($request, $request->workflow));
     }
 
+    /**
+     * Previously always finalized status='approved' on the very first
+     * decision, regardless of total_levels — a real routing bug for Achats
+     * POs ≥ 50K XOF, which are routed through 3 real approver levels
+     * (ApprovalRoutingService::createDefaultWorkflows()) but were approved
+     * in full the moment the 1st approver acted, silently skipping levels
+     * 2 and 3. `total_levels ?: 1` keeps single-level workflows (invoices,
+     * HR leaves — anything that never populates total_levels via
+     * ApprovalRoutingResolver) finalizing on the first decision exactly as
+     * before.
+     */
     public function approveRequest(
         ApprovalRequest $request,
         User $approver,
         ?string $comment = null
     ): void {
+        $totalLevels = $request->total_levels ?: 1;
+        $currentLevel = $request->current_level ?: 1;
+
+        if ($currentLevel < $totalLevels) {
+            $request->recordLevelApproval($approver, $comment, 'pending');
+            $request->update(['current_level' => $currentLevel + 1]);
+
+            $nextApprovers = $this->getNextApprovers($request->fresh());
+            if ($nextApprovers->isNotEmpty()) {
+                $request->update(['approver_id' => $nextApprovers->first()->id]);
+            }
+
+            event(new ApprovalApproved($request, $request->actions()->latest()->first(), $approver));
+
+            return;
+        }
+
         $request->approve($approver, $comment);
 
         event(new ApprovalApproved($request, $request->actions()->latest()->first(), $approver));

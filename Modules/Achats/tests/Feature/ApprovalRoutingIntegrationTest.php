@@ -129,6 +129,76 @@ class ApprovalRoutingIntegrationTest extends TestCase
         ]);
     }
 
+    /**
+     * The bug this session's plan tracks as "current_level never advances":
+     * ApprovalRequest::approve() used to finalize status='approved' on the
+     * very first decision regardless of total_levels, so a 3-level PO's
+     * levels 2/3 were silently skipped — and markAsApproved() compounded it
+     * by unconditionally finalizing the PO's own status too. This exercises
+     * the real end-to-end path (not just the Validation-layer unit) through
+     * all 3 real approvers (purchasing-manager -> manager -> admin).
+     */
+    public function test_a_three_level_po_requires_all_three_approvers_before_finalizing()
+    {
+        app(ApprovalRoutingService::class)->createDefaultWorkflows();
+
+        Role::firstOrCreate(['name' => 'purchasing-manager', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $purchasingManager = User::factory()->create();
+        $purchasingManager->assignRole('purchasing-manager');
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $supplier = $this->makeSupplier();
+        $po = $this->makePurchaseOrder(75000, $supplier);
+        $requester = User::factory()->create();
+
+        $service = app(PurchaseOrderService::class);
+        $service->submitForApproval($po, $requester);
+
+        $request = ApprovalRequest::where('approvable_type', PurchaseOrder::class)
+            ->where('approvable_id', $po->id)
+            ->first();
+        $this->assertEquals(3, $request->total_levels);
+        $this->assertEquals(1, $request->current_level);
+
+        // Level 1: purchasing-manager approves — must NOT finalize either
+        // the request or the PO; must advance to level 2 and reassign to
+        // the level-2 approver (manager).
+        $service->markAsApproved($po, $purchasingManager);
+        $request->refresh();
+        $this->assertEquals('pending', $request->status);
+        $this->assertEquals(2, $request->current_level);
+        $this->assertEquals($manager->id, $request->approver_id);
+        $this->assertEquals('submitted', $po->fresh()->status);
+
+        // Level 2: manager approves — still not final, advances to level 3
+        // (admin).
+        $service->markAsApproved($po, $manager);
+        $request->refresh();
+        $this->assertEquals('pending', $request->status);
+        $this->assertEquals(3, $request->current_level);
+        $this->assertEquals($admin->id, $request->approver_id);
+        $this->assertEquals('submitted', $po->fresh()->status);
+
+        // Level 3: admin approves — only now does the request AND the PO
+        // finalize as approved.
+        $service->markAsApproved($po, $admin);
+        $request->refresh();
+        $this->assertEquals('approved', $request->status);
+        $this->assertEquals($admin->id, $request->approved_by);
+        $this->assertEquals('approved', $po->fresh()->status);
+        $this->assertEquals($admin->id, $po->fresh()->approved_by);
+
+        // Each level's decision is in the audit trail exactly once.
+        $this->assertDatabaseHas('validation_approval_actions', ['request_id' => $request->id, 'approver_id' => $purchasingManager->id, 'action' => 'approved']);
+        $this->assertDatabaseHas('validation_approval_actions', ['request_id' => $request->id, 'approver_id' => $manager->id, 'action' => 'approved']);
+        $this->assertDatabaseHas('validation_approval_actions', ['request_id' => $request->id, 'approver_id' => $admin->id, 'action' => 'approved']);
+    }
+
     public function test_marking_a_po_approved_without_a_pending_request_does_not_fail()
     {
         $supplier = $this->makeSupplier();

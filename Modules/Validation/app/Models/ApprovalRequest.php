@@ -131,12 +131,24 @@ class ApprovalRequest extends Model
 
     public function approve(User $approver, ?string $comment = null): void
     {
+        $this->recordLevelApproval($approver, $comment, 'approved');
+
         $this->update([
             'status' => 'approved',
             'approved_by' => $approver->id,
             'approved_at' => now(),
         ]);
+    }
 
+    /**
+     * Logs this level's decision (action + history) without finalizing the
+     * request's status — used by ApprovalRequestService::approveRequest()
+     * when a multi-level request still has levels left after this one.
+     * approve() above (the terminal case) also delegates here so both paths
+     * log identically.
+     */
+    public function recordLevelApproval(User $approver, ?string $comment, string $newStatus): void
+    {
         ApprovalAction::create([
             'request_id' => $this->id,
             'approver_id' => $approver->id,
@@ -150,7 +162,7 @@ class ApprovalRequest extends Model
             'level' => $this->current_level,
             'action' => 'approved',
             'old_status' => 'pending',
-            'new_status' => 'approved',
+            'new_status' => $newStatus,
             'changed_by' => $approver->id,
             'changed_at' => now(),
         ]);
