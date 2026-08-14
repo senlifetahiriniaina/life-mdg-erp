@@ -4,11 +4,7 @@
 
     <div class="wizard">
       <div class="steps">
-        <div v-for="(step, idx) in steps" :key="idx" 
-             :class="['step', { active: currentStep === idx, completed: currentStep > idx }]">
-          <div class="step-number">{{ idx + 1 }}</div>
-          <div class="step-label">{{ step }}</div>
-        </div>
+        <WorkflowStepper :steps="stepperSteps" :current-step="stepperSteps[currentStep].key" :show-actions="false" :show-details="false" />
       </div>
 
       <form @submit.prevent="submitForm" class="form">
@@ -173,20 +169,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed} from 'vue'
-import { usePage, router } from '@inertiajs/vue3'
-import StrategicContext from '@/Components/StrategicContext.vue'
-import { useStrategicLink } from '@/composables/useStrategicLink'
-
-const page = usePage()
-const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
-const canManage = computed(() => isElevated.value || hasAnyRole(['finance-manager']))
-const canCreate = computed(() => canManage.value)
-const canEdit = computed(() => canManage.value)
-const canDelete = computed(() => isAdmin.value)
+import { ref, onMounted } from 'vue'
+import { router } from '@inertiajs/vue3'
+import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 
 const currentStep = ref(0)
-const steps = ['Basic Info', 'Add Members', 'Review']
+const stepperSteps = [
+  { key: 'basic_info', label: 'Basic Info', icon: 'pi pi-info-circle' },
+  { key: 'members', label: 'Add Members', icon: 'pi pi-users' },
+  { key: 'review', label: 'Review', icon: 'pi pi-check-square' },
+]
+const steps = stepperSteps.map(s => s.label)
 const submitting = ref(false)
 const companies = ref([])
 
@@ -209,8 +202,16 @@ const newMember = ref({
 })
 
 onMounted(async () => {
-  const response = await fetch('/api/companies')
-  companies.value = await response.json()
+  try {
+    // No /api/companies endpoint exists yet — multi-company Consolidation
+    // depends on a root App\Models\Company that was never created (a
+    // pre-existing, documented gap, not something introduced here).
+    // Degrades to an empty company list rather than throwing.
+    const response = await fetch('/api/companies')
+    if (response.ok) companies.value = await response.json()
+  } catch {
+    companies.value = []
+  }
 })
 
 const nextStep = () => {
@@ -253,7 +254,7 @@ const getCompanyName = (companyId) => {
 const submitForm = async () => {
   submitting.value = true
   try {
-    const response = await fetch('/api/consolidations', {
+    const response = await fetch('/api/v1/accounting/consolidations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form.value)

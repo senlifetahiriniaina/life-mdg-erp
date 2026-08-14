@@ -11,6 +11,11 @@
     </div>
 
     <div class="space-y-6">
+      <!-- Document lifecycle -->
+      <div v-if="!isCancelled" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+        <WorkflowStepper :steps="lifecycleSteps" :current-step="purchaseOrder.status" :show-actions="false" :show-details="false" />
+      </div>
+
       <!-- Status Bar -->
       <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
         <div class="flex items-center justify-between">
@@ -167,6 +172,7 @@ import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import ApprovalPanel from '@/Components/UI/ApprovalPanel.vue'
+import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 
 const props = defineProps({
   purchaseOrder: { type: Object, required: true },
@@ -198,6 +204,16 @@ const taxAmount = computed(() => (props.purchaseOrder.lines || []).reduce((sum, 
 // approval is a MorphOne — the single ApprovalRequest this PO's submission
 // created. hierarchy.levels (routed via ApprovalRoutingResolver) gives the
 // real per-level titles when present.
+const isCancelled = computed(() => props.purchaseOrder.status === 'cancelled')
+
+const lifecycleSteps = [
+  { key: 'draft', label: 'Brouillon', icon: 'pi pi-file' },
+  { key: 'submitted', label: 'Soumis', icon: 'pi pi-send' },
+  { key: 'approved', label: 'Approuvé', icon: 'pi pi-check' },
+  { key: 'received', label: 'Reçu', icon: 'pi pi-box' },
+  { key: 'invoiced', label: 'Facturé', icon: 'pi pi-file-invoice' },
+]
+
 const approval = computed(() => props.purchaseOrder.approval)
 
 const steps = computed(() => {

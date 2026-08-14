@@ -6,25 +6,30 @@
         <Button icon="pi pi-arrow-left" severity="secondary" text rounded @click="goBack" />
         <div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-mono text-sm text-blue-600 font-semibold">#{{ ticket.id }}</span>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ ticket.titre }}</h1>
+            <span class="font-mono text-sm text-blue-600 font-semibold">#{{ ticket.ticket_number || ticket.id }}</span>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ ticket.subject }}</h1>
           </div>
           <div class="flex items-center gap-2 mt-1 flex-wrap">
-            <Tag :value="ticket.statut" :severity="statutSeverity(ticket.statut)" />
-            <Tag :value="ticket.priorite" :severity="prioriteSeverity(ticket.priorite)" />
-            <span class="text-xs text-gray-500">SLA :</span>
-            <span class="text-xs font-medium" :class="slaColor(ticket.slaRemaining)">
-              <i class="pi pi-clock mr-1"></i>{{ ticket.slaRemaining }}
+            <Tag :value="statusLabel(ticket.status)" :severity="statusSeverity(ticket.status)" />
+            <Tag :value="priorityLabel(ticket.priority)" :severity="prioritySeverity(ticket.priority)" />
+            <span v-if="ticket.sla_due_at" class="text-xs text-gray-500">SLA :</span>
+            <span v-if="ticket.sla_due_at" class="text-xs font-medium" :class="slaColor">
+              <i class="pi pi-clock mr-1"></i>{{ slaRemainingLabel }}
             </span>
           </div>
         </div>
       </div>
       <div class="flex gap-2 flex-shrink-0 flex-wrap justify-end">
         <Button label="Répondre" icon="pi pi-reply" size="small" @click="focusReply" />
-        <Button label="Résoudre" icon="pi pi-check" size="small" severity="success" @click="resolveTicket" />
-        <Button label="Escalader" icon="pi pi-arrow-up" size="small" severity="warn" @click="showEscalateDialog = true" />
+        <Button v-if="ticket.status !== 'resolved' && ticket.status !== 'closed'" label="Résoudre" icon="pi pi-check" size="small" severity="success" :loading="actionPending" @click="resolveTicket" />
+        <Button v-if="ticket.status !== 'closed'" label="Escalader" icon="pi pi-arrow-up" size="small" severity="warn" @click="showEscalateDialog = true" />
         <Button label="Réassigner" icon="pi pi-user-edit" size="small" severity="secondary" outlined @click="showReassignDialog = true" />
       </div>
+    </div>
+
+    <!-- Ticket lifecycle -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <WorkflowStepper :steps="lifecycleSteps" :current-step="ticket.status" :show-actions="false" :show-details="false" />
     </div>
 
     <!-- Main layout: conversation + metadata -->
@@ -40,37 +45,34 @@
           </template>
           <template #content>
             <div class="space-y-5 max-h-[520px] overflow-y-auto pr-1">
+              <p v-if="!messages.length" class="text-sm text-gray-400 text-center py-4">Aucun message pour l'instant.</p>
               <div
                 v-for="msg in messages"
                 :key="msg.id"
                 class="flex gap-3"
-                :class="msg.type === 'agent' ? 'flex-row-reverse' : ''"
+                :class="isAgentComment(msg) ? 'flex-row-reverse' : ''"
               >
                 <!-- Avatar -->
                 <div
                   class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                  :class="msg.type === 'agent' ? 'bg-blue-600' : 'bg-green-600'"
+                  :class="isAgentComment(msg) ? 'bg-blue-600' : 'bg-green-600'"
                 >
-                  {{ msg.author.charAt(0) }}
+                  {{ (msg.user?.name || '?').charAt(0) }}
                 </div>
                 <!-- Bubble -->
                 <div class="max-w-[75%]">
-                  <div class="flex items-center gap-2 mb-1" :class="msg.type === 'agent' ? 'flex-row-reverse' : ''">
-                    <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ msg.author }}</span>
-                    <span class="text-xs text-gray-400">{{ msg.time }}</span>
-                    <span v-if="msg.type === 'agent'" class="text-xs bg-blue-100 text-blue-700 rounded px-1">Agent</span>
+                  <div class="flex items-center gap-2 mb-1" :class="isAgentComment(msg) ? 'flex-row-reverse' : ''">
+                    <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ msg.user?.name || 'Inconnu' }}</span>
+                    <span class="text-xs text-gray-400">{{ formatTime(msg.created_at) }}</span>
+                    <span v-if="isAgentComment(msg)" class="text-xs bg-blue-100 text-blue-700 rounded px-1">Agent</span>
                   </div>
                   <div
                     class="rounded-2xl px-4 py-3 text-sm leading-relaxed"
-                    :class="msg.type === 'agent'
+                    :class="isAgentComment(msg)
                       ? 'bg-blue-600 text-white rounded-tr-sm'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-tl-sm'"
                   >
                     {{ msg.content }}
-                  </div>
-                  <div v-if="msg.attachment" class="mt-1 flex items-center gap-1 text-xs text-blue-600 cursor-pointer hover:underline" :class="msg.type === 'agent' ? 'justify-end' : ''">
-                    <i class="pi pi-paperclip"></i>
-                    <span>{{ msg.attachment }}</span>
                   </div>
                 </div>
               </div>
@@ -88,14 +90,15 @@
           </template>
           <template #content>
             <div class="space-y-3">
+              <p v-if="!internalNotes.length" class="text-sm text-gray-400">Aucune note interne.</p>
               <div
                 v-for="note in internalNotes"
                 :key="note.id"
                 class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3"
               >
                 <div class="flex items-center justify-between mb-1">
-                  <span class="text-xs font-semibold text-orange-700 dark:text-orange-300">{{ note.author }}</span>
-                  <span class="text-xs text-gray-400">{{ note.time }}</span>
+                  <span class="text-xs font-semibold text-orange-700 dark:text-orange-300">{{ note.user?.name || 'Inconnu' }}</span>
+                  <span class="text-xs text-gray-400">{{ formatTime(note.created_at) }}</span>
                 </div>
                 <p class="text-sm text-gray-700 dark:text-gray-300">{{ note.content }}</p>
               </div>
@@ -121,12 +124,11 @@
               />
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <div class="flex gap-2">
-                  <Button icon="pi pi-paperclip" severity="secondary" text size="small" label="Pièce jointe" />
                   <Button icon="pi pi-bolt" severity="secondary" text size="small" label="Réponse rapide" @click="showQuickReply = !showQuickReply" />
                 </div>
                 <div class="flex gap-2">
-                  <Button label="Note interne" icon="pi pi-lock" severity="warn" outlined size="small" @click="addInternalNote" />
-                  <Button label="Envoyer" icon="pi pi-send" @click="sendReply" :disabled="!replyText.trim()" />
+                  <Button label="Note interne" icon="pi pi-lock" severity="warn" outlined size="small" :disabled="commentPending" @click="addInternalNote" />
+                  <Button label="Envoyer" icon="pi pi-send" :disabled="!replyText.trim() || commentPending" @click="sendReply" />
                 </div>
               </div>
               <!-- Quick replies -->
@@ -142,6 +144,7 @@
                   @click="replyText = qr"
                 />
               </div>
+              <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
             </div>
           </template>
         </Card>
@@ -159,51 +162,41 @@
           <template #content>
             <div class="space-y-3 text-sm">
               <div class="flex items-start justify-between">
-                <span class="text-gray-500">Client</span>
+                <span class="text-gray-500">Demandeur</span>
                 <div class="text-right">
-                  <p class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.client }}</p>
-                  <p class="text-xs text-gray-400">{{ ticket.clientEmail }}</p>
+                  <p class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.reporter?.name || '—' }}</p>
+                  <p class="text-xs text-gray-400">{{ ticket.reporter?.email || '' }}</p>
                 </div>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-gray-500">Canal</span>
                 <div class="flex items-center gap-1">
-                  <i :class="canalIcon(ticket.canal)" class="text-gray-500"></i>
-                  <span class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.canal }}</span>
+                  <i :class="channelIcon(ticket.channel)" class="text-gray-500"></i>
+                  <span class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.channel || '—' }}</span>
                 </div>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-gray-500">Agent assigné</span>
-                <span class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.agent }}</span>
+                <span class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.assignee?.name || 'Non assigné' }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-gray-500">Catégorie</span>
-                <span class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.categorie }}</span>
+                <span class="text-gray-500">Équipe</span>
+                <span class="font-medium text-gray-800 dark:text-gray-200">{{ ticket.team?.name || '—' }}</span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-gray-500">Créé le</span>
-                <span class="text-gray-700 dark:text-gray-300">{{ ticket.createdAt }}</span>
+                <span class="text-gray-700 dark:text-gray-300">{{ formatDate(ticket.created_at) }}</span>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-gray-500">Dernière activité</span>
-                <span class="text-gray-700 dark:text-gray-300">{{ ticket.lastActivity }}</span>
-              </div>
-              <div>
-                <span class="text-gray-500 block mb-1">Tags</span>
-                <div class="flex flex-wrap gap-1">
-                  <span
-                    v-for="tag in ticket.tags"
-                    :key="tag"
-                    class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-2 py-0.5"
-                  >{{ tag }}</span>
-                </div>
+              <div v-if="ticket.description">
+                <span class="text-gray-500 block mb-1">Description</span>
+                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ ticket.description }}</p>
               </div>
             </div>
           </template>
         </Card>
 
         <!-- SLA Status -->
-        <Card>
+        <Card v-if="ticket.sla_due_at">
           <template #header>
             <div class="px-5 pt-5 pb-2 border-b border-gray-100 dark:border-gray-700">
               <span class="font-semibold text-gray-700 dark:text-gray-200">SLA</span>
@@ -213,18 +206,14 @@
             <div class="space-y-3">
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-gray-500">Temps de réponse</span>
-                  <span :class="slaColor(ticket.slaRemaining)">{{ ticket.slaRemaining }}</span>
+                  <span class="text-gray-500">Échéance</span>
+                  <span :class="slaColor">{{ slaRemainingLabel }}</span>
                 </div>
                 <ProgressBar :value="slaProgress" :class="slaProgressClass" style="height: 6px" />
               </div>
-              <div>
-                <div class="flex justify-between text-xs mb-1">
-                  <span class="text-gray-500">Résolution</span>
-                  <span class="text-orange-500">16h restantes</span>
-                </div>
-                <ProgressBar :value="45" class="[&_.p-progressbar-value]:bg-orange-400" style="height: 6px" />
-              </div>
+              <p v-if="ticket.sla_breached" class="text-xs text-red-600 font-medium">
+                <i class="pi pi-exclamation-triangle mr-1"></i>SLA dépassé
+              </p>
             </div>
           </template>
         </Card>
@@ -238,10 +227,8 @@
           </template>
           <template #content>
             <div class="space-y-2">
-              <Button label="Marquer résolu" icon="pi pi-check-circle" severity="success" class="w-full" @click="resolveTicket" />
-              <Button label="Mettre en attente" icon="pi pi-pause" severity="warn" outlined class="w-full" @click="pauseTicket" />
-              <Button label="Fusionner ticket" icon="pi pi-sitemap" severity="secondary" outlined class="w-full" />
-              <Button label="Voir historique client" icon="pi pi-history" severity="secondary" text class="w-full" />
+              <Button v-if="ticket.status !== 'resolved' && ticket.status !== 'closed'" label="Marquer résolu" icon="pi pi-check-circle" severity="success" class="w-full" :loading="actionPending" @click="resolveTicket" />
+              <Button v-if="ticket.status === 'resolved'" label="Clôturer" icon="pi pi-lock" severity="secondary" class="w-full" :loading="actionPending" @click="closeTicket" />
             </div>
           </template>
         </Card>
@@ -251,30 +238,29 @@
     <!-- Escalate Dialog -->
     <Dialog v-model:visible="showEscalateDialog" header="Escalader le ticket" :style="{ width: '440px' }" modal>
       <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Escalader vers</label>
-          <Select v-model="escalateTo" :options="escaladeAgents" option-label="label" option-value="value" class="w-full" />
-        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Escalader marque le ticket en priorité urgente et le signale comme ayant dépassé son SLA.
+        </p>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Raison de l'escalade</label>
-          <Textarea v-model="escaladeRaison" rows="3" class="w-full" placeholder="Pourquoi ce ticket doit être escaladé..." />
+          <Textarea v-model="escaladeRaison" rows="3" class="w-full" placeholder="Pourquoi ce ticket doit être escaladé (enregistré comme note interne)..." />
         </div>
       </div>
       <template #footer>
         <Button label="Annuler" severity="secondary" text @click="showEscalateDialog = false" />
-        <Button label="Escalader" icon="pi pi-arrow-up" severity="warn" @click="escalateTicket" />
+        <Button label="Escalader" icon="pi pi-arrow-up" severity="warn" :loading="actionPending" @click="escalateTicket" />
       </template>
     </Dialog>
 
     <!-- Reassign Dialog -->
     <Dialog v-model:visible="showReassignDialog" header="Réassigner le ticket" :style="{ width: '400px' }" modal>
       <div class="space-y-3">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nouvel agent</label>
-        <Select v-model="reassignAgent" :options="agentOptions" option-label="label" option-value="value" class="w-full" />
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">ID du nouvel agent</label>
+        <InputNumber v-model="reassignAgentId" class="w-full" :use-grouping="false" />
       </div>
       <template #footer>
         <Button label="Annuler" severity="secondary" text @click="showReassignDialog = false" />
-        <Button label="Réassigner" icon="pi pi-user-edit" @click="doReassign" />
+        <Button label="Réassigner" icon="pi pi-user-edit" :loading="actionPending" :disabled="!reassignAgentId" @click="doReassign" />
       </template>
     </Dialog>
 
@@ -288,63 +274,50 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { usePage } from '@inertiajs/vue3'
+import { router } from '@inertiajs/vue3'
+import axios from 'axios'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
-import Select from 'primevue/select'
+import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import ProgressBar from 'primevue/progressbar'
-import StrategicContext from '@/Components/StrategicContext.vue'
-import { useStrategicLink } from '@/composables/useStrategicLink'
+import Message from 'primevue/message'
+import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useRbac } from '@/composables/useRbac'
 
-const { guidance } = useAiAssistant('CRM', 'view_dashboard')
-const { isAdmin, canManage, canView } = useRbac('Helpdesk')
-
-const page = usePage()
-const auth = computed(() => page.props.auth)
-const canSeeInternalNotes = computed(() => true) // agents only in real RBAC
-
-const ticket = ref({
-  id: '1041',
-  titre: 'Erreur lors du paiement Orange Money',
-  statut: 'En cours',
-  priorite: 'Haute',
-  slaRemaining: '3h 05min',
-  client: 'Fatou Koné',
-  clientEmail: 'fatou.kone@grandmarche.sn',
-  canal: 'WhatsApp',
-  agent: 'Ibrahim Traoré',
-  categorie: 'Paiement / Mobile Money',
-  createdAt: '24/05/2026 à 09:14',
-  lastActivity: '24/05/2026 à 11:42',
-  tags: ['Orange Money', 'Paiement', 'Mobile'],
+const props = defineProps({
+  ticket: { type: Object, required: true },
 })
 
-const messages = ref([
-  { id: 1, type: 'client', author: 'Fatou Koné', time: '09:14', content: 'Bonjour, je n\'arrive pas à finaliser mon paiement via Orange Money. La transaction échoue avec le code ERR_MOMOC02. Pouvez-vous m\'aider ? Merci.', attachment: null },
-  { id: 2, type: 'agent', author: 'Ibrahim Traoré', time: '09:31', content: 'Bonjour Fatou, je suis désolé pour ce désagrément. Ce code d\'erreur correspond à un plafond de transaction journalier dépassé. Pouvez-vous vérifier votre solde et votre plafond dans l\'application Orange Money ?', attachment: null },
-  { id: 3, type: 'client', author: 'Fatou Koné', time: '09:48', content: 'J\'ai vérifié, mon solde est de 75 000 XOF et le plafond n\'est pas atteint. Le problème persiste toujours.', attachment: 'screenshot_erreur.png' },
-  { id: 4, type: 'agent', author: 'Ibrahim Traoré', time: '10:15', content: 'Merci pour la capture d\'écran. J\'escalade ce problème à notre équipe technique. En attendant, pouvez-vous essayer avec Wave comme mode de paiement alternatif ?', attachment: null },
-  { id: 5, type: 'client', author: 'Fatou Koné', time: '11:42', content: 'Wave fonctionne, j\'ai pu régler ma commande. Mais le problème Orange Money persiste sur tous mes appareils.', attachment: null },
-])
+const { guidance } = useAiAssistant('CRM', 'view_dashboard')
+const { canView } = useRbac('Helpdesk')
 
-const internalNotes = ref([
-  { id: 1, author: 'Ibrahim Traoré', time: '10:20', content: 'BUG possible côté gateway Orange Money Sénégal. Contacter partenaire API. Ticket technique ouvert #TEC-0089.' },
-  { id: 2, author: 'Seydou Ouédraogo (Superviseur)', time: '11:00', content: 'Confirmé : incident Orange Money API détecté depuis 08h30. Mise à jour Orange prévue à 14h. Informer la cliente.' },
-])
+const canSeeInternalNotes = computed(() => true) // agents only in real RBAC
+
+const lifecycleSteps = [
+  { key: 'open', label: 'Ouvert', icon: 'pi pi-inbox' },
+  { key: 'in_progress', label: 'En cours', icon: 'pi pi-spin pi-cog' },
+  { key: 'resolved', label: 'Résolu', icon: 'pi pi-check' },
+  { key: 'closed', label: 'Clôturé', icon: 'pi pi-lock' },
+]
+
+const messages = computed(() => (props.ticket.comments || []).filter(c => !c.is_internal))
+const internalNotes = computed(() => (props.ticket.comments || []).filter(c => c.is_internal))
+const isAgentComment = (comment) => comment.user_id && comment.user_id !== props.ticket.reporter_id
 
 const replyText = ref('')
 const showQuickReply = ref(false)
 const showEscalateDialog = ref(false)
 const showReassignDialog = ref(false)
-const escalateTo = ref(null)
+const reassignAgentId = ref(null)
 const escaladeRaison = ref('')
-const reassignAgent = ref(null)
+const error = ref('')
+const actionPending = ref(false)
+const commentPending = ref(false)
 
 const quickReplies = [
   'Merci pour votre patience, nous traitons votre demande.',
@@ -353,24 +326,14 @@ const quickReplies = [
   'Votre ticket a été transmis à notre équipe technique.',
 ]
 
-const agentOptions = [
-  { label: 'Aïssatou Bâ', value: 'Aïssatou Bâ' },
-  { label: 'Ibrahim Traoré', value: 'Ibrahim Traoré' },
-  { label: 'Seydou Ouédraogo', value: 'Seydou Ouédraogo' },
-]
-
-const escaladeAgents = [
-  { label: 'Seydou Ouédraogo — Superviseur', value: 'Seydou Ouédraogo' },
-  { label: 'Aminata Diallo — Responsable technique', value: 'Aminata Diallo' },
-]
-
 const slaProgress = computed(() => {
-  const sla = ticket.value.slaRemaining
-  if (sla === '—') return 100
-  const h = parseFloat(sla)
-  if (h < 1) return 90
-  if (h < 2) return 70
-  if (h < 4) return 45
+  if (!props.ticket.sla_due_at) return 0
+  if (props.ticket.sla_breached) return 100
+  const remainingMs = new Date(props.ticket.sla_due_at).getTime() - Date.now()
+  const hoursLeft = remainingMs / (1000 * 60 * 60)
+  if (hoursLeft < 1) return 90
+  if (hoursLeft < 2) return 70
+  if (hoursLeft < 4) return 45
   return 20
 })
 
@@ -380,29 +343,39 @@ const slaProgressClass = computed(() => {
   return '[&_.p-progressbar-value]:bg-green-500'
 })
 
-const statutSeverity = (s: string) => {
-  const map: Record<string, string> = { Nouveau: 'info', 'En cours': 'warn', 'En attente client': 'secondary', Résolu: 'success', Fermé: 'secondary' }
-  return map[s] ?? 'info'
-}
-
-const prioriteSeverity = (p: string) => {
-  const map: Record<string, string> = { Critique: 'danger', Haute: 'warn', Normale: 'info', Basse: 'secondary' }
-  return map[p] ?? 'info'
-}
-
-const slaColor = (sla: string) => {
-  if (sla === '—') return 'text-gray-400'
-  const h = parseFloat(sla)
-  if (h < 1) return 'text-red-600 font-bold'
-  if (h < 2) return 'text-red-500'
-  if (h < 4) return 'text-orange-500'
+const slaColor = computed(() => {
+  if (props.ticket.sla_breached) return 'text-red-600 font-bold'
+  if (slaProgress.value >= 80) return 'text-red-500'
+  if (slaProgress.value >= 60) return 'text-orange-500'
   return 'text-green-600'
-}
+})
 
-const canalIcon = (canal: string) => {
-  const map: Record<string, string> = { Email: 'pi pi-envelope', Chat: 'pi pi-comments', Téléphone: 'pi pi-phone', WhatsApp: 'pi pi-whatsapp' }
-  return map[canal] ?? 'pi pi-inbox'
-}
+const slaRemainingLabel = computed(() => {
+  if (!props.ticket.sla_due_at) return '—'
+  if (props.ticket.sla_breached) return 'Dépassé'
+  const remainingMs = new Date(props.ticket.sla_due_at).getTime() - Date.now()
+  if (remainingMs <= 0) return 'Dépassé'
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60))
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60))
+  return `${hours}h ${minutes}min`
+})
+
+const statusLabel = (s) => ({ open: 'Ouvert', in_progress: 'En cours', resolved: 'Résolu', closed: 'Clôturé' })[s] ?? (s || '—')
+const statusSeverity = (s) => ({ open: 'info', in_progress: 'warn', resolved: 'success', closed: 'secondary' })[s] ?? 'info'
+const priorityLabel = (p) => ({ low: 'Basse', medium: 'Normale', high: 'Haute', urgent: 'Critique' })[p] ?? (p || '—')
+const prioritySeverity = (p) => ({ urgent: 'danger', high: 'warn', medium: 'info', low: 'secondary' })[p] ?? 'info'
+
+const channelIcon = (channel) => ({
+  email: 'pi pi-envelope', whatsapp: 'pi pi-whatsapp', phone: 'pi pi-phone', web: 'pi pi-globe',
+})[channel] ?? 'pi pi-inbox'
+
+const formatDate = (date) => date
+  ? new Date(date).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : '—'
+
+const formatTime = (date) => date
+  ? new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  : ''
 
 const goBack = () => { window.history.back() }
 
@@ -410,49 +383,89 @@ const focusReply = () => {
   document.querySelector('textarea')?.focus()
 }
 
-const sendReply = () => {
+const postComment = async (isInternal) => {
   if (!replyText.value.trim()) return
-  messages.value.push({
-    id: messages.value.length + 1,
-    type: 'agent',
-    author: 'Ibrahim Traoré',
-    time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    content: replyText.value,
-    attachment: null,
-  })
-  replyText.value = ''
+  commentPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/helpdesk/tickets/${props.ticket.id}/comments`, {
+      content: replyText.value,
+      is_internal: isInternal,
+    })
+    replyText.value = ''
+    router.reload({ only: ['ticket'] })
+  } catch (err) {
+    error.value = err.response?.data?.message || "Échec de l'envoi."
+  } finally {
+    commentPending.value = false
+  }
 }
 
-const addInternalNote = () => {
-  if (!replyText.value.trim()) return
-  internalNotes.value.push({
-    id: internalNotes.value.length + 1,
-    author: 'Ibrahim Traoré',
-    time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    content: replyText.value,
-  })
-  replyText.value = ''
+const sendReply = () => postComment(false)
+const addInternalNote = () => postComment(true)
+
+const resolveTicket = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/helpdesk/tickets/${props.ticket.id}/resolve`)
+    router.reload({ only: ['ticket'] })
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Échec de la résolution.'
+  } finally {
+    actionPending.value = false
+  }
 }
 
-const resolveTicket = () => {
-  ticket.value.statut = 'Résolu'
-  ticket.value.slaRemaining = '—'
+const closeTicket = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/helpdesk/tickets/${props.ticket.id}/close`)
+    router.reload({ only: ['ticket'] })
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Échec de la clôture.'
+  } finally {
+    actionPending.value = false
+  }
 }
 
-const pauseTicket = () => {
-  ticket.value.statut = 'En attente client'
+const escalateTicket = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    if (escaladeRaison.value.trim()) {
+      await axios.post(`/api/v1/helpdesk/tickets/${props.ticket.id}/comments`, {
+        content: `Escalade : ${escaladeRaison.value}`,
+        is_internal: true,
+      })
+    }
+    await axios.post(`/api/v1/helpdesk/tickets/${props.ticket.id}/escalate`)
+    showEscalateDialog.value = false
+    escaladeRaison.value = ''
+    router.reload({ only: ['ticket'] })
+  } catch (err) {
+    error.value = err.response?.data?.message || "Échec de l'escalade."
+  } finally {
+    actionPending.value = false
+  }
 }
 
-const escalateTicket = () => {
-  showEscalateDialog.value = false
-  ticket.value.agent = escalateTo.value ?? ticket.value.agent
-  escalateTo.value = null
-  escaladeRaison.value = ''
-}
-
-const doReassign = () => {
-  if (reassignAgent.value) ticket.value.agent = reassignAgent.value
-  showReassignDialog.value = false
-  reassignAgent.value = null
+const doReassign = async () => {
+  if (!reassignAgentId.value) return
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/helpdesk/tickets/${props.ticket.id}/assign`, {
+      assignee_id: reassignAgentId.value,
+    })
+    showReassignDialog.value = false
+    reassignAgentId.value = null
+    router.reload({ only: ['ticket'] })
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Échec de la réassignation.'
+  } finally {
+    actionPending.value = false
+  }
 }
 </script>
