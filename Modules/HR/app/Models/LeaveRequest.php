@@ -64,4 +64,18 @@ class LeaveRequest extends Model
     {
         return $query->where('status', 'approved');
     }
+
+    /**
+     * Approved leave requests whose date range covers the given date, for a
+     * given employee — the "is this employee on leave right now" check used
+     * by Modules\Validation\Services\ApprovalRoutingResolver. Did not exist
+     * before this — nothing in the codebase queried leave by date range.
+     */
+    public function scopeApprovedAndCoveringDate($query, int $employeeId, \Illuminate\Support\Carbon $date)
+    {
+        return $query->where('employee_id', $employeeId)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date);
+    }
 }
