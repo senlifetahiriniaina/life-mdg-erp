@@ -17,6 +17,7 @@
     },
     "dependencies": {
         "@apollo/client": "^4.1.9",
+        "@vue/apollo-composable": "^5.0.0-alpha.4",
         "@inertiajs/vue3": "^3.0.3",
         "@primevue/themes": "^4.0.0",
         "@sentry/tracing": "^7.120.4",

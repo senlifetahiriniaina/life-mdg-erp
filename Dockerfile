@@ -52,6 +52,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 COPY package.json ./
 RUN npm install --legacy-peer-deps && npm run build
 
+# storage/framework/{sessions,views,cache,testing} aren't git-tracked (git
+# doesn't track empty directories, and .gitignore only lists files inside
+# them) — artisan view:cache fatals with "Please provide a valid cache path"
+# without them existing first.
+RUN mkdir -p storage/framework/{sessions,views,cache,testing} bootstrap/cache
+
 # Generate Laravel caches
 RUN php artisan config:cache \
     && php artisan route:cache \
