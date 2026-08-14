@@ -144,12 +144,18 @@ class SecretAccessControl
             ]);
 
             // Log grant
-            $this->audit->log('secret_access.granted', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-                'user_id' => $userId,
-                'scopes' => implode(',', $options['scopes'] ?? ['read']),
-            ]);
+            $this->audit->log(
+                action: 'secret_access.granted',
+                userId: $grantedBy,
+                module: 'Core',
+                eventType: 'secret_access.granted',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                    'user_id' => $userId,
+                    'scopes' => implode(',', $options['scopes'] ?? ['read']),
+                ],
+            );
 
             Log::info("Secret access granted", [
                 'secret_name' => $secretName,
@@ -196,11 +202,17 @@ class SecretAccessControl
             $grant->revoke();
 
             // Log revocation
-            $this->audit->log('secret_access.revoked', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-                'user_id' => $userId,
-            ]);
+            $this->audit->log(
+                action: 'secret_access.revoked',
+                userId: auth()->id(),
+                module: 'Core',
+                eventType: 'secret_access.revoked',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                    'user_id' => $userId,
+                ],
+            );
 
             Log::info("Secret access revoked", [
                 'secret_name' => $secretName,
@@ -344,11 +356,17 @@ class SecretAccessControl
             ]);
 
             // Log generation
-            $this->audit->log('api_key.generated', [
-                'api_key_id' => $apiKey->id,
-                'api_key_name' => $apiKey->name,
-                'scopes' => implode(',', $options['scopes'] ?? ['read']),
-            ]);
+            $this->audit->log(
+                action: 'api_key.generated',
+                userId: $userId,
+                module: 'Core',
+                eventType: 'api_key.generated',
+                newValues: [
+                    'api_key_id' => $apiKey->id,
+                    'api_key_name' => $apiKey->name,
+                    'scopes' => implode(',', $options['scopes'] ?? ['read']),
+                ],
+            );
 
             Log::info("API key generated: {$name}", ['api_key_id' => $apiKey->id]);
 
@@ -421,10 +439,16 @@ class SecretAccessControl
             $apiKey->deactivate();
 
             // Log revocation
-            $this->audit->log('api_key.revoked', [
-                'api_key_id' => $apiKey->id,
-                'api_key_name' => $apiKey->name,
-            ]);
+            $this->audit->log(
+                action: 'api_key.revoked',
+                userId: auth()->id(),
+                module: 'Core',
+                eventType: 'api_key.revoked',
+                newValues: [
+                    'api_key_id' => $apiKey->id,
+                    'api_key_name' => $apiKey->name,
+                ],
+            );
 
             Log::info("API key revoked: {$apiKey->name}", ['api_key_id' => $keyId]);
         } catch (Exception $e) {

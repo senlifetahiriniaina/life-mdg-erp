@@ -63,11 +63,17 @@ class SecretRotationManager
             }
 
             // Log scheduling
-            $this->audit->log('secret_rotation.scheduled', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-                'scheduled_for' => $policy->next_rotation_at,
-            ]);
+            $this->audit->log(
+                action: 'secret_rotation.scheduled',
+                userId: auth()->id(),
+                module: 'Core',
+                eventType: 'secret_rotation.scheduled',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                    'scheduled_for' => $policy->next_rotation_at,
+                ],
+            );
 
             Log::info("Secret rotation scheduled: {$secretName}", [
                 'scheduled_for' => $policy->next_rotation_at,
@@ -106,11 +112,17 @@ class SecretRotationManager
             $rotatedSecret = $this->secretsService->rotateSecret($secretName, $newValue);
 
             // Log successful rotation
-            $this->audit->log('secret_rotation.executed', [
-                'secret_id' => $rotatedSecret->id,
-                'secret_name' => $rotatedSecret->name,
-                'success' => true,
-            ]);
+            $this->audit->log(
+                action: 'secret_rotation.executed',
+                userId: auth()->id(),
+                module: 'Core',
+                eventType: 'secret_rotation.executed',
+                newValues: [
+                    'secret_id' => $rotatedSecret->id,
+                    'secret_name' => $rotatedSecret->name,
+                    'success' => true,
+                ],
+            );
 
             Log::info("Secret rotation executed: {$secretName}", [
                 'secret_id' => $rotatedSecret->id,
@@ -125,10 +137,16 @@ class SecretRotationManager
 
             // Log failed rotation
             try {
-                $this->audit->log('secret_rotation.failed', [
-                    'secret_name' => $secretName,
-                    'error' => $e->getMessage(),
-                ]);
+                $this->audit->log(
+                    action: 'secret_rotation.failed',
+                    userId: auth()->id(),
+                    module: 'Core',
+                    eventType: 'secret_rotation.failed',
+                    newValues: [
+                        'secret_name' => $secretName,
+                        'error' => $e->getMessage(),
+                    ],
+                );
             } catch (Exception $auditError) {
                 Log::error('Failed to log rotation failure', ['error' => $auditError->getMessage()]);
             }
@@ -189,10 +207,16 @@ class SecretRotationManager
             // In a real scenario, you would fetch the previous version
             // from a version history or backup. For now, we just log the attempt.
 
-            $this->audit->log('secret_rotation.rollback', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-            ]);
+            $this->audit->log(
+                action: 'secret_rotation.rollback',
+                userId: auth()->id(),
+                module: 'Core',
+                eventType: 'secret_rotation.rollback',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                ],
+            );
 
             Log::info("Secret rotation rolled back: {$secretName}", [
                 'secret_id' => $secret->id,
@@ -321,12 +345,18 @@ class SecretRotationManager
             foreach ($recipients as $user) {
                 try {
                     // In a real scenario, send email/notification
-                    $this->audit->log('notification.rotation_due_sent', [
-                        'secret_id' => $secret->id,
-                        'secret_name' => $secret->name,
-                        'recipient_id' => $user->id,
-                        'days_ahead' => $daysAhead,
-                    ]);
+                    $this->audit->log(
+                        action: 'notification.rotation_due_sent',
+                        userId: auth()->id(),
+                        module: 'Core',
+                        eventType: 'notification.rotation_due_sent',
+                        newValues: [
+                            'secret_id' => $secret->id,
+                            'secret_name' => $secret->name,
+                            'recipient_id' => $user->id,
+                            'days_ahead' => $daysAhead,
+                        ],
+                    );
                 } catch (Exception $e) {
                     Log::error('Failed to send rotation notification', ['error' => $e->getMessage()]);
                 }
@@ -365,11 +395,17 @@ class SecretRotationManager
 
             foreach ($recipients as $user) {
                 try {
-                    $this->audit->log('notification.rotation_complete_sent', [
-                        'secret_id' => $secret->id,
-                        'secret_name' => $secret->name,
-                        'recipient_id' => $user->id,
-                    ]);
+                    $this->audit->log(
+                        action: 'notification.rotation_complete_sent',
+                        userId: auth()->id(),
+                        module: 'Core',
+                        eventType: 'notification.rotation_complete_sent',
+                        newValues: [
+                            'secret_id' => $secret->id,
+                            'secret_name' => $secret->name,
+                            'recipient_id' => $user->id,
+                        ],
+                    );
                 } catch (Exception $e) {
                     Log::error('Failed to send completion notification', ['error' => $e->getMessage()]);
                 }
@@ -389,11 +425,17 @@ class SecretRotationManager
         try {
             // Send urgent notification to secret creator and admins
             if ($secret->createdBy) {
-                $this->audit->log('notification.rotation_rollback_sent', [
-                    'secret_id' => $secret->id,
-                    'secret_name' => $secret->name,
-                    'recipient_id' => $secret->createdBy->id,
-                ]);
+                $this->audit->log(
+                    action: 'notification.rotation_rollback_sent',
+                    userId: auth()->id(),
+                    module: 'Core',
+                    eventType: 'notification.rotation_rollback_sent',
+                    newValues: [
+                        'secret_id' => $secret->id,
+                        'secret_name' => $secret->name,
+                        'recipient_id' => $secret->createdBy->id,
+                    ],
+                );
             }
         } catch (Exception $e) {
             Log::error('Failed to notify rotation rollback', ['error' => $e->getMessage()]);

@@ -97,11 +97,17 @@ class SecretsService
 
             // Log creation
             $this->logAccess($secret, 'create', true);
-            $this->audit->log('secret.created', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-                'secret_type' => $secret->type,
-            ]);
+            $this->audit->log(
+                action: 'secret.created',
+                userId: $userId,
+                module: 'Core',
+                eventType: 'secret.created',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                    'secret_type' => $secret->type,
+                ],
+            );
 
             Log::info("Secret created: {$name}", ['secret_id' => $secret->id]);
 
@@ -234,10 +240,16 @@ class SecretsService
 
             // Log rotation
             $this->logAccess($secret, 'rotate', true);
-            $this->audit->log('secret.rotated', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-            ]);
+            $this->audit->log(
+                action: 'secret.rotated',
+                userId: $userId,
+                module: 'Core',
+                eventType: 'secret.rotated',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                ],
+            );
 
             Log::info("Secret rotated: {$name}", ['secret_id' => $secret->id]);
 
@@ -274,10 +286,16 @@ class SecretsService
 
             // Log revocation
             $this->logAccess($secret, 'revoke', true);
-            $this->audit->log('secret.revoked', [
-                'secret_id' => $secret->id,
-                'secret_name' => $secret->name,
-            ]);
+            $this->audit->log(
+                action: 'secret.revoked',
+                userId: auth()->id(),
+                module: 'Core',
+                eventType: 'secret.revoked',
+                newValues: [
+                    'secret_id' => $secret->id,
+                    'secret_name' => $secret->name,
+                ],
+            );
 
             Log::info("Secret revoked: {$name}", ['secret_id' => $secret->id]);
         } catch (Exception $e) {
