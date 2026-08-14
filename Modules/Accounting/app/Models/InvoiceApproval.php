@@ -15,6 +15,7 @@ class InvoiceApproval extends Model
     protected $fillable = [
         'tenant_id',
         'invoice_id',
+        'approval_request_id',
         'invoice_type',
         'invoice_number',
         'amount',

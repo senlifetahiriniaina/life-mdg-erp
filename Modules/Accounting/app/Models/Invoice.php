@@ -65,6 +65,7 @@ class Invoice extends Model
         'invoice_date',
         'due_date',
         'status',
+        'approval_status',
         'currency',
         'exchange_rate',
         'subtotal',

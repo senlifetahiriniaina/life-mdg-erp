@@ -7,6 +7,7 @@ use Modules\Accounting\Http\Controllers\Api\ChartOfAccountController;
 use Modules\Accounting\Http\Controllers\Api\ExpenseController;
 use Modules\Accounting\Http\Controllers\Api\FinancialRatiosController;
 use Modules\Accounting\Http\Controllers\Api\GLAccountController;
+use Modules\Accounting\Http\Controllers\Api\InvoiceApprovalController;
 use Modules\Accounting\Http\Controllers\Api\InvoiceController;
 use Modules\Accounting\Http\Controllers\Api\JournalController;
 use Modules\Accounting\Http\Controllers\Api\OpenBankingController;
@@ -52,6 +53,8 @@ Route::middleware(['auth:sanctum', 'role:accountant,finance-manager,manager,admi
     Route::get('invoices/outstanding', [InvoiceController::class, 'outstanding']);
     Route::get('invoices/overdue', [InvoiceController::class, 'overdue']);
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
+    Route::get('invoices/approvals/pending', [InvoiceApprovalController::class, 'pending']);
+    Route::get('invoices/{invoice}/approvals', [InvoiceApprovalController::class, 'index']);
     Route::get('expenses', [ExpenseController::class, 'index']);
     Route::get('expenses/pending', [ExpenseController::class, 'pending']);
     Route::get('expenses/by-category/{category}', [ExpenseController::class, 'byCategory']);
@@ -146,6 +149,9 @@ Route::middleware(['auth:sanctum', 'role:accountant,finance-manager,manager,admi
     Route::post('invoices/{invoice}/payment', [InvoiceController::class, 'recordPayment']);
     Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment']);
     Route::post('invoices/{invoice}/mark-paid', [InvoiceController::class, 'markPaid']);
+    Route::post('invoices/{invoice}/approvals', [InvoiceApprovalController::class, 'store']);
+    Route::post('invoices/{invoice}/approve', [InvoiceApprovalController::class, 'approve']);
+    Route::post('invoices/{invoice}/reject', [InvoiceApprovalController::class, 'reject']);
 
     Route::post('expenses', [ExpenseController::class, 'store']);
     Route::put('expenses/{expense}', [ExpenseController::class, 'update']);
