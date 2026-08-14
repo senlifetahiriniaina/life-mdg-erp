@@ -12,7 +12,7 @@
 
     <div class="space-y-6">
       <!-- Document lifecycle -->
-      <div v-if="!isCancelled" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+      <div v-if="!isCancelled && !isRejected" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
         <WorkflowStepper :steps="lifecycleSteps" :current-step="purchaseOrder.status" :show-actions="false" :show-details="false" />
       </div>
 
@@ -35,14 +35,6 @@
               Soumettre pour approbation
             </button>
             <button
-              v-if="purchaseOrder.status === 'submitted' && purchaseOrder.can_approve"
-              @click="approvePO"
-              :disabled="actionPending"
-              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50"
-            >
-              Approuver
-            </button>
-            <button
               v-if="purchaseOrder.status === 'draft'"
               @click="deletePO"
               :disabled="actionPending"
@@ -54,12 +46,10 @@
         </div>
       </div>
 
-      <!-- Approval Panel — visualization only; the real decision goes through
-           the button above (Achats has no reject action yet, only approve/
-           cancel, so ApprovalPanel's built-in per-step form isn't a fit). -->
+      <!-- Approval Panel -->
       <div v-if="instance" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Progression de l'approbation</h3>
-        <ApprovalPanel :instance="instance" :steps="steps" :decisions="decisions" :can-approve="false" />
+        <ApprovalPanel :instance="instance" :steps="steps" :decisions="decisions" :can-approve="purchaseOrder.can_approve" @decide="onDecide" />
       </div>
 
       <!-- Order Details -->
@@ -188,6 +178,7 @@ const statusClasses = {
   received: 'bg-purple-100 text-purple-800',
   invoiced: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
+  rejected: 'bg-red-100 text-red-800',
 }
 
 const formatStatus = (status) => status ? status.charAt(0).toUpperCase() + status.slice(1) : '—'
@@ -205,6 +196,7 @@ const taxAmount = computed(() => (props.purchaseOrder.lines || []).reduce((sum, 
 // created. hierarchy.levels (routed via ApprovalRoutingResolver) gives the
 // real per-level titles when present.
 const isCancelled = computed(() => props.purchaseOrder.status === 'cancelled')
+const isRejected = computed(() => props.purchaseOrder.status === 'rejected')
 
 const lifecycleSteps = [
   { key: 'draft', label: 'Brouillon', icon: 'pi pi-file' },
@@ -258,16 +250,17 @@ const submitForApproval = async () => {
   }
 }
 
-const approvePO = async () => {
-  actionPending.value = true
+const onDecide = async ({ decision, comment }) => {
   error.value = ''
   try {
-    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/approve`)
+    if (decision === 'approved') {
+      await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/approve`)
+    } else {
+      await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/reject`, { reason: comment || 'Rejeté' })
+    }
     router.reload()
   } catch (err) {
-    error.value = err.response?.data?.message || "Échec de l'approbation."
-  } finally {
-    actionPending.value = false
+    error.value = err.response?.data?.message || 'Une erreur est survenue.'
   }
 }
 

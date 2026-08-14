@@ -33,6 +33,8 @@ use Modules\Validation\Models\ApprovalRequest;
  * @property int $requested_by
  * @property int|null $approved_by
  * @property Carbon|null $approved_at
+ * @property int|null $rejected_by
+ * @property Carbon|null $rejected_at
  * @property int $created_by
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -67,6 +69,8 @@ class PurchaseOrder extends Model
         'requested_by',
         'approved_by',
         'approved_at',
+        'rejected_by',
+        'rejected_at',
         'created_by',
     ];
 
@@ -74,6 +78,7 @@ class PurchaseOrder extends Model
         'order_date' => 'date',
         'delivery_date' => 'date',
         'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'subtotal' => 'decimal:4',
         'tax_amount' => 'decimal:4',
         'shipping_cost' => 'decimal:4',
@@ -98,6 +103,11 @@ class PurchaseOrder extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejecter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function createdBy(): BelongsTo

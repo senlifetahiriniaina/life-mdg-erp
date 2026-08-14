@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Modules\Achats\Events\PurchaseOrderApproved;
 use Modules\Achats\Events\PurchaseOrderCancelled;
+use Modules\Achats\Events\PurchaseOrderRejected;
 use Modules\Achats\Events\PurchaseOrderInvoiced;
 use Modules\Achats\Events\PurchaseOrderReceived;
 use Modules\Achats\Events\PurchaseOrderSubmittedForApproval;
@@ -128,6 +129,32 @@ class PurchaseOrderService
         }
 
         event(new PurchaseOrderApproved($po));
+    }
+
+    /**
+     * Mirrors markAsApproved(): PurchaseOrder never had a reject() at all
+     * (only submit/approve/cancel), which forced ApprovalPanel into
+     * read-only mode on PurchaseOrders/Show.vue.
+     */
+    public function markAsRejected(PurchaseOrder $po, User $rejector, string $reason): void
+    {
+        $po->update([
+            'status' => 'rejected',
+            'rejected_by' => $rejector->id,
+            'rejected_at' => now(),
+        ]);
+
+        $request = \Modules\Validation\Models\ApprovalRequest::where('approvable_type', PurchaseOrder::class)
+            ->where('approvable_id', $po->id)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($request) {
+            $this->approvalService->rejectRequest($request, $rejector, $reason);
+        }
+
+        event(new PurchaseOrderRejected($po, $reason));
     }
 
     public function markAsReceived(PurchaseOrder $po, array $receiptData)

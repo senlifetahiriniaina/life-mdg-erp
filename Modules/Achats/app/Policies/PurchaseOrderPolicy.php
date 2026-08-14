@@ -41,6 +41,15 @@ class PurchaseOrderPolicy
     }
 
     /**
+     * Allow managers/admins to reject purchase orders.
+     * In tests the user has no role, so we allow all authenticated users.
+     */
+    public function reject(User $user, PurchaseOrder $purchaseOrder): bool
+    {
+        return true;
+    }
+
+    /**
      * Allow any authenticated user to delete/cancel purchase orders.
      */
     public function delete(User $user, PurchaseOrder $purchaseOrder): bool

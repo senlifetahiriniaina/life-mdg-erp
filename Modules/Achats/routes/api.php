@@ -63,6 +63,7 @@ Route::middleware(['auth:sanctum', 'role:purchasing-manager,warehouse-operator,m
         Route::delete('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'destroy']);
         Route::post('purchase-orders/{purchase_order}/submit', [PurchaseOrderController::class, 'submitForApproval']);
         Route::post('purchase-orders/{purchase_order}/approve', [PurchaseOrderController::class, 'approve']);
+        Route::post('purchase-orders/{purchase_order}/reject', [PurchaseOrderController::class, 'reject']);
         Route::post('purchase-orders/{purchase_order}/cancel', [PurchaseOrderController::class, 'cancel']);
 
         Route::post('purchase-orders/{purchase_order}/lines', [PurchaseOrderLineController::class, 'store']);

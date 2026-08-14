@@ -92,6 +92,15 @@ class PurchaseOrderController extends Controller
         return new PurchaseOrderResource($purchase_order->refresh());
     }
 
+    public function reject(Request $request, PurchaseOrder $purchase_order)
+    {
+        $this->authorize('reject', $purchase_order);
+
+        $this->service->markAsRejected($purchase_order, auth()->user(), $request->get('reason', 'Rejeté'));
+
+        return new PurchaseOrderResource($purchase_order->refresh());
+    }
+
     public function cancel(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('delete', $purchase_order);

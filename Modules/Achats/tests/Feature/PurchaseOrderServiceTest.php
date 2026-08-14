@@ -109,6 +109,32 @@ class PurchaseOrderServiceTest extends TestCase
         $this->assertNotNull($po->approved_at);
     }
 
+    public function test_can_reject_purchase_order()
+    {
+        // Neither PurchaseOrderFactory (fake()->word() for approved_at/etc —
+        // see test_can_approve_purchase_order, which fails on this exact
+        // same pre-existing bug) nor SupplierFactory (inserts an 'address'
+        // column achats_suppliers doesn't have — see test_can_create_purchase_order)
+        // are usable here; build the PO via the service with a plain integer
+        // supplier_id (the column carries no FK constraint) to isolate this
+        // test from those unrelated, already-failing gaps.
+        $po = $this->service->createPurchaseOrder([
+            'supplier_id' => 1,
+            'order_date' => now()->toDateString(),
+            'currency' => 'USD',
+            'created_by' => User::factory()->create()->id,
+        ]);
+        $po->update(['status' => 'submitted']);
+        $rejector = User::factory()->create();
+
+        $this->service->markAsRejected($po, $rejector, 'Budget insuffisant');
+
+        $po->refresh();
+        $this->assertEquals('rejected', $po->status);
+        $this->assertEquals($rejector->id, $po->rejected_by);
+        $this->assertNotNull($po->rejected_at);
+    }
+
     public function test_can_mark_po_as_received()
     {
         $po = PurchaseOrder::factory()->create(['status' => 'approved']);
