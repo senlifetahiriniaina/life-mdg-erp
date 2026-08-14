@@ -160,7 +160,6 @@ import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
 const roles = computed(() => page.props.auth?.user?.roles?.map(r => r.name) || [])
-const isAdmin = computed(() => roles.value.some(r => ['admin', 'super-admin'].includes(r)))
 const canManage = computed(() => roles.value.some(r => ['it-admin', 'admin', 'super-admin'].includes(r)))
 const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)

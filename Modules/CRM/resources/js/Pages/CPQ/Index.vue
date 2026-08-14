@@ -316,9 +316,6 @@ const filterCategory = ref<string | null>(null)
 const filterPriceRange = ref<string | null>(null)
 const productSearch = ref('')
 
-// RBAC: delete = admin only (mock: false for demo)
-const canDelete = ref(false)
-
 const categoryOptions = [
   { label: 'ERP', value: 'ERP' },
   { label: 'CRM', value: 'CRM' },
