@@ -80,15 +80,27 @@ class RoleManagementController extends Controller
             'role_name' => ['required', 'string', 'exists:roles,name'],
         ]);
 
-        $user->assignRole($validated['role_name']);
-
-        AuditLog::record('assign_role', null, User::class, $user->id, [
-            'role' => $validated['role_name'],
-        ]);
+        static::assignRoleToUser($user, $validated['role_name']);
 
         return response()->json([
             'message' => "Role '{$validated['role_name']}' assigned to {$user->name}.",
             'roles'   => $user->fresh()->getRoleNames(),
+        ]);
+    }
+
+    /**
+     * Assign a role and write the same audit trail as the HTTP-facing
+     * assignRole() endpoint, without an HTTP round-trip — used by
+     * Modules\Setup\Services\SetupWizardService so the onboarding wizard's
+     * admin step shares this controller's exact role-assignment/audit
+     * behavior instead of duplicating it.
+     */
+    public static function assignRoleToUser(User $user, string $role): void
+    {
+        $user->assignRole($role);
+
+        AuditLog::record('assign_role', null, User::class, $user->id, [
+            'role' => $role,
         ]);
     }
 
