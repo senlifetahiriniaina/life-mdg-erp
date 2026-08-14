@@ -26,6 +26,7 @@ class RouteServiceProvider extends ServiceProvider
     {
         $this->mapApiRoutes();
         $this->mapWebRoutes();
+        $this->mapSecretsRoutes();
     }
 
     /**
@@ -49,5 +50,19 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapApiRoutes(): void
     {
         Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/api.php'));
+    }
+
+    /**
+     * routes/secrets.php (10 secrets-vault endpoints) was never loaded by
+     * this provider at all — no /api/v1/secrets/* route existed, independent
+     * of the missing EncryptionService/tables fixed in earlier commits. Its
+     * own auth:sanctum + throttle:secrets stack is defined inside the route
+     * file itself; this only supplies the same 'api' + 'api' prefix wrapper
+     * mapApiRoutes() uses, so the final paths are /api/v1/secrets/...
+     * matching SecretsController's own docblocks.
+     */
+    protected function mapSecretsRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->group(module_path($this->name, '/routes/secrets.php'));
     }
 }

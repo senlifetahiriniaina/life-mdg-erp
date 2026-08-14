@@ -119,6 +119,14 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
             \Modules\Core\Console\Commands\AnonymizeUserCommand::class,
             \Modules\Core\Console\Commands\CspAnalyzeCommand::class,
             \Modules\Core\Console\Commands\ExpireSandboxesCommand::class,
+            // secrets:generate/secrets:rotate/secrets:rotate-due — live under
+            // Modules\Core\Commands (not \Console\Commands like the three
+            // above) and were never registered at all, so they didn't exist
+            // as Artisan commands regardless of whether SecretsService itself
+            // could be constructed.
+            \Modules\Core\Commands\GenerateSecretCommand::class,
+            \Modules\Core\Commands\RotateSecretCommand::class,
+            \Modules\Core\Commands\RotateDueSecretsCommand::class,
         ]);
     }
 
