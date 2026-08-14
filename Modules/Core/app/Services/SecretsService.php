@@ -21,7 +21,7 @@ use App\Models\User;
  * with full encryption, audit logging, versioning, and rotation support.
  *
  * Security Features:
- * - AES-256-GCM encryption at rest (via EncryptionService)
+ * - AES-256-CBC encryption at rest (via EncryptionService)
  * - Secret versioning and rotation with verification
  * - Comprehensive audit logging of all access
  * - Multi-tenant isolation

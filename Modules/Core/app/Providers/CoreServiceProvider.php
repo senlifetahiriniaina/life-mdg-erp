@@ -27,6 +27,7 @@ class CoreServiceProvider extends ServiceProvider
         $this->registerCommandSchedules();
         $this->registerTranslations();
         $this->registerConfig();
+        $this->registerSecretsConfig();
         $this->registerViews();
 
         // Don't load migrations in testing environment - TestCase handles them
@@ -169,6 +170,29 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
                     $this->mergeConfigFrom($file->getPathname(), $key);
                 }
             }
+        }
+    }
+
+    /**
+     * registerConfig()'s generic per-file loop above namespaces every module
+     * config file under "<module>.<file>" — so Modules/Core/config/secrets.php
+     * lands at config('core.secrets'). But all 18 call sites across
+     * SecretsService/SecretRotationManager/SecretAccessControl read the bare
+     * config('secrets.*'), and 8 of them (audit.enabled, masking.enabled,
+     * expiration.enable_expiration, security.verify_rotation/enable_rollback,
+     * rotation.auto_rotate_enabled, notifications.send_to_accessors x2) pass
+     * no default — they'd all read null and fail OPEN: audit logging silently
+     * never writes, masked secrets come back in plaintext, no expiry is ever
+     * set, rotation is never verified. Re-merging under the bare key here is
+     * deliberately narrower than changing the generic loop above, which would
+     * shift every other module's config keys too.
+     */
+    protected function registerSecretsConfig(): void
+    {
+        $path = module_path($this->name, 'config/secrets.php');
+
+        if (is_file($path)) {
+            $this->mergeConfigFrom($path, 'secrets');
         }
     }
 

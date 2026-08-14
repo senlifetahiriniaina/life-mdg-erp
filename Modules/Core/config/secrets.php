@@ -17,8 +17,16 @@ return [
     */
     'encryption' => [
         'enabled' => env('SECRETS_ENCRYPTION_ENABLED', true),
-        'cipher' => 'AES-256-GCM',
+        // The real cipher is AES-256-CBC (config/app.php's own cipher,
+        // read directly by EncryptionService) — see
+        // docs/09-RBAC-SECURITE/STANDARDS-SECURITE-MADAGASCAR.md. Do not
+        // restate AES-256-GCM here; nothing in this vault implements it.
+        'cipher' => 'AES-256-CBC',
         'algorithm' => 'openssl',
+        // Optional dedicated master key for KeyManagementService, instead
+        // of deriving from APP_KEY. Leave unset to use APP_KEY.
+        'master_key' => env('SECRETS_MASTER_KEY'),
+        'current_key_version' => env('SECRETS_KEY_VERSION', 1),
     ],
 
     /*
