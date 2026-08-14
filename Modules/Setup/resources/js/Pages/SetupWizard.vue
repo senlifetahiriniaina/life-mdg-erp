@@ -129,9 +129,14 @@
             </div>
           </div>
 
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-surface-200 dark:border-surface-700">
+            <ThresholdEditor module="achats" title="Seuils d'approbation — Bons de commande (Achats)" currency="XOF" />
+            <ThresholdEditor module="accounting" title="Seuils d'approbation — Factures (Comptabilité)" currency="XOF" />
+          </div>
+
           <p class="text-xs text-surface-400">
-            Les seuils d'approbation détaillés (Achats, Factures), les politiques de congés RH et les SLA Helpdesk
-            se configurent depuis les pages dédiées de chaque module une fois l'assistant terminé.
+            Les politiques de congés RH et les SLA Helpdesk se configurent depuis les pages dédiées de chaque module
+            une fois l'assistant terminé.
           </p>
         </div>
 
@@ -216,6 +221,7 @@ import ProgressSpinner from 'primevue/progressspinner'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 import ImportDataFlow from '../Components/ImportDataFlow.vue'
+import ThresholdEditor from '../Components/ThresholdEditor.vue'
 
 // ────────────────────────────────────────────────────────────
 // Small local helpers (kept in-file: purely presentational, not reused elsewhere)

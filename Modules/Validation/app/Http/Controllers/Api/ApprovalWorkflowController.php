@@ -18,7 +18,10 @@ class ApprovalWorkflowController extends Controller
 
     public function index(Request $request)
     {
-        $workflows = ApprovalWorkflow::where('is_active', true)->paginate(15);
+        $workflows = ApprovalWorkflow::where('is_active', true)
+            ->when($request->query('module_name'), fn ($q, $module) => $q->where('module_name', $module))
+            ->with('rules')
+            ->paginate(15);
 
         return $workflows;
     }

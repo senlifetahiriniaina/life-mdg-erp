@@ -7,6 +7,7 @@ use Modules\Setup\Http\Controllers\Api\AdminCompanyController;
 use Modules\Setup\Http\Controllers\Api\AdminModulesController;
 use Modules\Setup\Http\Controllers\Api\OnboardingMetricsController;
 use Modules\Setup\Http\Controllers\Api\SetupController;
+use Modules\Setup\Http\Controllers\Api\SetupThresholdsController;
 use Modules\Setup\Http\Controllers\Api\SetupWizardController;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -23,6 +24,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/apps', [SetupWizardController::class, 'saveApps']);
         Route::post('/complete', [SetupWizardController::class, 'complete']);
         Route::get('/modules/catalog', [SetupWizardController::class, 'getModuleCatalog']);
+
+        Route::middleware('role:admin,super-admin')->group(function () {
+            Route::get('/thresholds/{module}', [SetupThresholdsController::class, 'show']);
+        });
     });
 
     // -----------------------------------------------------------------------
