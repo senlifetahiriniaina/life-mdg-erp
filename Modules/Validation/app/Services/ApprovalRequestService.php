@@ -90,6 +90,7 @@ class ApprovalRequestService
 
         ApprovalHistory::create([
             'request_id' => $request->id,
+            'level' => $request->current_level,
             'action' => 'delegated',
             'old_status' => $request->status,
             'new_status' => $request->status,
@@ -129,6 +130,7 @@ class ApprovalRequestService
 
         ApprovalHistory::create([
             'request_id' => $request->id,
+            'level' => $request->current_level,
             'action' => 'cancelled',
             'old_status' => 'pending',
             'new_status' => 'cancelled',

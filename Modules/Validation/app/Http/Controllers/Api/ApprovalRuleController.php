@@ -4,6 +4,7 @@ namespace Modules\Validation\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 use Modules\Validation\Models\ApprovalRule;
 use Modules\Validation\Models\ApprovalWorkflow;
 use Modules\Validation\Services\ApprovalWorkflowService;
@@ -25,8 +26,10 @@ class ApprovalRuleController extends Controller
     public function store(Request $request, ApprovalWorkflow $workflow)
     {
         $data = $request->validate([
-            'condition_type' => 'required|string',
+            'condition_type' => ['required', 'string', Rule::in(ApprovalRule::CONDITION_TYPES)],
+            'condition_operator' => ['nullable', 'string', Rule::in(ApprovalRule::OPERATORS)],
             'condition_value' => 'nullable|string',
+            'condition_field' => 'nullable|string',
             'required_approvers_count' => 'required|integer|min:1',
             'approval_mode' => 'required|in:sequential,parallel',
         ]);
@@ -48,8 +51,10 @@ class ApprovalRuleController extends Controller
     public function update(Request $request, ApprovalWorkflow $workflow, ApprovalRule $rule)
     {
         $data = $request->validate([
-            'condition_type' => 'string',
+            'condition_type' => ['string', Rule::in(ApprovalRule::CONDITION_TYPES)],
+            'condition_operator' => ['nullable', 'string', Rule::in(ApprovalRule::OPERATORS)],
             'condition_value' => 'nullable|string',
+            'condition_field' => 'nullable|string',
             'required_approvers_count' => 'integer|min:1',
             'approval_mode' => 'in:sequential,parallel',
             'status' => 'in:active,inactive',

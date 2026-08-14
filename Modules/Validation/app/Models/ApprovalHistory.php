@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property int $id
  * @property int $request_id
+ * @property int|null $level
  * @property string $action
  * @property string|null $old_status
  * @property string|null $new_status
@@ -26,6 +27,7 @@ class ApprovalHistory extends Model
 
     protected $fillable = [
         'request_id',
+        'level',
         'action',
         'old_status',
         'new_status',

@@ -147,6 +147,7 @@ class ApprovalRequest extends Model
 
         ApprovalHistory::create([
             'request_id' => $this->id,
+            'level' => $this->current_level,
             'action' => 'approved',
             'old_status' => 'pending',
             'new_status' => 'approved',
@@ -172,6 +173,7 @@ class ApprovalRequest extends Model
 
         ApprovalHistory::create([
             'request_id' => $this->id,
+            'level' => $this->current_level,
             'action' => 'rejected',
             'old_status' => 'pending',
             'new_status' => 'rejected',
