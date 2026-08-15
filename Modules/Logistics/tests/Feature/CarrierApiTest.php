@@ -76,7 +76,7 @@ test('can get carrier rates', function () {
     CarrierRate::factory(3)->create(['carrier_id' => $carrier->id]);
 
     $response = $this->actingAs($this->user, 'sanctum')
-        ->getJson("/api/v1/logistics/carriers/{$carrier->id}/rates");
+        ->getJson('/api/v1/logistics/carrier-rates');
 
     expect($response->status())->toBe(200);
     expect(count($response->json('data')))->toBe(3);

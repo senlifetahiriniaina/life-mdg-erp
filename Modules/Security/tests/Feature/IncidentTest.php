@@ -155,7 +155,7 @@ class IncidentTest extends TestCase
         ]);
 
         $response->assertCreated();
-        $this->assertDatabaseHas('threat_indicators', [
+        $this->assertDatabaseHas('security_threat_indicators', [
             'indicator_value' => '192.168.1.100',
         ]);
     }

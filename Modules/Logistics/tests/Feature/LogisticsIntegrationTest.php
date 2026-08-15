@@ -99,7 +99,7 @@ test('multi shipment optimization', function () {
     ]);
 
     $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/v1/logistics/optimize-routes', [
+        ->postJson('/api/v1/logistics/routes/optimize', [
             'shipment_ids' => [$shipment1->id, $shipment2->id],
             'vehicle_capacity' => 500,
             'time_window' => '08:00-18:00',

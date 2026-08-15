@@ -12,7 +12,7 @@ use Modules\Inventory\Models\Stock;
 use Modules\Inventory\Models\Warehouse;
 use Modules\Inventory\Models\WarehouseTransfer;
 use Modules\Inventory\Models\WarehouseTransferItem;
-use Modules\Inventory\Services\ABCAnalysisService;
+use Modules\Inventory\Services\AI\ABCAnalysisService;
 use Modules\Inventory\Services\CycleCountService;
 use Modules\Inventory\Services\SerialNumberService;
 

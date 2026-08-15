@@ -44,7 +44,7 @@ class ThreatIndicatorModelTest extends TestCase
         ]);
 
         $this->assertNotNull($indicator->id);
-        $this->assertDatabaseHas('threat_indicators', [
+        $this->assertDatabaseHas('security_threat_indicators', [
             'indicator_value' => '192.0.2.1',
             'threat_level'    => 'high',
         ]);

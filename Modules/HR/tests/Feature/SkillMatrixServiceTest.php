@@ -6,6 +6,7 @@ use Tests\TestCase;
 use Modules\HR\Services\SkillMatrixService;
 use Modules\HR\Models\Skill;
 use Modules\HR\Models\Employee;
+use Modules\HR\Models\Department;
 use App\Models\User;
 
 class SkillMatrixServiceTest extends TestCase
