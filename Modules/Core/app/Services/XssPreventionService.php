@@ -208,7 +208,10 @@ class XssPreventionService
         $pattern = '<(' . implode('|', $this->dangerousTags) . ')(?:\s[^>]*)?>.*?</\1\s*>|<(' .
                    implode('|', $this->dangerousTags) . ')(?:\s[^>]*)?/?>';
 
-        return preg_replace('/' . $pattern . '/is', '', $html);
+        // Delimited with # rather than / — the pattern itself contains a
+        // literal / (in </\1\s*>), which collided with a / delimiter and
+        // broke preg_replace() on every single call ("Unknown modifier '\'").
+        return preg_replace('#' . $pattern . '#is', '', $html);
     }
 
     /**

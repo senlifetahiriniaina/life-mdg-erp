@@ -46,7 +46,13 @@ class HtmlPurifierService
             'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             'blockquote', 'pre', 'code', 'span', 'div',
             'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
-            'img', 'video', 'audio', 'iframe',
+            'img', 'iframe',
+            // 'video'/'audio' removed: this HTMLPurifier version's core HTML
+            // module doesn't support them ("Element 'video' is not supported"),
+            // which purify() below silently caught and fell back to strip_tags()
+            // on — a fallback that only strips disallowed *tags*, not dangerous
+            // *attributes*, so onclick="..." etc. passed through unsanitized on
+            // every single call.
         ],
         'allowed_attributes' => [
             'a' => ['href', 'title', 'target', 'rel'],
