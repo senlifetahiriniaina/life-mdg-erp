@@ -84,7 +84,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { usePage, Link } from '@inertiajs/vue3'
 import { useI18n } from 'vue-i18n'
