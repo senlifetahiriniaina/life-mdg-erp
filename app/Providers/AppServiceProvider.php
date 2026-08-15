@@ -59,10 +59,12 @@ use App\Policies\ShiftPolicy;
 use Modules\Achats\Policies\PurchaseOrderPolicy;
 use Modules\Achats\Policies\SupplierQuotePolicy;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\SupplierQuote;
 use Modules\Accounting\Models\Invoice;
@@ -209,6 +211,25 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Laravel's default factory-name guess (Factory::modelFactory()) only
+        // handles App\Models\X -> Database\Factories\XFactory. None of this
+        // repo's module-namespaced models (Modules\{Module}\Models\X) resolve
+        // without either an explicit newFactory() override on every model or
+        // this global rule — every Modules\* factory here is already at
+        // Modules\{Module}\Database\Factories\{Model}Factory (same convention
+        // the Accounting module's own Company/Budget/etc. factories already use).
+        Factory::guessFactoryNamesUsing(function (string $modelName) {
+            if (Str::startsWith($modelName, 'Modules\\')) {
+                return (string) preg_replace(
+                    '/^Modules\\\\([^\\\\]+)\\\\Models\\\\/',
+                    'Modules\\\\$1\\\\Database\\\\Factories\\\\',
+                    $modelName
+                ) . 'Factory';
+            }
+
+            return 'Database\\Factories\\' . class_basename($modelName) . 'Factory';
+        });
+
         // Audit authentication-security events (login / logout / failed / lockout)
         \Illuminate\Support\Facades\Event::subscribe(\App\Listeners\AuthEventSubscriber::class);
 
