@@ -47,7 +47,7 @@ class User extends Authenticatable
     }
 
     protected $fillable = [
-        'company_id',
+        'company_id', 'role',
         'name', 'first_name', 'last_name', 'email', 'phone', 'avatar',
         'password', 'locale', 'timezone', 'is_active',
         'google2fa_secret', 'two_factor_enabled', 'two_factor_confirmed_at',
