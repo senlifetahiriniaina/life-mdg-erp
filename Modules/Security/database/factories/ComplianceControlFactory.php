@@ -2,6 +2,7 @@
 
 namespace Modules\Security\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Security\Models\ComplianceControl;
 
@@ -15,15 +16,15 @@ class ComplianceControlFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'framework' => fake()->word(),
-            'control_id' => fake()->word(),
-            'control_name' => fake()->word(),
-            'control_description' => fake()->word(),
-            'control_type' => fake()->word(),
-            'implementation_status' => fake()->word(),
-            'implementation_details' => fake()->word(),
-            'last_verified_at' => fake()->word(),
+            'company_id' => Company::factory(),
+            'framework' => fake()->randomElement(['SOX', 'HIPAA', 'PCI-DSS', 'GDPR']),
+            'control_id' => fake()->unique()->bothify('CTRL-###'),
+            'control_name' => fake()->sentence(3),
+            'control_description' => fake()->sentence(),
+            'control_type' => fake()->randomElement(['preventive', 'detective', 'corrective']),
+            'implementation_status' => fake()->randomElement(['not_started', 'planned', 'implemented', 'verified', 'failed']),
+            'implementation_details' => ['owner' => fake()->name(), 'notes' => fake()->sentence()],
+            'last_verified_at' => fake()->dateTime(),
         ];
     }
 
@@ -32,9 +33,9 @@ class ComplianceControlFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        // No is_active column on this model; kept as a no-op state so
+        // existing callers of ->inactive() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -42,8 +43,8 @@ class ComplianceControlFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // No archived_at column on this model; kept as a no-op state so
+        // existing callers of ->archived() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 }

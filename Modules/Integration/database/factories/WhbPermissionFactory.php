@@ -3,6 +3,7 @@
 namespace Modules\Integration\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Integration\Models\WhbConnection;
 use Modules\Integration\Models\WhbPermission;
 
 class WhbPermissionFactory extends Factory
@@ -15,7 +16,11 @@ class WhbPermissionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'connection_id' => fake()->word(),
+            'connection_id' => WhbConnection::factory(),
+            'data_type' => fake()->randomElement(['invoice', 'contact', 'product', 'order']),
+            'can_receive' => fake()->boolean(),
+            'can_send' => fake()->boolean(),
+            'auto_accept' => fake()->boolean(),
         ];
     }
 

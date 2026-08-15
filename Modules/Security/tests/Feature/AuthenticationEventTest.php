@@ -47,7 +47,7 @@ class AuthenticationEventTest extends TestCase
         ]);
 
         $this->assertNotNull($event->id);
-        $this->assertDatabaseHas('authentication_events', [
+        $this->assertDatabaseHas('security_authentication_events', [
             'user_id'    => $this->user->id,
             'event_type' => 'login',
             'status'     => 'success',

@@ -3,6 +3,7 @@
 namespace Modules\Integration\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Integration\Models\WhbConnection;
 use Modules\Integration\Models\WhbExchange;
 
 class WhbExchangeFactory extends Factory
@@ -15,10 +16,10 @@ class WhbExchangeFactory extends Factory
     public function definition(): array
     {
         return [
-                        'connection_id' => fake()->word(),
-            'direction' => fake()->word(),
-            'payload' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'connection_id' => WhbConnection::factory(),
+            'direction' => fake()->randomElement(['inbound', 'outbound']),
+            'payload' => ['type' => fake()->word(), 'data' => fake()->words(3)],
+            'status' => fake()->randomElement(['pending', 'sent', 'received', 'accepted', 'rejected', 'error']),
         ];
     }
 

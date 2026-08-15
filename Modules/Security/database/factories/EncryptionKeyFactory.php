@@ -2,6 +2,7 @@
 
 namespace Modules\Security\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Security\Models\EncryptionKey;
 
@@ -15,18 +16,18 @@ class EncryptionKeyFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'key_name' => fake()->word(),
-            'key_type' => fake()->word(),
-            'key_usage' => fake()->word(),
-            'key_status' => fake()->word(),
-            'key_material_hash' => fake()->word(),
-            'vault_reference' => fake()->word(),
-            'key_length_bits' => fake()->word(),
-            'created_at' => fake()->word(),
-            'rotated_at' => fake()->word(),
-            'expires_at' => fake()->word(),
-            'metadata' => fake()->word(),
+            'company_id' => Company::factory(),
+            'key_name' => fake()->words(3, true),
+            'key_type' => fake()->randomElement(['AES-256-GCM', 'RSA', 'HMAC']),
+            'key_usage' => fake()->randomElement(['data_encryption', 'field_encryption', 'signing']),
+            'key_status' => fake()->randomElement(['active', 'rotated', 'revoked']),
+            'key_material_hash' => fake()->sha256(),
+            'vault_reference' => fake()->uuid(),
+            'key_length_bits' => fake()->randomElement([128, 256, 2048, 4096]),
+            'created_at' => fake()->dateTime(),
+            'rotated_at' => fake()->dateTime(),
+            'expires_at' => fake()->dateTime('+1 year'),
+            'metadata' => ['owner' => fake()->name(), 'purpose' => fake()->word()],
         ];
     }
 
@@ -36,7 +37,7 @@ class EncryptionKeyFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
+            'key_status' => 'revoked',
         ]);
     }
 
@@ -45,8 +46,8 @@ class EncryptionKeyFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // No archived_at column on this model; kept as a no-op state so
+        // existing callers of ->archived() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 }

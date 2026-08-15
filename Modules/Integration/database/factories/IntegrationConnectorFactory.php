@@ -15,10 +15,14 @@ class IntegrationConnectorFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'name' => fake()->word(),
-            'config' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            // Legacy NOT NULL column from the original migration, superseded by
+            // `provider_type` in the model's real $fillable but never made nullable —
+            // still required by the schema, so it must be populated on insert.
+            'connector_type' => fake()->randomElement(['crm', 'accounting', 'ecommerce', 'payment', 'shipping']),
+            'tenant_id' => (string) fake()->numberBetween(1, 1000),
+            'name' => fake()->company() . ' Connector',
+            'config' => ['api_key' => fake()->uuid(), 'endpoint' => fake()->url()],
+            'status' => fake()->randomElement(['active', 'inactive']),
         ];
     }
 

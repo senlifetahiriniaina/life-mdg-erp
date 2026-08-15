@@ -2,6 +2,7 @@
 
 namespace Modules\Security\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Security\Models\SecurityIncident;
 
@@ -15,17 +16,17 @@ class SecurityIncidentFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'incident_type' => fake()->word(),
-            'severity' => fake()->word(),
+            'company_id' => Company::factory(),
+            'incident_type' => fake()->randomElement(['intrusion_attempt', 'data_breach', 'policy_violation', 'anomaly']),
+            'severity' => fake()->randomElement(['low', 'medium', 'high', 'critical']),
             'description' => fake()->text(),
-            'threat_indicators' => fake()->word(),
-            'incident_status' => fake()->word(),
-            'detected_at' => fake()->word(),
-            'investigation_started_at' => fake()->word(),
-            'resolved_at' => fake()->word(),
-            'resolution_notes' => fake()->word(),
-            'affected_resources' => fake()->word(),
+            'threat_indicators' => fake()->words(3),
+            'incident_status' => fake()->randomElement(['open', 'investigating', 'resolved']),
+            'detected_at' => fake()->dateTime(),
+            'investigation_started_at' => fake()->dateTime(),
+            'resolved_at' => fake()->dateTime(),
+            'resolution_notes' => fake()->sentence(),
+            'affected_resources' => fake()->words(3),
         ];
     }
 
@@ -34,9 +35,9 @@ class SecurityIncidentFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        // No is_active column on this model; kept as a no-op state so
+        // existing callers of ->inactive() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -44,8 +45,10 @@ class SecurityIncidentFactory extends Factory
      */
     public function archived(): static
     {
+        // SecurityIncident uses SoftDeletes — 'archived' maps to a real
+        // deleted_at, unlike the other Security factories in this file.
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
+            'deleted_at' => now(),
         ]);
     }
 }

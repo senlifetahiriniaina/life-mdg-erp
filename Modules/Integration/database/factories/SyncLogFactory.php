@@ -3,6 +3,7 @@
 namespace Modules\Integration\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Integration\Models\IntegrationConnector;
 use Modules\Integration\Models\SyncLog;
 
 class SyncLogFactory extends Factory
@@ -15,12 +16,16 @@ class SyncLogFactory extends Factory
     public function definition(): array
     {
         return [
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'records_processed' => fake()->word(),
-            'records_failed' => fake()->word(),
-            'error_details' => fake()->word(),
-            'started_at' => fake()->word(),
-            'completed_at' => fake()->word(),
+            'connector_id' => IntegrationConnector::factory(),
+            'tenant_id' => fake()->word(),
+            'direction' => fake()->randomElement(['inbound', 'outbound']),
+            'status' => fake()->randomElement(['success', 'failed', 'partial']),
+            'payload_size' => fake()->numberBetween(100, 10000),
+            'records_processed' => fake()->numberBetween(0, 200),
+            'records_failed' => fake()->numberBetween(0, 20),
+            'error_details' => [],
+            'started_at' => fake()->dateTime(),
+            'completed_at' => fake()->dateTime(),
         ];
     }
 

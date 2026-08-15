@@ -15,14 +15,14 @@ class ThreatIndicatorFactory extends Factory
     public function definition(): array
     {
         return [
-                        'indicator_type' => fake()->word(),
-            'indicator_value' => fake()->word(),
-            'threat_level' => fake()->word(),
+            'indicator_type' => fake()->randomElement(['ip_address', 'domain', 'hash', 'email', 'user_agent']),
+            'indicator_value' => fake()->ipv4(),
+            'threat_level' => fake()->randomElement(['low', 'medium', 'high', 'critical']),
             'description' => fake()->text(),
-            'source' => fake()->word(),
-            'is_whitelisted' => fake()->word(),
-            'detected_at' => fake()->word(),
-            'expires_at' => fake()->word(),
+            'source' => fake()->randomElement(['threat_feed', 'manual', 'ids', 'honeypot']),
+            'is_whitelisted' => fake()->boolean(),
+            'detected_at' => fake()->dateTime(),
+            'expires_at' => fake()->dateTime('+30 days'),
         ];
     }
 
@@ -31,9 +31,9 @@ class ThreatIndicatorFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        // No is_active column on this model; kept as a no-op state so
+        // existing callers of ->inactive() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -41,8 +41,8 @@ class ThreatIndicatorFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // No archived_at column on this model; kept as a no-op state so
+        // existing callers of ->archived() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 }

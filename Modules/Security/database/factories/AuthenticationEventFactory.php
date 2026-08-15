@@ -2,6 +2,7 @@
 
 namespace Modules\Security\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Security\Models\AuthenticationEvent;
 
@@ -15,20 +16,28 @@ class AuthenticationEventFactory extends Factory
     public function definition(): array
     {
         return [
-                        'user_id' => fake()->word(),
-            'user_email' => fake()->word(),
-            'event_type' => fake()->word(),
-            'authentication_method' => fake()->word(),
-            'ip_address' => fake()->word(),
-            'user_agent' => fake()->word(),
-            'device_info' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'failure_reason' => fake()->word(),
-            'trust_score' => fake()->word(),
-            'risk_factors' => fake()->word(),
-            'authenticated_at' => fake()->word(),
-            'created_at' => fake()->word(),
-            'updated_at' => fake()->word(),
+            'user_id' => User::factory(),
+            'user_email' => fake()->safeEmail(),
+            'event_type' => fake()->randomElement(['login', 'logout', 'failed_login']),
+            'authentication_method' => fake()->randomElement(['password', 'hardware_key']),
+            'ip_address' => fake()->ipv4(),
+            'user_agent' => fake()->userAgent(),
+            'device_info' => [
+                'os' => fake()->randomElement(['Windows', 'macOS', 'Linux', 'iOS', 'Android']),
+                'browser' => fake()->randomElement(['Chrome', 'Firefox', 'Safari']),
+            ],
+            'status' => fake()->randomElement(['success', 'failure', 'blocked']),
+            'failure_reason' => fake()->randomElement(['invalid_password', 'account_locked', 'expired_credentials']),
+            'trust_score' => fake()->randomFloat(2, 0, 100),
+            'risk_factors' => fake()->randomElements(['unusual_location', 'new_device', 'vpn_detected', 'impossible_travel'], 2),
+            'authenticated_at' => fake()->dateTime(),
+            'created_at' => fake()->dateTime(),
+            // NOTE: 'updated_at' is intentionally omitted — the model declares it
+            // in $fillable/$casts, but security_authentication_events (see
+            // 2026_06_07_000004_create_security_authentication_events_table.php)
+            // never got an updated_at column ($timestamps = false on the model,
+            // only 'created_at' is a real column). Setting it here would insert
+            // against a column that doesn't exist.
         ];
     }
 
@@ -38,7 +47,7 @@ class AuthenticationEventFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
+            'status' => 'blocked',
         ]);
     }
 
@@ -47,8 +56,8 @@ class AuthenticationEventFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // No archived_at column on this model; kept as a no-op state so
+        // existing callers of ->archived() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 }

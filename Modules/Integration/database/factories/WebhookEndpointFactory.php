@@ -3,6 +3,7 @@
 namespace Modules\Integration\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Integration\Models\IntegrationConnector;
 use Modules\Integration\Models\WebhookEndpoint;
 
 class WebhookEndpointFactory extends Factory
@@ -15,13 +16,13 @@ class WebhookEndpointFactory extends Factory
     public function definition(): array
     {
         return [
-                        'connector_id' => fake()->word(),
+            'connector_id' => IntegrationConnector::factory(),
             'url' => fake()->url(),
-            'method' => fake()->word(),
-            'headers' => fake()->word(),
+            'method' => fake()->randomElement(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
+            'headers' => ['Content-Type' => 'application/json'],
             'secret_key' => fake()->word(),
-            'retry_attempts' => fake()->word(),
-            'timeout_seconds' => fake()->word(),
+            'retry_attempts' => fake()->numberBetween(0, 5),
+            'timeout_seconds' => fake()->numberBetween(5, 120),
             'is_active' => true,
         ];
     }

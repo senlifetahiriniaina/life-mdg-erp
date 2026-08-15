@@ -2,8 +2,10 @@
 
 namespace Modules\Security\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Security\Models\EncryptedField;
+use Modules\Security\Models\EncryptionKey;
 
 class EncryptedFieldFactory extends Factory
 {
@@ -15,13 +17,13 @@ class EncryptedFieldFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'table_name' => fake()->word(),
-            'column_name' => fake()->word(),
-            'encryption_algorithm' => fake()->word(),
-            'encryption_key_id' => fake()->word(),
-            'is_searchable' => fake()->word(),
-            'metadata' => fake()->word(),
+            'company_id' => Company::factory(),
+            'table_name' => fake()->randomElement(['users', 'contacts', 'employees', 'customers']),
+            'column_name' => fake()->randomElement(['email', 'phone', 'ssn', 'national_id']),
+            'encryption_algorithm' => fake()->randomElement(['AES-256-GCM', 'RSA']),
+            'encryption_key_id' => EncryptionKey::factory(),
+            'is_searchable' => fake()->boolean(),
+            'metadata' => ['classification' => fake()->randomElement(['low', 'medium', 'high'])],
         ];
     }
 
@@ -30,9 +32,9 @@ class EncryptedFieldFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        // No is_active column on this model; kept as a no-op state so
+        // existing callers of ->inactive() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -40,8 +42,8 @@ class EncryptedFieldFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // No archived_at column on this model; kept as a no-op state so
+        // existing callers of ->archived() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 }

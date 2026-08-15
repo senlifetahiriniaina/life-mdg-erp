@@ -2,6 +2,7 @@
 
 namespace Modules\Security\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Security\Models\ComplianceAudit;
 
@@ -15,17 +16,17 @@ class ComplianceAuditFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'audit_type' => fake()->word(),
-            'framework' => fake()->word(),
-            'audit_start_date' => fake()->word(),
-            'audit_end_date' => fake()->word(),
-            'controls_evaluated' => fake()->word(),
-            'controls_compliant' => fake()->word(),
-            'controls_non_compliant' => fake()->word(),
-            'compliance_score' => fake()->word(),
-            'findings' => fake()->word(),
-            'audit_status' => fake()->word(),
+            'company_id' => Company::factory(),
+            'audit_type' => fake()->randomElement(['scheduled', 'on_demand', 'incident_response']),
+            'framework' => fake()->randomElement(['SOX', 'HIPAA', 'PCI-DSS', 'GDPR']),
+            'audit_start_date' => fake()->dateTime(),
+            'audit_end_date' => fake()->dateTime(),
+            'controls_evaluated' => fake()->numberBetween(0, 100),
+            'controls_compliant' => fake()->numberBetween(0, 100),
+            'controls_non_compliant' => fake()->numberBetween(0, 20),
+            'compliance_score' => fake()->randomFloat(2, 0, 100),
+            'findings' => ['summary' => fake()->sentence(), 'issues' => fake()->words(3)],
+            'audit_status' => fake()->randomElement(['in_progress', 'completed']),
         ];
     }
 
@@ -34,9 +35,9 @@ class ComplianceAuditFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        // No is_active column on this model; kept as a no-op state so
+        // existing callers of ->inactive() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -44,8 +45,8 @@ class ComplianceAuditFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // No archived_at column on this model; kept as a no-op state so
+        // existing callers of ->archived() don't break.
+        return $this->state(fn (array $attributes) => []);
     }
 }

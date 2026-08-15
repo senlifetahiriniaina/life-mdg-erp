@@ -49,7 +49,7 @@ class EncryptionKeyModelTest extends TestCase
         ]);
 
         $this->assertNotNull($key->id);
-        $this->assertDatabaseHas('encryption_keys', [
+        $this->assertDatabaseHas('security_encryption_keys', [
             'company_id' => $this->company->id,
             'key_name'   => 'Primary Data Key',
             'key_type'   => 'AES-256-GCM',

@@ -15,15 +15,15 @@ class IntegrationFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'integration_key' => fake()->word(),
+            'tenant_id' => fake()->word(),
+            'integration_key' => fake()->unique()->word(),
             'name' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'credentials' => fake()->word(),
-            'settings' => fake()->word(),
-            'last_synced_at' => fake()->word(),
-            'sync_count' => fake()->word(),
-            'error_count' => fake()->word(),
+            'status' => fake()->randomElement(['connected', 'disconnected', 'error']),
+            'credentials' => ['api_key' => fake()->uuid(), 'api_secret' => fake()->sha256()],
+            'settings' => ['webhook_url' => fake()->url(), 'timeout' => fake()->numberBetween(5, 60)],
+            'last_synced_at' => fake()->dateTime(),
+            'sync_count' => fake()->numberBetween(0, 500),
+            'error_count' => fake()->numberBetween(0, 20),
         ];
     }
 

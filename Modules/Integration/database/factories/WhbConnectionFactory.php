@@ -15,22 +15,22 @@ class WhbConnectionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'local_tenant_id' => fake()->word(),
+            'local_tenant_id' => fake()->word(),
             'remote_tenant_id' => fake()->word(),
-            'remote_server_url' => fake()->word(),
+            'remote_server_url' => fake()->url(),
             'remote_tenant_name' => fake()->word(),
-            'connection_type' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'connection_type' => fake()->randomElement(['local', 'remote']),
+            'status' => fake()->randomElement(['pending', 'active', 'rejected', 'suspended']),
             'invite_code' => fake()->word(),
-            'invite_expires_at' => fake()->word(),
+            'invite_expires_at' => fake()->dateTime('+30 days'),
             'shared_secret' => fake()->word(),
             'session_token' => fake()->word(),
-            'session_expires_at' => fake()->word(),
+            'session_expires_at' => fake()->dateTime('+7 days'),
             'public_key' => fake()->word(),
             'initiated_by' => fake()->word(),
             'approved_by' => fake()->word(),
-            'approved_at' => fake()->word(),
-            'last_sync_at' => fake()->word(),
+            'approved_at' => fake()->dateTime(),
+            'last_sync_at' => fake()->dateTime(),
         ];
     }
 
