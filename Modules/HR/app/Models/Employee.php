@@ -186,6 +186,11 @@ class Employee extends Model
         return $this->hasMany(Attendance::class, 'employee_id');
     }
 
+    public function compensations()
+    {
+        return $this->hasMany(EmployeeCompensation::class, 'employee_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
