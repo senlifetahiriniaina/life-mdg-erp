@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\CRM\Http\Controllers\Api\AccountController;
 use Modules\CRM\Http\Controllers\Api\ActivityController;
 use Modules\CRM\Http\Controllers\Api\AiAgentController;
+use Modules\CRM\Http\Controllers\CampaignController;
 use Modules\CRM\Http\Controllers\Api\ContactController;
 use Modules\CRM\Http\Controllers\Api\ContactEmailController;
 use Modules\CRM\Http\Controllers\Api\CrmAIController;
@@ -36,6 +37,8 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:CRM', 'throttle:s
         Route::get('crm/territories/team-quotas', [TerritoryController::class, 'teamQuotas'])->name('crm.territories.team-quotas');
         Route::get('crm/territories/{territory}/forecast', [TerritoryController::class, 'forecast'])->name('crm.territories.forecast');
         Route::get('crm/territories/{territory}/at-risk', [TerritoryController::class, 'atRisk'])->name('crm.territories.at-risk');
+        Route::apiResource('crm/campaigns', CampaignController::class)->only(['index', 'show'])->names('crm.campaigns');
+        Route::get('crm/campaigns/{campaign}/analytics', [CampaignController::class, 'getAnalytics'])->name('crm.campaigns.analytics');
     });
 
     // Mutations — no cache (150 req/min)
@@ -47,6 +50,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:CRM', 'throttle:s
         Route::post('crm/contacts/{contact}/email/welcome', [ContactEmailController::class, 'sendWelcome'])->name('crm.contacts.email.welcome');
         Route::post('crm/contacts/{contact}/email/custom', [ContactEmailController::class, 'sendCustom'])->name('crm.contacts.email.custom');
         Route::post('crm/contacts/email/bulk', [ContactEmailController::class, 'sendBulk'])->name('crm.contacts.email.bulk');
+
+        Route::apiResource('crm/campaigns', CampaignController::class)->only(['store', 'update'])->names('crm.campaigns');
+        Route::post('crm/campaigns/{campaign}/launch', [CampaignController::class, 'launch'])->name('crm.campaigns.launch');
+        Route::post('crm/campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('crm.campaigns.pause');
     });
 
     // Territory mutations (150 req/min)

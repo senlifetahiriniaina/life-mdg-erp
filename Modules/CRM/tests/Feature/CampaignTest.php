@@ -21,9 +21,9 @@ class CampaignTest extends TestCase
 
     public function test_user_can_create_campaign(): void
     {
-        $this->actingAs($this->user);
+        $this->actingAs($this->user, 'sanctum');
 
-        $response = $this->postJson('v1/crm/campaigns', [
+        $response = $this->postJson('/api/v1/crm/campaigns', [
             'name'        => 'Q2 2026 Outreach',
             'description' => 'Campaign for Q2 2026',
             'type'        => 'email',
@@ -40,11 +40,11 @@ class CampaignTest extends TestCase
 
     public function test_user_can_list_campaigns(): void
     {
-        $this->actingAs($this->user);
+        $this->actingAs($this->user, 'sanctum');
 
         Campaign::factory()->count(3)->create(['owner_id' => $this->user->id]);
 
-        $response = $this->getJson('v1/crm/campaigns');
+        $response = $this->getJson('/api/v1/crm/campaigns');
 
         $response->assertStatus(200);
         $response->assertJsonCount(3, 'data');
@@ -52,11 +52,11 @@ class CampaignTest extends TestCase
 
     public function test_user_can_launch_campaign(): void
     {
-        $this->actingAs($this->user);
+        $this->actingAs($this->user, 'sanctum');
 
         $campaign = Campaign::factory()->create(['owner_id' => $this->user->id, 'status' => 'draft']);
 
-        $response = $this->postJson("v1/crm/campaigns/{$campaign->id}/launch");
+        $response = $this->postJson("/api/v1/crm/campaigns/{$campaign->id}/launch");
 
         $response->assertStatus(200);
         $this->assertTrue($campaign->fresh()->status === 'active');
@@ -64,11 +64,11 @@ class CampaignTest extends TestCase
 
     public function test_campaign_tracks_analytics(): void
     {
-        $this->actingAs($this->user);
+        $this->actingAs($this->user, 'sanctum');
 
         $campaign = Campaign::factory()->create(['owner_id' => $this->user->id]);
 
-        $response = $this->getJson("v1/crm/campaigns/{$campaign->id}/analytics");
+        $response = $this->getJson("/api/v1/crm/campaigns/{$campaign->id}/analytics");
 
         $response->assertStatus(200);
         $response->assertJsonStructure(['summary', 'daily_analytics']);
