@@ -4,7 +4,7 @@ namespace Modules\Security\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Security\Models\EncryptionKey;
 use Modules\Security\Models\KeyRotationLog;
 use Modules\Security\Models\EncryptedField;

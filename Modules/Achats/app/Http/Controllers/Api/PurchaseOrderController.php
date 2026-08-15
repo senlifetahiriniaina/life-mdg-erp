@@ -4,7 +4,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Achats\Http\Requests\StorePurchaseOrderRequest;
 use Modules\Achats\Http\Requests\UpdatePurchaseOrderRequest;
 use Modules\Achats\Http\Resources\PurchaseOrderResource;

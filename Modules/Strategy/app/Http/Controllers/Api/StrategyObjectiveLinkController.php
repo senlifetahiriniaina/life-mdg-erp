@@ -4,7 +4,7 @@ namespace Modules\Strategy\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Strategy\Models\StrategyObjective;
 use Modules\Strategy\Models\StrategyObjectiveLink;
 use Modules\Strategy\Services\StrategyObjectiveLinkService;
