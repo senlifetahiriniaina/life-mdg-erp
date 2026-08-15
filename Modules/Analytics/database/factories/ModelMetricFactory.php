@@ -3,6 +3,7 @@
 namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Analytics\Models\MLModelVersion;
 use Modules\Analytics\Models\ModelMetric;
 
 class ModelMetricFactory extends Factory
@@ -15,25 +16,16 @@ class ModelMetricFactory extends Factory
     public function definition(): array
     {
         return [
-                        'ml_model_version_id' => fake()->word(),
-            'metric_name' => fake()->word(),
-            'metric_value' => fake()->word(),
-            'dataset_type' => fake()->word(),
-            'breakdown' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'ml_model_version_id' => MLModelVersion::factory(),
+            'metric_name' => fake()->randomElement(['accuracy', 'precision', 'recall', 'f1', 'auc', 'rmse', 'mae']),
+            'metric_value' => fake()->randomFloat(6, 0, 1),
+            'dataset_type' => fake()->randomElement(['train', 'validation', 'test']),
+            'breakdown' => [
+                'by_class' => [
+                    'positive' => fake()->randomFloat(2, 0, 1),
+                    'negative' => fake()->randomFloat(2, 0, 1),
+                ],
+            ],
         ];
     }
 
@@ -43,7 +35,6 @@ class ModelMetricFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -53,7 +44,6 @@ class ModelMetricFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

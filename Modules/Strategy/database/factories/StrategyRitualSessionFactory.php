@@ -2,7 +2,9 @@
 
 namespace Modules\Strategy\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Strategy\Models\StrategyRitual;
 use Modules\Strategy\Models\StrategyRitualSession;
 
 class StrategyRitualSessionFactory extends Factory
@@ -15,35 +17,31 @@ class StrategyRitualSessionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'ritual_id' => fake()->word(),
-            'scheduled_at' => fake()->word(),
-            'started_at' => fake()->word(),
-            'completed_at' => fake()->word(),
-            'facilitator_id' => fake()->word(),
-            'agenda' => fake()->word(),
-            'decisions' => fake()->word(),
-            'action_items' => fake()->word(),
-            'ai_summary' => fake()->word(),
+            'ritual_id' => StrategyRitual::factory(),
+            'scheduled_at' => fake()->dateTime(),
+            'started_at' => fake()->dateTime(),
+            'completed_at' => fake()->dateTime(),
+            'facilitator_id' => User::factory(),
+            'agenda' => fake()->words(3),
+            'decisions' => fake()->words(3),
+            'action_items' => fake()->words(3),
+            'ai_summary' => fake()->paragraph(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_ritual_sessions has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_ritual_sessions has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

@@ -3,6 +3,7 @@
 namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Analytics\Models\ForecastModel;
 use Modules\Analytics\Models\ForecastPrediction;
 
 class ForecastPredictionFactory extends Factory
@@ -15,30 +16,19 @@ class ForecastPredictionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'model_id' => fake()->word(),
-            'tenant_id' => fake()->word(),
-            'forecast_date' => fake()->word(),
-            'predicted_value' => fake()->word(),
-            'lower_bound' => fake()->word(),
-            'predicted_upper_bound' => fake()->word(),
-            'actual_value' => fake()->word(),
-            'error_pct' => fake()->word(),
-            'confidence' => fake()->word(),
-            'metadata' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'model_id' => ForecastModel::factory(),
+            'tenant_id' => fake()->numberBetween(1, 100),
+            'forecast_date' => fake()->dateTimeBetween('-30 days', '+90 days')->format('Y-m-d'),
+            'predicted_value' => fake()->randomFloat(4, 0, 100000),
+            'lower_bound' => fake()->randomFloat(4, 0, 100000),
+            'predicted_upper_bound' => fake()->randomFloat(4, 0, 100000),
+            'actual_value' => fake()->randomFloat(4, 0, 100000),
+            'error_pct' => fake()->randomFloat(4, 0, 50),
+            'confidence' => fake()->randomFloat(4, 0.5, 0.99),
+            'metadata' => [
+                'model_version' => fake()->numerify('v#.#'),
+                'notes' => fake()->sentence(),
+            ],
         ];
     }
 
@@ -48,7 +38,6 @@ class ForecastPredictionFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -58,7 +47,6 @@ class ForecastPredictionFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

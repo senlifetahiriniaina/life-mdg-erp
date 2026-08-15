@@ -15,46 +15,28 @@ class CorrelationFactory extends Factory
     public function definition(): array
     {
         return [
-                        'kpi_a' => fake()->word(),
-            'kpi_b' => fake()->word(),
-            'coefficient' => fake()->word(),
-            'lag_periods' => fake()->word(),
-            'confidence' => fake()->word(),
-            'last_computed_at' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'kpi_a' => fake()->randomElement(['CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'Helpdesk']) . ':' . fake()->word(),
+            'kpi_b' => fake()->randomElement(['CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'Helpdesk']) . ':' . fake()->word(),
+            'coefficient' => fake()->randomFloat(4, -1, 1),
+            'lag_periods' => fake()->numberBetween(0, 12),
+            'confidence' => fake()->randomFloat(2, 0, 100),
+            'last_computed_at' => fake()->dateTime(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_correlations has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_correlations has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

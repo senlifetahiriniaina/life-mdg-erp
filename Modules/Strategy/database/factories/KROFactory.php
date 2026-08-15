@@ -4,6 +4,8 @@ namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Strategy\Models\KRO;
+use Modules\Strategy\Models\StrategyKpi;
+use Modules\Strategy\Models\StrategyObjective;
 
 class KROFactory extends Factory
 {
@@ -15,46 +17,28 @@ class KROFactory extends Factory
     public function definition(): array
     {
         return [
-                        'objective_id' => fake()->word(),
-            'kpi_id' => fake()->word(),
-            'target' => fake()->word(),
-            'baseline' => fake()->word(),
-            'current' => fake()->word(),
-            'weight' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'objective_id' => StrategyObjective::factory(),
+            'kpi_id' => StrategyKpi::factory(),
+            'target' => fake()->randomFloat(4, 0, 1000),
+            'baseline' => fake()->randomFloat(4, 0, 1000),
+            'current' => fake()->randomFloat(4, 0, 1000),
+            'weight' => fake()->randomFloat(2, 0, 100),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_kros has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_kros has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

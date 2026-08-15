@@ -15,30 +15,21 @@ class ForecastModelFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'name' => fake()->word(),
-            'module' => fake()->word(),
+            'tenant_id' => fake()->numberBetween(1, 100),
+            'name' => fake()->words(3, true),
+            'module' => fake()->randomElement(['inventory', 'cashflow', 'demand', 'revenue', 'hr', 'production']),
             'entity_type' => fake()->word(),
-            'entity_id' => fake()->word(),
-            'algorithm' => fake()->word(),
-            'horizon_days' => fake()->word(),
-            'confidence_level' => fake()->word(),
-            'last_trained_at' => fake()->word(),
-            'next_retrain_at' => fake()->word(),
-            'is_active' => true,
-            'config' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'notes' => fake()->text(),
+            'entity_id' => fake()->numberBetween(1, 1000),
+            'algorithm' => fake()->randomElement(['linear_regression', 'moving_average', 'exponential_smoothing', 'ai_claude']),
+            'horizon_days' => fake()->randomElement([30, 60, 90, 180]),
+            'confidence_level' => fake()->randomFloat(4, 0.8, 0.99),
+            'last_trained_at' => fake()->dateTimeBetween('-60 days', 'now'),
+            'next_retrain_at' => fake()->dateTimeBetween('now', '+30 days'),
+            'is_active' => fake()->boolean(80),
+            'config' => [
+                'seasonality' => fake()->randomElement(['none', 'weekly', 'monthly']),
+                'window' => fake()->numberBetween(7, 90),
+            ],
         ];
     }
 
@@ -58,7 +49,6 @@ class ForecastModelFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

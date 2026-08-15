@@ -2,7 +2,9 @@
 
 namespace Modules\Analytics\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Analytics\Models\ForecastModel;
 use Modules\Analytics\Models\ForecastScenario;
 
 class ForecastScenarioFactory extends Factory
@@ -15,25 +17,18 @@ class ForecastScenarioFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'name' => fake()->word(),
-            'description' => fake()->text(),
-            'base_model_id' => fake()->word(),
-            'assumptions' => fake()->word(),
-            'results' => fake()->word(),
-            'created_by' => fake()->word(),
-            'title' => fake()->word(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'tenant_id' => fake()->numberBetween(1, 100),
+            'name' => fake()->words(3, true),
+            'description' => fake()->sentence(),
+            'base_model_id' => ForecastModel::factory(),
+            'assumptions' => [
+                'growth_rate' => fake()->randomFloat(2, -10, 20),
+                'price_increase' => fake()->randomFloat(2, 0, 10),
+            ],
+            'results' => [
+                'predictions' => [],
+            ],
+            'created_by' => User::factory(),
         ];
     }
 
@@ -43,7 +38,6 @@ class ForecastScenarioFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -53,7 +47,6 @@ class ForecastScenarioFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

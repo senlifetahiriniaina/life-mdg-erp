@@ -4,6 +4,7 @@ namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Strategy\Models\Ratio;
+use Modules\Strategy\Models\StrategyKpi;
 
 class RatioFactory extends Factory
 {
@@ -15,49 +16,33 @@ class RatioFactory extends Factory
     public function definition(): array
     {
         return [
-                        'module' => fake()->word(),
+            'module' => fake()->randomElement(['Accounting', 'CRM', 'Inventory', 'Sales', 'Helpdesk', 'HR']),
             'name' => fake()->word(),
-            'numerator_kpi_id' => fake()->word(),
-            'denominator_kpi_id' => fake()->word(),
+            'numerator_kpi_id' => StrategyKpi::factory(),
+            'denominator_kpi_id' => StrategyKpi::factory(),
             'formula' => fake()->word(),
             'benchmark_category' => fake()->word(),
             'description' => fake()->text(),
             'unit' => fake()->word(),
-            'direction' => fake()->word(),
-            'target_min' => fake()->word(),
-            'target_max' => fake()->word(),
-            'title' => fake()->word(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'direction' => fake()->randomElement(['up', 'down', 'target']),
+            'target_min' => fake()->randomFloat(4, 0, 50),
+            'target_max' => fake()->randomFloat(4, 50, 100),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_ratios has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_ratios has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

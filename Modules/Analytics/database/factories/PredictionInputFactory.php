@@ -4,6 +4,7 @@ namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\PredictionInput;
+use Modules\Analytics\Models\PredictionModel;
 
 class PredictionInputFactory extends Factory
 {
@@ -15,28 +16,17 @@ class PredictionInputFactory extends Factory
     public function definition(): array
     {
         return [
-                        'prediction_model_id' => fake()->word(),
+            'prediction_model_id' => PredictionModel::factory(),
             'feature_name' => fake()->word(),
-            'feature_type' => fake()->word(),
+            'feature_type' => fake()->randomElement(['numeric', 'categorical', 'boolean', 'datetime']),
             'data_source' => fake()->word(),
             'field_mapping' => fake()->word(),
-            'transformation' => fake()->word(),
-            'importance_score' => fake()->word(),
-            'is_required' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'transformation' => [
+                'type' => fake()->randomElement(['none', 'normalize', 'one_hot', 'log']),
+                'params' => [],
+            ],
+            'importance_score' => fake()->randomFloat(4, 0, 1),
+            'is_required' => fake()->boolean(),
         ];
     }
 
@@ -46,7 +36,6 @@ class PredictionInputFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -56,7 +45,6 @@ class PredictionInputFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

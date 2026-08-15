@@ -2,6 +2,7 @@
 
 namespace Modules\Strategy\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Strategy\Models\StrategyPlan;
 
@@ -15,27 +16,25 @@ class StrategyPlanFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
+            'tenant_id' => fake()->uuid(),
             'name' => fake()->word(),
-            'vision' => fake()->word(),
-            'mission' => fake()->word(),
-            'period_start' => fake()->word(),
-            'period_end' => fake()->word(),
-            'framework' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'health_score' => fake()->word(),
-            'created_by' => fake()->word(),
+            'vision' => fake()->paragraph(),
+            'mission' => fake()->paragraph(),
+            'period_start' => fake()->numberBetween(2024, 2026),
+            'period_end' => fake()->numberBetween(2027, 2030),
+            'framework' => fake()->randomElement(['okr', 'bsc', 'hoshin', 'hybrid']),
+            'status' => fake()->randomElement(['draft', 'active', 'archived']),
+            'health_score' => fake()->numberBetween(0, 100),
+            'created_by' => User::factory(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_plans has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -44,7 +43,7 @@ class StrategyPlanFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
+            'status' => 'archived',
         ]);
     }
 }

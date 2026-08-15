@@ -4,6 +4,7 @@ namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\ModelAccuracyMetric;
+use Modules\Analytics\Models\PredictionModel;
 
 class ModelAccuracyMetricFactory extends Factory
 {
@@ -15,27 +16,16 @@ class ModelAccuracyMetricFactory extends Factory
     public function definition(): array
     {
         return [
-                        'prediction_model_id' => fake()->word(),
-            'metric_date' => fake()->word(),
-            'metric_type' => fake()->word(),
-            'metric_value' => fake()->word(),
-            'sample_size' => fake()->word(),
-            'breakdown_by_segment' => fake()->word(),
-            'data_period' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'prediction_model_id' => PredictionModel::factory(),
+            'metric_date' => fake()->dateTimeBetween('-90 days', 'now'),
+            'metric_type' => fake()->randomElement(['accuracy', 'precision', 'recall', 'f1', 'auc']),
+            'metric_value' => fake()->randomFloat(4, 0, 1),
+            'sample_size' => fake()->numberBetween(100, 10000),
+            'breakdown_by_segment' => [
+                'segment_a' => fake()->randomFloat(2, 0, 1),
+                'segment_b' => fake()->randomFloat(2, 0, 1),
+            ],
+            'data_period' => fake()->randomElement(['daily', 'weekly', 'monthly']),
         ];
     }
 
@@ -45,7 +35,6 @@ class ModelAccuracyMetricFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -55,7 +44,6 @@ class ModelAccuracyMetricFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

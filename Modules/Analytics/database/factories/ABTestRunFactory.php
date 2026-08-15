@@ -2,8 +2,12 @@
 
 namespace Modules\Analytics\Database\Factories;
 
+use App\Models\Company;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\ABTestRun;
+use Modules\Analytics\Models\MLModel;
+use Modules\Analytics\Models\MLModelVersion;
 
 class ABTestRunFactory extends Factory
 {
@@ -15,36 +19,26 @@ class ABTestRunFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'ml_model_id' => fake()->word(),
-            'control_version_id' => fake()->word(),
-            'variant_version_id' => fake()->word(),
-            'test_name' => fake()->word(),
-            'hypothesis' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'sample_size' => fake()->word(),
-            'test_split' => fake()->word(),
-            'statistical_significance' => fake()->word(),
-            'confidence_level' => fake()->word(),
-            'started_at' => fake()->word(),
-            'ended_at' => fake()->word(),
-            'results' => fake()->word(),
-            'winner' => fake()->word(),
-            'conclusion' => fake()->word(),
-            'created_by' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'company_id' => Company::factory(),
+            'ml_model_id' => MLModel::factory(),
+            'control_version_id' => MLModelVersion::factory(),
+            'variant_version_id' => MLModelVersion::factory(),
+            'test_name' => fake()->words(3, true),
+            'hypothesis' => fake()->sentence(),
+            'status' => fake()->randomElement(['planned', 'running', 'completed']),
+            'sample_size' => fake()->numberBetween(100, 10000),
+            'test_split' => fake()->randomFloat(2, 0, 100),
+            'statistical_significance' => fake()->randomFloat(4, 0, 1),
+            'confidence_level' => fake()->randomFloat(2, 90, 99),
+            'started_at' => fake()->dateTimeBetween('-30 days', 'now'),
+            'ended_at' => fake()->dateTimeBetween('now', '+30 days'),
+            'results' => [
+                'control_conversion' => fake()->randomFloat(4, 0, 1),
+                'variant_conversion' => fake()->randomFloat(4, 0, 1),
+            ],
+            'winner' => fake()->randomElement(['control', 'variant']),
+            'conclusion' => fake()->sentence(),
+            'created_by' => User::factory(),
         ];
     }
 
@@ -53,9 +47,8 @@ class ABTestRunFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        // ab_test_runs has no is_active column — no-op, kept for API compatibility.
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -63,8 +56,7 @@ class ABTestRunFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        // ab_test_runs has no archived_at column — no-op, kept for API compatibility.
+        return $this->state(fn (array $attributes) => []);
     }
 }

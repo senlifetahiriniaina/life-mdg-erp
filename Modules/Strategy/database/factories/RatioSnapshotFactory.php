@@ -3,6 +3,7 @@
 namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Strategy\Models\Ratio;
 use Modules\Strategy\Models\RatioSnapshot;
 
 class RatioSnapshotFactory extends Factory
@@ -15,47 +16,29 @@ class RatioSnapshotFactory extends Factory
     public function definition(): array
     {
         return [
-                        'ratio_id' => fake()->word(),
-            'tenant_id' => fake()->word(),
-            'period' => fake()->word(),
-            'value' => fake()->word(),
-            'benchmark_value' => fake()->word(),
-            'gap' => fake()->word(),
-            'created_at' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'ratio_id' => Ratio::factory(),
+            'tenant_id' => fake()->uuid(),
+            'period' => fake()->date('Y-m'),
+            'value' => fake()->randomFloat(4, 0, 1000),
+            'benchmark_value' => fake()->randomFloat(4, 0, 1000),
+            'gap' => fake()->randomFloat(4, -100, 100),
+            'created_at' => fake()->dateTime(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_ratio_snapshots has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_ratio_snapshots has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

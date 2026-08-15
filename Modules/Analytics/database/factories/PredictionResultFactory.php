@@ -2,7 +2,9 @@
 
 namespace Modules\Analytics\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Analytics\Models\PredictionModel;
 use Modules\Analytics\Models\PredictionResult;
 
 class PredictionResultFactory extends Factory
@@ -15,31 +17,18 @@ class PredictionResultFactory extends Factory
     public function definition(): array
     {
         return [
-                        'prediction_model_id' => fake()->word(),
-            'company_id' => fake()->word(),
-            'predictable_type' => fake()->word(),
-            'predictable_id' => fake()->word(),
-            'prediction_score' => fake()->word(),
-            'prediction_class' => fake()->word(),
-            'feature_contributions' => fake()->word(),
-            'metadata' => fake()->word(),
-            'predicted_at' => fake()->word(),
-            'actual_outcome_at' => fake()->word(),
-            'actual_outcome' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'prediction_model_id' => PredictionModel::factory(),
+            'company_id' => Company::factory(),
+            'prediction_score' => fake()->randomFloat(4, 0, 1),
+            'prediction_class' => fake()->randomElement(['churn', 'retain', 'high_risk', 'low_risk']),
+            'feature_contributions' => [
+                'tenure' => fake()->randomFloat(2, -1, 1),
+                'usage' => fake()->randomFloat(2, -1, 1),
+            ],
+            'metadata' => [
+                'model_version' => fake()->numerify('v#.#'),
+            ],
+            'predicted_at' => fake()->dateTimeBetween('-30 days', 'now'),
         ];
     }
 
@@ -49,7 +38,6 @@ class PredictionResultFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -59,7 +47,6 @@ class PredictionResultFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

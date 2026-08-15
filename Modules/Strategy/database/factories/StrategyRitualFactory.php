@@ -3,6 +3,7 @@
 namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Strategy\Models\StrategyPlan;
 use Modules\Strategy\Models\StrategyRitual;
 
 class StrategyRitualFactory extends Factory
@@ -15,14 +16,14 @@ class StrategyRitualFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
+            'tenant_id' => fake()->uuid(),
             'name' => fake()->word(),
-            'type' => fake()->word(),
-            'cadence' => fake()->word(),
-            'day_of_week' => fake()->word(),
-            'day_of_month' => fake()->word(),
-            'attendee_roles' => fake()->word(),
-            'plan_id' => fake()->word(),
+            'type' => fake()->randomElement(['weekly_checkin', 'monthly_review', 'quarterly_review', 'annual_planning']),
+            'cadence' => fake()->randomElement(['weekly', 'biweekly', 'monthly', 'quarterly', 'annual']),
+            'day_of_week' => fake()->numberBetween(0, 6),
+            'day_of_month' => fake()->numberBetween(1, 28),
+            'attendee_roles' => fake()->randomElements(['ceo', 'cfo', 'coo', 'manager', 'team_lead'], 2),
+            'plan_id' => StrategyPlan::factory(),
             'is_active' => true,
         ];
     }
@@ -38,12 +39,10 @@ class StrategyRitualFactory extends Factory
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_rituals has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

@@ -4,6 +4,7 @@ namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Strategy\Models\StrategyPillar;
+use Modules\Strategy\Models\StrategyPlan;
 
 class StrategyPillarFactory extends Factory
 {
@@ -15,32 +16,28 @@ class StrategyPillarFactory extends Factory
     public function definition(): array
     {
         return [
-                        'plan_id' => fake()->word(),
+            'plan_id' => StrategyPlan::factory(),
             'name' => fake()->word(),
             'description' => fake()->text(),
-            'color' => fake()->word(),
+            'color' => fake()->hexColor(),
             'icon' => fake()->word(),
-            'sort_order' => fake()->word(),
+            'sort_order' => fake()->numberBetween(0, 10),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_pillars has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_pillars has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

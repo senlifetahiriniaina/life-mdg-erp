@@ -3,6 +3,7 @@
 namespace Modules\Strategy\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Strategy\Models\StrategyScenario;
 use Modules\Strategy\Models\StrategyScenarioAssumption;
 
 class StrategyScenarioAssumptionFactory extends Factory
@@ -15,32 +16,28 @@ class StrategyScenarioAssumptionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'scenario_id' => fake()->word(),
+            'scenario_id' => StrategyScenario::factory(),
             'variable_name' => fake()->word(),
             'description' => fake()->text(),
-            'base_value' => fake()->word(),
-            'adjusted_value' => fake()->word(),
+            'base_value' => fake()->randomFloat(4, 0, 100000),
+            'adjusted_value' => fake()->randomFloat(4, 0, 100000),
             'impact_scope' => fake()->word(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_scenario_assumptions has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_scenario_assumptions has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

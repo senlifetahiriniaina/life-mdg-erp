@@ -4,6 +4,7 @@ namespace Modules\Analytics\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\ForecastAlert;
+use Modules\Analytics\Models\ForecastModel;
 
 class ForecastAlertFactory extends Factory
 {
@@ -15,10 +16,16 @@ class ForecastAlertFactory extends Factory
     public function definition(): array
     {
         return [
-            'alert_type' => fake()->word(),
-            'severity' => fake()->word(),
-            'message' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'tenant_id' => fake()->numberBetween(1, 100),
+            'model_id' => ForecastModel::factory(),
+            'alert_type' => fake()->randomElement(['stockout_risk', 'cashflow_deficit', 'above_threshold']),
+            'severity' => fake()->randomElement(['info', 'warning', 'critical']),
+            'title' => fake()->sentence(4),
+            'message' => fake()->sentence(),
+            'predicted_date' => fake()->date(),
+            'predicted_value' => fake()->randomFloat(4, 0, 100000),
+            'threshold_value' => fake()->randomFloat(4, 0, 100000),
+            'is_acknowledged' => fake()->boolean(),
         ];
     }
 

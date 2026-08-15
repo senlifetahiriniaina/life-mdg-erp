@@ -2,7 +2,9 @@
 
 namespace Modules\Strategy\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Strategy\Models\StrategyPlan;
 use Modules\Strategy\Models\StrategyScenario;
 
 class StrategyScenarioFactory extends Factory
@@ -15,25 +17,23 @@ class StrategyScenarioFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
+            'tenant_id' => fake()->uuid(),
             'name' => fake()->word(),
             'description' => fake()->text(),
-            'type' => fake()->word(),
-            'base_plan_id' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'probability' => fake()->word(),
-            'created_by' => fake()->word(),
+            'type' => fake()->randomElement(['optimistic', 'realistic', 'pessimistic', 'custom']),
+            'base_plan_id' => StrategyPlan::factory(),
+            'status' => fake()->randomElement(['draft', 'active', 'archived']),
+            'probability' => fake()->randomFloat(2, 0, 100),
+            'created_by' => User::factory(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_scenarios has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -42,7 +42,7 @@ class StrategyScenarioFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
+            'status' => 'archived',
         ]);
     }
 }

@@ -2,8 +2,11 @@
 
 namespace Modules\Analytics\Database\Factories;
 
+use App\Models\Company;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\AnomalyAlert;
+use Modules\Analytics\Models\DetectedAnomaly;
 
 class AnomalyAlertFactory extends Factory
 {
@@ -15,15 +18,15 @@ class AnomalyAlertFactory extends Factory
     public function definition(): array
     {
         return [
-                        'detected_anomaly_id' => fake()->word(),
-            'company_id' => fake()->word(),
-            'user_id' => fake()->word(),
-            'alert_type' => fake()->word(),
-            'alert_status' => fake()->word(),
-            'sent_at' => fake()->word(),
-            'read_at' => fake()->word(),
-            'acknowledged_at' => fake()->word(),
-            'escalation_notes' => fake()->word(),
+            'detected_anomaly_id' => DetectedAnomaly::factory(),
+            'company_id' => Company::factory(),
+            'user_id' => User::factory(),
+            'alert_type' => fake()->randomElement(['email', 'sms', 'push', 'in_app']),
+            'alert_status' => fake()->randomElement(['sent', 'read', 'acknowledged', 'escalated']),
+            'sent_at' => fake()->dateTimeBetween('-30 days', 'now'),
+            'read_at' => fake()->optional()->dateTimeBetween('-30 days', 'now'),
+            'acknowledged_at' => fake()->optional()->dateTimeBetween('-30 days', 'now'),
+            'escalation_notes' => fake()->sentence(),
         ];
     }
 

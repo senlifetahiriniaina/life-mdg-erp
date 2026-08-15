@@ -15,48 +15,30 @@ class IndustryBenchmarkFactory extends Factory
     public function definition(): array
     {
         return [
-                        'ratio_name' => fake()->word(),
+            'ratio_name' => fake()->word(),
             'industry' => fake()->word(),
-            'country' => fake()->word(),
-            'p25' => fake()->word(),
-            'median' => fake()->word(),
-            'p75' => fake()->word(),
-            'year' => fake()->word(),
+            'country' => fake()->countryCode(),
+            'p25' => fake()->randomFloat(4, 0, 100),
+            'median' => fake()->randomFloat(4, 0, 100),
+            'p75' => fake()->randomFloat(4, 0, 100),
+            'year' => fake()->numberBetween(2020, 2026),
             'source' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
         ];
     }
 
     /**
-     * Indicate model is inactive
+     * Indicate model is inactive (no-op: strategy_industry_benchmarks has no is_active column)
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
-     * Indicate model is archived
+     * Indicate model is archived (no-op: strategy_industry_benchmarks has no archived_at column)
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

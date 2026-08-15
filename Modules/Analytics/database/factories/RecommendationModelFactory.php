@@ -2,6 +2,8 @@
 
 namespace Modules\Analytics\Database\Factories;
 
+use App\Models\Company;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\RecommendationModel;
 
@@ -15,31 +17,22 @@ class RecommendationModelFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'model_name' => fake()->word(),
+            'company_id' => Company::factory(),
+            'model_name' => fake()->words(3, true),
             'recommendation_type' => fake()->word(),
             'algorithm' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'description' => fake()->text(),
-            'configuration' => fake()->word(),
-            'coverage_percentage' => fake()->word(),
-            'recommendation_count' => fake()->word(),
-            'click_through_count' => fake()->word(),
-            'ctr' => fake()->word(),
-            'last_trained_at' => fake()->word(),
-            'created_by' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'status' => fake()->randomElement(['training', 'active', 'archived']),
+            'description' => fake()->sentence(),
+            'configuration' => [
+                'top_n' => fake()->numberBetween(5, 20),
+                'min_score' => fake()->randomFloat(2, 0, 1),
+            ],
+            'coverage_percentage' => fake()->randomFloat(2, 0, 100),
+            'recommendation_count' => fake()->numberBetween(0, 10000),
+            'click_through_count' => fake()->numberBetween(0, 1000),
+            'ctr' => fake()->randomFloat(4, 0, 1),
+            'last_trained_at' => fake()->dateTimeBetween('-60 days', 'now'),
+            'created_by' => User::factory(),
         ];
     }
 
@@ -49,7 +42,6 @@ class RecommendationModelFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -59,7 +51,7 @@ class RecommendationModelFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
+            'status' => 'archived',
         ]);
     }
 }

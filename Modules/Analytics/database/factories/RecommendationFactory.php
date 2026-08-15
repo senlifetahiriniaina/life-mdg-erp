@@ -2,8 +2,10 @@
 
 namespace Modules\Analytics\Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\Recommendation;
+use Modules\Analytics\Models\RecommendationModel;
 
 class RecommendationFactory extends Factory
 {
@@ -15,34 +17,16 @@ class RecommendationFactory extends Factory
     public function definition(): array
     {
         return [
-                        'recommendation_model_id' => fake()->word(),
-            'company_id' => fake()->word(),
-            'recipient_type' => fake()->word(),
-            'recipient_id' => fake()->word(),
-            'recommended_type' => fake()->word(),
-            'recommended_id' => fake()->word(),
-            'relevance_score' => fake()->word(),
-            'rank' => fake()->word(),
-            'reason' => fake()->word(),
-            'metadata' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'viewed_at' => fake()->word(),
-            'clicked_at' => fake()->word(),
-            'acted_at' => fake()->word(),
-            'expires_at' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'recommendation_model_id' => RecommendationModel::factory(),
+            'company_id' => Company::factory(),
+            'relevance_score' => fake()->randomFloat(4, 0, 1),
+            'rank' => fake()->numberBetween(1, 20),
+            'reason' => fake()->sentence(),
+            'metadata' => [
+                'algorithm' => fake()->randomElement(['collaborative_filtering', 'content_based']),
+            ],
+            'status' => fake()->randomElement(['pending', 'viewed', 'acted', 'dismissed']),
+            'expires_at' => fake()->dateTimeBetween('now', '+30 days'),
         ];
     }
 
@@ -52,7 +36,6 @@ class RecommendationFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -62,7 +45,6 @@ class RecommendationFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }
