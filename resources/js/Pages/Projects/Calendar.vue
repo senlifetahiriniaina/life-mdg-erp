@@ -64,10 +64,29 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
 
-const props = defineProps({ project: Object })
+interface Project {
+  id: number
+  name: string
+  color: string
+}
+
+interface CalendarEvent {
+  id: number
+  title: string
+  type?: string
+  color: string
+  start: string
+  end: string
+}
+
+// Was `defineProps({ project: Object })` — a runtime-only declaration with
+// no `required: true`, so TS inferred `project: object | undefined` even
+// though every template access here assumes it's always present. The
+// type-only form below makes it a required prop, matching actual usage.
+const props = defineProps<{ project: Project }>()
 
 const loading = ref(true)
-const events = ref([])
+const events = ref<CalendarEvent[]>([])
 const cursor = ref(new Date())
 
 const monthLabel = computed(() =>
@@ -116,7 +135,7 @@ const calendarWeeks = computed(() => {
   return weeks
 })
 
-function eventsForDay(dateStr) {
+function eventsForDay(dateStr: string) {
   return events.value.filter(ev => {
     if (ev.start <= dateStr && ev.end >= dateStr) return true
     return ev.start === dateStr || ev.end === dateStr
