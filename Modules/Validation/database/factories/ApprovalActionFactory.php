@@ -2,8 +2,10 @@
 
 namespace Modules\Validation\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Validation\Models\ApprovalAction;
+use Modules\Validation\Models\ApprovalRequest;
 
 class ApprovalActionFactory extends Factory
 {
@@ -15,12 +17,11 @@ class ApprovalActionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'request_id' => fake()->word(),
-            'approver_id' => fake()->word(),
-            'action' => fake()->word(),
-            'comment' => fake()->word(),
-            'acted_at' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'request_id' => ApprovalRequest::factory(),
+            'approver_id' => User::factory(),
+            'action' => fake()->randomElement(['approved', 'rejected']),
+            'comment' => fake()->sentence(),
+            'acted_at' => fake()->dateTime(),
         ];
     }
 

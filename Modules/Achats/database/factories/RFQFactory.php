@@ -2,6 +2,7 @@
 
 namespace Modules\Achats\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Achats\Models\RFQ;
 
@@ -15,14 +16,13 @@ class RFQFactory extends Factory
     public function definition(): array
     {
         return [
-                        'rfq_number' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'rfq_number' => fake()->unique()->bothify('RFQ-#####'),
+            'status' => fake()->randomElement(['draft', 'sent', 'closed', 'cancelled']),
             'description' => fake()->text(),
-            'required_by_date' => fake()->word(),
-            'issued_date' => fake()->word(),
-            'deadline_date' => fake()->word(),
-            'created_by' => fake()->word(),
-            'title' => fake()->word(),
+            'required_by_date' => fake()->dateTime('+30 days'),
+            'issued_date' => fake()->dateTime(),
+            'deadline_date' => fake()->dateTime('+45 days'),
+            'created_by' => User::factory(),
         ];
     }
 

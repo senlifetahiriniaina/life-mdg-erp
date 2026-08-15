@@ -4,6 +4,8 @@ namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Achats\Models\PoInventoryMapping;
+use Modules\Achats\Models\PurchaseOrder;
+use Modules\Inventory\Models\Product;
 
 class PoInventoryMappingFactory extends Factory
 {
@@ -15,7 +17,10 @@ class PoInventoryMappingFactory extends Factory
     public function definition(): array
     {
         return [
-                        'purchase_order_id' => fake()->word(),
+            'purchase_order_id' => PurchaseOrder::factory(),
+            'product_id' => Product::factory(),
+            'received_qty' => fake()->randomFloat(4, 1, 1000),
+            'status' => 'pending',
         ];
     }
 

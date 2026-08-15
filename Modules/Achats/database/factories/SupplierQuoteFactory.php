@@ -2,7 +2,10 @@
 
 namespace Modules\Achats\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Achats\Models\RFQ;
+use Modules\Achats\Models\Supplier;
 use Modules\Achats\Models\SupplierQuote;
 
 class SupplierQuoteFactory extends Factory
@@ -15,16 +18,16 @@ class SupplierQuoteFactory extends Factory
     public function definition(): array
     {
         return [
-                        'rfq_id' => fake()->word(),
-            'supplier_id' => fake()->word(),
-            'quote_number' => fake()->word(),
-            'unit_price' => fake()->word(),
-            'total_price' => fake()->word(),
-            'delivery_days' => fake()->word(),
-            'terms' => fake()->word(),
-            'validity_date' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'created_by' => fake()->word(),
+            'rfq_id' => RFQ::factory(),
+            'supplier_id' => Supplier::factory(),
+            'quote_number' => fake()->unique()->bothify('QT-#####'),
+            'unit_price' => fake()->randomFloat(4, 1, 1000),
+            'total_price' => fake()->randomFloat(2, 100, 100000),
+            'delivery_days' => fake()->numberBetween(1, 90),
+            'terms' => fake()->sentence(),
+            'validity_date' => fake()->dateTime('+30 days'),
+            'status' => fake()->randomElement(['pending', 'submitted', 'accepted', 'rejected']),
+            'created_by' => User::factory(),
         ];
     }
 

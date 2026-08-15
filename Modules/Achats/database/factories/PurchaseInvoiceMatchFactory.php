@@ -2,8 +2,11 @@
 
 namespace Modules\Achats\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Achats\Models\PurchaseInvoiceMatch;
+use Modules\Achats\Models\PurchaseOrder;
+use Modules\Achats\Models\PurchaseReceipt;
 
 class PurchaseInvoiceMatchFactory extends Factory
 {
@@ -15,31 +18,16 @@ class PurchaseInvoiceMatchFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'purchase_receipt_id' => fake()->word(),
-            'purchase_order_id' => fake()->word(),
-            'invoice_id' => fake()->word(),
-            'quantity_variance' => fake()->word(),
-            'price_variance' => fake()->word(),
-            'match_result' => fake()->word(),
-            'mismatch_details' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'resolved_by' => fake()->word(),
-            'resolved_at' => fake()->word(),
-            'resolution_notes' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'purchase_receipt_id' => PurchaseReceipt::factory(),
+            'purchase_order_id' => PurchaseOrder::factory(),
+            'quantity_variance' => fake()->randomFloat(4, -50, 50),
+            'price_variance' => fake()->randomFloat(2, -500, 500),
+            'match_result' => fake()->randomElement(['matched', 'quantity_mismatch', 'price_mismatch', 'both_mismatch']),
+            'mismatch_details' => ['details' => fake()->sentence()],
+            'status' => fake()->randomElement(['approved', 'flagged', 'resolved']),
+            'resolved_by' => User::factory(),
+            'resolved_at' => fake()->dateTime(),
+            'resolution_notes' => fake()->text(),
         ];
     }
 
@@ -49,7 +37,6 @@ class PurchaseInvoiceMatchFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -59,7 +46,6 @@ class PurchaseInvoiceMatchFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

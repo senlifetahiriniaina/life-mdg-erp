@@ -2,7 +2,9 @@
 
 namespace Modules\Achats\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\PurchaseReceipt;
 
 class PurchaseReceiptFactory extends Factory
@@ -15,11 +17,13 @@ class PurchaseReceiptFactory extends Factory
     public function definition(): array
     {
         return [
-                        'purchase_order_id' => fake()->word(),
-            'receipt_number' => fake()->word(),
-            'receipt_date' => fake()->word(),
-            'received_by' => fake()->word(),
+            'purchase_order_id' => PurchaseOrder::factory(),
+            'receipt_number' => fake()->unique()->bothify('RCT-#####'),
+            'receipt_date' => fake()->date(),
+            'received_by' => User::factory(),
             'warehouse_location' => fake()->word(),
+            'total_received_value' => fake()->randomFloat(2, 100, 50000),
+            'status' => fake()->randomElement(['draft', 'completed']),
         ];
     }
 

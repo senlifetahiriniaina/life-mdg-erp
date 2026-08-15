@@ -2,6 +2,7 @@
 
 namespace Modules\Validation\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Validation\Models\ApprovalWorkflow;
 
@@ -15,12 +16,11 @@ class ApprovalWorkflowFactory extends Factory
     public function definition(): array
     {
         return [
-                        'name' => fake()->word(),
-            'description' => fake()->text(),
-            'module_name' => fake()->word(),
+            'name' => fake()->words(3, true),
+            'description' => fake()->sentence(),
+            'module_name' => fake()->randomElement(['Accounting', 'Achats', 'HR', 'Inventory']),
             'is_active' => true,
-            'created_by' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'created_by' => User::factory(),
         ];
     }
 

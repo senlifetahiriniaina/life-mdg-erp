@@ -11,6 +11,15 @@ use Modules\Setup\Services\OnboardingMetricsService;
 
 uses(RefreshDatabase::class);
 
+beforeEach(function () {
+    // setup_onboarding_sessions.user_id / setup_onboarding_step_events.user_id
+    // are real FKs to users — several tests below reference hardcoded ids
+    // (1, 42) directly, so pre-create matching users rather than rewrite
+    // every assertion.
+    \App\Models\User::factory()->create(['id' => 1]);
+    \App\Models\User::factory()->create(['id' => 42]);
+});
+
 // ============================================================
 // Helpers
 // ============================================================

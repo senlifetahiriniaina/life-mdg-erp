@@ -3,6 +3,7 @@
 namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Achats\Models\RFQ;
 use Modules\Achats\Models\RFQLine;
 
 class RFQLineFactory extends Factory
@@ -15,11 +16,11 @@ class RFQLineFactory extends Factory
     public function definition(): array
     {
         return [
-                        'rfq_id' => fake()->word(),
+            'rfq_id' => RFQ::factory(),
             'description' => fake()->text(),
-            'quantity' => fake()->numberBetween(1, 100),
-            'unit' => fake()->word(),
-            'required_date' => fake()->word(),
+            'quantity' => fake()->randomFloat(4, 1, 100),
+            'unit' => fake()->randomElement(['pcs', 'kg', 'box', 'liter', 'unit']),
+            'required_date' => fake()->dateTime('+30 days'),
         ];
     }
 

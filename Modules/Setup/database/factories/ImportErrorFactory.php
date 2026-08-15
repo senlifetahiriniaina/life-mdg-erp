@@ -4,6 +4,7 @@ namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Setup\Models\ImportError;
+use Modules\Setup\Models\ImportJob;
 
 class ImportErrorFactory extends Factory
 {
@@ -15,10 +16,10 @@ class ImportErrorFactory extends Factory
     public function definition(): array
     {
         return [
-                        'import_job_id' => fake()->word(),
-            'row_number' => fake()->word(),
-            'error_type' => fake()->word(),
-            'error_message' => fake()->word(),
+            'import_job_id' => ImportJob::factory(),
+            'row_number' => fake()->numberBetween(1, 500),
+            'error_type' => fake()->randomElement(['validation', 'duplicate', 'missing_required', 'format_mismatch', 'constraint_violation']),
+            'error_message' => fake()->sentence(),
         ];
     }
 

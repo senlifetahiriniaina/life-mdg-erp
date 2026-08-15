@@ -3,6 +3,7 @@
 namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Setup\Models\ImportJob;
 use Modules\Setup\Models\SourceSchema;
 
 class SourceSchemaFactory extends Factory
@@ -15,9 +16,10 @@ class SourceSchemaFactory extends Factory
     public function definition(): array
     {
         return [
-                        'import_job_id' => fake()->word(),
-            'detected_encoding' => fake()->word(),
-            'detected_delimiter' => fake()->word(),
+            'import_job_id' => ImportJob::factory(),
+            'detected_columns' => fake()->words(5),
+            'detected_encoding' => fake()->randomElement(['UTF-8', 'ISO-8859-1', 'Windows-1252']),
+            'detected_delimiter' => fake()->randomElement([',', ';', "\t", '|']),
         ];
     }
 

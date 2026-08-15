@@ -4,6 +4,7 @@ namespace Modules\Setup\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Setup\Models\FieldMapping;
+use Modules\Setup\Models\ImportJob;
 
 class FieldMappingFactory extends Factory
 {
@@ -15,13 +16,16 @@ class FieldMappingFactory extends Factory
     public function definition(): array
     {
         return [
-                        'import_job_id' => fake()->word(),
+            'import_job_id' => ImportJob::factory(),
             'source_field' => fake()->word(),
             'target_field' => fake()->word(),
-            'transform_type' => fake()->word(),
-            'transform_config' => fake()->word(),
-            'is_required' => fake()->word(),
-            'ai_confidence' => fake()->word(),
+            'target_table' => fake()->randomElement(['crm_contacts', 'accounting_invoices', 'hr_employees', 'inventory_products', 'sales_orders']),
+            'transform_type' => fake()->randomElement(['direct', 'date_format', 'number_format', 'lookup', 'concat', 'split', 'custom']),
+            'transform_config' => ['format' => fake()->word()],
+            'is_required' => fake()->boolean(),
+            'is_ai_suggested' => fake()->boolean(),
+            'ai_confidence' => fake()->randomFloat(2, 0, 1),
+            'is_confirmed' => fake()->boolean(),
         ];
     }
 

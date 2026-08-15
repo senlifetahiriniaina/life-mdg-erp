@@ -4,6 +4,7 @@ namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Achats\Models\PoAccountingMapping;
+use Modules\Achats\Models\PurchaseOrder;
 
 class PoAccountingMappingFactory extends Factory
 {
@@ -15,7 +16,8 @@ class PoAccountingMappingFactory extends Factory
     public function definition(): array
     {
         return [
-                        'purchase_order_id' => fake()->word(),
+            'purchase_order_id' => PurchaseOrder::factory(),
+            'status' => 'draft',
         ];
     }
 

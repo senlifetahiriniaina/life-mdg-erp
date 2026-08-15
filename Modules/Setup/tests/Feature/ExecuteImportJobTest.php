@@ -23,7 +23,6 @@ function importJobForQueue(array $overrides = []): ImportJob
         'target_module' => 'CRM',
         'target_entity' => 'contacts',
         'status'        => 'mapping',
-        'created_by'    => 1,
     ], $overrides));
 }
 

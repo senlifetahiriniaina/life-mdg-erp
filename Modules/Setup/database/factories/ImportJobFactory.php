@@ -2,6 +2,7 @@
 
 namespace Modules\Setup\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Setup\Models\ImportJob;
 
@@ -15,24 +16,24 @@ class ImportJobFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'name' => fake()->word(),
-            'source_type' => fake()->word(),
-            'source_file_path' => fake()->word(),
-            'source_db_driver' => fake()->word(),
-            'source_db_config' => fake()->word(),
-            'target_module' => fake()->word(),
-            'target_entity' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'total_rows' => fake()->word(),
-            'imported_rows' => fake()->word(),
-            'failed_rows' => fake()->word(),
-            'error_summary' => fake()->word(),
-            'ai_mapping_used' => fake()->word(),
-            'ai_mapping_confidence' => fake()->word(),
-            'created_by' => fake()->word(),
-            'started_at' => fake()->word(),
-            'completed_at' => fake()->word(),
+            'tenant_id' => fake()->numberBetween(1, 500),
+            'name' => fake()->words(3, true),
+            'source_type' => fake()->randomElement(['excel', 'csv', 'pdf', 'database']),
+            'source_file_path' => fake()->word() . '.csv',
+            'source_db_driver' => fake()->randomElement(['mysql', 'pgsql', 'sqlsrv', 'sqlite']),
+            'source_db_config' => ['host' => fake()->ipv4(), 'database' => fake()->word()],
+            'target_module' => fake()->randomElement(['CRM', 'Accounting', 'HR', 'Inventory', 'Sales']),
+            'target_entity' => fake()->randomElement(['contacts', 'invoices', 'employees', 'products', 'orders']),
+            'status' => fake()->randomElement(['pending', 'analyzing', 'mapping', 'importing', 'completed', 'failed']),
+            'total_rows' => fake()->numberBetween(0, 1000),
+            'imported_rows' => fake()->numberBetween(0, 1000),
+            'failed_rows' => fake()->numberBetween(0, 50),
+            'error_summary' => ['message' => fake()->sentence()],
+            'ai_mapping_used' => fake()->boolean(),
+            'ai_mapping_confidence' => fake()->randomFloat(2, 0, 1),
+            'created_by' => User::factory(),
+            'started_at' => fake()->dateTime(),
+            'completed_at' => fake()->dateTime(),
         ];
     }
 

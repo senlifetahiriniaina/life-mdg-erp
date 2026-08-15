@@ -15,7 +15,10 @@ class ApprovalHierarchyFactory extends Factory
     public function definition(): array
     {
         return [
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'name' => fake()->words(3, true),
+            'description' => fake()->sentence(),
+            'module_name' => fake()->randomElement(['Accounting', 'Achats', 'HR', 'Inventory']),
+            'is_active' => fake()->boolean(80),
         ];
     }
 
@@ -25,6 +28,7 @@ class ApprovalHierarchyFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
+            'is_active' => false,
         ]);
     }
 

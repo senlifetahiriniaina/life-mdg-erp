@@ -3,6 +3,7 @@
 namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\PurchaseOrderLine;
 
 class PurchaseOrderLineFactory extends Factory
@@ -15,13 +16,13 @@ class PurchaseOrderLineFactory extends Factory
     public function definition(): array
     {
         return [
-                        'purchase_order_id' => fake()->word(),
+            'purchase_order_id' => PurchaseOrder::factory(),
             'description' => fake()->text(),
-            'quantity' => fake()->numberBetween(1, 100),
-            'unit' => fake()->word(),
-            'unit_price' => fake()->word(),
-            'tax_rate' => fake()->word(),
-            'line_total' => fake()->word(),
+            'quantity' => fake()->randomFloat(4, 1, 100),
+            'unit' => fake()->randomElement(['pcs', 'kg', 'box', 'liter', 'unit']),
+            'unit_price' => fake()->randomFloat(4, 1, 1000),
+            'tax_rate' => fake()->randomFloat(2, 0, 20),
+            'line_total' => fake()->randomFloat(4, 1, 100000),
         ];
     }
 

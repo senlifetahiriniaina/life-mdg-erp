@@ -2,8 +2,10 @@
 
 namespace Modules\Validation\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Validation\Models\ApprovalRequest;
+use Modules\Validation\Models\ApprovalWorkflow;
 
 class ApprovalRequestFactory extends Factory
 {
@@ -15,15 +17,14 @@ class ApprovalRequestFactory extends Factory
     public function definition(): array
     {
         return [
-                        'workflow_id' => fake()->word(),
-            'approvable_type' => fake()->word(),
-            'approvable_id' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'requested_by' => fake()->word(),
-            'approved_by' => fake()->word(),
-            'approved_at' => fake()->word(),
-            'rejected_at' => fake()->word(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
+            'workflow_id' => ApprovalWorkflow::factory(),
+            'approvable_type' => fake()->randomElement(['invoice', 'purchase_order']),
+            'approvable_id' => fake()->numberBetween(1, 1000),
+            'status' => fake()->randomElement(['pending', 'approved', 'rejected']),
+            'requested_by' => User::factory(),
+            'approved_by' => null,
+            'approved_at' => null,
+            'rejected_at' => null,
         ];
     }
 

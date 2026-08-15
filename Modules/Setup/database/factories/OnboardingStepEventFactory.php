@@ -2,7 +2,9 @@
 
 namespace Modules\Setup\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Setup\Models\OnboardingSession;
 use Modules\Setup\Models\OnboardingStepEvent;
 
 class OnboardingStepEventFactory extends Factory
@@ -15,8 +17,12 @@ class OnboardingStepEventFactory extends Factory
     public function definition(): array
     {
         return [
-            'onboarding_session_id' => fake()->word(),
-            'duration_seconds' => fake()->word(),
+            'tenant_id' => fake()->numberBetween(1, 500),
+            'user_id' => User::factory(),
+            'onboarding_session_id' => OnboardingSession::factory(),
+            'step' => fake()->numberBetween(1, 5),
+            'event' => fake()->randomElement(['started', 'completed', 'back', 'skipped', 'error']),
+            'duration_seconds' => fake()->numberBetween(5, 300),
         ];
     }
 

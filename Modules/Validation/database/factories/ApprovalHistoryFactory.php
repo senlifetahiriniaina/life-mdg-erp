@@ -2,8 +2,10 @@
 
 namespace Modules\Validation\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Validation\Models\ApprovalHistory;
+use Modules\Validation\Models\ApprovalRequest;
 
 class ApprovalHistoryFactory extends Factory
 {
@@ -15,13 +17,12 @@ class ApprovalHistoryFactory extends Factory
     public function definition(): array
     {
         return [
-                        'request_id' => fake()->word(),
-            'action' => fake()->word(),
-            'old_status' => fake()->word(),
-            'new_status' => fake()->word(),
-            'changed_by' => fake()->word(),
-            'changed_at' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'request_id' => ApprovalRequest::factory(),
+            'action' => fake()->randomElement(['approved', 'rejected']),
+            'old_status' => fake()->randomElement(['pending', 'approved', 'rejected']),
+            'new_status' => fake()->randomElement(['pending', 'approved', 'rejected']),
+            'changed_by' => User::factory(),
+            'changed_at' => fake()->dateTime(),
         ];
     }
 

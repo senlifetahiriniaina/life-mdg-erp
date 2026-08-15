@@ -3,6 +3,8 @@
 namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Achats\Models\PurchaseOrderLine;
+use Modules\Achats\Models\PurchaseReceipt;
 use Modules\Achats\Models\PurchaseReceiptLine;
 
 class PurchaseReceiptLineFactory extends Factory
@@ -15,8 +17,11 @@ class PurchaseReceiptLineFactory extends Factory
     public function definition(): array
     {
         return [
-                        'receipt_id' => fake()->word(),
-            'quantity_received' => fake()->word(),
+            'receipt_id' => PurchaseReceipt::factory(),
+            'purchase_order_line_id' => PurchaseOrderLine::factory(),
+            'quantity_received' => fake()->randomFloat(4, 1, 500),
+            'quality_status' => fake()->randomElement(['good', 'damaged', 'missing']),
+            'variance_qty' => fake()->randomFloat(4, -10, 10),
         ];
     }
 

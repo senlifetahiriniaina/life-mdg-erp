@@ -15,33 +15,19 @@ class FunnelSnapshotFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'snapshot_date' => fake()->word(),
-            'sessions_started' => fake()->word(),
-            'sessions_completed' => fake()->word(),
-            'sessions_abandoned' => fake()->word(),
-            'avg_duration_seconds' => fake()->word(),
-            'median_duration_seconds' => fake()->word(),
-            'step1_completion_rate' => fake()->word(),
-            'step2_completion_rate' => fake()->word(),
-            'step3_completion_rate' => fake()->word(),
-            'step4_completion_rate' => fake()->word(),
-            'step5_completion_rate' => fake()->word(),
-            'ai_mapping_adoption_rate' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'tenant_id' => fake()->numberBetween(1, 500),
+            'snapshot_date' => fake()->date(),
+            'sessions_started' => fake()->numberBetween(1, 200),
+            'sessions_completed' => fake()->numberBetween(0, 200),
+            'sessions_abandoned' => fake()->numberBetween(0, 50),
+            'avg_duration_seconds' => fake()->numberBetween(60, 900),
+            'median_duration_seconds' => fake()->numberBetween(60, 900),
+            'step1_completion_rate' => fake()->randomFloat(2, 0, 100),
+            'step2_completion_rate' => fake()->randomFloat(2, 0, 100),
+            'step3_completion_rate' => fake()->randomFloat(2, 0, 100),
+            'step4_completion_rate' => fake()->randomFloat(2, 0, 100),
+            'step5_completion_rate' => fake()->randomFloat(2, 0, 100),
+            'ai_mapping_adoption_rate' => fake()->randomFloat(2, 0, 100),
         ];
     }
 
@@ -50,9 +36,7 @@ class FunnelSnapshotFactory extends Factory
      */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 
     /**
@@ -60,8 +44,6 @@ class FunnelSnapshotFactory extends Factory
      */
     public function archived(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => []);
     }
 }

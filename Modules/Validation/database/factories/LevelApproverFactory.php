@@ -2,7 +2,9 @@
 
 namespace Modules\Validation\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Validation\Models\HierarchyLevel;
 use Modules\Validation\Models\LevelApprover;
 
 class LevelApproverFactory extends Factory
@@ -15,7 +17,10 @@ class LevelApproverFactory extends Factory
     public function definition(): array
     {
         return [
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'hierarchy_level_id' => HierarchyLevel::factory(),
+            'user_id' => User::factory(),
+            'approver_order' => fake()->numberBetween(1, 5),
+            'is_active' => fake()->boolean(90),
         ];
     }
 
@@ -25,6 +30,7 @@ class LevelApproverFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
+            'is_active' => false,
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace Modules\Achats\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Achats\Models\PoBudgetAllocation;
+use Modules\Achats\Models\PurchaseOrder;
 
 class PoBudgetAllocationFactory extends Factory
 {
@@ -15,7 +16,11 @@ class PoBudgetAllocationFactory extends Factory
     public function definition(): array
     {
         return [
-                        'purchase_order_id' => fake()->word(),
+            'purchase_order_id' => PurchaseOrder::factory(),
+            'budget_type' => 'operational',
+            'allocated_amount' => fake()->randomFloat(2, 1000, 100000),
+            'spent_amount' => fake()->randomFloat(2, 0, 50000),
+            'status' => fake()->randomElement(['active', 'released']),
         ];
     }
 

@@ -2,7 +2,9 @@
 
 namespace Modules\Achats\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\PurchaseOrderApproval;
 
 class PurchaseOrderApprovalFactory extends Factory
@@ -15,24 +17,12 @@ class PurchaseOrderApprovalFactory extends Factory
     public function definition(): array
     {
         return [
-                        'purchase_order_id' => fake()->word(),
-            'approver_id' => fake()->word(),
-            'approval_level' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'rejection_reason' => fake()->word(),
+            'purchase_order_id' => PurchaseOrder::factory(),
+            'approver_id' => User::factory(),
+            'approval_level' => fake()->randomElement(['supervisor', 'manager', 'finance']),
+            'status' => fake()->randomElement(['pending', 'approved', 'rejected']),
+            'rejection_reason' => fake()->sentence(),
             'notes' => fake()->text(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
         ];
     }
 
@@ -42,7 +32,6 @@ class PurchaseOrderApprovalFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_active' => false,
         ]);
     }
 
@@ -52,7 +41,6 @@ class PurchaseOrderApprovalFactory extends Factory
     public function archived(): static
     {
         return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
         ]);
     }
 }

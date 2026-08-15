@@ -2,6 +2,7 @@
 
 namespace Modules\Achats\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Achats\Models\Supplier;
 
@@ -15,18 +16,17 @@ class SupplierFactory extends Factory
     public function definition(): array
     {
         return [
-                        'code' => fake()->bothify('??-##'),
-            'name' => fake()->word(),
+            'code' => fake()->unique()->bothify('SUP-###'),
+            'name' => fake()->company(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),
-            'address' => fake()->word(),
-            'country' => fake()->word(),
-            'currency' => fake()->word(),
-            'payment_terms' => fake()->word(),
-            'lead_time_days' => fake()->word(),
-            'is_active' => true,
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'notes' => fake()->text(),
+            'address' => fake()->streetAddress(),
+            'country' => fake()->country(),
+            'currency' => fake()->randomElement(['XOF', 'XAF', 'MGA', 'USD', 'EUR']),
+            'payment_terms' => fake()->randomElement(['net_15', 'net_30', 'net_45', 'net_60', 'cod']),
+            'lead_time_days' => fake()->numberBetween(1, 60),
+            'is_active' => fake()->boolean(),
+            'created_by' => User::factory(),
         ];
     }
 

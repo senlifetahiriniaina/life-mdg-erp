@@ -3,6 +3,7 @@
 namespace Modules\Validation\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Validation\Models\ApprovalHierarchy;
 use Modules\Validation\Models\HierarchyLevel;
 
 class HierarchyLevelFactory extends Factory
@@ -15,7 +16,11 @@ class HierarchyLevelFactory extends Factory
     public function definition(): array
     {
         return [
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'hierarchy_id' => ApprovalHierarchy::factory(),
+            'level_order' => fake()->numberBetween(1, 5),
+            'title' => fake()->randomElement(['Manager', 'Director', 'VP', 'CFO', 'CEO']),
+            'approver_count' => fake()->numberBetween(1, 3),
+            'delegation_allowed' => fake()->boolean(),
         ];
     }
 

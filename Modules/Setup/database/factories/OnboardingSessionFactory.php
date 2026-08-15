@@ -2,6 +2,7 @@
 
 namespace Modules\Setup\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Setup\Models\OnboardingSession;
 
@@ -15,18 +16,18 @@ class OnboardingSessionFactory extends Factory
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'user_id' => fake()->word(),
-            'started_at' => fake()->word(),
-            'completed_at' => fake()->word(),
-            'abandoned_at' => fake()->word(),
-            'current_step' => fake()->word(),
-            'total_duration_seconds' => fake()->word(),
-            'source_type' => fake()->word(),
-            'rows_imported' => fake()->word(),
-            'ai_mapping_used' => fake()->word(),
-            'ai_mapping_accepted_percent' => fake()->word(),
-            'errors_count' => fake()->word(),
+            'tenant_id' => fake()->numberBetween(1, 500),
+            'user_id' => User::factory(),
+            'started_at' => fake()->dateTime(),
+            'completed_at' => null,
+            'abandoned_at' => null,
+            'current_step' => fake()->numberBetween(1, 5),
+            'total_duration_seconds' => fake()->numberBetween(60, 900),
+            'source_type' => fake()->randomElement(['file_csv', 'file_excel', 'file_pdf', 'db_migration', 'manual']),
+            'rows_imported' => fake()->numberBetween(0, 1000),
+            'ai_mapping_used' => fake()->boolean(),
+            'ai_mapping_accepted_percent' => fake()->randomFloat(2, 0, 100),
+            'errors_count' => fake()->numberBetween(0, 20),
         ];
     }
 
