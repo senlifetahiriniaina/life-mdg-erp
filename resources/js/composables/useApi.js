@@ -10,7 +10,25 @@ export function useApi() {
     const errors = ref({})
     const toast = useToast()
 
-    async function apiPost(url, data, options = {}) {
+    async function get(url, options = {}) {
+        loading.value = true
+        try {
+            const response = await axios.get(url, options.params ? { params: options.params } : undefined)
+            return response.data
+        } catch (error) {
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: error.response?.data?.message ?? 'An unexpected error occurred',
+                life: 5000,
+            })
+            throw error
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function post(url, data, options = {}) {
         loading.value = true
         errors.value = {}
         try {
@@ -36,7 +54,7 @@ export function useApi() {
         }
     }
 
-    async function apiPut(url, data, options = {}) {
+    async function put(url, data, options = {}) {
         loading.value = true
         errors.value = {}
         try {
@@ -62,7 +80,7 @@ export function useApi() {
         }
     }
 
-    async function apiDelete(url, options = {}) {
+    async function del(url, options = {}) {
         loading.value = true
         try {
             await axios.delete(url)
@@ -86,5 +104,13 @@ export function useApi() {
         return errors.value[field]?.[0] ?? null
     }
 
-    return { loading, errors, apiPost, apiPut, apiDelete, fieldError }
+    // Every real caller (RuleHistory.vue, RuleTestRunner.vue,
+    // CookieConsentBanner.vue, LogicBuilder.vue) destructures
+    // get/post/put/delete — this composable used to export apiPost/apiPut/
+    // apiDelete (and no get() at all), so every one of those components
+    // was crashing at runtime with "X is not a function" the moment they
+    // called through this composable. `delete` is a reserved word as a
+    // bare identifier but is valid as an object property name; callers
+    // already destructure it as `delete: apiDelete` to sidestep that.
+    return { loading, errors, get, post, put, delete: del, fieldError }
 }

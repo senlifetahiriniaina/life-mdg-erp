@@ -8,12 +8,12 @@
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div class="flex-1">
             <h3 class="text-sm font-semibold text-fg-1 mb-2">
-              {{ $t('cookie_consent.title') }}
+              {{ t('cookie_consent.title') }}
             </h3>
             <p class="text-xs text-fg-2 mb-4">
-              {{ $t('cookie_consent.description') }}
+              {{ t('cookie_consent.description') }}
               <a href="/privacy" class="text-link hover:underline">
-                {{ $t('cookie_consent.learn_more') }}
+                {{ t('cookie_consent.learn_more') }}
               </a>
             </p>
             <div class="space-y-2">
@@ -25,8 +25,8 @@
                   disabled
                   checked
                 />
-                <span>{{ $t('cookie_consent.essential') }}</span>
-                <span class="text-fg-4 ml-1">({{ $t('cookie_consent.required') }})</span>
+                <span>{{ t('cookie_consent.essential') }}</span>
+                <span class="text-fg-4 ml-1">({{ t('cookie_consent.required') }})</span>
               </label>
               <label class="flex items-center text-xs text-fg-2">
                 <input
@@ -34,7 +34,7 @@
                   type="checkbox"
                   class="mr-2"
                 />
-                <span>{{ $t('cookie_consent.marketing') }}</span>
+                <span>{{ t('cookie_consent.marketing') }}</span>
               </label>
               <label class="flex items-center text-xs text-fg-2">
                 <input
@@ -42,7 +42,7 @@
                   type="checkbox"
                   class="mr-2"
                 />
-                <span>{{ $t('cookie_consent.analytics') }}</span>
+                <span>{{ t('cookie_consent.analytics') }}</span>
               </label>
             </div>
           </div>
@@ -51,19 +51,19 @@
               @click="decline"
               class="px-4 py-2 text-sm font-medium text-fg-2 bg-sunken rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition whitespace-nowrap"
             >
-              {{ $t('cookie_consent.decline') }}
+              {{ t('cookie_consent.decline') }}
             </button>
             <button
               @click="accept"
               class="px-4 py-2 text-sm font-medium text-white bg-halo-600 rounded-md hover:bg-halo-700 transition whitespace-nowrap"
             >
-              {{ $t('cookie_consent.accept_all') }}
+              {{ t('cookie_consent.accept_all') }}
             </button>
             <button
               @click="acceptSelected"
               class="px-4 py-2 text-sm font-medium text-fg-2 bg-slate-200 dark:bg-slate-700 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600 transition whitespace-nowrap"
             >
-              {{ $t('cookie_consent.save') }}
+              {{ t('cookie_consent.save') }}
             </button>
           </div>
         </div>
@@ -77,7 +77,7 @@ import { ref, onMounted } from 'vue'
 import { useApi } from '@/composables/useApi'
 import { useI18n } from 'vue-i18n'
 
-const { $t } = useI18n()
+const { t } = useI18n()
 const api = useApi()
 
 const dismissed = ref(false)

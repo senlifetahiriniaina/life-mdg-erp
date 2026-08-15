@@ -47,7 +47,7 @@
         </div>
       </div>
 
-      <div v-if="testResult.actions_to_execute?.length > 0" class="actions-detail">
+      <div v-if="(testResult.actions_to_execute?.length ?? 0) > 0" class="actions-detail">
         <h4>Actions</h4>
         <div v-for="(action, idx) in testResult.actions_to_execute" :key="idx" class="action-item">
           <span class="action-type">{{ action.type }}</span>
@@ -62,21 +62,50 @@
 import { ref } from 'vue'
 import { useApi } from '@/composables/useApi'
 
+interface EvaluatedCondition {
+  type?: string
+  rules?: EvaluatedCondition[]
+  field?: string
+  operator?: string
+  expected_value?: unknown
+  actual_value?: unknown
+  is_met?: boolean
+}
+
+interface ActionToExecute {
+  type: string
+  field?: string
+  value?: unknown
+  status?: string
+  template?: string
+  title?: string
+  user_id?: number | string
+  tag?: string
+  webhook_url?: string
+}
+
+interface TestResult {
+  conditions_met: boolean
+  actions_to_execute?: ActionToExecute[]
+  evaluated_conditions?: EvaluatedCondition
+}
+
 const props = defineProps<{
-  rule: any
+  rule: { id: number | null }
 }>()
 
 const { post } = useApi()
 
 const sampleData = ref('{}')
 const testing = ref(false)
-const testResult = ref(null)
+const testResult = ref<TestResult | null>(null)
 
 const testRule = async () => {
+  if (!props.rule.id) return
   testing.value = true
   try {
     const data = JSON.parse(sampleData.value)
-    const response = await post(`/api/v1/automation/rules/${props.rule.id}/test`, {
+    const response = await post<TestResult>(`/api/v1/automation/rules/${props.rule.id}/test`, {
       sample_data: data,
     })
     testResult.value = response
@@ -87,9 +116,9 @@ const testRule = async () => {
   }
 }
 
-const flattenConditions = (conditions: any, flattened: any[] = []): any[] => {
+const flattenConditions = (conditions: EvaluatedCondition, flattened: EvaluatedCondition[] = []): EvaluatedCondition[] => {
   if (conditions.rules) {
-    conditions.rules.forEach((rule: any) => {
+    conditions.rules.forEach((rule) => {
       if (rule.type) {
         flattenConditions(rule, flattened)
       } else {
@@ -100,9 +129,9 @@ const flattenConditions = (conditions: any, flattened: any[] = []): any[] => {
   return flattened
 }
 
-const formatAction = (action: any): string => {
+const formatAction = (action: ActionToExecute): string => {
   const type = action.type
-  return {
+  const labels: Record<string, string> = {
     update_field: `Update ${action.field} = ${action.value}`,
     update_status: `Change status to ${action.status}`,
     send_email: `Email using template ${action.template}`,
@@ -111,7 +140,8 @@ const formatAction = (action: any): string => {
     add_tag: `Add tag: ${action.tag}`,
     add_comment: `Add comment`,
     trigger_webhook: `Call ${action.webhook_url}`,
-  }[type] || type
+  }
+  return labels[type] || type
 }
 </script>
 

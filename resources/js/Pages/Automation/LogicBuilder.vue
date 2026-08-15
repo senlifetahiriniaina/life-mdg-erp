@@ -155,10 +155,38 @@ import RulePreview from '@/Components/Automation/RulePreview.vue'
 import RuleHistory from '@/Components/Automation/RuleHistory.vue'
 import { useApi } from '@/composables/useApi'
 
+interface ConditionValue {
+  field?: string
+  operator?: string
+  value?: unknown
+  type?: 'AND' | 'OR'
+  rules?: ConditionValue[]
+}
+
+interface ActionValue {
+  type?: string
+  [key: string]: unknown
+}
+
+interface Rule {
+  id: number
+  name: string
+  description?: string
+  trigger: string
+  conditions: ConditionValue
+  actions: ActionValue[]
+  execution_count?: number
+  is_enabled?: boolean
+}
+
+// createNew() seeds a not-yet-saved draft (no id yet) — distinct from a
+// loaded Rule so the rules list's :key="rule.id" can stay a plain number.
+type SelectedRule = Rule | { id: null; is_enabled: boolean }
+
 const { post, put, delete: apiDelete, get } = useApi()
 
-const rules = ref([])
-const selectedRule = ref(null)
+const rules = ref<Rule[]>([])
+const selectedRule = ref<SelectedRule | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const searchQuery = ref('')
@@ -166,7 +194,13 @@ const filterTrigger = ref('')
 const activeTab = ref('Editor')
 const tabs = ['Editor', 'Test', 'History', 'Preview']
 
-const form = ref({
+const form = ref<{
+  name: string
+  description: string
+  trigger: string
+  conditions: ConditionValue
+  actions: ActionValue[]
+}>({
   name: '',
   description: '',
   trigger: '',
@@ -185,7 +219,7 @@ const filteredRules = computed(() => {
 const loadRules = async () => {
   loading.value = true
   try {
-    const response = await get('/api/v1/automation/rules')
+    const response = await get<{ data: Rule[] }>('/api/v1/automation/rules')
     rules.value = response.data || []
   } finally {
     loading.value = false
@@ -204,11 +238,11 @@ const createNew = () => {
   activeTab.value = 'Editor'
 }
 
-const selectRule = (rule) => {
+const selectRule = (rule: Rule) => {
   selectedRule.value = rule
   form.value = {
     name: rule.name,
-    description: rule.description,
+    description: rule.description ?? '',
     trigger: rule.trigger,
     conditions: rule.conditions,
     actions: rule.actions,
@@ -217,6 +251,7 @@ const selectRule = (rule) => {
 }
 
 const saveRule = async () => {
+  if (!selectedRule.value) return
   saving.value = true
   try {
     if (selectedRule.value.id) {
@@ -232,6 +267,7 @@ const saveRule = async () => {
 }
 
 const deleteRule = async () => {
+  if (!selectedRule.value) return
   if (confirm('Delete this rule? This cannot be undone.')) {
     saving.value = true
     try {

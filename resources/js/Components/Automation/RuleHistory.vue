@@ -48,19 +48,34 @@
 import { ref, onMounted } from 'vue'
 import { useApi } from '@/composables/useApi'
 
+interface ExecutionAction {
+  status: string
+  type: string
+}
+
+interface Execution {
+  id: number
+  conditions_met: boolean
+  executed_at: string
+  duration_ms: number
+  error_message?: string | null
+  actions_executed?: ExecutionAction[]
+}
+
 const props = defineProps<{
-  rule: any
+  rule: { id: number | null }
 }>()
 
 const { get } = useApi()
 
-const executions = ref([])
+const executions = ref<Execution[]>([])
 const loading = ref(false)
 
 onMounted(async () => {
+  if (!props.rule.id) return
   loading.value = true
   try {
-    const response = await get(`/api/v1/automation/rules/${props.rule.id}/executions`)
+    const response = await get<{ data: Execution[] }>(`/api/v1/automation/rules/${props.rule.id}/executions`)
     executions.value = response.data || []
   } finally {
     loading.value = false
