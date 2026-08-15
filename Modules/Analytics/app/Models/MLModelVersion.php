@@ -46,7 +46,9 @@ class MLModelVersion extends Model
 
     public function mlModel(): BelongsTo
     {
-        return $this->belongsTo(MLModel::class);
+        // Explicit FK: Laravel's snake_case convention would otherwise mangle
+        // `MLModel` into `m_l_model_id` (each capital treated as a word boundary).
+        return $this->belongsTo(MLModel::class, 'ml_model_id');
     }
 
     public function createdBy(): BelongsTo

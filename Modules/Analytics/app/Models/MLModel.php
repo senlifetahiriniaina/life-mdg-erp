@@ -63,11 +63,13 @@ class MLModel extends Model
 
     public function versions(): HasMany
     {
-        return $this->hasMany(MLModelVersion::class);
+        // Explicit FK: Laravel's snake_case convention would otherwise mangle
+        // `MLModel` into `m_l_model_id` (each capital treated as a word boundary).
+        return $this->hasMany(MLModelVersion::class, 'ml_model_id');
     }
 
     public function abTests(): HasMany
     {
-        return $this->hasMany(ABTestRun::class);
+        return $this->hasMany(ABTestRun::class, 'ml_model_id');
     }
 }
