@@ -166,11 +166,51 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
 
+interface Profile {
+  first_name: string
+  last_name: string
+  email: string
+  phone?: string | null
+  hire_date?: string | null
+  employment_type?: string | null
+  job_position?: { title: string } | null
+  department?: { name: string } | null
+  manager?: { first_name: string; last_name: string } | null
+}
+
+interface LeaveBalance {
+  id: number
+  name: string
+  days_remaining: number
+  days_per_year: number
+  days_taken: number
+}
+
+interface LeaveRequest {
+  id: number
+  start_date: string
+  end_date: string
+  leave_type?: { name: string } | null
+  days: number
+  status: string
+  reason?: string | null
+}
+
+interface Payslip {
+  id: number
+  period_start: string
+  period_end: string
+  gross_salary: number
+  net_salary: number
+  status: string
+  payment_date: string
+}
+
 const loading = ref(true)
-const profile = ref(null)
-const leaveBalance = ref([])
-const leaveRequests = ref({ data: [] })
-const payslips = ref({ data: [] })
+const profile = ref<Profile | null>(null)
+const leaveBalance = ref<LeaveBalance[]>([])
+const leaveRequests = ref<{ data: LeaveRequest[] }>({ data: [] })
+const payslips = ref<{ data: Payslip[] }>({ data: [] })
 const activeTab = ref('leaves')
 const showLeaveForm = ref(false)
 const submitLoading = ref(false)
@@ -206,17 +246,17 @@ async function submitLeave() {
   }
 }
 
-function formatDate(d) {
+function formatDate(d?: string | null) {
   if (!d) return '—'
   return new Intl.DateTimeFormat('fr-FR').format(new Date(d))
 }
 
-function fmt(v) {
+function fmt(v?: number | null) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v ?? 0)
 }
 
-function leaveStatusClass(s) {
-  return { approved: 'badge-green', pending: 'badge-orange', rejected: 'badge-red' }[s] || 'badge-gray'
+function leaveStatusClass(s: string) {
+  return ({ approved: 'badge-green', pending: 'badge-orange', rejected: 'badge-red' } as Record<string, string>)[s] || 'badge-gray'
 }
 
 onMounted(async () => {
