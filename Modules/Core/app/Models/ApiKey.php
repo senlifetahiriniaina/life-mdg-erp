@@ -166,6 +166,11 @@ class ApiKey extends Model
             return null;
         }
 
-        return (int) now()->diffInDays($this->expires_at);
+        // diffInDays() returns a float; a plain (int) cast truncates
+        // toward zero, which floors positive values — a few ms of
+        // elapsed wall-clock time turns a fresh "30 days" grant into 29.
+        // ceil() rounds any partial day still remaining up to a whole
+        // day, matching the "N days left" semantics callers expect.
+        return (int) ceil(now()->diffInDays($this->expires_at));
     }
 }

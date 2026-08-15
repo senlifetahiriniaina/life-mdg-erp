@@ -12,6 +12,7 @@ use Modules\Core\Services\SecretsService;
 use Modules\Core\Services\EncryptionService;
 use Modules\Core\Services\KeyManagementService;
 use Modules\Core\Services\AuditService;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -32,8 +33,19 @@ class SecretAccessControlTest extends TestCase
     {
         parent::setUp();
 
-        $this->admin = User::factory()->create(['role' => 'admin']);
-        $this->user = User::factory()->create(['role' => 'user']);
+        // Neither 'admin' nor 'user' are real columns on users — the
+        // factory's Model::unguarded() wrapper let ['role' => ...] through
+        // mass-assignment protection, but the DB itself then rejected the
+        // insert ("table users has no column named role"). Spatie roles are
+        // assigned via assignRole(), which is what
+        // SecretAccessControl::canAccessSecret()'s admin short-circuit
+        // (hasRole(['admin','super-admin'])) actually checks.
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+
+        $this->admin = User::factory()->create();
+        $this->admin->assignRole('admin');
+
+        $this->user = User::factory()->create();
 
         $encryption = $this->app->make(EncryptionService::class);
         $audit = $this->app->make(AuditService::class);

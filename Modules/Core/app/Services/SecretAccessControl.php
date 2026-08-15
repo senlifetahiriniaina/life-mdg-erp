@@ -57,7 +57,11 @@ class SecretAccessControl
                 return true;
             }
 
-            $tenantId = $user->tenant_id;
+            // Secrets stored by a user with no explicit tenant_id land under
+            // the string 'default' (SecretsService::getTenantId()'s own
+            // fallback) — mirror that here, or a null tenant_id would never
+            // match and every such secret would be invisible to its owner.
+            $tenantId = $user->tenant_id ?? 'default';
 
             // Get secret
             $secret = Secret::where('tenant_id', $tenantId)
@@ -238,7 +242,8 @@ class SecretAccessControl
                 return collect();
             }
 
-            $tenantId = $user->tenant_id;
+            // Same 'default'-fallback mismatch as canAccessSecret() above.
+            $tenantId = $user->tenant_id ?? 'default';
 
             // Get explicit grants
             $secretIds = SecretAccessGrant::where('user_id', $userId)

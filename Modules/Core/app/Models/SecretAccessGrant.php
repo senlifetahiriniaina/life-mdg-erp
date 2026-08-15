@@ -147,6 +147,9 @@ class SecretAccessGrant extends Model
             return null;
         }
 
-        return (int) now()->diffInDays($this->expires_at);
+        // See ApiKey::daysUntilExpiration() — diffInDays() returns a
+        // float, so a plain (int) cast floors and can under-report by
+        // one day purely from wall-clock drift since expires_at was set.
+        return (int) ceil(now()->diffInDays($this->expires_at));
     }
 }
