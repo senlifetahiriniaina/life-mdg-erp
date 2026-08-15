@@ -19,13 +19,18 @@ use Symfony\Component\HttpFoundation\Response;
  * SessionSecurityService by the current Sanctum access token's ID instead of
  * a PHP session ID.
  *
- * Requires SessionSecurityService::createSession() to have been called at
- * token-issuance time (see AuthController::login()/register(),
- * TwoFactorController::verify()) — tokens issued before this was wired in, or
- * issued through a path that doesn't call createSession(), have no matching
- * SessionEnhanced record and will get a 419 on their first request here,
- * forcing a one-time re-login. This mirrors the existing
- * SessionSecurityMiddleware's own fail-closed behavior for stateful sessions.
+ * A token that predates SessionSecurityService::createSession() being wired
+ * into the login flow — or issued through a path that doesn't call it — has
+ * no matching SessionEnhanced record. That used to be a hard 419, forcing a
+ * re-login the moment this middleware got applied to any new route group:
+ * every already-logged-in session, app-wide, would fail on its very next
+ * request. Softened to auto-create the record on first sight instead (same
+ * data createSession() would have written at login time, just a few
+ * requests later) — this is what makes rolling session.security out beyond
+ * HR safe. Every OTHER rejection reason (hijack/user-mismatch, fingerprint
+ * mismatch, expiry, concurrent-session limit) still fails closed with a 419,
+ * unchanged — "no record" is the only case where "we've never seen this
+ * token" is expected/benign rather than suspicious.
  */
 class SanctumSessionSecurity
 {
@@ -45,6 +50,13 @@ class SanctumSessionSecurity
 
         $sessionId = (string) $token->id;
         $validation = $this->sessionSecurity->validateSession($sessionId, $user->getAuthIdentifier(), $request);
+
+        if (! ($validation['valid'] ?? true) && ($validation['reason'] ?? null) === 'Session not found') {
+            $validation = [
+                'valid' => true,
+                'session' => $this->sessionSecurity->createSession($sessionId, $user->getAuthIdentifier(), $request),
+            ];
+        }
 
         if (! ($validation['valid'] ?? true)) {
             return response()->json([
