@@ -29,8 +29,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:BI', 'role:manage
     Route::get('bi/alerts', [AlertController::class, 'index']);
     Route::get('bi/alerts/{alert}', [AlertController::class, 'show']);
 
-    // Data Sources - reads
+    // Data Sources - reads (static routes must come before wildcard routes)
     Route::get('bi/data-sources', [DataSourceController::class, 'index']);
+    Route::get('bi/data-sources/types', [DataSourceController::class, 'types']);
     Route::get('bi/data-sources/{biDataSource}', [DataSourceController::class, 'show']);
 
     // Dashboards - reads
@@ -90,7 +91,6 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:BI', 'role:manage
         Route::post('bi/data-sources/{biDataSource}/test', [DataSourceController::class, 'test']);
         Route::post('bi/data-sources/{biDataSource}/sync', [DataSourceController::class, 'sync']);
         Route::get('bi/data-sources/{biDataSource}/schema', [DataSourceController::class, 'schema']);
-        Route::get('bi/data-sources/types', [DataSourceController::class, 'types']);
 
         Route::post('bi/dashboards', [DashboardController::class, 'store']);
         Route::put('bi/dashboards/{dashboard}', [DashboardController::class, 'update']);
