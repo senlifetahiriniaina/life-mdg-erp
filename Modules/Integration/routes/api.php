@@ -8,7 +8,7 @@ use Modules\Integration\Http\Controllers\Api\IntegrationController;
 use Modules\Integration\Http\Controllers\Api\WhbFederationController;
 use Modules\Integration\Http\Controllers\Api\WhbPartnerController;
 
-Route::middleware(['auth:sanctum'])
+Route::middleware(['auth:sanctum', 'session.security'])
     ->prefix('v1/integration')
     ->name('integration.')
     ->group(function () {
@@ -57,7 +57,7 @@ Route::middleware(['auth:sanctum'])
     });
 
 // ── WideHalo Bridge — Partner management (authenticated) ─────────────────────
-Route::prefix('v1/whb')->middleware('auth:sanctum')->name('whb.')->group(function () {
+Route::prefix('v1/whb')->middleware('auth:sanctum', 'session.security')->name('whb.')->group(function () {
     Route::get('connections', [WhbPartnerController::class, 'index'])
         ->name('connections.index');
 
@@ -117,7 +117,7 @@ Route::prefix('v1/federation')
     });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/integration')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/integration')->group(function () {
     Route::post('ai/assist', [\Modules\Integration\Http\Controllers\Api\IntegrationAiAssistController::class, 'assist'])
         ->name('integration.ai.assist');
 });

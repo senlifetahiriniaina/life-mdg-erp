@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\AuditLog\Http\Controllers\Api\AuditLogApiController;
 use Modules\AuditLog\Http\Controllers\Api\AuditLogAiAssistController;
 
-Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1')->group(function () {
 
     // ─── Audit Logs ────────────────────────────────────────────────────────────
     Route::get('audit-logs', [AuditLogApiController::class, 'index'])

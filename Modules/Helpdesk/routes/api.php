@@ -31,7 +31,7 @@ Route::prefix('v1')->group(function () {
 });
 
 // Self-service routes: any authenticated user (community forum, live chat agent actions)
-Route::middleware(['auth:sanctum', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Live Chat (agent actions — any authenticated user can act as agent)
     Route::post('helpdesk/chat/sessions/{session}/assign', [LiveChatController::class, 'assignAgent']);
     Route::post('helpdesk/chat/sessions/{session}/convert-to-ticket', [LiveChatController::class, 'convertToTicket']);
@@ -52,7 +52,7 @@ Route::middleware(['auth:sanctum', 'module:Helpdesk', 'throttle:simple_get'])->p
 });
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
 
     // Tickets
     Route::get('helpdesk/tickets', [TicketController::class, 'index'])->name('helpdesk.tickets.index');
@@ -199,7 +199,7 @@ Route::prefix('v1/helpdesk')->group(function () {
 });
 
 // Authenticated forum actions
-Route::middleware(['auth:sanctum'])->prefix('v1/helpdesk')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/helpdesk')->group(function () {
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('forums', [CommunityForumController::class, 'storeForumBoard']);
         Route::post('forums/{forum}/threads', [CommunityForumController::class, 'storeThread']);
@@ -212,7 +212,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1/helpdesk')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/helpdesk')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/helpdesk')->group(function () {
     Route::post('ai/assist', [\Modules\Helpdesk\Http\Controllers\Api\HelpdeskAiAssistController::class, 'assist'])
         ->name('helpdesk.ai.assist');
 });

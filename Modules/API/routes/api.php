@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum'])->prefix('v1/api')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/api')->group(function () {
     Route::get('keys', 'Modules\API\Http\Controllers\Api\ApiKeyController@index');
     Route::post('keys', 'Modules\API\Http\Controllers\Api\ApiKeyController@store');
     Route::get('keys/{id}', 'Modules\API\Http\Controllers\Api\ApiKeyController@show');
@@ -20,7 +20,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1/api')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/api')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/api')->group(function () {
     Route::post('ai/assist', [\Modules\API\Http\Controllers\Api\APIAiAssistController::class, 'assist'])
         ->name('api.ai.assist');
 });

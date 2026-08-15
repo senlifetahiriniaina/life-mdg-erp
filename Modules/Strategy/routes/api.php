@@ -12,7 +12,7 @@ use Modules\Strategy\Http\Controllers\Api\StrategyObjectiveLinkController;
 use Modules\Strategy\Http\Controllers\Api\RatioController;
 use Modules\Strategy\Http\Controllers\Api\CascadeController;
 
-Route::prefix('v1/strategy')->middleware('auth:sanctum')->group(function () {
+Route::prefix('v1/strategy')->middleware('auth:sanctum', 'session.security')->group(function () {
     // Plans
     Route::apiResource('plans', StrategyPlanController::class);
     Route::get('plans/{id}/tree', [StrategyPlanController::class, 'tree']);
@@ -86,7 +86,7 @@ Route::prefix('v1/strategy')->middleware('auth:sanctum')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/strategy')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/strategy')->group(function () {
     Route::post('ai/assist', [\Modules\Strategy\Http\Controllers\Api\StrategyAiAssistController::class, 'assist'])
         ->name('strategy.ai.assist');
 });

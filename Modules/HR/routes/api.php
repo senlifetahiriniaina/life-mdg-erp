@@ -138,7 +138,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->
 });
 
 // Employee Self-Service Portal (any authenticated user — no hr-manager role needed)
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     Route::prefix('portal')->group(function () {
         Route::get('profile', [EmployeeSelfServiceController::class, 'me']);
         Route::get('leave-balance', [EmployeeSelfServiceController::class, 'leaveBalance']);
@@ -150,7 +150,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/hr')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/hr')->group(function () {
     Route::post('ai/assist', [\Modules\HR\Http\Controllers\Api\HRAiAssistController::class, 'assist'])
         ->name('hr.ai.assist');
 });

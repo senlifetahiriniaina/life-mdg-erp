@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum'])->prefix('v1/ai')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/ai')->group(function () {
     // Predictive Analytics
     Route::post('analytics/models', 'Modules\AI\Http\Controllers\AnalyticsController@buildModel');
     Route::get('analytics/models', 'Modules\AI\Http\Controllers\AnalyticsController@listModels');
@@ -53,7 +53,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1/ai')->group(function () {
 });
 
 // Admin AI budget management (separate prefix, same sanctum guard)
-Route::middleware(['auth:sanctum'])->prefix('v1/ai/admin')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/ai/admin')->group(function () {
     Route::get('usage',          'Modules\AI\Http\Controllers\Api\AiActionAdvisorController@adminUsage');
     Route::get('limits',         'Modules\AI\Http\Controllers\Api\AiActionAdvisorController@adminListLimits');
     Route::post('limits',        'Modules\AI\Http\Controllers\Api\AiActionAdvisorController@adminSetLimit');

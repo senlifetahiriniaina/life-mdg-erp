@@ -28,7 +28,7 @@ Route::post('v1/crm/forms/{slug}/submit', [WebFormController::class, 'submit'])
     ->name('crm.forms.submit');
 
 // Default: Simple GET throttle (1000 req/min) — overridden for specific endpoint groups
-Route::middleware(['auth:sanctum', 'module:CRM', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'module:CRM', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Read-only endpoints with 5-minute cache (GET only)
     Route::middleware('cache.api:5')->group(function () {
         Route::apiResource('crm/contacts', ContactController::class)->only(['index', 'show'])->names('crm.contacts');
@@ -276,7 +276,7 @@ Route::middleware(['auth:sanctum', 'module:CRM', 'throttle:simple_get'])->prefix
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/crm')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm')->group(function () {
     Route::post('ai/assist', [\Modules\CRM\Http\Controllers\Api\CRMAiAssistController::class, 'assist'])
         ->name('crm.ai.assist');
 });

@@ -11,7 +11,7 @@ use Modules\Security\Http\Controllers\TrustZoneController;
 use Modules\Security\Http\Controllers\ServiceIdentityController;
 use Modules\Security\Http\Controllers\RateLimitController;
 
-Route::middleware(['auth:sanctum'])->prefix('v1/security')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/security')->group(function () {
     // Compliance Controls
     Route::get('compliance/controls', [ComplianceController::class, 'indexControls']);
     Route::post('compliance/controls', [ComplianceController::class, 'storeControl']);
@@ -123,7 +123,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1/security')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/security')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/security')->group(function () {
     Route::post('ai/assist', [\Modules\Security\Http\Controllers\Api\SecurityAiAssistController::class, 'assist'])
         ->name('security.ai.assist');
 });

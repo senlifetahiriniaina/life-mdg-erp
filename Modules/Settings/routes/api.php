@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Settings\Http\Controllers\Api\SettingsController;
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     // GET all settings (admin only)
     Route::get('/', [SettingsController::class, 'index']);
 
@@ -18,7 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/settings')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/settings')->group(function () {
     Route::post('ai/assist', [\Modules\Settings\Http\Controllers\Api\SettingsAiAssistController::class, 'assist'])
         ->name('settings.ai.assist');
 });

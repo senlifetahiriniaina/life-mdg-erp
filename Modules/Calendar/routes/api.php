@@ -12,7 +12,7 @@ use Modules\Calendar\Http\Controllers\Api\CalendarSyncController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:sanctum', 'module:Calendar', 'role:employee,manager,admin'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'module:Calendar', 'role:employee,manager,admin'])->prefix('v1')->group(function () {
 
     // -----------------------------------------------------------------------
     // Calendars & Events (CRUD)
@@ -74,7 +74,7 @@ Route::prefix('v1/calendar/webhooks')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum'])->prefix('v1/calendar')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/calendar')->group(function () {
     Route::post('ai/assist', [\Modules\Calendar\Http\Controllers\Api\CalendarAiAssistController::class, 'assist'])
         ->name('calendar.ai.assist');
 });
