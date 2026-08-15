@@ -53,6 +53,26 @@ uses(Tests\TestCase::class)->in(
     '../Modules/Helpdesk/tests/Unit',
 );
 
+// ─── Custom expectations ──────────────────────────────────────────────────────
+
+/**
+ * Assert a numeric value is within $delta of $expected.
+ *
+ * Used by 8 call sites across Analytics/Strategy/HR (correlation coefficients,
+ * MAPE, accrual and vesting maths) but never registered, so every one of them
+ * failed with "Call to undefined method ... toBeCloseTo()".
+ */
+expect()->extend('toBeCloseTo', function (float $expected, float $delta = 0.01) {
+    $actual = (float) $this->value;
+
+    expect(abs($actual - $expected))->toBeLessThanOrEqual(
+        $delta,
+        "Failed asserting that {$actual} is within {$delta} of {$expected}."
+    );
+
+    return $this;
+});
+
 // ─── Custom helpers ───────────────────────────────────────────────────────────
 
 /**
