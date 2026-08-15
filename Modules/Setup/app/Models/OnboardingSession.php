@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * OnboardingSession
  *
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  */
 class OnboardingSession extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'setup_onboarding_sessions';
 

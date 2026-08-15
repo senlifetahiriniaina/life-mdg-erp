@@ -6,6 +6,7 @@ namespace Modules\Strategy\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Pearson correlation between two KPI time-series.
  *
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Correlation extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'strategy_correlations';
 

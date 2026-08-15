@@ -7,6 +7,7 @@ namespace Modules\Strategy\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Historical snapshot of a ratio value for a tenant in a given month.
  *
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class RatioSnapshot extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'strategy_ratio_snapshots';
 

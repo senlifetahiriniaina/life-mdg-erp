@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\User;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int $id
  * @property int $opportunity_id
@@ -21,6 +22,7 @@ use App\Models\User;
  */
 class LeadStatusLog extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'crm_lead_status_logs';
 

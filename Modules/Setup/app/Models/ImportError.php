@@ -7,6 +7,7 @@ namespace Modules\Setup\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int         $id
  * @property int         $import_job_id
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ImportError extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'setup_import_errors';
 

@@ -5,8 +5,11 @@ namespace Modules\Analytics\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class ForecastPrediction extends Model
 {
+    use HasFactory;
+
     protected $table = 'forecast_predictions';
 
     public $timestamps = false;

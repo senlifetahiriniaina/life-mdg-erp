@@ -6,6 +6,7 @@ namespace Modules\Strategy\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Industry benchmark percentile data for a given ratio.
  *
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class IndustryBenchmark extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'strategy_industry_benchmarks';
 

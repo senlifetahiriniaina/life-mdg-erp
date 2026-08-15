@@ -5,6 +5,7 @@ namespace Modules\Accounting\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Atomic cost record.
  *
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class CostEntry extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     use \Modules\Core\Models\Concerns\BelongsToTenant;
 

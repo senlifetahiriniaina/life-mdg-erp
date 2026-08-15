@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class PredictionResult extends Model
 {
+    use HasFactory;
     use SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
 

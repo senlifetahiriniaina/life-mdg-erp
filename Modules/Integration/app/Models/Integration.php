@@ -7,6 +7,7 @@ namespace Modules\Integration\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Integration
  *
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Integration extends Model
 {
+    use HasFactory;
+
     protected $table = 'integrations';
 
     protected $fillable = [

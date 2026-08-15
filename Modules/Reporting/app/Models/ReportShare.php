@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Traits\AuditableActions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int    $id
  * @property int    $report_id
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ReportShare extends Model
 {
+    use HasFactory;
     use AuditableActions;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'report_shares';

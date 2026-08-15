@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int $id
  * @property int|null $tenant_id
@@ -36,6 +37,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class CalendarEvent extends Model
 {
+    use HasFactory;
     use SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
 

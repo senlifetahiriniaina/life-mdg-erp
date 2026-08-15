@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Reporting\Models\ReportShare;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int $id
  * @property int|null $tenant_id
@@ -30,6 +31,7 @@ use Modules\Reporting\Models\ReportShare;
  */
 class ReportDefinition extends Model
 {
+    use HasFactory;
     use AuditableActions;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'report_definitions';

@@ -10,6 +10,7 @@ use App\Traits\AuditableActions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int                       $id
  * @property int                       $tenant_id
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Dashboard extends Model
 {
+    use HasFactory;
     use AuditableActions;
     protected $table = 'dashboards';
 

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int $id
  * @property int $tenant_id
@@ -28,6 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class SalesQuotation extends Model
 {
+    use HasFactory;
     use AuditableActions, SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
 

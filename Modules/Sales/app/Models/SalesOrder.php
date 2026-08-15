@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Helpdesk\Traits\HelpdeskLinkable;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int $id
  * @property int $tenant_id
@@ -37,6 +38,7 @@ use Modules\Helpdesk\Traits\HelpdeskLinkable;
  */
 class SalesOrder extends Model
 {
+    use HasFactory;
     use AuditableActions, HelpdeskLinkable, SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
 

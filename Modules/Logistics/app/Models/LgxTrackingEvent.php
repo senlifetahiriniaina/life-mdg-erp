@@ -7,8 +7,10 @@ namespace Modules\Logistics\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class LgxTrackingEvent extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     // Only created_at; no updated_at column
     public const UPDATED_AT = null;

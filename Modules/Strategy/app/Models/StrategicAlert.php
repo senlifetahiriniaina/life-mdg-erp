@@ -6,6 +6,7 @@ namespace Modules\Strategy\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Strategic alert triggered when a KPI or ratio deviates from its benchmark.
  *
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class StrategicAlert extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'strategy_alerts';
 

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Phase 40 — Full Tenant Model (multi-tenant portal).
  *
@@ -57,6 +58,7 @@ use Illuminate\Support\Str;
  */
 class Tenant extends Model
 {
+    use HasFactory;
     use SoftDeletes;
 
     /** Primary key is a 25-char alphanumeric string (legacy format). */

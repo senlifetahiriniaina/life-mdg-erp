@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int         $id
  * @property int         $tenant_id
@@ -38,6 +39,7 @@ use Illuminate\Foundation\Auth\User;
  */
 class ImportJob extends Model
 {
+    use HasFactory;
     use SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
 

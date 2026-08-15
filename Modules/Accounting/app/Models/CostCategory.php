@@ -5,6 +5,7 @@ namespace Modules\Accounting\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Tenant-configurable cost category labels.
  *
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class CostCategory extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'cost_categories';
 

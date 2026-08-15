@@ -5,6 +5,7 @@ namespace Modules\Accounting\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Rules for distributing shared costs across targets.
  *
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class CostAllocationKey extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'cost_allocation_keys';
 

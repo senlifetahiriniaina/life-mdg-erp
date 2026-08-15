@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * A pending email invitation to join a tenant workspace.
  *
@@ -26,6 +27,8 @@ use Illuminate\Support\Str;
  */
 class TenantInvitation extends Model
 {
+    use HasFactory;
+
     protected $table = 'tenant_invitations';
 
     protected $fillable = [

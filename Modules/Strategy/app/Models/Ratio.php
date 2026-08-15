@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Ratio definition — a calculated financial/operational ratio.
  *
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Ratio extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'strategy_ratios';
 

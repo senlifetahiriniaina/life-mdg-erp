@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * OnboardingStepEvent
  *
@@ -26,6 +27,7 @@ use Illuminate\Support\Carbon;
  */
 class OnboardingStepEvent extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'setup_onboarding_step_events';
 

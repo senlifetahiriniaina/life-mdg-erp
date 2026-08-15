@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * FunnelSnapshot
  *
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  */
 class FunnelSnapshot extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'setup_onboarding_funnel_snapshots';
 

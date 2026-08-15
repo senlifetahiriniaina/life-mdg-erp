@@ -7,6 +7,7 @@ namespace Modules\Integration\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * IntegrationSyncLog
  *
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class IntegrationSyncLog extends Model
 {
+    use HasFactory;
+
     public $timestamps = false;
 
     protected $table = 'integration_sync_logs';

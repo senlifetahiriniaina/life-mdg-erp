@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Pivot record linking a User to a Tenant with a role.
  *
@@ -21,6 +22,8 @@ use Illuminate\Support\Carbon;
  */
 class TenantUser extends Model
 {
+    use HasFactory;
+
     public $timestamps = false;
 
     protected $table = 'tenant_users';

@@ -4,8 +4,10 @@ namespace Modules\Security\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class ThreatIndicator extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
 
     // Without this, Eloquent's default convention ("threat_indicators")

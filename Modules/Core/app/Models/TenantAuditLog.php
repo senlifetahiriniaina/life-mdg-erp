@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Immutable audit trail for all superadmin/owner actions on a tenant.
  *
@@ -26,6 +27,8 @@ use Illuminate\Support\Carbon;
  */
 class TenantAuditLog extends Model
 {
+    use HasFactory;
+
     public $timestamps = false;
 
     protected $table = 'tenant_audit_log';

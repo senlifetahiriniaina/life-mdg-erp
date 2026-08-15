@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Traits\AuditableActions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * @property int                      $id
  * @property int                      $tenant_id
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class SavedQuery extends Model
 {
+    use HasFactory;
     use AuditableActions;
     protected $table = 'saved_queries';
 

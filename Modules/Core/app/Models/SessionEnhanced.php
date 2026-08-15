@@ -7,6 +7,7 @@ namespace Modules\Core\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 /**
  * Session Enhanced Model
  *
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class SessionEnhanced extends Model
 {
+    use HasFactory;
+
     protected $table = 'sessions_enhanced';
 
     protected $primaryKey = 'id';
