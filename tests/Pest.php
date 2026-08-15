@@ -1,5 +1,15 @@
 <?php
 
+// Covers all 27 modules in this extraction's actual scope (see CLAUDE.md's
+// scope table) — phpunit.xml discovers tests via a Modules/*/tests/{Feature,Unit}
+// glob regardless of this list, but Pest only binds Tests\TestCase (and therefore
+// boots the Laravel app / registers the container's 'config' alias) for suites
+// listed here. A module missing from this list still runs its tests, just with
+// no framework bootstrap — every container-touching call in it then resolves
+// against whatever the previous bound test's teardown left behind, surfacing as
+// "Target class [config] does not exist." This previously listed 10 modules that
+// don't exist in this repo (Manufacturing, POS, Ecommerce, Documents, Purchasing,
+// Email, WhatsApp, Planning, Quality, Discussion) while omitting 16 real ones.
 uses(Tests\TestCase::class)->in(
     'Feature',
     'Unit',
@@ -7,42 +17,40 @@ uses(Tests\TestCase::class)->in(
     '../Modules/Core/tests/Unit',
     '../Modules/AI/tests/Feature',
     '../Modules/AI/tests/Unit',
-    '../Modules/CRM/tests/Feature',
-    '../Modules/CRM/tests/Unit',
-    '../Modules/HR/tests/Feature',
-    '../Modules/HR/tests/Unit',
+    '../Modules/Security/tests/Feature',
+    '../Modules/AuditLog/tests/Feature',
+    '../Modules/API/tests/Feature',
+    '../Modules/API/tests/Unit',
+    '../Modules/Integration/tests/Feature',
+    '../Modules/Validation/tests/Feature',
+    '../Modules/Shared/tests/Feature',
+    '../Modules/Settings/tests/Feature',
+    '../Modules/Setup/tests/Feature',
+    '../Modules/Workflow/tests/Feature',
+    '../Modules/Workflow/tests/Unit',
+    '../Modules/Calendar/tests/Feature',
     '../Modules/Accounting/tests/Feature',
     '../Modules/Accounting/tests/Unit',
+    '../Modules/CRM/tests/Feature',
+    '../Modules/CRM/tests/Unit',
+    '../Modules/Sales/tests/Feature',
     '../Modules/Inventory/tests/Feature',
     '../Modules/Inventory/tests/Unit',
-    '../Modules/Projects/tests/Feature',
-    '../Modules/Projects/tests/Unit',
-    '../Modules/Manufacturing/tests/Feature',
-    '../Modules/Manufacturing/tests/Unit',
-    '../Modules/POS/tests/Feature',
-    '../Modules/POS/tests/Unit',
-    '../Modules/Ecommerce/tests/Feature',
-    '../Modules/Ecommerce/tests/Unit',
-    '../Modules/Helpdesk/tests/Feature',
-    '../Modules/Helpdesk/tests/Unit',
-    '../Modules/Documents/tests/Feature',
-    '../Modules/Documents/tests/Unit',
-    '../Modules/Purchasing/tests/Feature',
-    '../Modules/Purchasing/tests/Unit',
+    '../Modules/Logistics/tests/Feature',
+    '../Modules/Achats/tests/Feature',
     '../Modules/BI/tests/Feature',
     '../Modules/BI/tests/Unit',
-    '../Modules/Email/tests/Feature',
-    '../Modules/Email/tests/Unit',
-    '../Modules/WhatsApp/tests/Feature',
-    '../Modules/WhatsApp/tests/Unit',
-    '../Modules/AuditLog/tests/Feature',
-    '../Modules/Integration/tests/Feature',
-    '../Modules/Planning/tests/Feature',
-    '../Modules/Planning/tests/Unit',
-    '../Modules/Quality/tests/Feature',
-    '../Modules/Quality/tests/Unit',
-    '../Modules/Discussion/tests/Feature',
-    '../Modules/Discussion/tests/Unit',
+    '../Modules/Analytics/tests/Feature',
+    '../Modules/Reporting/tests/Feature',
+    '../Modules/Strategy/tests/Feature',
+    '../Modules/HR/tests/Feature',
+    '../Modules/HR/tests/Unit',
+    '../Modules/Payroll/tests/Feature',
+    '../Modules/Timesheets/tests/Feature',
+    '../Modules/Projects/tests/Feature',
+    '../Modules/Projects/tests/Unit',
+    '../Modules/Helpdesk/tests/Feature',
+    '../Modules/Helpdesk/tests/Unit',
 );
 
 // ─── Custom helpers ───────────────────────────────────────────────────────────
