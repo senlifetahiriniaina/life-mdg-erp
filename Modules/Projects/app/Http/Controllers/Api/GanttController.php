@@ -7,7 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Task;
 use Modules\Projects\Models\TaskDependency;

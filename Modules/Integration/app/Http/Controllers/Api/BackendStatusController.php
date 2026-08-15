@@ -6,7 +6,7 @@ namespace Modules\Integration\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Integration\Services\FirebaseService;
 use Modules\Integration\Services\SupabaseService;
 

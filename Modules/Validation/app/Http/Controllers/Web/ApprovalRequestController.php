@@ -2,7 +2,7 @@
 
 namespace Modules\Validation\Http\Controllers\Web;
 
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Inertia\Inertia;
 use Modules\Validation\Models\ApprovalRequest;
 

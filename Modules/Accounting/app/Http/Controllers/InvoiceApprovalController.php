@@ -3,7 +3,7 @@
 namespace Modules\Accounting\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 
 class InvoiceApprovalController extends Controller
 {

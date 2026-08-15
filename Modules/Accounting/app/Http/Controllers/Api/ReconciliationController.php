@@ -6,7 +6,7 @@ namespace Modules\Accounting\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Accounting\Models\Reconciliation;
 use Modules\Accounting\Services\BankReconciliationService;
 

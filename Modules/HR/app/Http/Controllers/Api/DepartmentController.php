@@ -3,7 +3,7 @@
 namespace Modules\HR\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\HR\Http\Requests\StoreDepartmentRequest;
 use Modules\HR\Http\Requests\UpdateDepartmentRequest;
 use Modules\HR\Http\Resources\DepartmentResource;

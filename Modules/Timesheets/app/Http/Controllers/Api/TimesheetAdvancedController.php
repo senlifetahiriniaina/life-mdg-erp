@@ -7,7 +7,7 @@ namespace Modules\Timesheets\Http\Controllers\Api;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Modules\Timesheets\Models\ProjectBilling;
 use Modules\Timesheets\Models\Timesheet;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Setup\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Accounting\Services\InvoiceApprovalService;
 use Modules\Achats\Services\ApprovalRoutingService;
 use Modules\Validation\Models\ApprovalWorkflow;

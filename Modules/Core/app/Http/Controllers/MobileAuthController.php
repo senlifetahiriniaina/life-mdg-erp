@@ -6,7 +6,7 @@ use Modules\Core\Services\MobileAuthService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 
 class MobileAuthController extends Controller
 {

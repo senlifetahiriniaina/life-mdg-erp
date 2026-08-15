@@ -7,7 +7,7 @@ namespace Modules\Helpdesk\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Helpdesk\Models\KbPortalArticle;
 
 /**

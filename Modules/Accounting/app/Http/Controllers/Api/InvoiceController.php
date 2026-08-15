@@ -5,7 +5,7 @@ namespace Modules\Accounting\Http\Controllers\Api;
 use Carbon\Carbon;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Accounting\Http\Requests\StoreInvoiceRequest;
 use Modules\Accounting\Http\Resources\InvoiceResource;
 use Modules\Accounting\Models\Invoice;

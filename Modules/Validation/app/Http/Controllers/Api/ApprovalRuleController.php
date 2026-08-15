@@ -3,7 +3,7 @@
 namespace Modules\Validation\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Validation\Rule;
 use Modules\Validation\Models\ApprovalRule;
 use Modules\Validation\Models\ApprovalWorkflow;

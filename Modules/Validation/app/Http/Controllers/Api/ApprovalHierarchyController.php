@@ -3,7 +3,7 @@
 namespace Modules\Validation\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Validation\Models\ApprovalHierarchy;
 use Modules\Validation\Models\HierarchyLevel;
 use Modules\Validation\Services\ApprovalHierarchyService;

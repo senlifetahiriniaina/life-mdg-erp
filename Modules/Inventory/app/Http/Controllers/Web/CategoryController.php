@@ -2,7 +2,7 @@
 
 namespace Modules\Inventory\Http\Controllers\Web;
 
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Inertia\Inertia;
 use Modules\Inventory\Services\InventoryService;
 

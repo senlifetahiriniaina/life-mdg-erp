@@ -2,7 +2,7 @@
 
 namespace Modules\Achats\Http\Controllers\Api;
 
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Services\PurchaseOrderExportService;
 

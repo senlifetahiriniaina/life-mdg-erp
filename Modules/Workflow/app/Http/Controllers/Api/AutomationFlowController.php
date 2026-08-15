@@ -6,7 +6,7 @@ namespace Modules\Workflow\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Str;
 use Modules\Workflow\Models\Automation\AutomationExecution;
 use Modules\Workflow\Models\Automation\AutomationFlow;

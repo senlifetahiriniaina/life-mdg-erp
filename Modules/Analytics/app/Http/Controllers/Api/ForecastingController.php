@@ -4,7 +4,7 @@ namespace Modules\Analytics\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Analytics\Models\ForecastAlert;
 use Modules\Analytics\Models\ForecastModel;
 use Modules\Analytics\Models\ForecastScenario;

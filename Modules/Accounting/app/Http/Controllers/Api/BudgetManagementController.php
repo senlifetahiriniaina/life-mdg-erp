@@ -6,7 +6,7 @@ namespace Modules\Accounting\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Accounting\Models\Budget;
 use Modules\Accounting\Models\BudgetLine;
 use Modules\Accounting\Models\BudgetScenario;

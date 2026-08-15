@@ -3,7 +3,7 @@
 namespace Modules\Achats\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Achats\Http\Requests\StoreSupplierRequest;
 use Modules\Achats\Http\Requests\UpdateSupplierRequest;
 use Modules\Achats\Http\Resources\SupplierResource;

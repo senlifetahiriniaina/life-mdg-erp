@@ -7,7 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Inventory\Models\DemandForecast;
 use Modules\Inventory\Models\SeasonalFactor;
 use Modules\Inventory\Services\DemandForecastService;

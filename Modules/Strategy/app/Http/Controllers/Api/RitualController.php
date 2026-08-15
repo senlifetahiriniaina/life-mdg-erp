@@ -4,7 +4,7 @@ namespace Modules\Strategy\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Strategy\Models\StrategyRitual;
 use Modules\Strategy\Models\StrategyRitualSession;
 use Modules\Strategy\Services\RitualService;

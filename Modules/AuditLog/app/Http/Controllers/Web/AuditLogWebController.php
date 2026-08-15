@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\AuditLog\Http\Controllers\Web;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Core\Models\AuditLog;

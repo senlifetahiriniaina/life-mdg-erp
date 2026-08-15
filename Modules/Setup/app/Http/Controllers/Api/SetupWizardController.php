@@ -6,7 +6,7 @@ namespace Modules\Setup\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Validation\Rule;
 use Modules\Setup\Services\ModuleManagerService;
 use Modules\Setup\Services\SetupWizardService;

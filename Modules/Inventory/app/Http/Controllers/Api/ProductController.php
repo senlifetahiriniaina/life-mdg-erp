@@ -3,7 +3,7 @@
 namespace Modules\Inventory\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Inventory\Http\Requests\StoreProductRequest;
 use Modules\Inventory\Http\Requests\UpdateProductRequest;
 use Modules\Inventory\Http\Resources\ProductResource;

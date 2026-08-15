@@ -4,7 +4,7 @@ namespace Modules\HR\Http\Controllers\Api;
 
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\HR\Http\Requests\StoreLeaveRequestRequest;
 use Modules\HR\Http\Resources\LeaveRequestResource;
 use Modules\HR\Models\LeaveRequest;

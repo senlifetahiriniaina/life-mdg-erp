@@ -7,7 +7,7 @@ namespace Modules\CRM\Http\Controllers\Api;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\CRM\Services\PipelineAnalyticsService;
 
 /**

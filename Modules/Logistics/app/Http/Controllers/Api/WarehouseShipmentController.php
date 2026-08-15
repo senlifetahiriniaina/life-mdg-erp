@@ -6,7 +6,7 @@ namespace Modules\Logistics\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Logistics\Models\LgxCarrier;
 use Modules\Logistics\Models\LgxShipment;
 use Modules\Logistics\Models\Warehouse;

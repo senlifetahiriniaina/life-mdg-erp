@@ -4,7 +4,7 @@ namespace Modules\Workflow\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 
 class AiWorkflowController extends Controller
 {

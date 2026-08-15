@@ -7,7 +7,7 @@ namespace Modules\Helpdesk\Http\Controllers\Api;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Helpdesk\Http\Resources\CsatSurveyResource;
 use Modules\Helpdesk\Models\CsatCampaign;
 use Modules\Helpdesk\Models\CsatSurvey;

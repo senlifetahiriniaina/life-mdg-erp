@@ -4,7 +4,7 @@ namespace Modules\Strategy\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Modules\Strategy\Models\StrategyScenario;
 use Modules\Strategy\Models\StrategyScenarioAssumption;
 use Modules\Strategy\Services\ScenarioService;

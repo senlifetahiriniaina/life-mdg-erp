@@ -3,7 +3,7 @@
 namespace Modules\Inventory\Http\Controllers\Web;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Inertia\Inertia;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Services\InventoryService;
