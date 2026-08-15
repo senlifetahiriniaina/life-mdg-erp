@@ -165,6 +165,8 @@ const props = defineProps<{
   filters: { search?: string; status?: string }
 }>()
 
+const { t } = useI18n()
+
 const search = ref(props.filters.search || '')
 const statusFilter = ref(props.filters.status || null)
 const showCreate = ref(false)

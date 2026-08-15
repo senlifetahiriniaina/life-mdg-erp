@@ -179,6 +179,8 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
+const { t } = useI18n()
+
 const submitting = ref(false)
 const errors = reactive<Record<string, string>>({})
 
