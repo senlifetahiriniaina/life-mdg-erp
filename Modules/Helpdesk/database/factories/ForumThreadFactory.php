@@ -23,7 +23,6 @@ class ForumThreadFactory extends Factory
             'content'     => $this->faker->paragraphs(2, true),
             'status'      => 'open',
             'views'       => $this->faker->numberBetween(0, 200),
-            'upvotes'     => 0,
             'is_answered' => false,
         ];
     }

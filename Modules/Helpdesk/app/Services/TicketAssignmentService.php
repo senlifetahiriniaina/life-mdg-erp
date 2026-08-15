@@ -45,8 +45,11 @@ class TicketAssignmentService
         }
 
         // Get least recently assigned agent
+        // Query Ticket directly rather than via a User::tickets() relation — the root
+        // App\Models\User has no Helpdesk relation, and adding one would couple the
+        // root user model to this module.
         $assignee = $agents->sortBy(function ($agent) {
-            return $agent->tickets()
+            return Ticket::where('assignee_id', $agent->id)
                 ->where('status', '!=', 'resolved')
                 ->count();
         })->first();
@@ -115,7 +118,7 @@ class TicketAssignmentService
      */
     public function getAgentLoad(User $agent): array
     {
-        $tickets = $agent->tickets()
+        $tickets = Ticket::where('assignee_id', $agent->id)
             ->where('status', '!=', 'resolved')
             ->get();
 
@@ -139,7 +142,7 @@ class TicketAssignmentService
      */
     private function getAvgResolutionTime(User $agent): float
     {
-        $resolved = $agent->tickets()
+        $resolved = Ticket::where('assignee_id', $agent->id)
             ->where('status', 'resolved')
             ->whereNotNull('resolved_at')
             ->get();

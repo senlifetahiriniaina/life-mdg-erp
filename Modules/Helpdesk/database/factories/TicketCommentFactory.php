@@ -15,9 +15,10 @@ class TicketCommentFactory extends Factory
     public function definition(): array
     {
         return [
-                        'ticket_id' => fake()->word(),
-            'user_id' => fake()->word(),
-            'is_internal' => fake()->word(),
+            'ticket_id' => \Modules\Helpdesk\Models\Ticket::factory(),
+            'user_id' => \App\Models\User::factory(),
+            'content' => fake()->paragraph(),
+            'is_internal' => fake()->boolean(),
         ];
     }
 

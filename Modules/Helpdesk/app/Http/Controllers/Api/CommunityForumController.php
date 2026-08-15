@@ -59,7 +59,7 @@ class CommunityForumController extends Controller
         $forum->load(['threads' => function ($q) {
             $q->withCount('replies')
                 ->with('author:id,name')
-                ->orderByRaw("FIELD(status,'pinned','open','closed')")
+                ->orderByRaw("CASE status WHEN 'pinned' THEN 1 WHEN 'open' THEN 2 WHEN 'closed' THEN 3 ELSE 4 END")
                 ->latest()
                 ->paginate(20);
         }]);
@@ -74,7 +74,7 @@ class CommunityForumController extends Controller
             ->withCount('replies')
             ->with('author:id,name')
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
-            ->orderByRaw("FIELD(status,'pinned','open','closed')")
+            ->orderByRaw("CASE status WHEN 'pinned' THEN 1 WHEN 'open' THEN 2 WHEN 'closed' THEN 3 ELSE 4 END")
             ->latest()
             ->paginate(20);
 
