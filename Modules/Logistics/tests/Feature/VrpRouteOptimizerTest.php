@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Modules\Logistics\Services\RouteOptimizerService;
+use Spatie\Permission\Models\Role;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,8 @@ describe('POST /api/v1/logistics/routes/optimize', function () {
 
     beforeEach(function () {
         $this->user = User::factory()->create();
+        Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
+        $this->user->assignRole('logistics-manager');
     });
 
     test('synchronous response for <= 20 stops', function () {
@@ -287,6 +290,8 @@ describe('GET /api/v1/logistics/routes/optimize/{jobId}/result', function () {
 
     beforeEach(function () {
         $this->user = User::factory()->create();
+        Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
+        $this->user->assignRole('logistics-manager');
     });
 
     test('returns result for valid completed job', function () {

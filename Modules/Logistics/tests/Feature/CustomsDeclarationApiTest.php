@@ -5,10 +5,13 @@ declare(strict_types=1);
 use App\Models\User;
 use Modules\Logistics\Models\CustomsDeclaration;
 use Modules\Logistics\Models\Shipment;
+use Spatie\Permission\Models\Role;
 
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
+    $this->user->assignRole('logistics-manager');
     $this->shipment = Shipment::factory()->create();
 });
 

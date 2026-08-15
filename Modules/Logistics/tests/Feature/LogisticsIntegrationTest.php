@@ -6,10 +6,13 @@ use App\Models\User;
 use Modules\Logistics\Models\Carrier;
 use Modules\Logistics\Models\Location;
 use Modules\Logistics\Models\Shipment;
+use Spatie\Permission\Models\Role;
 
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
+    $this->user->assignRole('logistics-manager');
     $this->carrier = Carrier::factory()->create();
     $this->warehouse = Location::factory()->create(['type' => 'warehouse', 'name' => 'Main Warehouse']);
     $this->customer1 = Location::factory()->create(['type' => 'customer', 'name' => 'Customer 1']);
