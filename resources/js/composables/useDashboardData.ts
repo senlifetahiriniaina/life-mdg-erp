@@ -1,3 +1,4 @@
+import { computed } from 'vue'
 import { useQuery, useQueries } from '@tanstack/vue-query'
 import axios from 'axios'
 
@@ -49,33 +50,44 @@ export function useDashboardData() {
     ],
   })
 
-  const [contactsQuery, activitiesQuery, statsQuery, summaryQuery] = results
+  // useQueries() returns a single Ref wrapping the whole results tuple (not
+  // one Ref per query) — destructuring `results` itself throws at runtime
+  // ("results is not iterable"), it has to be `results.value` first. Every
+  // derived value below is wrapped in computed() so it stays reactive as
+  // the underlying queries resolve, matching how DashboardExample.vue
+  // destructures this composable's return at its own <script setup> top
+  // level and uses the values directly in its template (relying on Vue's
+  // ref auto-unwrapping there).
+  const contactsQuery = computed(() => results.value[0])
+  const activitiesQuery = computed(() => results.value[1])
+  const statsQuery = computed(() => results.value[2])
+  const summaryQuery = computed(() => results.value[3])
 
   return {
     // Data
-    contacts: contactsQuery.data?.data || [],
-    activities: activitiesQuery.data?.data || [],
-    stats: statsQuery.data || null,
-    summary: summaryQuery.data || null,
+    contacts: computed(() => contactsQuery.value.data?.data || []),
+    activities: computed(() => activitiesQuery.value.data?.data || []),
+    stats: computed(() => statsQuery.value.data || null),
+    summary: computed(() => summaryQuery.value.data || null),
 
     // Status
-    isLoading: results.some(r => r.isPending),
-    isError: results.some(r => r.isError),
-    isSuccess: results.every(r => r.isSuccess),
+    isLoading: computed(() => results.value.some(r => r.isPending)),
+    isError: computed(() => results.value.some(r => r.isError)),
+    isSuccess: computed(() => results.value.every(r => r.isSuccess)),
 
     // Error details
-    error: results.find(r => r.error)?.error,
+    error: computed(() => results.value.find(r => r.error)?.error),
 
     // Refetch all queries
     refetch: async () => {
-      await Promise.all(results.map(r => r.refetch?.()))
+      await Promise.all(results.value.map(r => r.refetch?.()))
     },
 
     // Individual query status
-    contactsLoading: contactsQuery.isPending,
-    activitiesLoading: activitiesQuery.isPending,
-    statsLoading: statsQuery.isPending,
-    summaryLoading: summaryQuery.isPending,
+    contactsLoading: computed(() => contactsQuery.value.isPending),
+    activitiesLoading: computed(() => activitiesQuery.value.isPending),
+    statsLoading: computed(() => statsQuery.value.isPending),
+    summaryLoading: computed(() => summaryQuery.value.isPending),
   }
 }
 
