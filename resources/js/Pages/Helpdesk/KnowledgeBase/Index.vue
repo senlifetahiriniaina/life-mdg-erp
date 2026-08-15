@@ -61,7 +61,7 @@
             </div>
           </div>
         </div>
-        <div v-if="pagination.last_page > 1" style="display:flex;justify-content:center;padding:12px 0">
+        <div v-if="(pagination.last_page ?? 0) > 1" style="display:flex;justify-content:center;padding:12px 0">
           <Paginator :rows="Math.ceil((pagination.total ?? 1) / Math.max(pagination.last_page ?? 1, 1))" :total-records="pagination.total ?? 0" :first="((pagination.current_page ?? 1) - 1) * Math.ceil((pagination.total ?? 1) / Math.max(pagination.last_page ?? 1, 1))" @page="(e) => goPage(e.page + 1)" />
         </div>
       </div>
@@ -109,26 +109,60 @@ import Paginator from 'primevue/paginator'
 import axios from 'axios'
 import DOMPurify from 'dompurify'
 
+interface Category {
+  id: number
+  name: string
+  icon?: string | null
+  articles?: unknown[]
+}
+
+interface Article {
+  id: number
+  title: string
+  status: string
+  category?: Category | null
+  excerpt?: string | null
+  content: string
+  tags?: string[]
+  view_count: number
+  helpful_count: number
+  not_helpful_count: number
+}
+
+interface Pagination {
+  total: number
+  current_page: number
+  last_page: number
+}
+
+interface ArticleForm {
+  title: string
+  category_id: number | string
+  excerpt: string
+  content: string
+  status: string
+}
+
 const sanitized = (html: string) => DOMPurify.sanitize(html ?? '', {
   ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'em', 'strong', 'ul', 'ol', 'li', 'h2', 'h3', 'h4', 'blockquote', 'code', 'pre', 'a'],
   ALLOWED_ATTR: ['href', 'target', 'rel'],
 })
 
 const loading = ref(false)
-const articles = ref([])
-const categories = ref([])
-const pagination = ref({})
-const articleModal = ref(null)
-const filters = reactive({ search: '', category_id: '', status: 'published', page: 1 })
+const articles = ref<Article[]>([])
+const categories = ref<Category[]>([])
+const pagination = ref<Partial<Pagination>>({})
+const articleModal = ref<Article | null>(null)
+const filters = reactive({ search: '', category_id: '' as number | string, status: 'published', page: 1 })
 
-let debounceTimer = null
-function debounceLoad() { clearTimeout(debounceTimer); debounceTimer = setTimeout(load, 350) }
-function toggleCategory(id) { filters.category_id = filters.category_id === id ? '' : id; load() }
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+function debounceLoad() { if (debounceTimer) clearTimeout(debounceTimer); debounceTimer = setTimeout(load, 350) }
+function toggleCategory(id: number) { filters.category_id = filters.category_id === id ? '' : id; load() }
 
 async function load() {
   loading.value = true
   try {
-    const params = { page: filters.page }
+    const params: Record<string, string | number> = { page: filters.page }
     if (filters.search) params.search = filters.search
     if (filters.category_id) params.category_id = filters.category_id
     if (filters.status) params.status = filters.status
@@ -139,14 +173,19 @@ async function load() {
 }
 
 async function loadCategories() { const { data } = await axios.get('/api/v1/helpdesk/kb/categories'); categories.value = data }
-async function openArticle(article) { const { data } = await axios.get(`/api/v1/helpdesk/kb/articles/${article.id}`); articleModal.value = data }
-async function sendFeedback(article, helpful) { const { data } = await axios.post(`/api/v1/helpdesk/kb/articles/${article.id}/feedback`, { helpful }); article.helpful_count = data.helpful_count; article.not_helpful_count = data.not_helpful_count }
-function goPage(p) { filters.page = p; load() }
+async function openArticle(article: Article) { const { data } = await axios.get(`/api/v1/helpdesk/kb/articles/${article.id}`); articleModal.value = data }
+async function sendFeedback(article: Article, helpful: boolean) { const { data } = await axios.post(`/api/v1/helpdesk/kb/articles/${article.id}/feedback`, { helpful }); article.helpful_count = data.helpful_count; article.not_helpful_count = data.not_helpful_count }
+function goPage(p: number) { filters.page = p; load() }
 
+// showCategoryModal was referenced in the template (the "Catégorie" button)
+// but never declared anywhere in this script — a dead button, not just a
+// type gap; clicking it would warn "property was accessed during render
+// but is not defined" and do nothing.
+const showCategoryModal = ref(false)
 const showCreateModal = ref(false)
-const editingArticle = ref(null)
+const editingArticle = ref<Article | null>(null)
 const savingArticle = ref(false)
-const articleForm = ref({ title: '', category_id: '', excerpt: '', content: '', status: 'draft' })
+const articleForm = ref<ArticleForm>({ title: '', category_id: '', excerpt: '', content: '', status: 'draft' })
 
 function openCreate() { editingArticle.value = null; articleForm.value = { title: '', category_id: '', excerpt: '', content: '', status: 'draft' }; showCreateModal.value = true }
 
@@ -159,7 +198,7 @@ async function saveArticle() {
   } finally { savingArticle.value = false }
 }
 
-function statusClass(s) { return { published: 'badge-green', draft: 'badge-gray', archived: 'badge-orange' }[s] || 'badge-gray' }
+function statusClass(s: string) { return ({ published: 'badge-green', draft: 'badge-gray', archived: 'badge-orange' } as Record<string, string>)[s] || 'badge-gray' }
 
 onMounted(async () => { await loadCategories(); await load() })
 </script>
