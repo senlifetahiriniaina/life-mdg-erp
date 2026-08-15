@@ -28,12 +28,21 @@ class CustomerManagementService
 
         // Create primary contact
         if (!empty($data['primary_contact'])) {
+            // Contact has no customer_id/is_primary/name columns — it links to Account/
+            // Owner/Company/Lead instead, and splits the person's name into
+            // first_name/last_name. Match Contact's real schema rather than the
+            // Customer-linkage fields this block used to assume existed.
+            [$firstName, $lastName] = array_pad(
+                explode(' ', $data['primary_contact']['name'], 2),
+                2,
+                ''
+            );
+
             Contact::create([
-                'customer_id' => $customer->id,
-                'name' => $data['primary_contact']['name'],
+                'first_name' => $firstName,
+                'last_name' => $lastName,
                 'email' => $data['primary_contact']['email'],
                 'phone' => $data['primary_contact']['phone'] ?? null,
-                'is_primary' => true,
             ]);
         }
 
