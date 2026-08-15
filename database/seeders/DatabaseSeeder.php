@@ -24,10 +24,17 @@ class DatabaseSeeder extends Seeder
 
         $user->syncRoles(['super-admin']);
 
+        // Real Life MDG 27-module scope (see CLAUDE.md's scope table) — was a stale
+        // 13-module list copied from WideHalo-ERP's old 47-module scope (mirrored the
+        // same bug fixed in tests/Pest.php's actingAsUser() helper).
         $modules = [
-            'CRM', 'HR', 'Inventory', 'Accounting', 'Manufacturing',
-            'POS', 'Ecommerce', 'BI', 'Email', 'Documents',
-            'Helpdesk', 'Projects', 'WhatsApp',
+            'Core', 'AI', 'Security', 'AuditLog', 'API', 'Integration', 'Validation',
+            'Shared', 'Settings', 'Setup', 'Workflow', 'Calendar',
+            'Accounting', 'CRM', 'Sales',
+            'Inventory', 'Logistics', 'Achats',
+            'BI', 'Analytics', 'Reporting', 'Strategy',
+            'HR', 'Payroll', 'Timesheets', 'Projects',
+            'Helpdesk',
         ];
 
         foreach ($modules as $module) {

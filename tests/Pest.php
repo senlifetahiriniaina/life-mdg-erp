@@ -86,11 +86,21 @@ function actingAsUser(string $role = 'admin'): \App\Models\User
     // Create an associated employee for HR functionality
     \Modules\HR\Models\Employee::factory()->create(['user_id' => $user->id]);
 
-    // Enable all modules for this test user (using user ID as tenant ID in single-tenant tests)
+    // Enable all modules for this test user (using user ID as tenant ID in single-tenant tests).
+    // Real Life MDG 27-module scope (see CLAUDE.md's scope table) — previously a stale
+    // 13-module list copied from WideHalo-ERP's old 47-module scope, which silently left
+    // 20 real modules disabled (403 via the `module:` middleware) for any test relying on
+    // this helper: Reporting, Sales, Strategy, Achats, Logistics, Setup, Workflow, Calendar,
+    // Analytics, AuditLog, Security, Integration, Validation, Shared, Settings, Payroll,
+    // Timesheets, API, AI (Core is separately whitelisted in ModuleManager::CORE_MODULES).
     $modules = [
-        'CRM', 'HR', 'Inventory', 'Accounting', 'Manufacturing',
-        'POS', 'Ecommerce', 'BI', 'Email', 'Documents',
-        'Helpdesk', 'Projects', 'WhatsApp',
+        'Core', 'AI', 'Security', 'AuditLog', 'API', 'Integration', 'Validation',
+        'Shared', 'Settings', 'Setup', 'Workflow', 'Calendar',
+        'Accounting', 'CRM', 'Sales',
+        'Inventory', 'Logistics', 'Achats',
+        'BI', 'Analytics', 'Reporting', 'Strategy',
+        'HR', 'Payroll', 'Timesheets', 'Projects',
+        'Helpdesk',
     ];
 
     foreach ($modules as $module) {

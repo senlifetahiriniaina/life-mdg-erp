@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 class TenantModule extends Model
 {
     use HasFactory;
+
     protected $fillable = ['tenant_id', 'module', 'enabled', 'department', 'settings'];
 
     protected $casts = [
