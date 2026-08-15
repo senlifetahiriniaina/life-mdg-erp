@@ -79,7 +79,7 @@ test('failed stores the exception class in error_summary', function () {
 test('executeJob returns 202 and dispatches ExecuteImportJob for a mapping-status job', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $job  = importJobForQueue(['status' => 'mapping', 'tenant_id' => $user->company_id]);
 
     // Attach a confirmed mapping so the confirmed-count guard passes
@@ -103,7 +103,7 @@ test('executeJob returns 202 and dispatches ExecuteImportJob for a mapping-statu
 test('executeJob returns 202 for a validating-status job', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $job  = importJobForQueue(['status' => 'validating', 'tenant_id' => $user->company_id]);
 
     \Modules\Setup\Models\FieldMapping::factory()->create([
@@ -122,7 +122,7 @@ test('executeJob returns 202 for a validating-status job', function () {
 test('executeJob returns 202 for a pending-status job', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $job  = importJobForQueue(['status' => 'pending', 'tenant_id' => $user->company_id]);
 
     \Modules\Setup\Models\FieldMapping::factory()->create([
@@ -141,7 +141,7 @@ test('executeJob returns 202 for a pending-status job', function () {
 test('executeJob returns 409 when job is already importing', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $job  = importJobForQueue(['status' => 'importing', 'tenant_id' => $user->company_id]);
 
     $this->actingAs($user)
@@ -154,7 +154,7 @@ test('executeJob returns 409 when job is already importing', function () {
 test('executeJob returns 409 when job is already completed', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $job  = importJobForQueue(['status' => 'completed', 'tenant_id' => $user->company_id]);
 
     $this->actingAs($user)
@@ -167,7 +167,7 @@ test('executeJob returns 409 when job is already completed', function () {
 test('executeJob returns 422 when no confirmed mappings exist', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $job  = importJobForQueue(['status' => 'mapping', 'tenant_id' => $user->company_id]);
     // No FieldMapping records created — confirmed count = 0
 
@@ -182,7 +182,7 @@ test('executeJob returns 422 when no confirmed mappings exist', function () {
 test('executeJob returns 404 for a job belonging to another tenant', function () {
     Queue::fake();
 
-    $user       = \App\Models\User::factory()->create(['company_id' => 1]);
+    $user       = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
     $otherJob   = importJobForQueue(['status' => 'mapping', 'tenant_id' => 99]);
 
     $this->actingAs($user)

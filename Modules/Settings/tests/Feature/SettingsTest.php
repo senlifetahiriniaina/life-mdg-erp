@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Modules\Settings\Models\Setting;
@@ -10,7 +11,7 @@ use Modules\Settings\Services\SettingsService;
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->user  = User::factory()->create(['company_id' => 1]);
+    $this->user  = User::factory()->create(['company_id' => Company::factory()->create()->id]);
     $this->token = $this->user->createToken('test')->plainTextToken;
 });
 
