@@ -5,6 +5,7 @@ namespace Modules\Analytics\Tests\Feature;
 use App\Models\Company;
 use App\Models\User;
 use Modules\Analytics\Models\PredictionModel;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class PredictionModelTest extends TestCase
@@ -26,6 +27,7 @@ class PredictionModelTest extends TestCase
         ];
 
         foreach ($permissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
     }

@@ -33,6 +33,7 @@ use Spatie\Permission\Models\Role;
  *   support-admin        — helpdesk management
  *   tenant-admin         — module toggle and user/role management
  *   — operational roles —
+ *   support-agent        — frontline Helpdesk: view/update assigned tickets only
  *   logistics-manager    — full Inventory + Logistics
  *   service-partner      — external service provider: Helpdesk, Projects
  *   purchasing-manager   — procurement: Inventory + Achats + supplier PO management
@@ -67,6 +68,25 @@ class RolesAndPermissionsSeeder extends Seeder
         'admin.security.manage',
         'admin.billing.view',
         'admin.billing.manage',
+    ];
+
+    // Analytics policies (Modules/Analytics/app/Policies/*) gate on these exact
+    // strings with per-resource verbs, not the generic view-any/view/create/
+    // update/delete set MODULES/ACTIONS below produces — so they're listed
+    // explicitly here, the same way ADMIN_PERMISSIONS is.
+    private const ANALYTICS_PERMISSIONS = [
+        'analytics.ab_test.view', 'analytics.ab_test.create', 'analytics.ab_test.start',
+        'analytics.ab_test.complete', 'analytics.ab_test.deploy', 'analytics.ab_test.delete',
+        'analytics.anomaly.view', 'analytics.anomaly.create', 'analytics.anomaly.update',
+        'analytics.anomaly.configure', 'analytics.anomaly.delete', 'analytics.anomaly.investigate',
+        'analytics.anomaly.resolve', 'analytics.anomaly.dismiss',
+        'analytics.ml_model.view', 'analytics.ml_model.create', 'analytics.ml_model.update',
+        'analytics.ml_model.deploy', 'analytics.ml_model.rollback', 'analytics.ml_model.delete',
+        'analytics.prediction.view', 'analytics.prediction.create', 'analytics.prediction.update',
+        'analytics.prediction.train', 'analytics.prediction.delete',
+        'analytics.recommendation.view', 'analytics.recommendation.create', 'analytics.recommendation.update',
+        'analytics.recommendation.train', 'analytics.recommendation.delete',
+        'analytics.recommendation.act', 'analytics.recommendation.dismiss',
     ];
 
     private const MODULES = [
@@ -113,6 +133,14 @@ class RolesAndPermissionsSeeder extends Seeder
                     $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
                 }
             }
+        }
+
+        // Analytics' policies use per-resource verbs the generic loop above
+        // doesn't produce (investigate, resolve, deploy, rollback, train, ...) —
+        // merged into $allPermissions so admin/manager/employee/inventory-analyst
+        // (which already filters on the 'analytics.' prefix below) pick them up.
+        foreach (self::ANALYTICS_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
         // ── Roles ──────────────────────────────────────────────────────────────
@@ -200,6 +228,16 @@ class RolesAndPermissionsSeeder extends Seeder
         $supportAdmin->syncPermissions(array_filter(
             $allPermissions,
             fn(Permission $p) => str_starts_with($p->name, 'helpdesk.')
+        ));
+
+        // support-agent: frontline Helpdesk agent — view/create/update tickets
+        // assigned to them (TicketPolicy enforces the assignment scoping itself
+        // via hasRole('support-agent'), this permission set is deliberately
+        // narrower than support-admin's — no delete, no team management).
+        $supportAgent = Role::firstOrCreate(['name' => 'support-agent', 'guard_name' => 'web']);
+        $supportAgent->syncPermissions(array_filter(
+            $allPermissions,
+            fn(Permission $p) => str_starts_with($p->name, 'helpdesk.ticket.') && ! str_ends_with($p->name, '.delete')
         ));
 
         // tenant-admin: manages enabled modules for their tenant
@@ -325,7 +363,7 @@ class RolesAndPermissionsSeeder extends Seeder
             str_starts_with($p->name, 'validation.request.')
         ));
 
-        $totalRoles = 23;
+        $totalRoles = 24;
         $this->command->info(sprintf(
             'Seeded %d permissions across %d roles.',
             count($allPermissions) + count($adminPermissions),

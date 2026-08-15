@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\User;
 use Modules\Analytics\Models\AnomalyDetectionModel;
 use Modules\Analytics\Models\DetectedAnomaly;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class AnomalyDetectionTest extends TestCase
@@ -21,6 +22,7 @@ class AnomalyDetectionTest extends TestCase
 
         $permissions = ['analytics.anomaly.view', 'analytics.anomaly.create', 'analytics.anomaly.investigate', 'analytics.anomaly.resolve'];
         foreach ($permissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
     }

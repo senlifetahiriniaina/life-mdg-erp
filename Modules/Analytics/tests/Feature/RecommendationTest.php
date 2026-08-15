@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\User;
 use Modules\Analytics\Models\Recommendation;
 use Modules\Analytics\Models\RecommendationModel;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class RecommendationTest extends TestCase
@@ -29,6 +30,7 @@ class RecommendationTest extends TestCase
         ];
 
         foreach ($permissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
 

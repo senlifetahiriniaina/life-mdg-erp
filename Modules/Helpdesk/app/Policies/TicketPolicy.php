@@ -6,6 +6,7 @@ namespace Modules\Helpdesk\Policies;
 
 use App\Models\User;
 use App\Policies\BaseErpPolicy;
+use Illuminate\Database\Eloquent\Model;
 use Modules\Helpdesk\Models\Ticket;
 
 /**
@@ -27,8 +28,11 @@ class TicketPolicy extends BaseErpPolicy
         return true;
     }
 
-    public function view(User $user, Ticket $ticket): bool
+    public function view(User $user, Model $model): bool
     {
+        /** @var Ticket $ticket */
+        $ticket = $model;
+
         // Admin/manager/supervisor can view all
         if ($user->hasAnyRole(['super-admin', 'admin', 'manager', 'supervisor'])) {
             return true;
@@ -52,8 +56,11 @@ class TicketPolicy extends BaseErpPolicy
         return true;
     }
 
-    public function update(User $user, Ticket $ticket): bool
+    public function update(User $user, Model $model): bool
     {
+        /** @var Ticket $ticket */
+        $ticket = $model;
+
         // Admin/manager can update any ticket
         if ($user->hasAnyRole(['super-admin', 'admin', 'manager'])) {
             return true;
@@ -101,7 +108,7 @@ class TicketPolicy extends BaseErpPolicy
         return $user->hasAnyRole(['super-admin', 'admin', 'manager']);
     }
 
-    public function delete(User $user, Ticket $ticket): bool
+    public function delete(User $user, Model $model): bool
     {
         // Only admin and manager can delete tickets
         return $user->hasAnyRole(['super-admin', 'admin', 'manager']);

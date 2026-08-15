@@ -7,6 +7,7 @@ use App\Models\User;
 use Modules\Analytics\Models\ABTestRun;
 use Modules\Analytics\Models\MLModel;
 use Modules\Analytics\Models\MLModelVersion;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class MLModelTest extends TestCase
@@ -22,6 +23,7 @@ class MLModelTest extends TestCase
 
         $permissions = ['analytics.ml_model.view', 'analytics.ml_model.create', 'analytics.ml_model.deploy', 'analytics.ml_model.rollback'];
         foreach ($permissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
     }

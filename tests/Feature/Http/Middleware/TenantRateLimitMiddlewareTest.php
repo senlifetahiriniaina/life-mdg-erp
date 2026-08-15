@@ -130,6 +130,7 @@ test('concurrent request limit is enforced', function () {
 
 test('admin routes also enforce rate limiting', function () {
     $admin = User::factory()->create();
+    \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     $admin->assignRole('admin');
 
     config(['rate_limit.tenant_tiers.free.requests_per_minute' => 3]);

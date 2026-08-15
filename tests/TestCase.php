@@ -64,7 +64,9 @@ abstract class TestCase extends BaseTestCase
     protected function actingAsUser(string $role = 'admin'): \App\Models\User
     {
         if (\Spatie\Permission\Models\Permission::count() === 0) {
-            $this->seed(\Database\Seeders\EnhancedRolesAndPermissionsSeeder::class);
+            // See tests/Pest.php's actingAsUser() for why: RolesAndPermissionsSeeder
+            // is the seeder actually wired into DatabaseSeeder / used in production.
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
         }
 
         \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);

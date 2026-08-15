@@ -8,8 +8,15 @@ use Modules\Helpdesk\Models\Ticket;
 use Modules\Helpdesk\Models\SlaPolicy;
 use Modules\Helpdesk\Services\AlertService;
 use Modules\Helpdesk\Services\TicketAssignmentService;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    foreach (['support-agent', 'manager'] as $role) {
+        Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
+    }
+});
 
 describe('SLA Management', function () {
     beforeEach(function () {

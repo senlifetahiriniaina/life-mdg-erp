@@ -64,7 +64,11 @@ function actingAsUser(string $role = 'admin'): \App\Models\User
     // Seed the real role->permission mappings once per test (RefreshDatabase wipes between
     // tests). Without this, roles are empty and every policy check returns 403.
     if (\Spatie\Permission\Models\Permission::count() === 0) {
-        test()->seed(\Database\Seeders\EnhancedRolesAndPermissionsSeeder::class);
+        // RolesAndPermissionsSeeder is the seeder actually wired into
+        // DatabaseSeeder / used in production — EnhancedRolesAndPermissionsSeeder's
+        // own docblock says as much ("not wired into DatabaseSeeder by default").
+        // Tests must match prod, not a parallel seeder that was never activated.
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
     }
 
     \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);

@@ -6,11 +6,16 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Helpdesk\Models\Ticket;
 use Modules\Helpdesk\Models\Team;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
 describe('Ticket Authorization', function () {
     beforeEach(function () {
+        foreach (['employee', 'support-agent', 'supervisor', 'manager', 'admin'] as $role) {
+            Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
+        }
+
         $this->reporter = User::factory()->create();
         $this->assignee = User::factory()->create();
         $this->supervisor = User::factory()->create();
