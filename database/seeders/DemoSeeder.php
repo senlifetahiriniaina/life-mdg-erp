@@ -18,11 +18,6 @@ use Modules\CRM\Models\Contact;
 use Modules\CRM\Models\Lead;
 use Modules\CRM\Models\Opportunity;
 use Modules\CRM\Models\Pipeline;
-use Modules\Documents\Models\Document;
-use Modules\Documents\Models\Folder;
-use Modules\Email\Models\Campaign;
-use Modules\Email\Models\EmailList;
-use Modules\Email\Models\Subscriber;
 use Modules\Helpdesk\Models\SlaPolicy;
 use Modules\Helpdesk\Models\Team;
 use Modules\Helpdesk\Models\Ticket;
@@ -36,19 +31,9 @@ use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\Stock;
 use Modules\Inventory\Models\Unit;
 use Modules\Inventory\Models\Warehouse;
-use Modules\Manufacturing\Models\BillOfMaterial;
-use Modules\Manufacturing\Models\ProductionOrder;
-use Modules\Manufacturing\Models\Workcenter;
-use Modules\POS\Models\PosConfig;
-use Modules\POS\Models\PosOrder;
-use Modules\POS\Models\PosOrderItem;
-use Modules\POS\Models\PosSession;
 use Modules\Projects\Models\Milestone;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Task;
-use Modules\WhatsApp\Models\Conversation;
-use Modules\WhatsApp\Models\Message;
-use Modules\WhatsApp\Models\WaContact;
 
 class DemoSeeder extends Seeder
 {
@@ -406,141 +391,5 @@ class DemoSeeder extends Seeder
             ]));
         }
 
-        // ── Manufacturing ──────────────────────────────────────────────────────
-
-        $workcenter = Workcenter::firstOrCreate(['code' => 'WC-01'], [
-            'name' => 'Assemblage Principal',
-            'capacity' => 10, 'cost_per_hour' => 35, 'currency' => 'EUR', 'is_active' => true,
-        ]);
-
-        $bom = BillOfMaterial::firstOrCreate(['reference' => 'BOM-LAPTOP-01'], [
-            'product_id' => $products[2]->id, 'unit_id' => $unit->id,
-            'quantity' => 1, 'type' => 'manufacture', 'is_active' => true,
-            'notes' => 'Nomenclature assemblage Laptop Pro 14"',
-        ]);
-
-        ProductionOrder::firstOrCreate(['reference' => 'OF-2026-001'], [
-            'bom_id' => $bom->id, 'created_by' => $marc->id,
-            'warehouse_id' => $warehouse->id,
-            'quantity' => 15, 'quantity_produced' => 0,
-            'scheduled_date' => Carbon::now()->addDays(7)->toDateString(),
-            'status' => 'planned', 'notes' => 'Commande urgente pour client Acme',
-        ]);
-
-        // ── POS ────────────────────────────────────────────────────────────────
-
-        $posConfig = PosConfig::firstOrCreate(['name' => 'Caisse Principale'], [
-            'code' => 'POS-001',
-            'currency' => 'EUR', 'is_active' => true,
-            'payment_methods' => ['cash', 'card'],
-            'warehouse_id' => $warehouse->id,
-        ]);
-
-        $session = PosSession::firstOrCreate(
-            ['config_id' => $posConfig->id, 'cashier_id' => $admin->id, 'status' => 'closed'],
-            [
-                'opening_balance' => 200.00, 'closing_balance' => 487.50,
-                'expected_balance' => 487.50,
-                'opened_at' => Carbon::now()->subHours(8),
-                'closed_at' => Carbon::now()->subHours(1),
-            ]
-        );
-
-        $order = PosOrder::firstOrCreate(['reference' => 'POS-2026-0001'], [
-            'session_id' => $session->id, 'cashier_id' => $admin->id,
-            'status' => 'paid', 'subtotal' => 37.80, 'tax_amount' => 7.56,
-            'discount_amount' => 0, 'total' => 45.36, 'currency' => 'EUR',
-        ]);
-        if ($order->wasRecentlyCreated) {
-            PosOrderItem::create([
-                'order_id' => $order->id, 'product_id' => $products[3]->id,
-                'product_name' => 'Café Bio 1kg', 'quantity' => 2,
-                'unit_price' => 18.90, 'total' => 37.80,
-            ]);
-        }
-
-        // ── Documents ─────────────────────────────────────────────────────────
-
-        $folders = [
-            Folder::firstOrCreate(['name' => 'Contrats',            'parent_id' => null], ['color' => '#2E5BE8', 'created_by' => $luca->id]),
-            Folder::firstOrCreate(['name' => 'Factures',            'parent_id' => null], ['color' => '#10b981', 'created_by' => $chen->id]),
-            Folder::firstOrCreate(['name' => 'RH & Paie',           'parent_id' => null], ['color' => '#7C3AED', 'created_by' => $amara->id]),
-            Folder::firstOrCreate(['name' => 'Technique',           'parent_id' => null], ['color' => '#D9831A', 'created_by' => $marc->id]),
-        ];
-
-        $docDefs = [
-            ['title' => 'Contrat Acme 2026',         'folder' => $folders[0], 'extension' => 'pdf',  'size' => 420_000],
-            ['title' => 'Facture FAC-2026-0001',     'folder' => $folders[1], 'extension' => 'pdf',  'size' => 85_000],
-            ['title' => 'Grille de salaires 2026',   'folder' => $folders[2], 'extension' => 'xlsx', 'size' => 52_000],
-            ['title' => 'Architecture WideHalo v1',  'folder' => $folders[3], 'extension' => 'pdf',  'size' => 2_800_000],
-            ['title' => 'Guide déploiement Docker',  'folder' => $folders[3], 'extension' => 'docx', 'size' => 180_000],
-        ];
-        foreach ($docDefs as $d) {
-            Document::firstOrCreate(['title' => $d['title']], [
-                'folder_id' => $d['folder']->id, 'created_by' => $luca->id,
-                'extension' => $d['extension'], 'size' => $d['size'],
-                'mime_type' => match ($d['extension']) {
-                    'pdf'  => 'application/pdf',
-                    'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    default => 'application/octet-stream',
-                },
-                'storage_path' => 'demo/' . Str::slug($d['title']) . '.' . $d['extension'],
-                'disk' => 'local', 'version' => 1, 'is_locked' => false,
-            ]);
-        }
-
-        // ── Email ──────────────────────────────────────────────────────────────
-
-        $emailList = EmailList::firstOrCreate(['name' => 'Newsletter Clients'], [
-            'description' => 'Clients actifs et prospects qualifiés',
-        ]);
-
-        foreach ([
-            ['email' => 'pierre.dupont@acme.example.com',       'first_name' => 'Pierre', 'last_name' => 'Dupont'],
-            ['email' => 'marie.leroy@globaltrade.example.com',   'first_name' => 'Marie',  'last_name' => 'Leroy'],
-            ['email' => 'thomas.girard@novatech.example.com',    'first_name' => 'Thomas', 'last_name' => 'Girard'],
-        ] as $s) {
-            Subscriber::firstOrCreate(['email' => $s['email'], 'list_id' => $emailList->id], array_merge($s, [
-                'list_id' => $emailList->id, 'status' => 'subscribed',
-                'subscribed_at' => now()->subDays(rand(1, 30)),
-            ]));
-        }
-
-        Campaign::firstOrCreate(['name' => 'Lancement v1.0.0'], [
-            'list_id' => $emailList->id, 'subject' => 'WideHalo ERP v1 — Disponible maintenant',
-            'from_name' => 'Équipe WideHalo', 'from_email' => 'hello@widehalo.com',
-            'status' => 'sent', 'type' => 'regular',
-        ]);
-
-        // ── WhatsApp ───────────────────────────────────────────────────────────
-
-        $waContact = WaContact::firstOrCreate(['phone' => '+33612345678'], [
-            'name' => 'Pierre Dupont', 'profile_name' => 'Pierre D.',
-            'crm_contact_id' => $pierre->id,
-        ]);
-
-        $conv = Conversation::firstOrCreate(
-            ['wa_contact_id' => $waContact->id],
-            ['status' => 'open', 'is_ai_handled' => false, 'last_message_at' => now()]
-        );
-
-        if (! Message::where('conversation_id', $conv->id)->exists()) {
-            Message::create([
-                'conversation_id' => $conv->id, 'direction' => 'inbound', 'type' => 'text',
-                'content' => 'Bonjour, je voudrais une démo de WideHalo ERP.',
-                'status' => 'delivered',
-            ]);
-            Message::create([
-                'conversation_id' => $conv->id, 'direction' => 'outbound', 'type' => 'text',
-                'content' => 'Bonjour Pierre ! Bien sûr, je vous propose un créneau demain à 14h. Ça vous convient ?',
-                'status' => 'read',
-            ]);
-            Message::create([
-                'conversation_id' => $conv->id, 'direction' => 'inbound', 'type' => 'text',
-                'content' => 'Parfait, c\'est noté. Merci !',
-                'status' => 'delivered',
-            ]);
-        }
     }
 }
