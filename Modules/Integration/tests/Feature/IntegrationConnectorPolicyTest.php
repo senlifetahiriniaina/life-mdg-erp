@@ -12,14 +12,14 @@ beforeEach(function () {
 
 test('viewAny returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('integration.view')->andReturn(true);
+    $user->shouldReceive('can')->with('integration.connector.view-any')->andReturn(true);
 
     expect($this->policy->viewAny($user))->toBeBool()->toBeTrue();
 });
 
 test('view returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('integration.view')->andReturn(false);
+    $user->shouldReceive('can')->with('integration.connector.view')->andReturn(false);
     $connector = Mockery::mock(IntegrationConnector::class);
 
     expect($this->policy->view($user, $connector))->toBeBool()->toBeFalse();
@@ -27,14 +27,14 @@ test('view returns bool', function () {
 
 test('create returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('integration.create')->andReturn(true);
+    $user->shouldReceive('can')->with('integration.connector.create')->andReturn(true);
 
     expect($this->policy->create($user))->toBeBool()->toBeTrue();
 });
 
 test('update returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('integration.edit')->andReturn(false);
+    $user->shouldReceive('can')->with('integration.connector.update')->andReturn(false);
     $connector = Mockery::mock(IntegrationConnector::class);
 
     expect($this->policy->update($user, $connector))->toBeBool()->toBeFalse();
@@ -42,7 +42,7 @@ test('update returns bool', function () {
 
 test('delete returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('integration.delete')->andReturn(true);
+    $user->shouldReceive('can')->with('integration.connector.delete')->andReturn(true);
     $connector = Mockery::mock(IntegrationConnector::class);
 
     expect($this->policy->delete($user, $connector))->toBeBool()->toBeTrue();

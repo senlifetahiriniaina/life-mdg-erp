@@ -12,14 +12,14 @@ beforeEach(function () {
 
 test('viewAny returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('setup.view')->andReturn(true);
+    $user->shouldReceive('can')->with('setup.import.view-any')->andReturn(true);
 
     expect($this->policy->viewAny($user))->toBeBool()->toBeTrue();
 });
 
 test('view returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('setup.view')->andReturn(false);
+    $user->shouldReceive('can')->with('setup.import.view')->andReturn(false);
     $importJob = Mockery::mock(ImportJob::class);
 
     expect($this->policy->view($user, $importJob))->toBeBool()->toBeFalse();
@@ -27,14 +27,14 @@ test('view returns bool', function () {
 
 test('create returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('setup.create')->andReturn(true);
+    $user->shouldReceive('can')->with('setup.import.create')->andReturn(true);
 
     expect($this->policy->create($user))->toBeBool()->toBeTrue();
 });
 
 test('update returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('setup.edit')->andReturn(false);
+    $user->shouldReceive('can')->with('setup.import.update')->andReturn(false);
     $importJob = Mockery::mock(ImportJob::class);
 
     expect($this->policy->update($user, $importJob))->toBeBool()->toBeFalse();
@@ -42,7 +42,7 @@ test('update returns bool', function () {
 
 test('delete returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('setup.delete')->andReturn(true);
+    $user->shouldReceive('can')->with('setup.import.delete')->andReturn(true);
     $importJob = Mockery::mock(ImportJob::class);
 
     expect($this->policy->delete($user, $importJob))->toBeBool()->toBeTrue();

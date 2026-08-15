@@ -12,14 +12,14 @@ beforeEach(function () {
 
 test('viewAny returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('reporting.view')->andReturn(true);
+    $user->shouldReceive('can')->with('reporting.report.view-any')->andReturn(true);
 
     expect($this->policy->viewAny($user))->toBeBool()->toBeTrue();
 });
 
 test('view returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('reporting.view')->andReturn(false);
+    $user->shouldReceive('can')->with('reporting.report.view')->andReturn(false);
     $report = Mockery::mock(ReportDefinition::class);
 
     expect($this->policy->view($user, $report))->toBeBool()->toBeFalse();
@@ -27,14 +27,14 @@ test('view returns bool', function () {
 
 test('create returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('reporting.create')->andReturn(true);
+    $user->shouldReceive('can')->with('reporting.report.create')->andReturn(true);
 
     expect($this->policy->create($user))->toBeBool()->toBeTrue();
 });
 
 test('update returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('reporting.edit')->andReturn(false);
+    $user->shouldReceive('can')->with('reporting.report.update')->andReturn(false);
     $report = Mockery::mock(ReportDefinition::class);
 
     expect($this->policy->update($user, $report))->toBeBool()->toBeFalse();
@@ -42,7 +42,7 @@ test('update returns bool', function () {
 
 test('delete returns bool', function () {
     $user = Mockery::mock(User::class);
-    $user->shouldReceive('hasPermission')->with('reporting.delete')->andReturn(true);
+    $user->shouldReceive('can')->with('reporting.report.delete')->andReturn(true);
     $report = Mockery::mock(ReportDefinition::class);
 
     expect($this->policy->delete($user, $report))->toBeBool()->toBeTrue();
