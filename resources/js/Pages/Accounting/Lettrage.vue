@@ -83,10 +83,22 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
 
+interface MatchingLine {
+  id: number
+  invoice_type: string
+  invoice_number: string
+  partner_name: string
+  account_code: string
+  account_name: string
+  description?: string | null
+  total: number
+  match_ref?: string | null
+}
+
 const loading = ref(false)
 const matchLoading = ref(false)
-const lines = ref([])
-const selected = ref([])
+const lines = ref<MatchingLine[]>([])
+const selected = ref<number[]>([])
 
 const filters = reactive({ account_code: '' })
 
@@ -94,15 +106,16 @@ const allSelected = computed(() =>
   lines.value.length > 0 && lines.value.every(l => selected.value.includes(l.id))
 )
 
-function toggleAll(e) {
-  selected.value = e.target.checked ? lines.value.map(l => l.id) : []
+function toggleAll(e: Event) {
+  const checked = (e.target as HTMLInputElement).checked
+  selected.value = checked ? lines.value.map(l => l.id) : []
 }
 
 async function loadLines() {
   loading.value = true
   selected.value = []
   try {
-    const params = {}
+    const params: Record<string, string> = {}
     if (filters.account_code) params.account_code = filters.account_code
     const { data } = await axios.get('/api/v1/accounting/matching', { params })
     lines.value = data
@@ -126,7 +139,7 @@ async function doMatch() {
   }
 }
 
-function fmt(v) {
+function fmt(v?: number | null) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v ?? 0)
 }
 
