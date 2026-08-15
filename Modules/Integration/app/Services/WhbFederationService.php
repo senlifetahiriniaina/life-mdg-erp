@@ -110,11 +110,67 @@ class WhbFederationService
 
         $endpoint = rtrim($connection->remote_server_url, '/') . '/api/v1/federation/invite';
 
+        $secret = $this->resolveSecret($connection);
+
+        // The invite call is the one federation request made before the two
+        // servers share anything at all — it is what PROVISIONS the secret
+        // on the receiving side, so it has to travel in the payload itself.
+        // HTTPS (already enforced on remote_server_url by
+        // WhbPartnerService::createInvite()) is what protects it in
+        // transit; nothing after this point on either side signs with an
+        // unprovisioned secret again.
         $payload = json_encode([
             'invite_code'        => $connection->invite_code,
             'local_tenant_name'  => config('app.name'),
             'initiator_server'   => config('app.url'),
             'expires_at'         => $connection->invite_expires_at?->toIso8601String(),
+            'shared_secret'      => $secret,
+        ], JSON_THROW_ON_ERROR);
+
+        $timestamp = time();
+        $signature = $this->sign($payload, $secret, $timestamp);
+
+        try {
+            $response = Http::timeout(self::HTTP_TIMEOUT)
+                ->withHeaders($this->buildFederationHeaders($signature, $timestamp))
+                ->withBody($payload, 'application/json')
+                ->post($endpoint);
+
+            $response->throw();
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('[WHB] sendInvite failed', [
+                'connection_id' => $connection->id,
+                'error'         => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Notify the inviting server that we accepted their invite.
+     *
+     * POST {remote}/api/v1/federation/accept
+     *
+     * Symmetric counterpart of receiveAccept() on the inviter's controller:
+     * lets the inviter's own WhbConnection row (created not knowing who
+     * would accept) learn who we are, the same way acceptInvite() already
+     * does for a same-server (local) connection.
+     */
+    public function sendAccept(WhbConnection $connection, string $localTenantId): bool
+    {
+        if (! $connection->remote_server_url) {
+            return false;
+        }
+
+        $endpoint = rtrim($connection->remote_server_url, '/') . '/api/v1/federation/accept';
+
+        $payload = json_encode([
+            'invite_code'        => $connection->invite_code,
+            'remote_tenant_id'   => $localTenantId,
+            'remote_tenant_name' => config('app.name'),
         ], JSON_THROW_ON_ERROR);
 
         $timestamp = time();
@@ -131,7 +187,7 @@ class WhbFederationService
 
             return true;
         } catch (\Throwable $e) {
-            Log::error('[WHB] sendInvite failed', [
+            Log::warning('[WHB] sendAccept failed', [
                 'connection_id' => $connection->id,
                 'error'         => $e->getMessage(),
             ]);
@@ -245,8 +301,12 @@ class WhbFederationService
 
     /**
      * Decrypt and return the shared secret for a connection.
+     *
+     * Public: also used by VerifyFederationSignature middleware, which
+     * needs the exact same decrypt-with-plaintext-fallback logic to verify
+     * inbound signatures against.
      */
-    private function resolveSecret(WhbConnection $connection): string
+    public function resolveSecret(WhbConnection $connection): string
     {
         /** @var string $raw */
         $raw = $connection->getRawOriginal('shared_secret')

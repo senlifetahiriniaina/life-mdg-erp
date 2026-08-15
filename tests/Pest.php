@@ -36,6 +36,7 @@ uses(Tests\TestCase::class)->in(
     '../Modules/WhatsApp/tests/Feature',
     '../Modules/WhatsApp/tests/Unit',
     '../Modules/AuditLog/tests/Feature',
+    '../Modules/Integration/tests/Feature',
     '../Modules/Planning/tests/Feature',
     '../Modules/Planning/tests/Unit',
     '../Modules/Quality/tests/Feature',

@@ -158,6 +158,15 @@ class WhbPartnerService
             'status'           => 'pending',   // still awaiting admin approval
         ]);
 
+        // For a remote connection, the inviter's own row doesn't know who
+        // accepted yet (createInvite() sent the invite before any tenant
+        // identity existed on our side) — tell them now. Best-effort: a
+        // failed notification must not block our own acceptance, same
+        // policy as approveConnection()'s refreshSession() call below.
+        if ($connection->connection_type === 'remote') {
+            $this->federation->sendAccept($connection->refresh(), $tenantId);
+        }
+
         return $connection->fresh(['permissions']);
     }
 
