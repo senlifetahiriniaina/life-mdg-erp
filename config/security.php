@@ -42,4 +42,25 @@ return [
         'ip_cache_minutes' => 5,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mandatory two-factor authentication
+    |--------------------------------------------------------------------------
+    |
+    | App\Models\User::requiresTwoFactor() reads this instead of a hardcoded
+    | role list, so a role can be added here without a code deploy. Default
+    | matches the previous hardcoded behavior exactly — zero regression.
+    |
+    | The 2fa middleware itself is currently only wired on the root /v1
+    | dashboard/webhooks/automation and /v1/admin route groups — adding a
+    | role here does not, by itself, gate any of the 27 modules' own route
+    | groups (tracked separately; rolling it out app-wide would 403 every
+    | already-logged-in session of that role that hasn't enrolled 2FA yet,
+    | so it needs its own deliberate, communicated rollout, not a silent
+    | side effect of this config).
+    |
+    */
+
+    'mandatory_2fa_roles' => ['super-admin', 'admin'],
+
 ];

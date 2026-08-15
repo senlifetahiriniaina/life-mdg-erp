@@ -104,12 +104,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Whether 2FA is mandatory for this user. Admin / super-admin roles must
-     * enroll; everyone else is opt-in.
+     * Whether 2FA is mandatory for this user. Config-driven so a role can be
+     * added without a deploy — see config/security.php's mandatory_2fa_roles
+     * for the default (super-admin, admin) and rollout caveats.
      */
     public function requiresTwoFactor(): bool
     {
-        return $this->hasAnyRole(['super-admin', 'admin']);
+        return $this->hasAnyRole(config('security.mandatory_2fa_roles', ['super-admin', 'admin']));
     }
 
     /*
