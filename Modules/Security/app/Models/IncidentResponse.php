@@ -10,6 +10,9 @@ class IncidentResponse extends Model
 {
     use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
+
+    protected $table = 'security_incident_responses';
+
     protected $fillable = [
         'security_incident_id',
         'response_type',

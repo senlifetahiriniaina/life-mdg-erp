@@ -13,6 +13,8 @@ class AuthenticationEvent extends Model
     use \Modules\AuditLog\Traits\HasAuditLog;
     public $timestamps = false;
 
+    protected $table = 'security_authentication_events';
+
     protected $fillable = [
         'user_id',
         'user_email',

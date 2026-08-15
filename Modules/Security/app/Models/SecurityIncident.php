@@ -21,7 +21,7 @@ class SecurityIncident extends Model
         return SecurityIncidentFactory::new();
     }
 
-    protected $table = 'security_incident_responses';
+    protected $table = 'security_incidents';
 
     protected $fillable = [
         'company_id',
