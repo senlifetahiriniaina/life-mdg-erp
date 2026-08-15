@@ -156,13 +156,22 @@ const typeOptions = [
   { label: 'Service',    value: 'service' },
 ]
 
-const typeClass  = (type) => ({ storable: 'wh-badge-blue', consumable: 'wh-badge-amber', service: 'wh-badge-green' }[type] ?? 'wh-badge-slate')
-const typeLabel  = (type) => ({ storable: 'Storable', consumable: 'Consumable', service: 'Service' }[type] ?? type)
-const isLowStock = (p) => p.quantity_on_hand != null && p.min_stock_qty != null && p.quantity_on_hand <= p.min_stock_qty
-const formatMoney = (v) => v != null ? Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '—'
+interface ProductRow {
+  quantity_on_hand?: number | null
+  min_stock_qty?: number | null
+  unit?: { symbol?: string } | null
+}
 
-let searchTimer = null
-const onSearch = () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => {/* TODO: fetch */}, 400) }
+const TYPE_CLASSES: Record<string, string> = { storable: 'wh-badge-blue', consumable: 'wh-badge-amber', service: 'wh-badge-green' }
+const TYPE_LABELS: Record<string, string> = { storable: 'Storable', consumable: 'Consumable', service: 'Service' }
+
+const typeClass  = (type: string) => TYPE_CLASSES[type] ?? 'wh-badge-slate'
+const typeLabel  = (type: string) => TYPE_LABELS[type] ?? type
+const isLowStock = (p: ProductRow) => p.quantity_on_hand != null && p.min_stock_qty != null && p.quantity_on_hand <= p.min_stock_qty
+const formatMoney = (v: number | null | undefined) => v != null ? Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '—'
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+const onSearch = () => { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(() => {/* TODO: fetch */}, 400) }
 </script>
 
 <style scoped>

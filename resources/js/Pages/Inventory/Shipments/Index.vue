@@ -14,7 +14,7 @@
 
     <TabView v-model:activeIndex="activeTab">
       <!-- Onglet Expéditions -->
-      <TabPanel header="Expéditions">
+      <TabPanel value="0" header="Expéditions">
         <!-- KPIs -->
         <div class="wh-kpi-grid" style="margin-bottom: 24px">
           <div class="wh-kpi-card">
@@ -148,7 +148,7 @@
       </TabPanel>
 
       <!-- Onglet Transporteurs -->
-      <TabPanel header="Transporteurs">
+      <TabPanel value="1" header="Transporteurs">
         <div style="display: flex; justify-content: flex-end; margin-bottom: 16px">
           <Button label="Ajouter un transporteur" icon="pi pi-plus" @click="showCarrierDialog = true" />
         </div>
@@ -319,7 +319,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown, TabView, TabPanel } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown } from 'primevue'
+import TabView from 'primevue/tabview'
+import TabPanel from 'primevue/tabpanel'
 
 interface Carrier {
   id: number

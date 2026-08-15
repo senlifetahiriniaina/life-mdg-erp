@@ -86,7 +86,7 @@
       <!-- Main content -->
       <div v-if="selectedConnection" class="wh-panel" style="flex: 1">
         <TabView>
-          <TabPanel header="Comptes">
+          <TabPanel value="0" header="Comptes">
             <div v-if="feeds.length === 0" style="color: var(--fg-3); font-size: 13px; padding: 16px 0">
               Aucun compte récupéré. Synchronisez la connexion.
             </div>
@@ -99,7 +99,7 @@
             </div>
           </TabPanel>
 
-          <TabPanel header="Transactions">
+          <TabPanel value="1" header="Transactions">
             <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center">
               <Dropdown
                 v-model="txFilter"
@@ -246,7 +246,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown, Badge, TabView, TabPanel } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown, Badge } from 'primevue'
+import TabView from 'primevue/tabview'
+import TabPanel from 'primevue/tabpanel'
 
 interface Connection {
   id: number

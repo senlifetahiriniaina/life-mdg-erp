@@ -128,9 +128,23 @@ const currentLocale = ref(locale.value)
 const locales = [{ value: 'en', label: 'EN' }, { value: 'fr', label: 'FR' }, { value: 'pt', label: 'PT' }, { value: 'es', label: 'ES' }]
 
 const user = computed(() => page.props.auth?.user)
-const userInitials = computed(() => { const name = user.value?.name ?? ''; return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'WH' })
+const userInitials = computed(() => { const name = user.value?.name ?? ''; return name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() || 'WH' })
 
-const allNavGroups = [
+interface NavItem {
+  key: string
+  module: string
+  href: string
+  icon: string
+  badge?: string
+}
+
+interface NavGroup {
+  label: string
+  adminOnly?: boolean
+  items: NavItem[]
+}
+
+const allNavGroups: NavGroup[] = [
   { label: 'Pilotage', items: [
     { key: 'dashboard', module: 'Core', href: '/dashboard', icon: 'pi pi-th-large' },
     { key: 'bi', module: 'BI', href: '/bi', icon: 'pi pi-chart-bar' },
@@ -158,7 +172,7 @@ const allNavGroups = [
 // tenant, since tenant_modules is never seeded and the module-visibility filter below
 // silently falls back to "show everything" when it's empty).
 const ADMIN_ROLES = ['super-admin', 'admin', 'system-admin', 'security-admin', 'billing-admin', 'support-admin', 'tenant-admin']
-const ROLE_MODULE_ACCESS = {
+const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   'logistics-manager': ['Inventory', 'Logistics'],
   'service-partner': ['Helpdesk', 'Projects'],
   'purchasing-manager': ['Achats', 'Inventory', 'Accounting'],
@@ -171,18 +185,18 @@ const ROLE_MODULE_ACCESS = {
   'payroll-officer': ['Payroll', 'HR'],
 }
 
-const userRoles = computed(() => user.value?.roles ?? [])
-const isAdmin = computed(() => userRoles.value.some(r => ADMIN_ROLES.includes(r)))
-const roleAllowedModules = computed(() => {
+const userRoles = computed<string[]>(() => user.value?.roles ?? [])
+const isAdmin = computed(() => userRoles.value.some((r: string) => ADMIN_ROLES.includes(r)))
+const roleAllowedModules = computed<Set<string> | null>(() => {
   const roles = userRoles.value
   const unrestricted = ['super-admin', 'admin', 'manager', 'employee', 'accountant', 'hr-manager', 'sales-rep', ...ADMIN_ROLES]
-  if (roles.some(r => unrestricted.includes(r))) return null
-  const allowed = new Set(['Core'])
-  for (const role of roles) { const modules = ROLE_MODULE_ACCESS[role] ?? []; modules.forEach(m => allowed.add(m)) }
+  if (roles.some((r: string) => unrestricted.includes(r))) return null
+  const allowed = new Set<string>(['Core'])
+  for (const role of roles) { const modules = ROLE_MODULE_ACCESS[role] ?? []; modules.forEach((m: string) => allowed.add(m)) }
   return allowed
 })
 
-const adminNavGroup = { label: 'Administration', adminOnly: true, items: [
+const adminNavGroup: NavGroup = { label: 'Administration', adminOnly: true, items: [
   { key: 'admin', module: 'Core', href: '/admin', icon: 'pi pi-shield' },
   { key: 'admin_servers', module: 'Core', href: '/admin/servers', icon: 'pi pi-server' },
   { key: 'admin_backups', module: 'Core', href: '/admin/backups', icon: 'pi pi-database' },
@@ -191,9 +205,9 @@ const adminNavGroup = { label: 'Administration', adminOnly: true, items: [
   { key: 'admin_exchanges', module: 'Core', href: '/admin/exchanges', icon: 'pi pi-arrow-right-arrow-left' },
 ]}
 
-const enabledNavGroups = computed(() => {
+const enabledNavGroups = computed<NavGroup[]>(() => {
   const enabledModules = page.props.enabledModules || []
-  const nonCore = enabledModules.filter(m => m !== 'Core')
+  const nonCore = enabledModules.filter((m: string) => m !== 'Core')
   const allowed = roleAllowedModules.value
   const businessGroups = allNavGroups.map(group => ({ ...group, items: group.items.filter(item => {
     const moduleEnabled = item.module === 'Core' || nonCore.length === 0 || enabledModules.includes(item.module)
@@ -209,10 +223,10 @@ const currentModuleTitle = computed(() => {
   return t('nav.dashboard')
 })
 
-const isActive = (href) => href === '/dashboard' ? window.location.pathname === '/dashboard' : window.location.pathname.startsWith(href)
+const isActive = (href: string) => href === '/dashboard' ? window.location.pathname === '/dashboard' : window.location.pathname.startsWith(href)
 const toggleAI = () => { aiPanelOpen.value = !aiPanelOpen.value }
 const performSearch = () => { /* TODO: global search */ }
-const switchLocale = (value) => { currentLocale.value = value; locale.value = value; localStorage.setItem('locale', value) }
+const switchLocale = (value: string) => { currentLocale.value = value; locale.value = value; localStorage.setItem('locale', value) }
 
 // Phase 4: Initialize Web Vitals monitoring on app load
 onMounted(() => {

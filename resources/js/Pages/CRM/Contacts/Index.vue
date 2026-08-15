@@ -176,7 +176,8 @@ import { useI18n } from 'vue-i18n'
 interface Account  { id: number; name: string }
 interface Contact  {
   id: number; full_name: string; first_name: string; last_name: string
-  email: string | null; phone: string | null; job_title: string | null
+  email: string | null; phone: string | null; mobile: string | null
+  job_title: string | null; department: string | null; source: string | null
   status: string; account: Account | null
 }
 interface Pagination { current_page: number; per_page: number; total: number; last_page: number }

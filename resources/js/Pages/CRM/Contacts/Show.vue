@@ -93,7 +93,8 @@ interface Contact {
   id: number; full_name: string; first_name: string; last_name: string;
   email: string | null; phone: string | null; mobile: string | null;
   job_title: string | null; department: string | null; status: string;
-  account?: { id: number; name: string } | null; created_at: string;
+  source: string | null;
+  account: { id: number; name: string } | null; created_at: string;
 }
 
 const props = defineProps<{ contact: Contact; activities: Activity[] }>()

@@ -174,7 +174,7 @@ const exportPayroll = (format: string) => {
   window.location.href = `/api/v1/hr/payroll/export/${format}?year=${year}&month=${month}`
 }
 
-const onPage = (event) => {
+const onPage = (event: { page: number }) => {
   router.get(
     route('hr.payroll.index'),
     { search: filterSearch.value || undefined, status: filterStatus.value || undefined, page: event.page + 1 },
@@ -182,22 +182,24 @@ const onPage = (event) => {
   )
 }
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: number | string | null | undefined) => {
   if (value === null || value === undefined) return '—'
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value))
 }
 
-const statusBadgeClass = (status) => ({
+const STATUS_BADGE_CLASSES: Record<string, string> = {
   draft:    'wh-badge-slate',
   approved: 'wh-badge-blue',
   paid:     'wh-badge-green',
-}[status] ?? 'wh-badge-slate')
-
-const statusLabel = (status) => ({
+}
+const STATUS_LABELS: Record<string, string> = {
   draft:    'Draft',
   approved: 'Approved',
   paid:     'Paid',
-}[status] ?? status)
+}
+
+const statusBadgeClass = (status: string) => STATUS_BADGE_CLASSES[status] ?? 'wh-badge-slate'
+const statusLabel = (status: string) => STATUS_LABELS[status] ?? status
 </script>
 
 <style scoped>

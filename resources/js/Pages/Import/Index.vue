@@ -19,7 +19,7 @@
           @dragover.prevent="dragging = true"
           @dragleave="dragging = false"
           @drop.prevent="onDrop"
-          @click="$refs.fileInput.click()"
+          @click="fileInput?.click()"
         >
           <i class="pi pi-cloud-upload upload-icon" />
           <p class="dropzone-text">Drag &amp; drop your file here, or <strong>click to browse</strong></p>
@@ -238,7 +238,30 @@ import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
 
 const { t } = useI18n()
 
+interface ImportJob {
+  id: number
+  status: string
+  filename?: string
+  target_entity?: string
+  total_rows?: number | null
+  processed_rows?: number | null
+  failed_rows?: number | null
+  ai_suggestions?: { column_mapping?: Record<string, string>; confidence?: number } | null
+  created_at?: string
+}
+
+interface PreviewRow {
+  raw_data?: Record<string, unknown>
+}
+
+interface FailedRow {
+  id: number
+  row_index: number
+  error_message?: string
+}
+
 // ── State ──────────────────────────────────────────────────────────────────────
+const fileInput     = ref<HTMLInputElement | null>(null)
 const currentStep   = ref(0)
 const selectedFile  = ref<File | null>(null)
 const targetEntity  = ref('')
@@ -248,11 +271,11 @@ const uploadError   = ref('')
 const savingMapping = ref(false)
 const importStarted = ref(false)
 
-const currentJob  = ref<Record<string, unknown> | null>(null)
-const previewRows = ref<Record<string, unknown>[]>([])
+const currentJob  = ref<ImportJob | null>(null)
+const previewRows = ref<PreviewRow[]>([])
 const userMapping = ref<Record<string, string>>({})
-const failedRows  = ref<Record<string, unknown>[]>([])
-const recentJobs  = ref<Record<string, unknown>[]>([])
+const failedRows  = ref<FailedRow[]>([])
+const recentJobs  = ref<ImportJob[]>([])
 
 let pollInterval: ReturnType<typeof setInterval> | null = null
 
@@ -304,15 +327,9 @@ const statusLabel = computed(() => {
   return labels[s] ?? 'Processing...'
 })
 
-const aiSuggestions = computed(() => {
-  const sug = currentJob.value?.ai_suggestions as Record<string, unknown> | null
-  return (sug?.column_mapping as Record<string, string> | null) ?? {}
-})
+const aiSuggestions = computed(() => currentJob.value?.ai_suggestions?.column_mapping ?? {})
 
-const aiConfidence = computed(() => {
-  const sug = currentJob.value?.ai_suggestions as Record<string, unknown> | null
-  return (sug?.confidence as number | null) ?? null
-})
+const aiConfidence = computed(() => currentJob.value?.ai_suggestions?.confidence ?? null)
 
 const availableColumns = computed(() => Object.keys(aiSuggestions.value))
 
@@ -462,7 +479,7 @@ async function loadFailedRows() {
   const res = await fetch(`/api/v1/import/jobs/${id}/rows?status=failed`, { credentials: 'same-origin' })
   if (res.ok) {
     const data = await res.json()
-    failedRows.value = (data.data as Record<string, unknown>[]) ?? []
+    failedRows.value = (data.data as FailedRow[]) ?? []
   }
 }
 
@@ -507,7 +524,7 @@ async function loadRecentJobs() {
   const res = await fetch('/api/v1/import/jobs', { credentials: 'same-origin' })
   if (res.ok) {
     const data = await res.json()
-    recentJobs.value = (data.data as Record<string, unknown>[]) ?? []
+    recentJobs.value = (data.data as ImportJob[]) ?? []
   }
 }
 

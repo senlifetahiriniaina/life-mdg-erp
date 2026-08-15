@@ -60,7 +60,7 @@ const props = defineProps({
 })
 
 const initials = computed(() =>
-  props.employee.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
+  props.employee.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
 )
 
 const fields = computed(() => [

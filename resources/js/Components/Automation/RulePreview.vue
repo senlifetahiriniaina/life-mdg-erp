@@ -62,8 +62,39 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+interface ConditionValue {
+  type?: string
+  field?: string
+  operator?: string
+  value?: unknown
+  rules?: ConditionValue[]
+}
+
+interface ActionValue {
+  type?: string
+  field?: string
+  value?: unknown
+  status?: string
+  template?: string
+  title?: string
+  user_id?: number | string
+  tag?: string
+  text?: string
+  webhook_url?: string
+}
+
+interface RuleShape {
+  id: number | null
+  name?: string
+  trigger?: string
+  is_enabled?: boolean
+  execution_count?: number
+  conditions?: ConditionValue
+  actions?: ActionValue[]
+}
+
 const props = defineProps<{
-  rule: any
+  rule: RuleShape
 }>()
 
 const conditionText = computed(() => {
@@ -74,12 +105,12 @@ const conditionText = computed(() => {
   return buildConditionText(conditions)
 })
 
-const buildConditionText = (conditions: any): string => {
+const buildConditionText = (conditions: ConditionValue): string => {
   if (!conditions.rules || conditions.rules.length === 0) {
     return 'true'
   }
 
-  const parts = conditions.rules.map((rule: any) => {
+  const parts = conditions.rules.map((rule) => {
     if (rule.type) {
       return '(' + buildConditionText(rule) + ')'
     } else {
@@ -90,10 +121,10 @@ const buildConditionText = (conditions: any): string => {
   return parts.join(` ${conditions.type} `)
 }
 
-const actionText = (action: any): string => {
-  const type = action.type
+const actionText = (action: ActionValue): string => {
+  const type = action.type ?? ''
 
-  return {
+  const labels: Record<string, string> = {
     update_field: `Update ${action.field} to "${action.value}"`,
     update_status: `Update status to "${action.status}"`,
     send_email: `Send email using "${action.template}" template`,
@@ -102,7 +133,8 @@ const actionText = (action: any): string => {
     add_tag: `Add tag: "${action.tag}"`,
     add_comment: `Add comment: "${action.text}"`,
     trigger_webhook: `Call webhook: ${action.webhook_url}`,
-  }[type] || type
+  }
+  return labels[type] || type
 }
 </script>
 

@@ -204,7 +204,7 @@ const pendingIncoming = computed(() =>
     : 0
 )
 
-const tabs = computed(() => [
+const tabs = computed<Array<{ value: 'incoming' | 'outgoing'; label: string; count: number }>>(() => [
   { value: 'incoming', label: 'Reçus', count: pendingIncoming.value },
   { value: 'outgoing', label: 'Envoyés', count: 0 },
 ])

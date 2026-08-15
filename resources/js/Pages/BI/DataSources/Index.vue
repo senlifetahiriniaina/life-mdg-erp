@@ -136,9 +136,20 @@ import { Head } from '@inertiajs/vue3'
 import { Dialog, InputText, InputNumber, Select, Password } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
-defineProps({
-  dataSources: { type: Array, required: true },
-})
+interface DataSource {
+  id: number
+  name: string
+  type: string
+  status: string
+  host?: string | null
+  connection_string?: string | null
+  database_name?: string | null
+  created_at: string
+}
+
+defineProps<{
+  dataSources: DataSource[]
+}>()
 
 const showCreate = ref(false)
 const form = reactive({
@@ -183,7 +194,7 @@ const statusLabel = (s: string) => ({
 const formatDate = (v: string) =>
   v ? new Date(v).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
 
-const testConnection = async (src: any) => {
+const testConnection = async (src: DataSource) => {
   await fetch(`/api/v1/bi/data-sources/${src.id}/test`, { method: 'POST', headers: { Accept: 'application/json' } })
 }
 

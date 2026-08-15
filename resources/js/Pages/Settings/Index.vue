@@ -97,9 +97,11 @@ const locales = [
 ]
 const selectedLocale = ref('fr')
 
-const notifications = ref({ email: true, push: true, marketing: false, digest: true })
+type NotificationKey = 'email' | 'push' | 'marketing' | 'digest'
 
-const notifRows = [
+const notifications = ref<Record<NotificationKey, boolean>>({ email: true, push: true, marketing: false, digest: true })
+
+const notifRows: Array<{ key: NotificationKey; label: string; desc: string }> = [
   { key: 'email',     label: 'Notifications email',    desc: 'Recevoir des notifications par email' },
   { key: 'push',      label: 'Notifications push',     desc: 'Recevoir des notifications in-app' },
   { key: 'marketing', label: 'Emails marketing',       desc: 'Recevoir les mises à jour et annonces' },

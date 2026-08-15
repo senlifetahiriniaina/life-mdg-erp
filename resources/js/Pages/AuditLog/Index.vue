@@ -47,22 +47,22 @@
         </div>
 
         <!-- Module -->
-        <select v-model="filters.module" class="wh-select" @change="applyFilters">
+        <select v-model="filters.module" class="wh-select" @change="applyFilters()">
           <option value="">Tous les modules</option>
           <option v-for="mod in modules" :key="mod" :value="mod">{{ mod }}</option>
         </select>
 
         <!-- Event type -->
-        <select v-model="filters.event_type" class="wh-select" @change="applyFilters">
+        <select v-model="filters.event_type" class="wh-select" @change="applyFilters()">
           <option value="">Tous les types</option>
           <option v-for="et in eventTypes" :key="et" :value="et">{{ eventTypeLabel(et) }}</option>
         </select>
 
         <!-- Date from -->
-        <input v-model="filters.date_from" type="date" class="wh-select" aria-label="Filtrer à partir du" @change="applyFilters" />
+        <input v-model="filters.date_from" type="date" class="wh-select" aria-label="Filtrer à partir du" @change="applyFilters()" />
 
         <!-- Date to -->
-        <input v-model="filters.date_to" type="date" class="wh-select" aria-label="Filtrer jusqu'au" @change="applyFilters" />
+        <input v-model="filters.date_to" type="date" class="wh-select" aria-label="Filtrer jusqu'au" @change="applyFilters()" />
       </div>
     </div>
 

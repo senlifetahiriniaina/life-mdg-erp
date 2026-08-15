@@ -19,7 +19,7 @@
     <div class="page-head">
       <div>
         <p class="eyebrow">{{ greeting }}</p>
-        <h1 class="page-title">{{ $page.props.auth.user.name }}</h1>
+        <h1 class="page-title">{{ $page.props.auth?.user?.name }}</h1>
         <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
           <span :class="['role-badge', `role-badge--${roleKey}`]">
             <i :class="roleIcon" style="font-size:10px" />

@@ -265,7 +265,7 @@ const resetFilters = () => {
   router.get(route('accounting.journal-entries.index'), {}, { preserveState: false })
 }
 
-const onPage = (event) => {
+const onPage = (event: { page: number }) => {
   router.get(
     route('accounting.journal-entries.index'),
     {

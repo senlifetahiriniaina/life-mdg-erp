@@ -46,7 +46,7 @@ const formattedValue = computed(() => {
   const v = props.value
   if (typeof v === 'string') return v
   switch (props.format) {
-    case 'currency': return n(v, 'currency', { currency: props.currency })
+    case 'currency': return n(v, { key: 'currency', currency: props.currency })
     case 'percent':  return `${v}%`
     case 'number':   return n(v, 'decimal')
     default:         return v.toLocaleString()

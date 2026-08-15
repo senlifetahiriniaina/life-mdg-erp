@@ -62,17 +62,19 @@ defineProps({
   reports: { type: Object, required: true },
 })
 
-const statusBadge = (status) => ({
+const STATUS_BADGES: Record<string, string> = {
   draft:     'wh-badge-slate',
   published: 'wh-badge-green',
-}[status] ?? 'wh-badge-slate')
-
-const statusLabel = (status) => ({
+}
+const STATUS_LABELS: Record<string, string> = {
   draft:     'Brouillon',
   published: 'Publié',
-}[status] ?? status)
+}
 
-const formatDate = (value) =>
+const statusBadge = (status: string) => STATUS_BADGES[status] ?? 'wh-badge-slate'
+const statusLabel = (status: string) => STATUS_LABELS[status] ?? status
+
+const formatDate = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
 </script>
 
