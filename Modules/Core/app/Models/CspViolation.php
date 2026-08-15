@@ -34,6 +34,15 @@ class CspViolation extends Model
     protected $table = 'csp_violations';
 
     /**
+     * Primary key is a UUID assigned explicitly by CspViolationLogger, not an
+     * auto-increment integer — without this, Eloquent's insertAndSetId()
+     * would overwrite the assigned UUID with the DB driver's last-insert-id.
+     */
+    protected $keyType = 'string';
+
+    public $incrementing = false;
+
+    /**
      * Indicates if the model uses timestamps.
      */
     public $timestamps = true;

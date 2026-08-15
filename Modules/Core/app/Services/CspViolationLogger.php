@@ -30,14 +30,14 @@ class CspViolationLogger
      * Stores violation in database and logs for alerting.
      *
      * @param array $report CSP violation report from browser
-     * @param string|null $userId Authenticated user ID
+     * @param int|string|null $userId Authenticated user ID (users.id is an integer PK)
      * @param string|null $tenantId Tenant ID for multi-tenant
      * @param string|null $module Module where violation occurred
      * @return CspViolation The created violation record
      */
     public function logViolation(
         array $report,
-        ?string $userId = null,
+        int|string|null $userId = null,
         ?string $tenantId = null,
         ?string $module = null
     ): CspViolation {
@@ -46,7 +46,9 @@ class CspViolationLogger
 
         // Create violation record
         $violation = CspViolation::create([
-            'id' => \Illuminate\Support\Str::uuid(),
+            // Cast to string: Str::uuid() returns a UuidInterface object, and leaving it
+            // as-is means $violation->id afterward isn't a plain string either.
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'document_uri' => $report['document-uri'] ?? '',
             'violated_directive' => $report['violated-directive'] ?? 'unknown',
             'effective_directive' => $report['effective-directive'] ?? null,
@@ -98,24 +100,33 @@ class CspViolationLogger
         $from = $from ?? now()->subDays(7);
         $to = $to ?? now();
 
-        $query = CspViolation::whereBetween('created_at', [$from, $to]);
+        // Each aggregation below needs its own query builder — Eloquent builders are
+        // mutable, so reusing one instance across select()/groupBy()/orderBy() calls
+        // accumulates all of them onto every subsequent call (e.g. the final count()
+        // below would run the previous orderByRaw('count DESC') from byModule, which
+        // fails since a plain count() query has no `count` alias to order by).
+        $baseQuery = function () use ($from, $to, $tenantId) {
+            $query = CspViolation::whereBetween('created_at', [$from, $to]);
 
-        if ($tenantId) {
-            $query->where('tenant_id', $tenantId);
-        }
+            if ($tenantId) {
+                $query->where('tenant_id', $tenantId);
+            }
+
+            return $query;
+        };
 
         // Total violations
-        $totalViolations = $query->count();
+        $totalViolations = $baseQuery()->count();
 
         // By severity
-        $bySeverity = $query->select('severity')
+        $bySeverity = $baseQuery()->select('severity')
             ->selectRaw('count(*) as count')
             ->groupBy('severity')
             ->pluck('count', 'severity')
             ->toArray();
 
         // By directive
-        $byDirective = $query->select('violated_directive')
+        $byDirective = $baseQuery()->select('violated_directive')
             ->selectRaw('count(*) as count')
             ->groupBy('violated_directive')
             ->orderByRaw('count DESC')
@@ -124,7 +135,7 @@ class CspViolationLogger
             ->toArray();
 
         // By module
-        $byModule = $query->select('module')
+        $byModule = $baseQuery()->select('module')
             ->selectRaw('count(*) as count')
             ->whereNotNull('module')
             ->groupBy('module')
@@ -134,7 +145,7 @@ class CspViolationLogger
             ->toArray();
 
         // Unresolved violations
-        $unresolved = $query->whereNull('resolved_at')->count();
+        $unresolved = $baseQuery()->whereNull('resolved_at')->count();
 
         return [
             'total' => $totalViolations,
@@ -244,14 +255,20 @@ class CspViolationLogger
      */
     public function analyzePatterns(?string $tenantId = null): array
     {
-        $query = CspViolation::query();
+        // Same reasoning as getViolationStats(): each aggregation needs its own
+        // fresh builder instance, not a shared one accumulating clauses.
+        $baseQuery = function () use ($tenantId) {
+            $query = CspViolation::query();
 
-        if ($tenantId) {
-            $query->where('tenant_id', $tenantId);
-        }
+            if ($tenantId) {
+                $query->where('tenant_id', $tenantId);
+            }
+
+            return $query;
+        };
 
         // Find repeated directives
-        $repeatedDirectives = $query->select('violated_directive')
+        $repeatedDirectives = $baseQuery()->select('violated_directive')
             ->selectRaw('count(*) as count')
             ->groupBy('violated_directive')
             ->having('count', '>', 10)
@@ -259,7 +276,7 @@ class CspViolationLogger
             ->toArray();
 
         // Find IPs with multiple violations
-        $suspiciousIps = $query->select('ip_address')
+        $suspiciousIps = $baseQuery()->select('ip_address')
             ->selectRaw('count(*) as count')
             ->groupBy('ip_address')
             ->having('count', '>', 20)
@@ -267,7 +284,7 @@ class CspViolationLogger
             ->toArray();
 
         // Find high-severity patterns
-        $highSeverityDirectives = $query->where('severity', 'high')
+        $highSeverityDirectives = $baseQuery()->where('severity', 'high')
             ->orWhere('severity', 'critical')
             ->select('violated_directive')
             ->selectRaw('count(*) as count')

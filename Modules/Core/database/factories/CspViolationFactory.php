@@ -14,7 +14,7 @@ class CspViolationFactory extends Factory
     public function definition(): array
     {
         return [
-            'id' => \Illuminate\Support\Str::uuid(),
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'document_uri' => $this->faker->url(),
             'violated_directive' => $this->faker->randomElement([
                 'script-src',
