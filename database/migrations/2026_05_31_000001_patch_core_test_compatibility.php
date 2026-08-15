@@ -175,7 +175,7 @@ return new class extends Migration
                     ip_address VARCHAR(45),
                     user_agent TEXT,
                     tenant_id VARCHAR(255),
-                    created_at DATETIME
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )');
 
                 // Restore existing data
