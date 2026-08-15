@@ -3,14 +3,24 @@
 namespace Modules\Security\Models;
 
 use App\Models\Company;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Security\Database\Factories\TrustZoneFactory;
 
 class TrustZone extends Model
 {
+    use HasFactory;
     use SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
+
+    protected static function newFactory(): TrustZoneFactory
+    {
+        return TrustZoneFactory::new();
+    }
+
+    protected $table = 'security_trust_zones';
 
     protected $fillable = [
         'company_id',

@@ -3,15 +3,25 @@
 namespace Modules\Security\Models;
 
 use App\Models\Company;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Security\Database\Factories\SecurityIncidentFactory;
 
 class SecurityIncident extends Model
 {
+    use HasFactory;
     use SoftDeletes;
     use \Modules\AuditLog\Traits\HasAuditLog;
+
+    protected static function newFactory(): SecurityIncidentFactory
+    {
+        return SecurityIncidentFactory::new();
+    }
+
+    protected $table = 'security_incident_responses';
 
     protected $fillable = [
         'company_id',

@@ -3,13 +3,24 @@
 namespace Modules\Security\Models;
 
 use App\Models\Company;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Security\Database\Factories\EncryptionKeyFactory;
 
 class EncryptionKey extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
+
+    protected static function newFactory(): EncryptionKeyFactory
+    {
+        return EncryptionKeyFactory::new();
+    }
+
+    protected $table = 'security_encryption_keys';
+
     protected $fillable = [
         'company_id',
         'key_name',

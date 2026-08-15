@@ -36,12 +36,12 @@ class IntercompanyClearance extends Model
 
     public function sendingCompany(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'sending_company_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'sending_company_id');
     }
 
     public function receivingCompany(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'receiving_company_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'receiving_company_id');
     }
 
     public function sendingGlAccount(): BelongsTo

@@ -37,12 +37,12 @@ class ConsolidationHierarchy extends Model
 
     public function parentCompany(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'parent_company_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'parent_company_id');
     }
 
     public function company(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'company_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'company_id');
     }
 
     public function eliminations(): HasMany

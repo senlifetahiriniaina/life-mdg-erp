@@ -12,6 +12,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
+ * @property int|null $company_id
  * @property string $name
  * @property string $first_name
  * @property string $last_name
@@ -46,6 +47,7 @@ class User extends Authenticatable
     }
 
     protected $fillable = [
+        'company_id',
         'name', 'first_name', 'last_name', 'email', 'phone', 'avatar',
         'password', 'locale', 'timezone', 'is_active',
         'google2fa_secret', 'two_factor_enabled', 'two_factor_confirmed_at',
@@ -156,5 +158,10 @@ class User extends Authenticatable
     public function employee(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(\Modules\HR\Models\Employee::class, 'user_id');
+    }
+
+    public function company(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 }

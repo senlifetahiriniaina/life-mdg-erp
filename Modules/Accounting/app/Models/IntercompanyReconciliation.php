@@ -32,11 +32,11 @@ class IntercompanyReconciliation extends Model
 
     public function companyA(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'company_a_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'company_a_id');
     }
 
     public function companyB(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'company_b_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'company_b_id');
     }
 }

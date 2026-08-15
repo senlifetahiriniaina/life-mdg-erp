@@ -3,12 +3,23 @@
 namespace Modules\Security\Models;
 
 use App\Models\Company;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Modules\Security\Database\Factories\ComplianceViolationFactory;
 
 class ComplianceViolation extends Model
 {
+    use HasFactory;
     use \Modules\AuditLog\Traits\HasAuditLog;
+
+    protected static function newFactory(): ComplianceViolationFactory
+    {
+        return ComplianceViolationFactory::new();
+    }
+
+    protected $table = 'security_compliance_violations';
+
     protected $fillable = [
         'company_id',
         'compliance_control_id',

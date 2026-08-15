@@ -39,7 +39,7 @@ class ConsolidationEntry extends Model
 
     public function company(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Company::class, 'company_id');
+        return $this->belongsTo(\Modules\Accounting\Models\Company::class, 'company_id');
     }
 
     public function glAccount(): BelongsTo
