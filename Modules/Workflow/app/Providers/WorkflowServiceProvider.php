@@ -116,6 +116,12 @@ class WorkflowServiceProvider extends ServiceProvider
         // (connector_definitions table, automation_flows versioning columns)
         // never ran; every other module's provider already does this.
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
-        $this->loadRoutesFrom(__DIR__ . '/../../routes/api.php');
+
+        // loadRoutesFrom() alone (no 'api' middleware/prefix wrapper, unlike
+        // every sibling module's RouteServiceProvider::mapApiRoutes()) meant
+        // routes/api.php's own prefix('v1') registered at /v1/... instead of
+        // /api/v1/... — every Workflow endpoint 404'd against its documented
+        // path.
+        Route::middleware('api')->prefix('api')->group(__DIR__ . '/../../routes/api.php');
     }
 }
