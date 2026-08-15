@@ -1,0 +1,11 @@
+{
+    "name": "API",
+    "alias": "api",
+    "description": "API First: GraphQL schema/query tooling, API versioning.",
+    "keywords": ["api", "graphql", "versioning"],
+    "priority": 0,
+    "providers": [
+        "Modules\\API\\Providers\\APIServiceProvider"
+    ],
+    "files": []
+}

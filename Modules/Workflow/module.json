@@ -1,0 +1,11 @@
+{
+    "name": "Workflow",
+    "alias": "workflow",
+    "description": "Business process automation: n8n-like flow execution engine, action handlers, approval workflows, task management.",
+    "keywords": ["workflow", "automation", "approval", "tasks"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Workflow\\Providers\\WorkflowServiceProvider"
+    ],
+    "files": []
+}

@@ -110,9 +110,12 @@ class WorkflowServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Migrations and routes are loaded from apps/api/Modules/Workflow/
-        // via the nwidart module system and its service provider.
-        // The WorkflowAutomationServiceProvider in apps/api/Modules/Workflow/
-        // handles loadMigrationsFrom and route registration.
+        // apps/api doesn't exist in this repo (the real entry point is app/, per
+        // CLAUDE.md) — this was a leftover comment from the WideHalo source
+        // extraction. Without this call, Modules/Workflow/database/migrations/
+        // (connector_definitions table, automation_flows versioning columns)
+        // never ran; every other module's provider already does this.
+        $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+        $this->loadRoutesFrom(__DIR__ . '/../../routes/api.php');
     }
 }

@@ -1,0 +1,11 @@
+{
+    "name": "AI",
+    "alias": "ai",
+    "description": "AI Assisted First: contextual guidance, predictive analytics, NLP, recommendations, automated insights.",
+    "keywords": ["ai", "assistant", "nlp", "predictions", "recommendations", "insights"],
+    "priority": 0,
+    "providers": [
+        "Modules\\AI\\Providers\\AIServiceProvider"
+    ],
+    "files": []
+}

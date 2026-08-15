@@ -27,6 +27,6 @@ class APIServiceProvider extends ServiceProvider
 
     public function boot()
     {
-        // Module boot logic
+        $this->loadRoutesFrom(__DIR__ . '/../../routes/api.php');
     }
 }
