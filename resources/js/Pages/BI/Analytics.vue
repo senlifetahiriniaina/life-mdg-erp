@@ -111,10 +111,18 @@ const biTourSteps = [
   { tag: 'BI', icon: 'pi pi-star',       title: 'Top Products',        description: 'The horizontal bar shows your top 5 products by revenue from POS sales. Use this to inform purchasing and promotions.' },
 ]
 
+interface AnalyticsData {
+  kpi_snapshot: Array<{ label: string; value: string; trend: string; change: string }>
+  revenue: { data: number[]; labels: string[] }
+  tickets: Record<string, number>
+  leads: { data: number[]; labels: string[] }
+  top_products: Array<{ name: string; revenue: number }>
+}
+
 const months  = ref(6)
-const data    = ref(null)
+const data    = ref<AnalyticsData | null>(null)
 const loading = ref(false)
-const error   = ref(null)
+const error   = ref<string | null>(null)
 
 async function load() {
   loading.value = true
@@ -122,7 +130,7 @@ async function load() {
   try {
     const res = await axios.get('/api/v1/bi/analytics/summary', { params: { months: months.value } })
     data.value = res.data
-  } catch (e) {
+  } catch (e: any) {
     error.value = e.response?.data?.message ?? e.message
   } finally {
     loading.value = false
@@ -159,11 +167,11 @@ const revenueSeries = computed(() => [{
 const revenueOptions = computed(() => ({
   ...baseChart,
   xaxis: { categories: data.value?.revenue?.labels ?? [], labels: { style: { colors: 'var(--fg-3)', fontSize: '11px' } } },
-  yaxis: { labels: { formatter: (v) => `$${(v / 1000).toFixed(0)}k`, style: { colors: 'var(--fg-3)' } } },
+  yaxis: { labels: { formatter: (v: number) => `$${(v / 1000).toFixed(0)}k`, style: { colors: 'var(--fg-3)' } } },
   fill:  { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
   stroke:{ curve: 'smooth', width: 2 },
   dataLabels: { enabled: false },
-  tooltip: { y: { formatter: (v) => `$${v.toLocaleString()}` } },
+  tooltip: { y: { formatter: (v: number) => `$${v.toLocaleString()}` } },
 }))
 
 // Tickets
@@ -172,7 +180,7 @@ const ticketOptions = computed(() => ({
   ...baseChart,
   labels: Object.keys(data.value?.tickets ?? {}).map(s => s.replace('_', ' ')),
   legend: { position: 'bottom', fontSize: '12px' },
-  dataLabels: { enabled: true, formatter: (v) => `${v.toFixed(0)}%` },
+  dataLabels: { enabled: true, formatter: (v: number) => `${v.toFixed(0)}%` },
 }))
 
 // Leads
@@ -188,15 +196,15 @@ const leadOptions = computed(() => ({
 // Top products
 const productSeries = computed(() => [{
   name: 'Revenue',
-  data: (data.value?.top_products ?? []).map(p => p.revenue),
+  data: (data.value?.top_products ?? []).map((p) => p.revenue),
 }])
 const productOptions = computed(() => ({
   ...baseChart,
   xaxis: {
-    categories: (data.value?.top_products ?? []).map(p => p.name),
+    categories: (data.value?.top_products ?? []).map((p) => p.name),
     labels: { style: { colors: 'var(--fg-3)', fontSize: '11px' } },
   },
-  yaxis: { labels: { formatter: (v) => `$${(v / 1000).toFixed(1)}k`, style: { colors: 'var(--fg-3)' } } },
+  yaxis: { labels: { formatter: (v: number) => `$${(v / 1000).toFixed(1)}k`, style: { colors: 'var(--fg-3)' } } },
   plotOptions: { bar: { borderRadius: 4, horizontal: true } },
   dataLabels: { enabled: false },
 }))
