@@ -213,7 +213,7 @@ test('can create a purchase order via API', function () {
         'currency'    => 'XOF',
     ])
         ->assertCreated()
-        ->assertJsonPath('data.status', 'draft');
+        ->assertJsonPath('status', 'draft');
 });
 
 test('can create a supplier via API', function () {
@@ -225,7 +225,7 @@ test('can create a supplier via API', function () {
         'country' => 'SN',
     ])
         ->assertCreated()
-        ->assertJsonPath('data.name', 'Nouveau Fournisseur');
+        ->assertJsonPath('name', 'Nouveau Fournisseur');
 });
 
 // ─── RFQ ──────────────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ test('can create an RFQ via API', function () {
         'required_by_date' => now()->addDays(30)->toDateString(),
     ])
         ->assertCreated()
-        ->assertJsonPath('data.status', 'draft');
+        ->assertJsonPath('status', 'draft');
 });
 
 test('RFQ listing returns 200', function () {
