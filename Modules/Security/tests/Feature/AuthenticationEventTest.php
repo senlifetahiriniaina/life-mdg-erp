@@ -277,7 +277,7 @@ class AuthenticationEventTest extends TestCase
 
     public function test_unauthenticated_cannot_list_authentication_events(): void
     {
-        $response = $this->getJson('/v1/security/incidents');
+        $response = $this->getJson('/api/v1/security/incidents');
 
         $response->assertStatus(401);
     }

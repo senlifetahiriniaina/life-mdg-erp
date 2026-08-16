@@ -28,7 +28,7 @@ class IncidentTest extends TestCase
     {
         SecurityIncident::factory(5)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/incidents');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/incidents');
 
         $response->assertOk();
         $response->assertJsonCount(5, 'data');
@@ -36,7 +36,7 @@ class IncidentTest extends TestCase
 
     public function test_create_security_incident(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/incidents', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/incidents', [
             'incident_type' => 'intrusion_attempt',
             'severity' => 'high',
             'description' => 'Multiple failed login attempts detected',
@@ -110,7 +110,7 @@ class IncidentTest extends TestCase
         $types = ['intrusion_attempt', 'data_breach', 'policy_violation', 'anomaly'];
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/incidents', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/incidents', [
                 'incident_type' => $type,
                 'severity' => 'medium',
                 'description' => "Test $type",
@@ -125,7 +125,7 @@ class IncidentTest extends TestCase
         $severities = ['low', 'medium', 'high', 'critical'];
 
         foreach ($severities as $severity) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/incidents', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/incidents', [
                 'incident_type' => 'anomaly',
                 'severity' => $severity,
                 'description' => "Test $severity",
@@ -139,14 +139,14 @@ class IncidentTest extends TestCase
     {
         ThreatIndicator::factory(5)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/threats');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/threats');
 
         $response->assertOk();
     }
 
     public function test_create_threat_indicator(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/threats', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
             'indicator_type' => 'ip_address',
             'indicator_value' => '192.168.1.100',
             'threat_level' => 'high',
@@ -185,7 +185,7 @@ class IncidentTest extends TestCase
         $types = ['ip_address', 'domain', 'hash', 'email', 'user_agent'];
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/threats', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
                 'indicator_type' => $type,
                 'indicator_value' => "value_$type",
                 'threat_level' => 'medium',
@@ -202,7 +202,7 @@ class IncidentTest extends TestCase
         $levels = ['low', 'medium', 'high', 'critical'];
 
         foreach ($levels as $level) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/threats', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
                 'indicator_type' => 'ip_address',
                 'indicator_value' => "ip_$level",
                 'threat_level' => $level,
@@ -243,7 +243,7 @@ class IncidentTest extends TestCase
     {
         SecurityIncident::factory(20)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/incidents?per_page=10');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/incidents?per_page=10');
 
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
@@ -255,7 +255,7 @@ class IncidentTest extends TestCase
         SecurityIncident::factory(3)->for($this->company)->create(['incident_status' => 'open']);
         SecurityIncident::factory(2)->for($this->company)->create(['incident_status' => 'resolved']);
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/incidents?status=open');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/incidents?status=open');
 
         $response->assertOk();
     }
@@ -274,7 +274,7 @@ class IncidentTest extends TestCase
     {
         ThreatIndicator::factory()->create(['indicator_value' => '192.168.1.100']);
 
-        $response = $this->actingAs($this->user)->postJson('/v1/security/threats', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
             'indicator_type' => 'ip_address',
             'indicator_value' => '192.168.1.100',
             'threat_level' => 'high',
@@ -300,7 +300,7 @@ class IncidentTest extends TestCase
     {
         $resources = ['users', 'orders', 'payments'];
 
-        $response = $this->actingAs($this->user)->postJson('/v1/security/incidents', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/incidents', [
             'incident_type' => 'data_breach',
             'severity' => 'critical',
             'description' => 'Test',
@@ -315,7 +315,7 @@ class IncidentTest extends TestCase
     {
         $threat = ThreatIndicator::factory()->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/threats');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/threats');
 
         $response->assertOk();
     }
@@ -336,7 +336,7 @@ class IncidentTest extends TestCase
 
     public function test_unauthenticated_cannot_access(): void
     {
-        $response = $this->getJson('/v1/security/incidents');
+        $response = $this->getJson('/api/v1/security/incidents');
 
         $response->assertUnauthorized();
     }

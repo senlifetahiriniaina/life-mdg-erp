@@ -28,7 +28,7 @@ class EncryptionTest extends TestCase
     {
         EncryptionKey::factory(5)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/encryption/keys');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/encryption/keys');
 
         $response->assertOk();
         $response->assertJsonCount(5, 'data');
@@ -36,7 +36,7 @@ class EncryptionTest extends TestCase
 
     public function test_create_aes_key(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
             'key_name' => 'Primary Data Key',
             'key_type' => 'AES-256-GCM',
             'key_usage' => 'data_encryption',
@@ -53,7 +53,7 @@ class EncryptionTest extends TestCase
 
     public function test_create_rsa_key(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
             'key_name' => 'RSA Key',
             'key_type' => 'RSA',
             'key_usage' => 'signing',
@@ -144,7 +144,7 @@ class EncryptionTest extends TestCase
         $types = ['AES-256-GCM', 'RSA', 'HMAC'];
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
                 'key_name' => "Test {$type}",
                 'key_type' => $type,
                 'key_usage' => 'data_encryption',
@@ -161,7 +161,7 @@ class EncryptionTest extends TestCase
         $key = EncryptionKey::factory()->for($this->company)->create();
         KeyRotationLog::factory(3)->for($key)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/encryption/rotation-logs');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/encryption/rotation-logs');
 
         $response->assertOk();
         $response->assertJsonCount(3, 'data');
@@ -171,7 +171,7 @@ class EncryptionTest extends TestCase
     {
         EncryptedField::factory(5)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/encryption/encrypted-fields');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/encryption/encrypted-fields');
 
         $response->assertOk();
         $response->assertJsonCount(5, 'data');
@@ -181,7 +181,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/encrypted-fields', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/encrypted-fields', [
             'table_name' => 'users',
             'column_name' => 'email',
             'encryption_algorithm' => 'AES-256-GCM',
@@ -201,7 +201,7 @@ class EncryptionTest extends TestCase
         $key = EncryptionKey::factory()->for($this->company)->create();
         $log = KeyRotationLog::factory()->for($key)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/encryption/rotation-logs');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/encryption/rotation-logs');
 
         $response->assertOk();
         $response->assertJsonPath('data.0.started_at', fn($date) => $date !== null);
@@ -223,7 +223,7 @@ class EncryptionTest extends TestCase
     {
         EncryptionKey::factory(20)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/encryption/keys?per_page=10');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/encryption/keys?per_page=10');
 
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
@@ -232,7 +232,7 @@ class EncryptionTest extends TestCase
 
     public function test_encryption_key_status_active_by_default(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
             'key_name' => 'Test',
             'key_type' => 'AES-256-GCM',
             'key_usage' => 'data_encryption',
@@ -248,7 +248,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/encrypted-fields', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/encrypted-fields', [
             'table_name' => 'users',
             'column_name' => 'phone',
             'encryption_algorithm' => 'AES-256-GCM',
@@ -265,7 +265,7 @@ class EncryptionTest extends TestCase
         $usages = ['data_encryption', 'field_encryption', 'signing'];
 
         foreach ($usages as $usage) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
                 'key_name' => "Test $usage",
                 'key_type' => 'AES-256-GCM',
                 'key_usage' => $usage,
@@ -279,14 +279,14 @@ class EncryptionTest extends TestCase
 
     public function test_unauthenticated_cannot_access(): void
     {
-        $response = $this->getJson('/v1/security/encryption/keys');
+        $response = $this->getJson('/api/v1/security/encryption/keys');
 
         $response->assertUnauthorized();
     }
 
     public function test_key_length_bits_validation(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
             'key_name' => 'Test',
             'key_type' => 'AES-256-GCM',
             'key_usage' => 'data_encryption',
@@ -299,7 +299,7 @@ class EncryptionTest extends TestCase
 
     public function test_vault_reference_required(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/encryption/keys', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/encryption/keys', [
             'key_name' => 'Test',
             'key_type' => 'AES-256-GCM',
             'key_usage' => 'data_encryption',

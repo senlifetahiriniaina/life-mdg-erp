@@ -344,14 +344,14 @@ class EncryptionKeyModelTest extends TestCase
 
     public function test_unauthenticated_cannot_list_encryption_keys(): void
     {
-        $response = $this->getJson('/v1/security/encryption/keys');
+        $response = $this->getJson('/api/v1/security/encryption/keys');
 
         $response->assertStatus(401);
     }
 
     public function test_authenticated_can_list_encryption_keys(): void
     {
-        $response = $this->actingAs($this->user)->getJson('/v1/security/encryption/keys');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/encryption/keys');
 
         $response->assertStatus(200);
     }

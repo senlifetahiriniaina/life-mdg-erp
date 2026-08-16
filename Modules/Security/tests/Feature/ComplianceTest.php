@@ -28,7 +28,7 @@ class ComplianceTest extends TestCase
     {
         ComplianceControl::factory(5)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/compliance/controls');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/compliance/controls');
 
         $response->assertOk();
         $response->assertJsonCount(5, 'data');
@@ -36,7 +36,7 @@ class ComplianceTest extends TestCase
 
     public function test_create_compliance_control(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/compliance/controls', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/compliance/controls', [
             'framework' => 'GDPR',
             'control_id' => 'GDPR-001',
             'control_name' => 'Data Privacy',
@@ -98,7 +98,7 @@ class ComplianceTest extends TestCase
         $frameworks = ['SOX', 'HIPAA', 'PCI-DSS', 'GDPR'];
 
         foreach ($frameworks as $framework) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/compliance/controls', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/compliance/controls', [
                 'framework' => $framework,
                 'control_id' => "CTRL-$framework",
                 'control_name' => "Control $framework",
@@ -115,7 +115,7 @@ class ComplianceTest extends TestCase
         $types = ['preventive', 'detective', 'corrective'];
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/compliance/controls', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/compliance/controls', [
                 'framework' => 'GDPR',
                 'control_id' => "CTRL-$type",
                 'control_name' => "Control $type",
@@ -131,7 +131,7 @@ class ComplianceTest extends TestCase
     {
         ComplianceAudit::factory(5)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/compliance/audits');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/compliance/audits');
 
         $response->assertOk();
         $response->assertJsonCount(5, 'data');
@@ -139,7 +139,7 @@ class ComplianceTest extends TestCase
 
     public function test_create_compliance_audit(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/v1/security/compliance/audits', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/compliance/audits', [
             'audit_type' => 'scheduled',
             'framework' => 'GDPR',
         ]);
@@ -202,7 +202,7 @@ class ComplianceTest extends TestCase
         $types = ['scheduled', 'on_demand', 'incident_response'];
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson('/v1/security/compliance/audits', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/compliance/audits', [
                 'audit_type' => $type,
                 'framework' => 'GDPR',
             ]);
@@ -215,7 +215,7 @@ class ComplianceTest extends TestCase
     {
         ComplianceViolation::factory(5)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/compliance/violations');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/compliance/violations');
 
         $response->assertOk();
     }
@@ -283,7 +283,7 @@ class ComplianceTest extends TestCase
     {
         ComplianceAudit::factory(20)->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/v1/security/compliance/audits?per_page=10');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/compliance/audits?per_page=10');
 
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
@@ -324,7 +324,7 @@ class ComplianceTest extends TestCase
     {
         $details = ['step1' => 'Configure', 'step2' => 'Test'];
 
-        $response = $this->actingAs($this->user)->postJson('/v1/security/compliance/controls', [
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/compliance/controls', [
             'framework' => 'GDPR',
             'control_id' => 'GDPR-TEST',
             'control_name' => 'Test Control',
@@ -353,7 +353,7 @@ class ComplianceTest extends TestCase
 
     public function test_unauthenticated_cannot_access(): void
     {
-        $response = $this->getJson('/v1/security/compliance/controls');
+        $response = $this->getJson('/api/v1/security/compliance/controls');
 
         $response->assertUnauthorized();
     }
