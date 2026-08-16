@@ -141,4 +141,68 @@ class ExpensesController extends Controller
             ],
         ]);
     }
+
+    /** POST /expenses/{expense}/approve */
+    public function approve(Request $request, Expense $expense): JsonResponse
+    {
+        $expense->update([
+            'status'         => 'approved',
+            'approved_at'    => now(),
+            'approved_by_id' => $request->user()?->id,
+        ]);
+
+        return response()->json($expense->fresh());
+    }
+
+    /** POST /expense-reports */
+    public function createReport(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'employee_id'  => 'required|integer',
+            'title'        => 'nullable|string|max:255',
+            'period_start' => 'required|date',
+            'period_end'   => 'required|date|after_or_equal:period_start',
+        ]);
+
+        $report = ExpenseReport::create(array_merge($validated, [
+            'title'  => $validated['title'] ?? 'Note de frais '.$validated['period_start'],
+            'status' => 'draft',
+        ]));
+
+        return response()->json($report, 201);
+    }
+
+    /** POST /expense-reports/{report}/add */
+    public function addToReport(Request $request, ExpenseReport $report): JsonResponse
+    {
+        $validated = $request->validate([
+            'date'        => 'required|date',
+            'category'    => 'required|string|max:100',
+            'description' => 'nullable|string',
+            'amount'      => 'required|numeric|min:0',
+            'currency'    => 'nullable|string|size:3',
+        ]);
+
+        $line = $report->lines()->create($validated);
+
+        return response()->json($line, 201);
+    }
+
+    /** POST /expense-reports/{report}/submit */
+    public function submitReport(ExpenseReport $report): JsonResponse
+    {
+        $this->service->submit($report);
+
+        return response()->json($report->fresh());
+    }
+
+    /** POST /expense-reports/{report}/reimburse */
+    public function reimburse(ExpenseReport $report): JsonResponse
+    {
+        abort_unless($report->status === 'approved', 422, 'Only approved reports can be reimbursed.');
+
+        $report->update(['status' => 'reimbursed']);
+
+        return response()->json($report->fresh());
+    }
 }

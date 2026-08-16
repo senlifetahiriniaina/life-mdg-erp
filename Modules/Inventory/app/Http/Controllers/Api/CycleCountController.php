@@ -141,4 +141,14 @@ class CycleCountController extends Controller
 
         return response()->json($cycleCount->fresh(['lines']));
     }
+
+    /**
+     * POST cycle-counts/{cycleCount}/validate — alias of approve(), the verb
+     * the routes file registers. Shadows ValidatesRequests::validate() on
+     * purpose; controller actions here never used the trait helper.
+     */
+    public function validate(CycleCount $cycleCount): JsonResponse
+    {
+        return $this->approve($cycleCount);
+    }
 }

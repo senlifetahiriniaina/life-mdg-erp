@@ -70,12 +70,42 @@ class ExpenseReportController extends Controller
         return response()->json(null, 204);
     }
 
-    /** POST /expense-reports/{expenseReport}/submit */
-    public function submit(ExpenseReport $expenseReport): JsonResponse
+    /** POST /expenses/{report}/submit */
+    public function submit(ExpenseReport $report): JsonResponse
     {
-        $this->service->submit($expenseReport);
+        $this->service->submit($report);
 
-        return response()->json(['data' => $expenseReport->fresh()]);
+        return response()->json($report->fresh());
+    }
+
+    /** POST /expenses/{report}/lines */
+    public function addLine(Request $request, ExpenseReport $report): JsonResponse
+    {
+        $validated = $request->validate([
+            'date'        => 'required|date',
+            'category'    => 'required|string|max:100',
+            'description' => 'nullable|string',
+            'amount'      => 'required|numeric|min:0',
+            'currency'    => 'nullable|string|size:3',
+            'receipt_url' => 'nullable|string|max:500',
+        ]);
+
+        $line = $report->lines()->create($validated);
+
+        return response()->json($line, 201);
+    }
+
+    /** POST /expenses/{report}/mileage */
+    public function addMileage(Request $request, ExpenseReport $report): JsonResponse
+    {
+        $validated = $request->validate([
+            'km'   => 'required|numeric|min:0',
+            'rate' => 'required|numeric|min:0',
+        ]);
+
+        $line = $this->service->addMileage($report, (float) $validated['km'], (float) $validated['rate']);
+
+        return response()->json($line, 201);
     }
 
     /** POST /expense-reports/{expenseReport}/approve */

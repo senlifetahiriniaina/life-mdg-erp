@@ -30,6 +30,7 @@ class ForumReply extends Model
     protected $casts = [
         'upvotes'            => 'integer',
         'is_accepted_answer' => 'boolean',
+        'is_accepted'        => 'boolean',
     ];
 
     protected static function newFactory(): ForumReplyFactory

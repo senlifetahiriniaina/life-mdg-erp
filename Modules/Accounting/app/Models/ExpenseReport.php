@@ -55,6 +55,11 @@ class ExpenseReport extends Model
         return $this->belongsToMany(Expense::class, 'acc_expense_report_items', 'expense_report_id', 'expense_id');
     }
 
+    public function lines(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ExpenseLine::class, 'report_id');
+    }
+
     public function getAmountRemaining(): float
     {
         return (float) $this->total_approved - (float) $this->total_reimbursed;
