@@ -2,6 +2,7 @@
 
 namespace Modules\API\Providers;
 
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\API\Services\GraphQLSchemaBuilderService;
 use Modules\API\Services\GraphQLQueryOptimizerService;
@@ -27,6 +28,6 @@ class APIServiceProvider extends ServiceProvider
 
     public function boot()
     {
-        $this->loadRoutesFrom(__DIR__ . '/../../routes/api.php');
+        Route::middleware('api')->prefix('api')->name('api.')->group(__DIR__ . '/../../routes/api.php');
     }
 }
