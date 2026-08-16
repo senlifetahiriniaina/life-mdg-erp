@@ -7,7 +7,7 @@ namespace Modules\Payroll\Tests\Feature;
 use Tests\TestCase;
 use Modules\Payroll\Services\PayrollIntegrationService;
 use Modules\HR\Models\Employee;
-use Modules\HR\Models\PayrollRecord;
+use Modules\Payroll\Models\Payslip;
 use App\Models\User;
 use Carbon\Carbon;
 
@@ -99,7 +99,7 @@ class PayrollIntegrationServiceTest extends TestCase
         );
 
         $this->assertNotNull($record);
-        $this->assertInstanceOf(PayrollRecord::class, $record);
+        $this->assertInstanceOf(Payslip::class, $record);
         $this->assertGreaterThan(0, $record->gross_salary);
         $this->assertLessThan((float) $record->gross_salary + 1, (float) $record->net_salary);
         $this->assertEquals('draft', $record->status);

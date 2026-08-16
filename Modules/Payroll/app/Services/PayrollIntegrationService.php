@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Modules\Payroll\Services;
 
 use Modules\HR\Models\Employee;
-use Modules\HR\Models\PayrollRecord;
-use Modules\HR\Models\PayrollPeriod;
+use Modules\Payroll\Models\Payslip;
+use Modules\Payroll\Models\PayrollRun;
 use Modules\Accounting\Models\JournalEntry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -61,39 +61,55 @@ class PayrollIntegrationService
     }
 
     /**
-     * Generate payroll record for a single employee.
+     * Generate a payslip for a single employee (Payroll module's Payslip is
+     * the single source of truth — the legacy HR PayrollRecord was removed).
      */
     public function generatePayslip(
         Employee $employee,
         Carbon $startDate,
         Carbon $endDate,
         string $payrollCycle = 'monthly'
-    ): ?PayrollRecord {
+    ): ?Payslip {
         // Idempotent — skip if already exists for this period
-        $existing = PayrollRecord::where('employee_id', $employee->id)
-            ->whereDate('period_start', $startDate->toDateString())
-            ->whereDate('period_end', $endDate->toDateString())
+        $existing = Payslip::where('employee_id', $employee->id)
+            ->whereDate('period', $startDate->toDateString())
             ->first();
 
         if ($existing) {
             return $existing;
         }
 
+        $tenantId = (int) ($employee->tenant_id ?? 0);
+        $currency = $employee->salary_currency ?? 'XOF';
+
+        $periodDate = $startDate->copy()->startOfMonth()->toDateString();
+        $run = PayrollRun::where('tenant_id', $tenantId)
+            ->whereDate('period', $periodDate)
+            ->first()
+            ?? PayrollRun::create([
+                'tenant_id' => $tenantId,
+                'period'    => $periodDate,
+                'status'    => 'draft',
+                'currency'  => $currency,
+            ]);
+
         $components = $this->calculateSalaryComponents($employee, $startDate, $endDate);
         $grossSalary = $components['gross_salary'];
         $deductions  = $this->calculateDeductions($employee, $grossSalary);
         $netSalary   = $grossSalary - $deductions['total_deductions'];
 
-        return PayrollRecord::create([
-            'employee_id'      => $employee->id,
-            'period_start'     => $startDate,
-            'period_end'       => $endDate,
-            'gross_salary'     => $grossSalary,
-            'total_deductions' => $deductions['total_deductions'],
-            'net_salary'       => $netSalary,
-            'currency'         => $employee->salary_currency ?? 'XOF',
-            'status'           => 'draft',
-            'breakdown'        => array_merge($components, ['deductions' => $deductions]),
+        return Payslip::create([
+            'payroll_run_id'    => $run->id,
+            'tenant_id'         => $tenantId,
+            'employee_id'       => $employee->id,
+            'employee_name'     => trim("{$employee->first_name} {$employee->last_name}"),
+            'period'            => $startDate->toDateString(),
+            'salary_components' => array_merge($components, ['deductions' => $deductions]),
+            'gross_salary'      => $grossSalary,
+            'total_deductions'  => $deductions['total_deductions'],
+            'net_salary'        => $netSalary,
+            'currency'          => $currency,
+            'status'            => 'draft',
         ]);
     }
 
@@ -263,19 +279,18 @@ class PayrollIntegrationService
     }
 
     /**
-     * Post approved payroll records as OHADA journal entries.
+     * Post approved payslips as OHADA journal entries.
      */
-    public function postPayslipsToAccounting(array $payrollRecordIds): array
+    public function postPayslipsToAccounting(array $payslipIds): array
     {
-        $records = PayrollRecord::whereIn('id', $payrollRecordIds)
+        $records = Payslip::whereIn('id', $payslipIds)
             ->where('status', 'approved')
-            ->with('employee')
             ->get();
 
         $posted = [];
 
         foreach ($records as $record) {
-            $name = trim("{$record->employee->first_name} {$record->employee->last_name}");
+            $name = $record->employee_name;
             $ref  = "PAYROLL-{$record->id}";
 
             // Debit: Salary expense (OHADA Cl.6161)
@@ -283,7 +298,7 @@ class PayrollIntegrationService
                 'entry_date'     => now(),
                 'entry_type'     => 'debit',
                 'amount'         => $record->gross_salary,
-                'reference_type' => 'PayrollRecord',
+                'reference_type' => 'Payslip',
                 'reference_id'   => $record->id,
                 'description'    => "Salaire brut — {$name}",
                 'status'         => 'posted',
@@ -295,7 +310,7 @@ class PayrollIntegrationService
                 'entry_date'     => now(),
                 'entry_type'     => 'credit',
                 'amount'         => $record->net_salary,
-                'reference_type' => 'PayrollRecord',
+                'reference_type' => 'Payslip',
                 'reference_id'   => $record->id,
                 'description'    => "Salaire net à payer — {$name}",
                 'status'         => 'posted',
@@ -316,9 +331,8 @@ class PayrollIntegrationService
      */
     public function getPayrollSummary(int|null $tenantId, Carbon $startDate, Carbon $endDate): array
     {
-        $records = PayrollRecord::whereHas('employee', fn($q) => $q->where('tenant_id', $tenantId))
-            ->whereDate('period_start', $startDate->toDateString())
-            ->whereDate('period_end', $endDate->toDateString())
+        $records = Payslip::where('tenant_id', (int) ($tenantId ?? 0))
+            ->whereDate('period', $startDate->toDateString())
             ->get();
 
         $totalGross      = $records->sum('gross_salary');
