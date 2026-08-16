@@ -152,7 +152,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier'],
         'accounting'       => ['invoice', 'journal', 'chart-of-account', 'tax_compliance', 'revenue_recognition', 'consolidation', 'depreciation', 'intercompany'],
-        'helpdesk'         => ['ticket', 'team'],
+        'helpdesk'         => ['ticket', 'team', 'agent-performance'],
         'bi'               => ['dashboard', 'kpi', 'report'],
         'analytics'        => ['forecast', 'anomaly'],
         'reporting'        => ['report', 'template', 'schedule'],

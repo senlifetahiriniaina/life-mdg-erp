@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Helpdesk\Services;
 
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Modules\AuditLog\Models\AuditLog;
+use Modules\Helpdesk\Models\EscalationEvent;
 use Modules\Helpdesk\Models\Ticket;
 
 /**
@@ -38,7 +40,7 @@ class AgentPerformanceAnalyticsService
      */
     public function calculateAgentMetrics(int $agentId, ?\DateTimeInterface $from = null, ?\DateTimeInterface $to = null): array
     {
-        $agent = \Modules\Core\Models\User::find($agentId);
+        $agent = User::find($agentId);
         if (!$agent) {
             return [];
         }
@@ -77,7 +79,7 @@ class AgentPerformanceAnalyticsService
      */
     public function generatePerformanceTrends(int $agentId, string $granularity = 'daily'): array
     {
-        $agent = \Modules\Core\Models\User::find($agentId);
+        $agent = User::find($agentId);
         if (!$agent) {
             return [];
         }
@@ -109,7 +111,7 @@ class AgentPerformanceAnalyticsService
      */
     public function analyzeSkillProficiency(int $agentId): array
     {
-        $tickets = Ticket::where('assignee_id', $agentId)->get()->groupBy('category');
+        $tickets = Ticket::where('assignee_id', $agentId)->get()->groupBy('type');
 
         $skills = [];
 
@@ -209,7 +211,7 @@ class AgentPerformanceAnalyticsService
      */
     public function compareWithTopPerformers(int $agentId): array
     {
-        $allAgents = \Modules\Core\Models\User::where('role', 'support_agent')->get();
+        $allAgents = User::whereHas('roles', fn ($q) => $q->where('name', 'support-agent'))->get();
         $agentMetrics = $this->calculateAgentMetrics($agentId);
         $overallScore = $agentMetrics['overall_performance_score'];
 
@@ -248,7 +250,7 @@ class AgentPerformanceAnalyticsService
      */
     public function generatePerformanceRanking(): array
     {
-        $agents = \Modules\Core\Models\User::where('role', 'support_agent')->get();
+        $agents = User::whereHas('roles', fn ($q) => $q->where('name', 'support-agent'))->get();
 
         $rankings = [];
 
@@ -377,7 +379,7 @@ class AgentPerformanceAnalyticsService
      */
     public function analyzeWorkloadBalance(): array
     {
-        $agents = \Modules\Core\Models\User::where('role', 'support_agent')->get();
+        $agents = User::whereHas('roles', fn ($q) => $q->where('name', 'support-agent'))->get();
 
         $workloads = [];
         $totalTickets = 0;
@@ -514,7 +516,7 @@ class AgentPerformanceAnalyticsService
      */
     public function analyzeLearningCurve(int $agentId): array
     {
-        $agent = \Modules\Core\Models\User::find($agentId);
+        $agent = User::find($agentId);
         if (!$agent) {
             return [];
         }
@@ -552,7 +554,7 @@ class AgentPerformanceAnalyticsService
      */
     public function batchCalculateAgentMetrics(): array
     {
-        $agents = \Modules\Core\Models\User::where('role', 'support_agent')->get();
+        $agents = User::whereHas('roles', fn ($q) => $q->where('name', 'support-agent'))->get();
 
         $results = [];
 
@@ -598,7 +600,7 @@ class AgentPerformanceAnalyticsService
             return 0.0;
         }
 
-        $fcr = $tickets->filter(fn ($t) => $t->messages()->count() <= 2)->count();
+        $fcr = $tickets->filter(fn ($t) => $t->comments()->count() <= 2)->count();
 
         return round(($fcr / count($tickets)) * 100, 2);
     }
@@ -640,9 +642,15 @@ class AgentPerformanceAnalyticsService
      */
     private function calculateEscalationFrequency($tickets): float
     {
-        $escalated = $tickets->filter(fn ($t) => $t->escalation_level !== null)->count();
+        if ($tickets->isEmpty()) {
+            return 0.0;
+        }
 
-        return count($tickets) > 0 ? round(($escalated / count($tickets)) * 100, 2) : 0;
+        $escalated = EscalationEvent::whereIn('ticket_id', $tickets->pluck('id'))
+            ->distinct('ticket_id')
+            ->count('ticket_id');
+
+        return round(($escalated / count($tickets)) * 100, 2);
     }
 
     /**
@@ -673,7 +681,7 @@ class AgentPerformanceAnalyticsService
         $qualityScores = [];
 
         foreach ($tickets as $ticket) {
-            $responses = $ticket->responses()->get();
+            $responses = $ticket->comments()->get();
             if ($responses->isNotEmpty()) {
                 $avgLength = $responses->avg(fn ($r) => strlen($r->content));
                 $qualityScores[] = min($avgLength / 500, 1.0); // Normalize by 500 chars
@@ -855,7 +863,7 @@ class AgentPerformanceAnalyticsService
      */
     private function calculateTeamAverageMetrics(): array
     {
-        $agents = \Modules\Core\Models\User::where('role', 'support_agent')->get();
+        $agents = User::whereHas('roles', fn ($q) => $q->where('name', 'support-agent'))->get();
 
         $allTickets = Ticket::whereIn('assignee_id', $agents->pluck('id'))->get();
 

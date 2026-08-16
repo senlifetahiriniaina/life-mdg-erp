@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Helpdesk\Http\Controllers\Api\AgentPerformanceController;
 use Modules\Helpdesk\Http\Controllers\Api\AnswerBotController;
 use Modules\Helpdesk\Http\Controllers\Api\CsatController;
 use Modules\Helpdesk\Http\Controllers\Api\EscalationController;
@@ -185,6 +186,32 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throt
         Route::post('helpdesk/kb/articles/{article}/publish', [KnowledgeBaseController::class, 'publishArticle']);
         Route::post('helpdesk/kb/articles/{article}/view', [KnowledgeBaseController::class, 'recordView']);
         Route::post('helpdesk/kb/articles/{article}/feedback', [KnowledgeBaseController::class, 'submitFeedback']);
+    });
+
+    // Agent Performance — supervisor reporting (metrics/trend/skills/benchmarking,
+    // coaching, goals, development plans, team-wide ranking/comparison).
+    // Static routes registered before the {agent} wildcard ones to avoid shadowing.
+    Route::get('helpdesk/agents/ranking', [AgentPerformanceController::class, 'ranking']);
+    Route::get('helpdesk/agents/metrics-export', [AgentPerformanceController::class, 'metricsExport']);
+    Route::get('helpdesk/team/comparison', [AgentPerformanceController::class, 'teamComparison']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('helpdesk/agents/bulk-metrics', [AgentPerformanceController::class, 'bulkMetrics']);
+    });
+
+    Route::get('helpdesk/agents/{agent}/metrics', [AgentPerformanceController::class, 'metrics']);
+    Route::get('helpdesk/agents/{agent}/trend', [AgentPerformanceController::class, 'trend']);
+    Route::get('helpdesk/agents/{agent}/skills', [AgentPerformanceController::class, 'skills']);
+    Route::get('helpdesk/agents/{agent}/benchmarking', [AgentPerformanceController::class, 'benchmarking']);
+    Route::get('helpdesk/agents/{agent}/coaching', [AgentPerformanceController::class, 'coaching']);
+    Route::get('helpdesk/agents/{agent}/goals', [AgentPerformanceController::class, 'goalsIndex']);
+    Route::get('helpdesk/agents/{agent}/report', [AgentPerformanceController::class, 'report']);
+    Route::get('helpdesk/agents/{agent}/report/export', [AgentPerformanceController::class, 'reportExport']);
+    Route::get('helpdesk/agents/{agent}/development-plan', [AgentPerformanceController::class, 'developmentPlanShow']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('helpdesk/agents/{agent}/goals', [AgentPerformanceController::class, 'goalsStore']);
+        Route::post('helpdesk/agents/{agent}/goals/{goal}/progress', [AgentPerformanceController::class, 'goalsProgress']);
+        Route::post('helpdesk/agents/{agent}/development-plan', [AgentPerformanceController::class, 'developmentPlanStore']);
+        Route::post('helpdesk/agents/{agent}/development-plan/{plan}/progress', [AgentPerformanceController::class, 'developmentPlanProgress']);
     });
 });
 
