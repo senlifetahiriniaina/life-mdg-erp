@@ -11,6 +11,12 @@ class ProjectAdvancedControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAsUser('admin');
+    }
+
     public function test_list_projects_returns_ok(): void
     {
         $response = $this->getJson('/api/v1/projects');

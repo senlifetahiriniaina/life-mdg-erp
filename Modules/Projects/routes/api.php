@@ -186,3 +186,25 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/projects')->
     Route::post('ai/assist', [\Modules\Projects\Http\Controllers\Api\ProjectsAiAssistController::class, 'assist'])
         ->name('projects.ai.assist');
 });
+
+// ── Phase 49: advanced project budget/KPI/risk + portfolio endpoints ───────
+// (ProjectAdvancedController::index/store/show/gantt/storeTask/updateTask are
+// deliberately NOT routed here — they collide with the already-active
+// ProjectController/GanttController/TaskController on the same paths.)
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/projects')->group(function () {
+    // Static "portfolio/..." routes MUST be registered before "{id}/..." below,
+    // otherwise {id} greedily captures "portfolio" as a project id.
+    Route::get('portfolio/kpis', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'portfolioKpis'])
+        ->name('projects.advanced.portfolio-kpis');
+    Route::get('portfolio/timeline', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'portfolioTimeline'])
+        ->name('projects.advanced.portfolio-timeline');
+    Route::get('portfolio/resources', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'portfolioResources'])
+        ->name('projects.advanced.portfolio-resources');
+
+    Route::get('{id}/budget', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'budget'])
+        ->name('projects.advanced.budget');
+    Route::get('{id}/kpis', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'kpis'])
+        ->name('projects.advanced.kpis');
+    Route::get('{id}/risks', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'risks'])
+        ->name('projects.advanced.risks');
+});
