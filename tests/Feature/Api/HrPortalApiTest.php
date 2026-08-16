@@ -8,7 +8,7 @@ use Modules\HR\Models\Department;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\JobPosition;
 use Modules\HR\Models\LeaveType;
-use Modules\HR\Models\PayrollRecord;
+use Modules\Payroll\Models\Payslip;
 
 uses(RefreshDatabase::class);
 
@@ -128,7 +128,7 @@ test('leave request start_date must be today or future', function () {
 test('portal payslips returns paginated list', function () {
      $user = actingAsUser('employee');
     $employee = makeHrPortalEmployee($user);
-    PayrollRecord::factory()->count(3)->create(['employee_id' => $employee->id]);
+    Payslip::factory()->count(3)->create(['employee_id' => $employee->id]);
         $response = $this
         ->getJson('/api/v1/hr/portal/payslips')
         ->assertOk()
@@ -141,7 +141,7 @@ test('employee cannot access another employee payslip', function () {
     $user2  = User::factory()->create();
     $emp1   = makeHrPortalEmployee($user1);
     $emp2   = makeHrPortalEmployee($user2);
-    $payslip = PayrollRecord::factory()->create(['employee_id' => $emp2->id]);
+    $payslip = Payslip::factory()->create(['employee_id' => $emp2->id]);
 
     $this->actingAs($user1, 'sanctum')
         ->getJson("/api/v1/hr/portal/payslips/{$payslip->id}")

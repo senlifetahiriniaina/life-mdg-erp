@@ -211,6 +211,7 @@ test('employee role cannot delete another employee', function () {
 
 test('can list departments', function () {
      $user = actingAsUser('employee');
+    $before = Department::count();
     Department::factory()->count(3)->create();
     $response = $this
         ->getJson('/api/v1/hr/departments')
@@ -219,7 +220,7 @@ test('can list departments', function () {
     // may be paginated (with 'data' key) or a plain collection
     $json = $response->json();
     $items = $json['data'] ?? $json;
-    expect(count($items))->toBe(3);
+    expect(count($items))->toBe($before + 3);
 });
 
 test('can create a department', function () {

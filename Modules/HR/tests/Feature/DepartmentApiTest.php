@@ -8,13 +8,14 @@ describe('Department API', function () {
     });
 
     test('can list departments', function () {
+        $before = Department::count();
         Department::factory()->count(3)->create();
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->getJson('/api/v1/hr/departments');
 
         $response->assertStatus(200)
-            ->assertJsonCount(3, 'data');
+            ->assertJsonCount($before + 3, 'data');
     });
 
     test('can create a department', function () {

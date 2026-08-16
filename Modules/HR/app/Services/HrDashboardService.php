@@ -10,6 +10,7 @@ use Modules\HR\Models\AttendanceRecord;
 use Modules\HR\Models\Department;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\LeaveRequest;
+use Modules\HR\Models\Position;
 
 class HrDashboardService
 {
@@ -33,9 +34,12 @@ class HrDashboardService
             ->get()
             ->avg(fn (Employee $e) => $e->hire_date ? now()->diffInMonths(Carbon::parse($e->hire_date)) : 0);
 
+        $openPositions = (int) Position::sum('headcount') - $headcount;
+
         return [
             'headcount' => $headcount,
             'absences_today' => $absentToday,
+            'open_positions' => $openPositions,
             'avg_tenure_months' => round((float) $avgTenureMonths, 1),
         ];
     }

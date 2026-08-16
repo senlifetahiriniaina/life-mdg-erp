@@ -63,10 +63,10 @@ class CompensationService
         }
 
         return [
-            'base_salary' => $compensation->base_salary ?? 0.0,
-            'bonus' => $compensation->bonus_amount ?? 0.0,
-            'benefits' => $compensation->benefits_annual_value ?? 0.0,
-            'equity' => $compensation->equity_granted ?? 0.0,
+            'base_salary' => (float) ($compensation->base_salary ?? 0.0),
+            'bonus' => (float) ($compensation->bonus_amount ?? 0.0),
+            'benefits' => (float) ($compensation->benefits_annual_value ?? 0.0),
+            'equity' => (float) ($compensation->equity_granted ?? 0.0),
             'total' => $compensation->calculateTotalCompensation(),
         ];
     }
@@ -128,9 +128,7 @@ class CompensationService
         }
 
         return match ($compensation->bonus_frequency ?? 'annual') {
-            'annual' => ($period === 'month') ? $compensation->bonus_amount / 12 : $compensation->bonus_amount,
-            'semi-annual' => ($period === 'month') ? $compensation->bonus_amount / 6 : $compensation->bonus_amount,
-            'quarterly' => ($period === 'month') ? $compensation->bonus_amount / 3 : $compensation->bonus_amount,
+            'annual', 'semi-annual', 'quarterly' => ($period === 'month') ? $compensation->bonus_amount / 12 : $compensation->bonus_amount,
             default => 0.0,
         };
     }
@@ -250,11 +248,18 @@ class CompensationService
         }
 
         // Check for overlapping compensation records
-        $overlapping = DB::select(
-            "SELECT employee_id, COUNT(*) as count FROM hr_employee_compensation
-             WHERE effective_date <= CURDATE() AND (end_date IS NULL OR end_date >= CURDATE())
-             GROUP BY employee_id HAVING count > 1"
-        );
+        $today = now()->toDateString();
+
+        $overlapping = DB::table('hr_employee_compensation')
+            ->select('employee_id')
+            ->selectRaw('COUNT(*) as count')
+            ->where('effective_date', '<=', $today)
+            ->where(function ($q) use ($today) {
+                $q->whereNull('end_date')->orWhere('end_date', '>=', $today);
+            })
+            ->groupBy('employee_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
 
         if (count($overlapping) > 0) {
             $issues[] = [

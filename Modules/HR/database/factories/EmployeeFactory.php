@@ -32,4 +32,13 @@ class EmployeeFactory extends Factory
             'status' => 'probation',
         ];
     }
+
+    public function terminated(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'terminated',
+            'termination_date' => now()->subDays(random_int(1, 90))->toDateString(),
+            'termination_reason' => 'Resignation',
+        ]);
+    }
 }

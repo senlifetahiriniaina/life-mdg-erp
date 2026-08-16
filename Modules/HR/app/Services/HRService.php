@@ -197,6 +197,7 @@ class HRService
             'total_employees' => Employee::active()->count(),
             'departments' => Department::active()->count(),
             'pending_leaves' => LeaveRequest::pending()->count(),
+            'open_positions' => (int) Position::sum('headcount') - Employee::active()->count(),
             'hired_this_month' => Employee::where('hire_date', '>=', now()->startOfMonth())->count(),
         ];
     }

@@ -85,8 +85,8 @@ describe('Compensation Service', function () {
             'effective_date' => now(),
         ]);
 
-        expect($new->base_salary)->toBe(120000);
-        expect($new->total_compensation)->toBe(151000.00);
+        expect((float) $new->base_salary)->toBe(120000.00);
+        expect((float) $new->total_compensation)->toBe(151000.00);
 
         // Old should have end_date set
         $old->refresh();
@@ -153,8 +153,8 @@ describe('Compensation Service', function () {
         $history = $this->service->getCompensationHistory($this->employee);
 
         expect($history)->toHaveCount(2);
-        expect($history[0]->base_salary)->toBe(100000); // Most recent first
-        expect($history[1]->base_salary)->toBe(80000);
+        expect((float) $history[0]->base_salary)->toBe(100000.00); // Most recent first
+        expect((float) $history[1]->base_salary)->toBe(80000.00);
     });
 
     test('generateOfferLetterData includes all compensation details', function () {

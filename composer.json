@@ -127,6 +127,7 @@
             "Modules\\Strategy\\Database\\Seeders\\": "Modules/Strategy/database/seeders/",
             "Modules\\Payroll\\": "Modules/Payroll/app/",
             "Modules\\Payroll\\Database\\": "Modules/Payroll/database/",
+            "Modules\\Payroll\\Database\\Factories\\": "Modules/Payroll/database/factories/",
             "Modules\\Payroll\\Database\\Seeders\\": "Modules/Payroll/database/seeders/",
             "Modules\\Timesheets\\": "Modules/Timesheets/app/",
             "Modules\\Timesheets\\Database\\": "Modules/Timesheets/database/",

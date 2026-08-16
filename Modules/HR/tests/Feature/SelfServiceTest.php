@@ -42,7 +42,7 @@ it('employee me endpoint returns own employee only', function () {
 });
 
 it('employee can list own payslips', function () {
-    Payslip::create([
+    Payslip::factory()->create([
         'employee_id' => $this->employee->id,
         'employee_name' => $this->employee->first_name.' '.$this->employee->last_name,
         'period' => now()->startOfMonth(),
@@ -52,7 +52,7 @@ it('employee can list own payslips', function () {
         'currency' => 'MGA',
         'status' => 'paid',
     ]);
-    Payslip::create([
+    Payslip::factory()->create([
         'employee_id' => $this->employee->id,
         'employee_name' => $this->employee->first_name.' '.$this->employee->last_name,
         'period' => now()->subMonth()->startOfMonth(),
