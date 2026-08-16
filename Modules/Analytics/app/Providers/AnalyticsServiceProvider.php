@@ -25,11 +25,14 @@ use Modules\Analytics\Services\Forecasting\DemandForecastService;
 use Modules\Analytics\Services\Forecasting\HrForecastService;
 use Modules\Analytics\Services\Forecasting\ProductionForecastService;
 use Modules\Analytics\Services\ForecastingEngineService;
+use Modules\Analytics\Providers\RouteServiceProvider;
 
 class AnalyticsServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->register(RouteServiceProvider::class);
+
         // Enregistrement des services de prévision
         $this->app->singleton(ForecastingEngineService::class);
         $this->app->singleton(DemandForecastService::class);

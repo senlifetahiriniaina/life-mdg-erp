@@ -47,7 +47,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/forecasting'
     Route::get('hr', [ForecastingController::class, 'hrForecast']);
 });
 
-Route::middleware('auth:api')->prefix('v1/analytics')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/analytics')->group(function () {
     // Prediction Models (5 endpoints)
     Route::apiResource('predictions', PredictionController::class);
     Route::post('predictions/{predictionModel}/train', [PredictionController::class, 'train']);

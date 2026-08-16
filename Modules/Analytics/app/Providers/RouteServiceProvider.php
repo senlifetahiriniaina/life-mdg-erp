@@ -1,0 +1,33 @@
+<?php
+
+namespace Modules\Analytics\Providers;
+
+use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Route;
+
+/**
+ * Analytics had no RouteServiceProvider at all — routes/api.php (6 controllers:
+ * PredictionController/RecommendationController/AnomalyDetectionController/
+ * MLModelController/ForecastingController/AnalyticsAiAssistController, all
+ * fully built) was never loaded by anything, so every Analytics endpoint
+ * 404'd unconditionally. Same bug already fixed for Security.
+ */
+class RouteServiceProvider extends ServiceProvider
+{
+    protected string $name = 'Analytics';
+
+    public function boot(): void
+    {
+        parent::boot();
+    }
+
+    public function map(): void
+    {
+        $this->mapApiRoutes();
+    }
+
+    protected function mapApiRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/api.php'));
+    }
+}
