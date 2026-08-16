@@ -7,6 +7,8 @@ namespace Modules\Workflow\Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Workflow\Services\Automation\FlowExecutionEngine;
 use Modules\Workflow\Services\Automation\NodeTypeRegistry;
+use Modules\Workflow\Models\Automation\AutomationConnection;
+use Modules\Workflow\Models\Automation\AutomationExecution;
 use Modules\Workflow\Models\Automation\AutomationFlow;
 use Modules\Workflow\Models\Automation\AutomationNode;
 use Tests\TestCase;
@@ -270,7 +272,7 @@ class LoopSubFlowNodeTest extends TestCase
             'version_number' => 1,
         ]);
 
-        AutomationNode::create([
+        $trigger = AutomationNode::create([
             'flow_id'    => $selfRefFlow->id,
             'node_type'  => 'trigger',
             'node_key'   => 'manual.trigger',
@@ -289,11 +291,37 @@ class LoopSubFlowNodeTest extends TestCase
             'config'     => ['sub_flow_id' => $selfRefFlow->id],
         ]);
 
-        // Execution should throw a RuntimeException due to depth limit
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/depth limit/i');
+        // Wire trigger -> self-referencing sub_flow node so the traversal
+        // actually recurses (FlowExecutionEngine::execute() only walks nodes
+        // reachable via AutomationConnection).
+        AutomationConnection::create([
+            'flow_id'        => $selfRefFlow->id,
+            'source_node_id' => $trigger->id,
+            'target_node_id' => $selfSubNode->id,
+            'condition_type' => 'always',
+        ]);
 
+        // FlowExecutionEngine::execute() is a fail-safe boundary: it never lets
+        // an internal exception escape (it logs + marks the execution 'failed'
+        // and returns normally). The MAX_SUB_FLOW_DEPTH guard genuinely fires,
+        // but its RuntimeException is contained at that boundary rather than
+        // raised to this caller — so we assert on the safe-termination outcome
+        // instead of expecting a raw exception.
         $this->callExecuteNode($selfSubNode, ['output' => []]);
+
+        $failedWithDepthLimitMsg = AutomationExecution::where('flow_id', $selfRefFlow->id)
+            ->where('status', 'failed')
+            ->get()
+            ->filter(fn (AutomationExecution $e) => str_contains(
+                strtolower(json_encode($e->node_results)),
+                'depth limit'
+            ));
+
+        $this->assertCount(
+            1,
+            $failedWithDepthLimitMsg,
+            'Expected exactly one failed AutomationExecution recording the depth-limit RuntimeException.'
+        );
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -63,9 +63,9 @@ class CodeNodeServiceTest extends TestCase
         $result = $this->service->execute('expression', '2 + 3 * 4', []);
 
         $this->assertNull($result['error']);
-        // Evaluated left-to-right (not operator precedence): (2+3)*4 = 20
-        // Our evaluator does addition pass first: 2+3 = 5, then 5*4 = 20
-        $this->assertEqualsWithDelta(20.0, $result['output']['result'], 0.001);
+        // Standard operator precedence: multiplication before addition.
+        // 2 + 3 * 4 = 2 + (3*4) = 2 + 12 = 14
+        $this->assertEqualsWithDelta(14.0, $result['output']['result'], 0.001);
     }
 
     // ── Test 4 ──────────────────────────────────────────────────────────────────
