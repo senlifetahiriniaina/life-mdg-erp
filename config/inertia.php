@@ -40,27 +40,37 @@ return [
     | components exist on disk when rendering a page. This is useful for
     | catching missing or misnamed components.
     |
-    | The `page_paths` and `page_extensions` options define where to look
-    | for page components and which file extensions to consider.
+    | The `paths` and `extensions` options define where to look for page
+    | components and which file extensions to consider. `assertInertia()`
+    | in tests resolves components against these same paths (inertia-laravel
+    | ^3.3 merged the old top-level/`testing.*` page_paths/page_extensions
+    | keys into this single `pages` block — used for both rendering and
+    | testing lookups).
     |
     */
 
-    'ensure_pages_exist' => false,
+    'pages' => [
 
-    'page_paths' => [
+        'ensure_pages_exist' => false,
 
-        resource_path('js/Pages'),
+        'paths' => array_merge(
+            [resource_path('js/Pages')],
+            array_map(
+                fn ($dir) => $dir . '/resources/js/Pages',
+                glob(base_path('Modules/*'), GLOB_ONLYDIR)
+            )
+        ),
 
-    ],
+        'extensions' => [
 
-    'page_extensions' => [
+            'js',
+            'jsx',
+            'svelte',
+            'ts',
+            'tsx',
+            'vue',
 
-        'js',
-        'jsx',
-        'svelte',
-        'ts',
-        'tsx',
-        'vue',
+        ],
 
     ],
 
@@ -71,39 +81,18 @@ return [
     | Testing
     |--------------------------------------------------------------------------
     |
-    | The values described here are used to locate Inertia components on the
-    | filesystem. For instance, when using `assertInertia`, the assertion
-    | attempts to locate the component as a file relative to any of the
-    | paths AND with any of the extensions specified here.
+    | When using `assertInertia`, the assertion attempts to locate the
+    | component as a file relative to the `pages.paths` AND with any of
+    | the `pages.extensions` specified above.
     |
-    | Note: In a future release, the `page_paths` and `page_extensions`
-    | options below will be removed. The root-level options above
-    | will be used for both application and testing purposes.
+    | You can disable this behavior by setting `ensure_pages_exist`
+    | to false.
     |
     */
 
     'testing' => [
 
         'ensure_pages_exist' => true,
-
-        'page_paths' => array_merge(
-            [resource_path('js/Pages')],
-            array_map(
-                fn ($dir) => $dir . '/resources/js/Pages',
-                glob(base_path('Modules/*'), GLOB_ONLYDIR)
-            )
-        ),
-
-        'page_extensions' => [
-
-            'js',
-            'jsx',
-            'svelte',
-            'ts',
-            'tsx',
-            'vue',
-
-        ],
 
     ],
 
