@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Modules\Projects\Database\Factories\TaskDependencyFactory;
+use Modules\Projects\Services\DependencyCycleDetectionService;
 
 /**
  * @property int $id
@@ -40,6 +41,21 @@ class TaskDependency extends Model
     protected $casts = [
         'lag_days' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (TaskDependency $dependency) {
+            $task = Task::find($dependency->task_id);
+            $dependsOnTask = Task::find($dependency->depends_on_task_id);
+
+            if ($task && $dependsOnTask) {
+                $result = app(DependencyCycleDetectionService::class)->checkCycleOnAdd($task, $dependsOnTask);
+                if ($result['cycle']) {
+                    throw new \RuntimeException($result['message']);
+                }
+            }
+        });
+    }
 
     public function task(): BelongsTo
     {

@@ -256,12 +256,14 @@ describe('Time entry merge scenarios', function () {
     });
 
     test('merges three entries correctly', function () {
+        $date = '2026-05-16';
         $entries = [];
         for ($i = 0; $i < 3; $i++) {
             $entries[] = TimeEntry::factory()->create([
                 'user_id' => $this->user->id,
                 'project_id' => $this->project->id,
                 'task_id' => $this->task->id,
+                'started_at' => "{$date} " . (9 + $i) . ':00:00',
                 'duration_minutes' => 30 + ($i * 10),
             ]);
         }
@@ -274,10 +276,12 @@ describe('Time entry merge scenarios', function () {
     });
 
     test('preserves entry data during merge', function () {
+        $date = '2026-05-16';
         $entry1 = TimeEntry::factory()->create([
             'user_id' => $this->user->id,
             'project_id' => $this->project->id,
             'task_id' => $this->task->id,
+            'started_at' => "{$date} 09:00:00",
             'duration_minutes' => 60,
             'billable' => true,
             'description' => 'Original description',
@@ -287,6 +291,7 @@ describe('Time entry merge scenarios', function () {
             'user_id' => $this->user->id,
             'project_id' => $this->project->id,
             'task_id' => $this->task->id,
+            'started_at' => "{$date} 10:00:00",
             'duration_minutes' => 30,
             'billable' => true,
         ]);

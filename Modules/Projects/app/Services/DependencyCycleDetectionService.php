@@ -147,7 +147,7 @@ class DependencyCycleDetectionService
      */
     public function getMaxChainDepth(Task $task): int
     {
-        return $this->dfsMaxDepth($task->id, []);
+        return $this->dfsMaxDepth($task->id, [], 0);
     }
 
     /**
@@ -155,11 +155,12 @@ class DependencyCycleDetectionService
      *
      * @param int $taskId
      * @param array $visited
+     * @param int $depth
      * @return int
      */
-    private function dfsMaxDepth(int $taskId, array $visited): int
+    private function dfsMaxDepth(int $taskId, array $visited, int $depth): int
     {
-        if (in_array($taskId, $visited)) {
+        if (in_array($taskId, $visited) || $depth >= self::MAX_CHAIN_DEPTH) {
             return 0;
         }
 
@@ -171,8 +172,8 @@ class DependencyCycleDetectionService
             ->toArray();
 
         foreach ($directDependencies as $dependsOnId) {
-            $depth = 1 + $this->dfsMaxDepth($dependsOnId, $visited);
-            $maxDepth = max($maxDepth, $depth);
+            $d = 1 + $this->dfsMaxDepth($dependsOnId, $visited, $depth + 1);
+            $maxDepth = max($maxDepth, $d);
         }
 
         return $maxDepth;

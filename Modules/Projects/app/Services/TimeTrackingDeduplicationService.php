@@ -40,7 +40,7 @@ class TimeTrackingDeduplicationService
 
             // Found duplicates - merge them
             $result['entries_merged'] += $group->count();
-            $merged = $this->mergeTimeEntries($group->toArray());
+            $merged = $this->mergeTimeEntries($group->all());
             $result['duplicates_removed'] += $group->count() - 1;
         }
 

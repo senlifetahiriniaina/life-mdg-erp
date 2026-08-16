@@ -12,6 +12,7 @@ use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Task;
 use Modules\Projects\Models\TaskDependency;
 use Modules\Projects\Services\GanttService;
+use Modules\Projects\Services\DependencyCycleDetectionService;
 
 /**
  * @group Controllers - Gantt
@@ -20,7 +21,10 @@ use Modules\Projects\Services\GanttService;
  */
 class GanttController extends Controller
 {
-    public function __construct(private readonly GanttService $ganttService) {}
+    public function __construct(
+        private readonly GanttService $ganttService,
+        private readonly DependencyCycleDetectionService $cycleService,
+    ) {}
 
     /**
      * GET /api/v1/projects/{project}/gantt
@@ -46,6 +50,12 @@ class GanttController extends Controller
         // Prevent self-reference
         if ((int) $validated['depends_on_task_id'] === $task->id) {
             return response()->json(['message' => 'A task cannot depend on itself.'], 422);
+        }
+
+        $dependsOnTask = Task::findOrFail($validated['depends_on_task_id']);
+        $cycleCheck = $this->cycleService->checkCycleOnAdd($task, $dependsOnTask);
+        if ($cycleCheck['cycle']) {
+            return response()->json(['message' => $cycleCheck['message']], 422);
         }
 
         $dependency = TaskDependency::firstOrCreate(

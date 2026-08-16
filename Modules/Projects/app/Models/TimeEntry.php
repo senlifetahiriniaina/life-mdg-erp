@@ -48,6 +48,8 @@ class TimeEntry extends Model
         'billable',
         'billed',
         'invoice_id',
+        'timesheet_entry_id',
+        'source',
     ];
 
     protected $casts = [
