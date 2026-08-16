@@ -27,13 +27,29 @@ class TicketComment extends Model
     protected $fillable = [
         'ticket_id',
         'user_id',
-        'content',
+        'body',
+        'content', // alias for `body` — mutator below maps it to the real column
         'is_internal',
     ];
 
     protected $casts = [
         'is_internal' => 'boolean',
     ];
+
+    protected $appends = ['content'];
+
+    // Real column is `body` (see hd_ticket_comments migration patch); `content`
+    // is kept as the stable API/frontend-facing name (TicketCommentController,
+    // Tickets/Show/Show.vue both already speak `content`).
+    public function getContentAttribute(): ?string
+    {
+        return $this->attributes['body'] ?? null;
+    }
+
+    public function setContentAttribute($value): void
+    {
+        $this->attributes['body'] = $value;
+    }
 
     public function ticket(): BelongsTo
     {

@@ -168,7 +168,17 @@ class TicketController extends Controller
             'priority' => ['nullable', 'in:low,medium,high,urgent'],
             'team_id' => ['nullable', 'exists:hd_teams,id'],
             'type' => ['nullable', 'string'],
+            'status' => ['nullable', 'in:open,pending,resolved,closed'],
+            'sla_id' => ['nullable', 'exists:hd_sla_policies,id'],
         ]);
+
+        if (array_key_exists('status', $validated) && in_array($validated['status'], ['resolved', 'closed'], true)) {
+            $this->authorize('closeTicket', $ticket);
+        }
+
+        if (array_key_exists('sla_id', $validated)) {
+            $this->authorize('manageSla', Ticket::class);
+        }
 
         $ticket->update($validated);
 

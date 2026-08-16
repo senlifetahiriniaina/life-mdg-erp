@@ -148,7 +148,7 @@ describe('Ticket Authorization', function () {
 
         $this->actingAs($this->admin, 'sanctum')
             ->deleteJson("/api/v1/helpdesk/tickets/{$ticket->id}")
-            ->assertOk();
+            ->assertNoContent();
     });
 
     test('support agent cannot delete ticket', function () {

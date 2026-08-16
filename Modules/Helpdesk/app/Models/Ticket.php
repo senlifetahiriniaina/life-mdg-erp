@@ -51,6 +51,20 @@ class Ticket extends Model
                 $ticket->ticket_number = 'HD-' . strtoupper(uniqid());
             }
         });
+
+        static::created(function (Ticket $ticket) {
+            if ($ticket->sla_due_at !== null) {
+                return;
+            }
+
+            $policy = $ticket->sla_id
+                ? SlaPolicy::find($ticket->sla_id)
+                : SlaPolicy::where('is_default', true)->first();
+
+            if ($policy) {
+                app(\Modules\Helpdesk\Services\SlaService::class)->apply($ticket, $policy);
+            }
+        });
     }
 
     protected static function newFactory(): TicketFactory

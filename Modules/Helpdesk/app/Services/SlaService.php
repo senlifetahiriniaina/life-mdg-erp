@@ -40,7 +40,7 @@ class SlaService
     /** Apply an SLA policy to a ticket, calculating the due datetime. */
     public function apply(Ticket $ticket, SlaPolicy $policy): void
     {
-        $dueAt = $this->calculateDueAt(now(), (int) ceil($policy->response_time_minutes / 60), $policy->business_hours ?? null);
+        $dueAt = $this->calculateDueAt($ticket->created_at ?? now(), (int) ceil($policy->resolution_time_minutes / 60), $policy->business_hours ?? null);
 
         $ticket->update([
             'sla_id' => $policy->id,

@@ -13,14 +13,14 @@ use Modules\Helpdesk\Services\SlaService;
 it('applies an SLA policy and sets sla_due_at', function () {
     $ticket = Ticket::factory()->create(['sla_due_at' => null]);
     $policy = SlaPolicy::factory()->create([
-        'response_time_minutes' => 240,
+        'resolution_time_minutes' => 240,
         'business_hours' => null,
     ]);
 
-    $before = now();
+    $before = $ticket->created_at;
     $service = new SlaService;
     $service->apply($ticket, $policy);
-    $after = now();
+    $after = $ticket->created_at;
 
     $ticket->refresh();
 
@@ -28,7 +28,8 @@ it('applies an SLA policy and sets sla_due_at', function () {
     expect($ticket->sla_due_at)->not->toBeNull();
     expect($ticket->sla_breached)->toBeFalse();
 
-    // sla_due_at should be approximately 4 hours from now (within a 1-minute window)
+    // sla_due_at should be approximately 4 hours after the ticket's creation
+    // (the resolution clock, not the response clock — within a 1-minute window)
     $expectedMin = $before->copy()->addHours(4)->subMinute();
     $expectedMax = $after->copy()->addHours(4)->addMinute();
 
@@ -55,7 +56,7 @@ it('respects business hours when calculating due date', function () {
 
     $ticket = Ticket::factory()->create(['sla_due_at' => null]);
     $policy = SlaPolicy::factory()->create([
-        'response_time_minutes' => 480,
+        'resolution_time_minutes' => 480,
         'business_hours' => $businessHours,
     ]);
 

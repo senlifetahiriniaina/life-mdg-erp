@@ -17,7 +17,7 @@ class TicketCommentFactory extends Factory
         return [
             'ticket_id' => \Modules\Helpdesk\Models\Ticket::factory(),
             'user_id' => \App\Models\User::factory(),
-            'content' => fake()->paragraph(),
+            'body' => fake()->paragraph(),
             'is_internal' => fake()->boolean(),
         ];
     }
