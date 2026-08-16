@@ -38,45 +38,45 @@ describe('Absence Management Service', function () {
             ->where('leave_type', 'vacation')
             ->first();
 
-        expect($vacation->accrual_days_per_year)->toBe(20.0);
-        expect($vacation->balance)->toBe(20.0);
+        expect((float) $vacation->accrual_days_per_year)->toBe(20.0);
+        expect((float) $vacation->balance)->toBe(20.0);
     });
 
     test('submitLeaveRequest creates pending request with correct day count', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $request = $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19', // Monday
-            'end_date' => '2026-05-23',   // Friday (5 business days)
+            'start_date' => '2026-05-18', // Monday
+            'end_date' => '2026-05-22',   // Friday (5 business days)
             'leave_type' => 'vacation',
             'reason' => 'Vacation',
         ]);
 
         expect($request->status)->toBe('pending');
-        expect($request->days_requested)->toBe(5);
+        expect((float) $request->days_requested)->toBe(5.0);
     });
 
     test('submitLeaveRequest reserves balance as pending', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19',
-            'end_date' => '2026-05-23',
+            'start_date' => '2026-05-18',
+            'end_date' => '2026-05-22',
             'leave_type' => 'vacation',
         ]);
 
         $balance = $this->service->getLeaveBalance($this->employee, 'vacation');
 
-        expect($balance->pending)->toBe(5.0);
-        expect($balance->balance)->toBe(20.0); // Not deducted yet
+        expect((float) $balance->pending)->toBe(5.0);
+        expect((float) $balance->balance)->toBe(20.0); // Not deducted yet
     });
 
     test('approveLeaveRequest deducts from balance', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $request = $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19',
-            'end_date' => '2026-05-23',
+            'start_date' => '2026-05-18',
+            'end_date' => '2026-05-22',
             'leave_type' => 'vacation',
         ]);
 
@@ -84,17 +84,17 @@ describe('Absence Management Service', function () {
 
         $balance = $this->service->getLeaveBalance($this->employee, 'vacation');
 
-        expect($balance->balance)->toBe(15.0); // 20 - 5
-        expect($balance->pending)->toBe(0.0);
-        expect($balance->used)->toBe(5.0);
+        expect((float) $balance->balance)->toBe(15.0); // 20 - 5
+        expect((float) $balance->pending)->toBe(0.0);
+        expect((float) $balance->used)->toBe(5.0);
     });
 
     test('rejectLeaveRequest removes pending balance', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $request = $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19',
-            'end_date' => '2026-05-23',
+            'start_date' => '2026-05-18',
+            'end_date' => '2026-05-22',
             'leave_type' => 'vacation',
         ]);
 
@@ -102,16 +102,16 @@ describe('Absence Management Service', function () {
 
         $balance = $this->service->getLeaveBalance($this->employee, 'vacation');
 
-        expect($balance->pending)->toBe(0.0);
-        expect($balance->balance)->toBe(20.0); // Back to original
+        expect((float) $balance->pending)->toBe(0.0);
+        expect((float) $balance->balance)->toBe(20.0); // Back to original
     });
 
     test('getLeaveRequests filters by employee and status', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $req1 = $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19',
-            'end_date' => '2026-05-23',
+            'start_date' => '2026-05-18',
+            'end_date' => '2026-05-22',
             'leave_type' => 'vacation',
         ]);
 
@@ -125,8 +125,8 @@ describe('Absence Management Service', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $request = $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19',
-            'end_date' => '2026-05-23',
+            'start_date' => '2026-05-18',
+            'end_date' => '2026-05-22',
             'leave_type' => 'vacation',
         ]);
 
@@ -150,8 +150,8 @@ describe('Absence Management Service', function () {
         $this->service->initializeLeaveBalances($this->employee);
 
         $req1 = $this->service->submitLeaveRequest($this->employee, [
-            'start_date' => '2026-05-19',
-            'end_date' => '2026-05-23',
+            'start_date' => '2026-05-18',
+            'end_date' => '2026-05-22',
             'leave_type' => 'vacation',
         ]);
 
@@ -213,7 +213,7 @@ describe('Absence Management Service', function () {
 
         // Should not affect balance
         $balance = $this->service->getLeaveBalance($this->employee, 'unpaid');
-        expect($balance->balance)->toBe(0.0); // No balance for unpaid
+        expect((float) $balance->balance)->toBe(0.0); // No balance for unpaid
     });
 });
 
@@ -235,7 +235,7 @@ describe('Leave Request Business Logic', function () {
             'leave_type' => 'vacation',
         ]);
 
-        expect($request->days_requested)->toBe(1);
+        expect((float) $request->days_requested)->toBe(1.0);
     });
 
     test('FMLA eligibility requires 12 months employment', function () {
@@ -264,14 +264,14 @@ describe('Leave Request Business Logic', function () {
         $balance->deductBalance(5);
         $balance->refresh();
 
-        expect($balance->balance)->toBe(15.0);
-        expect($balance->used)->toBe(5.0);
+        expect((float) $balance->balance)->toBe(15.0);
+        expect((float) $balance->used)->toBe(5.0);
 
         // Can't go negative
         $balance->deductBalance(20);
         $balance->refresh();
 
-        expect($balance->balance)->toBe(0.0);
+        expect((float) $balance->balance)->toBe(0.0);
     });
 
     test('pending operations reserve balance correctly', function () {

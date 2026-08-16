@@ -16,6 +16,7 @@ class LeaveRequest extends Model
     protected $fillable = [
         'employee_id',
         'leave_type_id',
+        'leave_type',
         'type',
         'start_date',
         'end_date',
@@ -34,6 +35,28 @@ class LeaveRequest extends Model
         'approved_at' => 'datetime',
         'days_requested' => 'decimal:2',
     ];
+
+    protected static function booted(): void
+    {
+        // leave_type_id is a required FK to hr_leave_types, but every caller
+        // in this codebase (AbsenceManagementService and both direct-create
+        // call sites in its test) only knows the plain string code
+        // ('vacation', 'sick', ...) stored in the separate leave_type
+        // column — resolve/create the matching LeaveType here so the FK is
+        // never left null, the same "derive the id from what callers
+        // actually pass" pattern already used by Employee::booted().
+        static::creating(function (self $request) {
+            if (empty($request->leave_type_id) && ! empty($request->leave_type)) {
+                $request->leave_type_id = LeaveType::firstOrCreate(
+                    ['code' => $request->leave_type],
+                    [
+                        'name' => ucfirst(str_replace('_', ' ', $request->leave_type)),
+                        'is_paid' => $request->leave_type !== 'unpaid',
+                    ]
+                )->id;
+            }
+        });
+    }
 
     protected static function newFactory()
     {

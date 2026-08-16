@@ -141,7 +141,7 @@ class AbsenceManagementService
         );
 
         if ($balance && $request->leave_type !== 'unpaid') {
-            $balance->deductBalance($request->days_requested);
+            $balance->deductBalance((float) $request->days_requested);
         }
 
         return $request;
@@ -167,7 +167,7 @@ class AbsenceManagementService
         );
 
         if ($balance && $request->leave_type !== 'unpaid') {
-            $balance->removePending($request->days_requested);
+            $balance->removePending((float) $request->days_requested);
         }
 
         return $request;
@@ -236,10 +236,10 @@ class AbsenceManagementService
 
         foreach ($balances as $balance) {
             $report[$balance->leave_type] = [
-                'accrual' => $balance->accrual_days_per_year,
-                'balance' => $balance->balance,
-                'used' => $balance->used,
-                'pending' => $balance->pending,
+                'accrual' => (float) $balance->accrual_days_per_year,
+                'balance' => (float) $balance->balance,
+                'used' => (float) $balance->used,
+                'pending' => (float) $balance->pending,
                 'available' => $balance->getAvailableBalance(),
                 'type_label' => self::LEAVE_TYPES[$balance->leave_type] ?? $balance->leave_type,
             ];
@@ -290,7 +290,7 @@ class AbsenceManagementService
                 $request->start_date->year
             );
 
-            if ($balance && !$balance->hasBalance($request->days_requested)) {
+            if ($balance && !$balance->hasBalance((float) $request->days_requested)) {
                 $issues[] = [
                     'type' => 'insufficient_balance',
                     'severity' => 'medium',
