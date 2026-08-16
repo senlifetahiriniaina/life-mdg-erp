@@ -17,6 +17,7 @@ class RevenueContractTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
         $this->customer = Customer::factory()->for($this->company)->create();

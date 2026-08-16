@@ -15,6 +15,7 @@ class ConsolidationHierarchyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
         $this->user->givePermissionTo('accounting.consolidation.view');

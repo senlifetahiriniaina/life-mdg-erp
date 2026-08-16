@@ -89,6 +89,15 @@ class RolesAndPermissionsSeeder extends Seeder
         'analytics.recommendation.act', 'analytics.recommendation.dismiss',
     ];
 
+    // TaxComplianceReportPolicy/RevenueContractPolicy/ConsolidationHierarchyPolicy check
+    // non-standard verbs the generic MODULES/ACTIONS loop below doesn't produce (file,
+    // recognize, restore, force_delete) — same reason ANALYTICS_PERMISSIONS exists above.
+    private const ACCOUNTING_EXTRA_PERMISSIONS = [
+        'accounting.tax_compliance.file', 'accounting.tax_compliance.restore', 'accounting.tax_compliance.force_delete',
+        'accounting.revenue_recognition.recognize', 'accounting.revenue_recognition.restore', 'accounting.revenue_recognition.force_delete',
+        'accounting.consolidation.restore', 'accounting.consolidation.force_delete',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'sales'            => ['order', 'line', 'quotation'],
@@ -99,7 +108,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier'],
-        'accounting'       => ['invoice', 'journal', 'chart-of-account'],
+        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'tax_compliance', 'revenue_recognition', 'consolidation'],
         'helpdesk'         => ['ticket', 'team'],
         'bi'               => ['dashboard', 'kpi', 'report'],
         'analytics'        => ['forecast', 'anomaly'],
@@ -140,6 +149,12 @@ class RolesAndPermissionsSeeder extends Seeder
         // merged into $allPermissions so admin/manager/employee/inventory-analyst
         // (which already filters on the 'analytics.' prefix below) pick them up.
         foreach (self::ANALYTICS_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        // Same reasoning as ANALYTICS_PERMISSIONS above, for Accounting's
+        // tax_compliance/revenue_recognition/consolidation policies.
+        foreach (self::ACCOUNTING_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
