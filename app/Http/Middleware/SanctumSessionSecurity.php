@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\TransientToken;
 use Modules\Core\Services\SessionSecurityService;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -43,8 +44,11 @@ class SanctumSessionSecurity
         $user = $request->user();
         $token = $user?->currentAccessToken();
 
-        // Pass through unauthenticated requests and non-Sanctum guards untouched.
-        if (! $user || ! $token || ! $this->sessionSecurity) {
+        // Pass through unauthenticated requests, non-Sanctum guards, and
+        // TransientToken (Sanctum's stand-in when there's no real, persisted
+        // PersonalAccessToken row — e.g. actingAs($user, 'sanctum') in tests —
+        // which has no $id property at all) untouched.
+        if (! $user || ! $token || $token instanceof TransientToken || ! $this->sessionSecurity) {
             return $next($request);
         }
 
