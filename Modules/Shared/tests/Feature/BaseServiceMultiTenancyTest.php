@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Shared\Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Shared\Exceptions\TenantException;
 use Modules\Shared\Services\BaseService;
 use Modules\Shared\Services\SentimentAnalysisService;
 use Modules\Shared\Services\UnifiedForecastingService;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class BaseServiceMultiTenancyTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected int $companyId;
     protected int $otherCompanyId;
 

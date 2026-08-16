@@ -106,7 +106,7 @@ class SentimentAnalysisService extends BaseService
         }
 
         $total = $positiveScore + $negativeScore;
-        if ($total === 0) {
+        if ($total == 0) {
             return 50;
         }
 
