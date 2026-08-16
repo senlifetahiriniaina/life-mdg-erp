@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Strategy\Services;
 
+use Modules\Strategy\Models\RatioSnapshot;
+
 /**
  * Calculates current values for all registered module ratios
  * and provides per-module ratio definitions with status (RAG).
@@ -14,6 +16,155 @@ class StrategyRatioService
         private readonly KPIRegistryService   $registry,
         private readonly BenchmarkService     $benchmark,
     ) {}
+
+    /**
+     * Calculate a ratio value as numerator / denominator, where the numerator
+     * is the current KPI value pulled from the registry for $module:$key.
+     * Guards against division by zero (returns 0.0 rather than INF/NAN).
+     */
+    public function calculate(string $module, string $key, float $denominator): float
+    {
+        if ($denominator === 0.0) {
+            return 0.0;
+        }
+
+        $numerator = $this->registry->getValue($module, $key);
+
+        return (float) ($numerator / $denominator);
+    }
+
+    /**
+     * RAG (Red/Amber/Green — here green/yellow/red) status for a single ratio
+     * value against a benchmark, given a $tolerance band (as a fraction of the
+     * benchmark, e.g. 0.1 = ±10%).
+     *
+     * direction 'up'   (higher is better): green when ratio >= benchmark * (1 + tolerance),
+     *                                       red   when ratio <  benchmark * (1 - tolerance),
+     *                                       yellow in between.
+     * direction 'down' (lower is better):  green when ratio <= benchmark * (1 - tolerance),
+     *                                       red   when ratio >  benchmark * (1 + tolerance),
+     *                                       yellow in between.
+     *
+     * Distinct from (and does not replace) the private computeStatus() used by
+     * allRatiosWithStatus(), which returns green/amber/red against target_min/target_max.
+     */
+    public function computeRagStatus(
+        float  $ratio,
+        float  $benchmark,
+        string $direction = 'up',
+        float  $tolerance = 0.1
+    ): string {
+        if ($direction === 'down') {
+            $greenThreshold = $benchmark * (1 - $tolerance);
+            $redThreshold   = $benchmark * (1 + $tolerance);
+
+            if ($ratio <= $greenThreshold) {
+                return 'green';
+            }
+            if ($ratio <= $redThreshold) {
+                return 'yellow';
+            }
+            return 'red';
+        }
+
+        // direction 'up' (default)
+        $greenThreshold = $benchmark * (1 + $tolerance);
+        $redThreshold   = $benchmark * (1 - $tolerance);
+
+        if ($ratio >= $greenThreshold) {
+            return 'green';
+        }
+        if ($ratio >= $redThreshold) {
+            return 'yellow';
+        }
+        return 'red';
+    }
+
+    /**
+     * Persist a point-in-time ratio snapshot for a tenant (stateless API —
+     * does not require a pre-existing `strategy_ratios` row: `ratio_id` stays
+     * null, `module`/`ratio_key` identify the ratio instead).
+     */
+    public function storeSnapshot(
+        int|string $tenantId,
+        string     $module,
+        string     $ratioKey,
+        float      $value,
+        ?float     $benchmark = null,
+        string     $status = 'amber'
+    ): RatioSnapshot {
+        return RatioSnapshot::create([
+            'tenant_id'       => (string) $tenantId,
+            'module'          => $module,
+            'ratio_key'       => $ratioKey,
+            'period'          => now()->format('Y-m'),
+            'value'           => $value,
+            'benchmark_value' => $benchmark,
+            'gap'             => $benchmark !== null ? round($value - $benchmark, 4) : null,
+            'status'          => $status,
+            'created_at'      => now(),
+        ]);
+    }
+
+    /**
+     * Retrieve the most recent snapshots for a tenant/module/ratio, newest first.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getHistory(
+        int|string $tenantId,
+        string     $module,
+        string     $ratioKey,
+        int        $limit = 10
+    ): array {
+        return RatioSnapshot::query()
+            ->where('tenant_id', (string) $tenantId)
+            ->where('module', $module)
+            ->where('ratio_key', $ratioKey)
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->toArray();
+    }
+
+    /**
+     * Simple trend direction ('up'|'down'|'stable') from a chronological
+     * series of ratio values, comparing the first and last points.
+     *
+     * @param  array<int, float> $values
+     */
+    public function calculateTrend(array $values): string
+    {
+        $values = array_values(array_filter($values, fn ($v) => is_numeric($v)));
+        $n      = count($values);
+
+        if ($n < 2) {
+            return 'stable';
+        }
+
+        $first = (float) $values[0];
+        $last  = (float) $values[$n - 1];
+
+        if ($first === 0.0) {
+            if ($last > 0.0) {
+                return 'up';
+            }
+            if ($last < 0.0) {
+                return 'down';
+            }
+            return 'stable';
+        }
+
+        $changePct = ($last - $first) / abs($first);
+
+        if ($changePct > 0.02) {
+            return 'up';
+        }
+        if ($changePct < -0.02) {
+            return 'down';
+        }
+        return 'stable';
+    }
 
     /**
      * Return all ratio definitions with current + benchmark values and RAG status.

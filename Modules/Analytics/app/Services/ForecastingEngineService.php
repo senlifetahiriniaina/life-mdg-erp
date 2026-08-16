@@ -717,6 +717,327 @@ USER;
         })->toArray();
     }
 
+    // ─── Stateless functional forecasting API ──────────────────────
+    // (data-in / data-out — no ForecastModel/DB coupling; complements the
+    // persistence-oriented train()/predict() API above by delegating to the
+    // same algorithm math wherever the shape allows.)
+
+    /**
+     * Stateless series forecast: takes a plain historical series and returns
+     * future point values without touching the DB or a ForecastModel record.
+     * Delegates to movingAverage()/exponentialSmoothing()/linearRegression()
+     * after normalizing the input (rows may omit `date`).
+     *
+     * @param  array<int, array{date?: string, value?: float}|float|int> $historicalData
+     * @return array{values: float[], algorithm: string[], type: string, periods: int}
+     */
+    public function forecast(
+        string $type,
+        array  $historicalData,
+        int    $periods = 3,
+        string $algorithm = 'linear_regression',
+        ?int   $window = null
+    ): array {
+        $series = $this->normalizeSeries($historicalData);
+
+        if (count($series) < 2) {
+            $base   = $series[0]['value'] ?? 0.0;
+            $values = array_fill(0, max($periods, 1), max($base, 0.01));
+
+            return [
+                'values'    => array_map(fn ($v) => round((float) $v, 4), $values),
+                'algorithm' => ['flat_fallback'],
+                'type'      => $type,
+                'periods'   => $periods,
+            ];
+        }
+
+        $predictions = match ($algorithm) {
+            'moving_average'                       => $this->movingAverage($series, $window ?? min(7, count($series))),
+            'exponential_smoothing', 'holt_winters' => $this->exponentialSmoothing($series),
+            default                                 => $this->linearRegression($series, $periods), // linear_regression
+        };
+
+        $values = array_map(fn ($p) => (float) ($p['value'] ?? 0.0), $predictions);
+        // Keep predictions strictly positive — a forecast of exactly 0 (or the
+        // occasional negative tail from linearRegression's confidence band math)
+        // is not a meaningful demand/revenue projection.
+        $values = array_map(fn ($v) => $v > 0.0 ? round($v, 4) : 0.01, $values);
+        $values = array_slice($values, 0, $periods);
+        while (count($values) < $periods) {
+            $values[] = $values !== [] ? end($values) : 0.01;
+        }
+
+        return [
+            'values'    => array_values($values),
+            'algorithm' => [$algorithm],
+            'type'      => $type,
+            'periods'   => $periods,
+        ];
+    }
+
+    /**
+     * Stateless cashflow forecast: projects a daily running balance from a
+     * short history of periodic inflow/outflow rows (e.g. weekly buckets).
+     *
+     * @param  array<int, array{date?: string, inflow?: float, outflow?: float}> $data
+     * @return array{daily_balance: array<int, array{date: string, balance: float}>, avg_daily_net: float, days: int}
+     */
+    public function forecastCashflow(array $data, int $days = 30): array
+    {
+        $netFlows = array_map(
+            fn ($row) => (float) ($row['inflow'] ?? 0) - (float) ($row['outflow'] ?? 0),
+            $data
+        );
+        $avgNet = count($netFlows) > 0 ? array_sum($netFlows) / count($netFlows) : 0.0;
+
+        $daysPerRow  = $this->inferDaysPerRow($data) ?? 7;
+        $avgDailyNet = $daysPerRow > 0 ? $avgNet / $daysPerRow : 0.0;
+
+        $dates    = array_values(array_filter(array_column($data, 'date')));
+        $lastDate = ! empty($dates) ? \Carbon\Carbon::parse(max($dates)) : \Carbon\Carbon::now();
+
+        $balance      = 0.0;
+        $dailyBalance = [];
+        for ($i = 1; $i <= $days; $i++) {
+            $balance       += $avgDailyNet;
+            $dailyBalance[] = [
+                'date'    => $lastDate->copy()->addDays($i)->toDateString(),
+                'balance' => round($balance, 2),
+            ];
+        }
+
+        return [
+            'daily_balance' => $dailyBalance,
+            'avg_daily_net' => round($avgDailyNet, 2),
+            'days'          => $days,
+        ];
+    }
+
+    /**
+     * Stockout risk classification from a recent demand history vs current stock,
+     * bucketed by projected days-of-cover.
+     *
+     * @param  array<int, float> $demandHistory
+     * @return array{product_id: string, risk_level: string, avg_demand: float, current_stock: float, days_of_cover: float|null}
+     */
+    public function detectStockoutRisk(string $productId, array $demandHistory, float $currentStock): array
+    {
+        $n         = count($demandHistory);
+        $avgDemand = $n > 0 ? array_sum($demandHistory) / $n : 0.0;
+        $daysOfCover = $avgDemand > 0 ? $currentStock / $avgDemand : INF;
+
+        $riskLevel = match (true) {
+            $daysOfCover <= 3.0  => 'critical',
+            $daysOfCover <= 7.0  => 'high',
+            $daysOfCover <= 14.0 => 'medium',
+            default              => 'low',
+        };
+
+        return [
+            'product_id'    => $productId,
+            'risk_level'    => $riskLevel,
+            'avg_demand'    => round($avgDemand, 2),
+            'current_stock' => $currentStock,
+            'days_of_cover' => is_infinite($daysOfCover) ? null : round($daysOfCover, 1),
+        ];
+    }
+
+    /**
+     * Classic reorder point formula: ROP = (average daily demand × lead time
+     * in days) + safety stock.
+     */
+    public function calculateReorderPoint(float $avgDailyDemand, float $leadTimeDays, float $safetyStock = 0.0): float
+    {
+        return (float) ($avgDailyDemand * $leadTimeDays + $safetyStock);
+    }
+
+    /**
+     * Generate side-by-side what-if forecasts by applying a growth multiplier
+     * per named scenario to the historical series before forecasting.
+     *
+     * @param  array<int, array{date?: string, value?: float}|float>  $historicalData
+     * @param  string[]                                                $scenarios
+     * @return array<string, array{values: float[], algorithm: string[], type: string, periods: int}>
+     */
+    public function generateScenarios(
+        array $historicalData,
+        array $scenarios = ['optimistic', 'pessimistic', 'most_likely'],
+        int   $periods = 3
+    ): array {
+        $multipliers = [
+            'optimistic'  => 1.15,
+            'most_likely' => 1.0,
+            'pessimistic' => 0.85,
+        ];
+
+        $result = [];
+        foreach ($scenarios as $scenarioName) {
+            $factor   = $multipliers[$scenarioName] ?? 1.0;
+            $adjusted = array_map(function ($point) use ($factor) {
+                $value = is_array($point) ? (float) ($point['value'] ?? 0.0) : (float) $point;
+                $row   = ['value' => $value * $factor];
+                if (is_array($point) && isset($point['date'])) {
+                    $row['date'] = $point['date'];
+                }
+
+                return $row;
+            }, $historicalData);
+
+            $result[$scenarioName] = $this->forecast('demand', $adjusted, $periods);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Mean Absolute Error between actual and predicted series (paired by index).
+     *
+     * @param  array<int, float> $actual
+     * @param  array<int, float> $predicted
+     */
+    public function computeMeanAbsoluteError(array $actual, array $predicted): float
+    {
+        $n = min(count($actual), count($predicted));
+        if ($n === 0) {
+            return 0.0;
+        }
+
+        $sum = 0.0;
+        for ($i = 0; $i < $n; $i++) {
+            $sum += abs((float) $actual[$i] - (float) $predicted[$i]);
+        }
+
+        return (float) ($sum / $n);
+    }
+
+    /**
+     * Project headcount forward per quarter from historical headcount trend
+     * net of turnover attrition.
+     *
+     * @param  array<int, float> $historicalHeadcount
+     * @return array{historical_headcount: array<int, float>, projected_headcount: float[], quarters: int, turnover_rate: float, avg_growth_rate: float}
+     */
+    public function forecastHrHeadcount(array $historicalHeadcount, float $turnoverRate, int $quarters = 4): array
+    {
+        $n = count($historicalHeadcount);
+        if ($n === 0) {
+            return [
+                'historical_headcount' => [],
+                'projected_headcount'  => [],
+                'quarters'             => $quarters,
+                'turnover_rate'        => $turnoverRate,
+                'avg_growth_rate'      => 0.0,
+            ];
+        }
+
+        $growthRates = [];
+        for ($i = 1; $i < $n; $i++) {
+            if ($historicalHeadcount[$i - 1] > 0) {
+                $growthRates[] = ($historicalHeadcount[$i] - $historicalHeadcount[$i - 1]) / $historicalHeadcount[$i - 1];
+            }
+        }
+        $avgGrowth = count($growthRates) > 0 ? array_sum($growthRates) / count($growthRates) : 0.0;
+
+        $current   = (float) end($historicalHeadcount);
+        $projected = [];
+        for ($q = 1; $q <= $quarters; $q++) {
+            // Net change per quarter = organic growth − turnover attrition (annual
+            // rate applied quarterly on the running headcount).
+            $current     = max(0.0, $current * (1 + $avgGrowth) - $current * $turnoverRate / 4);
+            $projected[] = round($current, 1);
+        }
+
+        return [
+            'historical_headcount' => $historicalHeadcount,
+            'projected_headcount'  => $projected,
+            'quarters'             => $quarters,
+            'turnover_rate'        => $turnoverRate,
+            'avg_growth_rate'      => round($avgGrowth, 4),
+        ];
+    }
+
+    /**
+     * Flag indices where demand jumps well above its trailing baseline
+     * (default: ≥ 1.3× the average of the preceding `window` points).
+     *
+     * @param  array<int, float> $demand
+     * @return array<int, array{index: int, value: float, baseline: float, increase_ratio: float}>
+     */
+    public function identifyDemandSurges(array $demand, float $threshold = 1.3, int $window = 3): array
+    {
+        $n      = count($demand);
+        $surges = [];
+
+        for ($i = 0; $i < $n; $i++) {
+            $start       = max(0, $i - $window);
+            $priorWindow = array_slice($demand, $start, $i - $start);
+            if (empty($priorWindow)) {
+                continue;
+            }
+
+            $avg = array_sum($priorWindow) / count($priorWindow);
+            if ($avg > 0 && $demand[$i] >= $avg * $threshold) {
+                $surges[] = [
+                    'index'          => $i,
+                    'value'          => (float) $demand[$i],
+                    'baseline'       => round($avg, 2),
+                    'increase_ratio' => round($demand[$i] / $avg, 2),
+                ];
+            }
+        }
+
+        return $surges;
+    }
+
+    /**
+     * Normalize a loosely-shaped historical series (assoc rows with/without
+     * `date`, or a flat list of numbers) into the {date, value} shape the
+     * existing algorithm methods (movingAverage/exponentialSmoothing/
+     * linearRegression) expect.
+     *
+     * @param  array<int, array{date?: string, value?: float}|float|int> $data
+     * @return array<int, array{date: string, value: float}>
+     */
+    private function normalizeSeries(array $data): array
+    {
+        $data  = array_values($data);
+        $n     = count($data);
+        $today = \Carbon\Carbon::now();
+
+        $normalized = [];
+        foreach ($data as $i => $point) {
+            if (is_array($point)) {
+                $value = (float) ($point['value'] ?? 0.0);
+                $date  = $point['date'] ?? $today->copy()->subDays($n - $i)->toDateString();
+            } else {
+                $value = (float) $point;
+                $date  = $today->copy()->subDays($n - $i)->toDateString();
+            }
+            $normalized[] = ['date' => $date, 'value' => $value];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Infer the average number of days spanned by each row of a periodic
+     * (e.g. weekly) series, from the gaps between its `date` values.
+     */
+    private function inferDaysPerRow(array $data): ?int
+    {
+        $dates = array_values(array_filter(array_column($data, 'date')));
+        if (count($dates) < 2) {
+            return null;
+        }
+        sort($dates);
+        $first = \Carbon\Carbon::parse($dates[0]);
+        $last  = \Carbon\Carbon::parse($dates[count($dates) - 1]);
+        $gaps  = count($dates) - 1;
+
+        return $gaps > 0 ? (int) round($first->diffInDays($last) / $gaps) : null;
+    }
+
     // ─── Méthodes privées utilitaires ─────────────────────────────
 
     private function runAlgorithm(ForecastModel $model, array $data, int $horizon): array

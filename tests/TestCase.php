@@ -47,6 +47,19 @@ abstract class TestCase extends BaseTestCase
         parent::tearDown();
     }
 
+    /**
+     * Assert that $needle is present in $haystack — PHPUnit has no
+     * `assertIn()` (only `assertContains($needle, $haystack)`, same argument
+     * order). Used by ~9 call sites across Analytics/Strategy/Inventory
+     * feature tests but never defined, so every one of them failed with
+     * "Call to undefined method ... assertIn()" — same class of gap as
+     * Pest.php's `toBeCloseTo()` custom expectation.
+     */
+    protected function assertIn($needle, iterable $haystack, string $message = ''): void
+    {
+        $this->assertContains($needle, $haystack, $message);
+    }
+
     protected function graphQL(string $query, array $variables = [], array $headers = [])
     {
         return $this->postJson('/graphql', [
