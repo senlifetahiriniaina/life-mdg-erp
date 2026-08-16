@@ -2,12 +2,12 @@
 
 namespace Modules\Timesheets\Models;
 
-use App\Models\Department;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\HR\Models\Department;
 use Modules\Timesheets\Database\Factories\TimeTrackingProjectFactory;
 
 /**
