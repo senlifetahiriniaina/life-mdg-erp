@@ -1,0 +1,11 @@
+{
+    "name": "Shared",
+    "alias": "shared",
+    "description": "Cross-module reference data — countries, currencies, languages, tags, preferences",
+    "keywords": ["shared", "reference-data", "countries", "currencies"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Shared\\Providers\\SharedServiceProvider"
+    ],
+    "files": []
+}
