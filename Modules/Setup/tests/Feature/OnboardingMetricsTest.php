@@ -24,9 +24,13 @@ beforeEach(function () {
 // Helpers
 // ============================================================
 
-function makeOnboardingUser(int $companyId = 1): \App\Models\User
+function makeOnboardingUser(): \App\Models\User
 {
-    return \App\Models\User::factory()->create(['company_id' => $companyId]);
+    // users.company_id is a real FK to companies.id -- a bare literal id
+    // violates the constraint unless a matching Company row exists.
+    return \App\Models\User::factory()->create([
+        'company_id' => \App\Models\Company::factory()->create()->id,
+    ]);
 }
 
 function makeSession(array $overrides = []): OnboardingSession
@@ -357,10 +361,14 @@ it('generateDailySnapshot persists a FunnelSnapshot for the given date', functio
     // 1 of 3 uses AI → 33.33%
     expect((float) $snapshot->ai_mapping_adoption_rate)->toBe(33.33);
 
-    $this->assertDatabaseHas('setup_onboarding_funnel_snapshots', [
-        'tenant_id'     => 1,
-        'snapshot_date' => $date->toDateString(),
-    ]);
+    // setup_onboarding_funnel_snapshots.snapshot_date is a real `date` column
+    // (MySQL/Postgres truncate any time component at the engine level on
+    // insert), but SQLite's dynamic typing stores whatever string Eloquent's
+    // fromDateTime() writes verbatim -- assert via the model's own `date`
+    // cast instead of a raw string match against the SQLite-only artifact.
+    $stored = FunnelSnapshot::where('tenant_id', 1)->first();
+    expect($stored)->not->toBeNull();
+    expect($stored->snapshot_date->toDateString())->toBe($date->toDateString());
 });
 
 // ============================================================

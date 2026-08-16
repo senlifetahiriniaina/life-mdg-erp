@@ -158,7 +158,14 @@ class OnboardingMetricsService
             : 0.0;
 
         // Per-step funnel: for each step, what % of sessions that reached it also completed it?
-        $stepFunnel = $this->computeStepFunnel($tenantId, $since, $total);
+        // computeStepFunnel() returns a flat 0-indexed array (steps 1-5); reshape into the
+        // documented ['step' => int, 'completion_rate' => float] contract emptyStats() also uses.
+        $stepRates  = $this->computeStepFunnel($tenantId, $since, $total);
+        $stepFunnel = array_map(
+            fn (int $i, float $rate) => ['step' => $i + 1, 'completion_rate' => $rate],
+            array_keys($stepRates),
+            $stepRates,
+        );
 
         // AI adoption
         $aiAdoptionRate = $total > 0

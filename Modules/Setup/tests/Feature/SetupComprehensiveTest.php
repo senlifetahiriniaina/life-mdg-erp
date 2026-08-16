@@ -196,7 +196,7 @@ describe('ImportExecutorService', function () {
     test('records import errors when rows fail validation', function () {
         $job = setupJob(['status' => 'validated']);
 
-        $this->service->recordError($job, 5, 'email', 'Invalid email format', 'bad-email');
+        $this->service->recordError($job, 5, ['email' => 'bad-email'], 'email', 'invalid_format', 'Invalid email format.');
 
         $error = ImportError::where('import_job_id', $job->id)->first();
 
@@ -242,15 +242,21 @@ describe('Setup Wizard API', function () {
 
     test('POST /api/v1/setup/wizard/company saves company info', function () {
         $response = $this->postJson('/api/v1/setup/wizard/company', [
-            'name'    => 'ACME Sénégal SARL',
-            'country' => 'SN',
-            'currency'=> 'XOF',
-            'industry'=> 'retail',
+            'company_name'  => 'ACME Sénégal SARL',
+            'country_code'  => 'SN',
+            'currency_code' => 'XOF',
+            'industry'      => 'retail',
         ]);
         $response->assertStatus(200);
     });
 
     test('POST /api/v1/setup/wizard/modules saves selected modules', function () {
+        // Step 3 requires the company profile from step 1 to already exist.
+        $this->postJson('/api/v1/setup/wizard/company', [
+            'company_name' => 'ACME Sénégal SARL',
+            'country_code' => 'SN',
+        ])->assertStatus(200);
+
         $response = $this->postJson('/api/v1/setup/wizard/modules', [
             'modules' => ['CRM', 'HR', 'Inventory'],
         ]);
@@ -263,6 +269,12 @@ describe('Setup Wizard API', function () {
     });
 
     test('POST /api/v1/setup/wizard/complete marks wizard as complete', function () {
+        // Step 6 requires the company profile from step 1 to already exist.
+        $this->postJson('/api/v1/setup/wizard/company', [
+            'company_name' => 'ACME Sénégal SARL',
+            'country_code' => 'SN',
+        ])->assertStatus(200);
+
         $response = $this->postJson('/api/v1/setup/wizard/complete', []);
         $response->assertStatus(200);
     });
@@ -273,10 +285,16 @@ describe('Setup Wizard API', function () {
 describe('Import Job API', function () {
     beforeEach(function () {
         $this->user = actingAsUser('admin');
+        // SetupController::tenantId() resolves tenant from the authenticated
+        // user's company_id, not from ImportJob::tenant_id directly.
+        // users.company_id has a real FK to companies.id, so a real Company
+        // row is required (a bare literal id would violate the constraint).
+        $this->company = \App\Models\Company::factory()->create();
+        $this->user->update(['company_id' => $this->company->id]);
     });
 
     test('GET /api/v1/setup/import-jobs lists jobs for tenant', function () {
-        setupJob(['tenant_id' => $this->user->id]);
+        setupJob(['tenant_id' => $this->company->id]);
         $response = $this->getJson('/api/v1/setup/import-jobs');
         $response->assertStatus(200);
     });
@@ -290,18 +308,19 @@ describe('Import Job API', function () {
             'source_type'   => 'csv',
             'target_module' => 'CRM',
             'target_entity' => 'contacts',
+            'file'          => $csv,
         ]);
         $response->assertStatus(201);
     });
 
     test('GET /api/v1/setup/import-jobs/{id} returns job detail', function () {
-        $job = setupJob(['tenant_id' => 1]);
+        $job = setupJob(['tenant_id' => $this->company->id]);
         $response = $this->getJson("/api/v1/setup/import-jobs/{$job->id}");
         $response->assertStatus(200);
     });
 
     test('POST /api/v1/setup/import-jobs/{id}/validate performs dry-run', function () {
-        $job = setupJob(['status' => 'mapped']);
+        $job = setupJob(['tenant_id' => $this->company->id, 'status' => 'mapped']);
         $response = $this->postJson("/api/v1/setup/import-jobs/{$job->id}/validate");
         $response->assertStatus(200);
     });
@@ -317,11 +336,16 @@ describe('Import Job API', function () {
 describe('Onboarding Metrics API', function () {
     beforeEach(function () {
         $this->user = actingAsUser('admin');
+        // OnboardingMetricsController::tenantId() resolves tenant from company_id.
+        // users.company_id has a real FK to companies.id, so a real Company
+        // row is required (a bare literal id would violate the constraint).
+        $this->company = \App\Models\Company::factory()->create();
+        $this->user->update(['company_id' => $this->company->id]);
     });
 
     test('POST /api/v1/setup/onboarding/start creates a new session', function () {
         $response = $this->postJson('/api/v1/setup/onboarding/start', [
-            'channel' => 'web',
+            'source_type' => 'manual',
         ]);
         $response->assertStatus(201);
     });
@@ -332,23 +356,25 @@ describe('Onboarding Metrics API', function () {
     });
 
     test('POST /api/v1/setup/onboarding/{id}/step records a step event', function () {
-        $session = OnboardingSession::factory()->create(['tenant_id' => 1]);
+        $session = OnboardingSession::factory()->create(['tenant_id' => $this->company->id]);
         $response = $this->postJson("/api/v1/setup/onboarding/{$session->id}/step", [
-            'step'    => 'company',
-            'outcome' => 'completed',
+            'step'  => 1,
+            'event' => 'completed',
         ]);
         $response->assertStatus(200);
     });
 
     test('POST /api/v1/setup/onboarding/{id}/complete marks session done', function () {
-        $session = OnboardingSession::factory()->create(['tenant_id' => 1]);
+        $session = OnboardingSession::factory()->create(['tenant_id' => $this->company->id]);
         $response = $this->postJson("/api/v1/setup/onboarding/{$session->id}/complete");
         $response->assertStatus(200);
     });
 
     test('POST /api/v1/setup/onboarding/{id}/abandon marks session abandoned', function () {
-        $session = OnboardingSession::factory()->create(['tenant_id' => 1]);
-        $response = $this->postJson("/api/v1/setup/onboarding/{$session->id}/abandon");
+        $session = OnboardingSession::factory()->create(['tenant_id' => $this->company->id]);
+        $response = $this->postJson("/api/v1/setup/onboarding/{$session->id}/abandon", [
+            'at_step' => 3,
+        ]);
         $response->assertStatus(200);
     });
 });

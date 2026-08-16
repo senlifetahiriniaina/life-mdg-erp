@@ -181,8 +181,8 @@ class ImportExecutorService
         ImportError::create([
             'import_job_id' => $job->id,
             'row_number'    => $rowNumber,
-            'source_data'   => $sourceData,
-            'field'         => $field,
+            'raw_data'      => $sourceData,
+            'field_name'    => $field,
             'error_type'    => $type,
             'error_message' => $message,
         ]);

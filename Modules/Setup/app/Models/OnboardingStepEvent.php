@@ -31,8 +31,12 @@ class OnboardingStepEvent extends Model
     use \Modules\AuditLog\Traits\HasAuditLog;
     protected $table = 'setup_onboarding_step_events';
 
-    // step events have no updated_at
-    public $timestamps = false;
+    // Step events are immutable and have no updated_at, but created_at must
+    // still be auto-populated on insert: computeStepFunnel() filters events
+    // by created_at, and disabling timestamps entirely left every row's
+    // created_at NULL, so that filter silently excluded every event ever
+    // written (in production, not just in tests).
+    const UPDATED_AT = null;
 
     protected $fillable = [
         'tenant_id',

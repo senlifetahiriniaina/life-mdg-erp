@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
  * @property int         $id
  * @property int         $import_job_id
  * @property int         $row_number
- * @property array|null  $source_data
- * @property string|null $field
+ * @property array|null  $raw_data
+ * @property string|null $field_name
  * @property string      $error_type
  * @property string      $error_message
  * @property bool        $is_skipped
@@ -29,16 +29,16 @@ class ImportError extends Model
     protected $fillable = [
         'import_job_id',
         'row_number',
-        'source_data',
-        'field',
+        'raw_data',
+        'field_name',
         'error_type',
         'error_message',
         'is_skipped',
     ];
 
     protected $casts = [
-        'source_data' => 'array',
-        'is_skipped'  => 'boolean',
+        'raw_data'   => 'array',
+        'is_skipped' => 'boolean',
     ];
 
     // -----------------------------------------------------------------------

@@ -57,6 +57,10 @@ class OnboardingSession extends Model
         'started_at'                 => 'datetime',
         'completed_at'               => 'datetime',
         'abandoned_at'               => 'datetime',
+        'current_step'               => 'integer',
+        'total_duration_seconds'     => 'integer',
+        'rows_imported'              => 'integer',
+        'errors_count'               => 'integer',
         'ai_mapping_used'            => 'boolean',
         'ai_mapping_accepted_percent' => 'decimal:2',
     ];
