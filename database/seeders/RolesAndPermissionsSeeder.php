@@ -106,6 +106,17 @@ class RolesAndPermissionsSeeder extends Seeder
         'settings.view', 'settings.create', 'settings.update', 'settings.delete',
     ];
 
+    // Modules\HR\Http\Controllers\Api\DocumentAlertController gates every action on a
+    // bare $this->authorize('hr.documents.<verb>') ability string (no Policy class) --
+    // resolved by Spatie's register_permission_check_method Gate::before hook, so these
+    // just need to exist as real permissions, same as the other _PERMISSIONS constants.
+    // 'edit'/'remind' aren't in the generic ACTIONS set, and 'documents' isn't in
+    // MODULES['hr'] at all.
+    private const HR_EXTRA_PERMISSIONS = [
+        'hr.documents.view', 'hr.documents.create', 'hr.documents.edit',
+        'hr.documents.delete', 'hr.documents.remind',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'sales'            => ['order', 'line', 'quotation'],
@@ -167,6 +178,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::SETTINGS_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::HR_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
