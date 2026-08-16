@@ -35,6 +35,8 @@ class TrackingEvent extends Model
         'exception_reason',
         'recorded_at',
         'recorded_by',
+        'provider_event_id',
+        'idempotency_key',
     ];
 
     protected $casts = [
