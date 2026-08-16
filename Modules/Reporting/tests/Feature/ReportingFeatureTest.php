@@ -169,7 +169,7 @@ test('schedule computeNextRunAt advances by one day for daily frequency', functi
     ]);
 
     $before  = $schedule->next_run_at->copy();
-    $schedule->computeNextRunAt();
+    $schedule->next_run_at = $schedule->computeNextRunAt();
     $schedule->save();
 
     expect($schedule->fresh()->next_run_at->greaterThan($before))->toBeTrue();

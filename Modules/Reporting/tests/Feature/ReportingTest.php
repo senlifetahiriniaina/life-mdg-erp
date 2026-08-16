@@ -119,6 +119,8 @@ test('test_can_schedule_report', function () {
 });
 
 test('test_unauthorized_cannot_execute_reports', function () {
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
     $report = makeReportDefinition(['slug' => 'protected-report-' . uniqid()]);
 
     // Unauthenticated request
@@ -167,7 +169,7 @@ test('test_schedule_next_run_computed_correctly', function () {
 
     // Next run should be ~1 month in the future from now
     expect($next->isAfter(now()))->toBeTrue()
-        ->and($next->diffInDays(now()))->toBeGreaterThanOrEqual(28);
+        ->and($next->diffInDays(now(), true))->toBeGreaterThanOrEqual(28);
 });
 
 // ─── Additional Tests ──────────────────────────────────────────────────────────
@@ -250,8 +252,8 @@ test('schedule computeNextRunAt for daily frequency adds one day', function () {
 
     $next = $schedule->computeNextRunAt();
 
-    expect($next->diffInHours(now()))->toBeGreaterThanOrEqual(23)
-        ->and($next->diffInHours(now()))->toBeLessThanOrEqual(25);
+    expect($next->diffInHours(now(), true))->toBeGreaterThanOrEqual(23)
+        ->and($next->diffInHours(now(), true))->toBeLessThanOrEqual(25);
 });
 
 test('schedule computeNextRunAt for weekly frequency adds one week', function () {
@@ -267,8 +269,8 @@ test('schedule computeNextRunAt for weekly frequency adds one week', function ()
 
     $next = $schedule->computeNextRunAt();
 
-    expect($next->diffInDays(now()))->toBeGreaterThanOrEqual(6)
-        ->and($next->diffInDays(now()))->toBeLessThanOrEqual(8);
+    expect($next->diffInDays(now(), true))->toBeGreaterThanOrEqual(6)
+        ->and($next->diffInDays(now(), true))->toBeLessThanOrEqual(8);
 });
 
 test('schedule computeNextRunAt for monthly frequency adds one month', function () {
@@ -285,7 +287,7 @@ test('schedule computeNextRunAt for monthly frequency adds one month', function 
     $next = $schedule->computeNextRunAt();
 
     expect($next->isAfter(now()))->toBeTrue()
-        ->and($next->diffInDays(now()))->toBeGreaterThanOrEqual(28);
+        ->and($next->diffInDays(now(), true))->toBeGreaterThanOrEqual(28);
 });
 
 test('report execution status transitions from pending to completed', function () {

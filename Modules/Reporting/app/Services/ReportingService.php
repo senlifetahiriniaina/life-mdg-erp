@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Modules\Reporting\Models\ReportDefinition;
 use Modules\Reporting\Models\ReportExecution;
+use Modules\Reporting\Models\ReportSchedule;
 
 class ReportingService
 {
@@ -65,6 +66,24 @@ class ReportingService
     }
 
     /**
+     * Create a recurring schedule for a report definition.
+     *
+     * @param  array<string, mixed>  $config  frequency, cron_expression, recipients, is_active, name (extra keys ignored)
+     */
+    public function schedule(ReportDefinition $report, array $config): ReportSchedule
+    {
+        return ReportSchedule::create([
+            'tenant_id'            => $report->tenant_id ?? ($config['tenant_id'] ?? 1),
+            'report_definition_id' => $report->id,
+            'name'                 => $config['name'] ?? $report->name,
+            'frequency'            => $config['frequency'] ?? 'daily',
+            'cron_expression'      => $config['cron_expression'] ?? null,
+            'recipients'           => $config['recipients'] ?? [],
+            'is_active'            => $config['is_active'] ?? true,
+        ]);
+    }
+
+    /**
      * Run the parameterized query template safely.
      *
      * Supports {{param_name}} placeholders which are substituted as PDO bindings.
@@ -80,8 +99,8 @@ class ReportingService
         $tenantId = $user->tenant_id ?? 1;
 
         // Replace {{tenant_id}} placeholder
-        $template = str_replace('{{tenant_id}}', '?', $template);
-        $bindings = [$tenantId];
+        $template = str_replace('{{tenant_id}}', '?', $template, $count);
+        $bindings = $count > 0 ? [$tenantId] : [];
 
         // Replace remaining {{param_name}} placeholders from provided params
         $template = preg_replace_callback('/\{\{(\w+)\}\}/', function (array $m) use ($params, &$bindings): string {
