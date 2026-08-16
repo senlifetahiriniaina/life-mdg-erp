@@ -24,11 +24,11 @@ describe('IntegrationService - Connectors', function () {
 
     test('can create a connector', function () {
         $connector = $this->service->createConnector([
-            'name'       => 'Shopify Test',
-            'type'       => 'shopify',
-            'config'     => ['shop_url' => 'test.myshopify.com'],
-            'tenant_id'  => (string) $this->user->id,
-            'status'     => 'inactive',
+            'name'          => 'Shopify Test',
+            'provider_type' => 'shopify',
+            'config'        => ['shop_url' => 'test.myshopify.com'],
+            'tenant_id'     => (int) $this->user->id,
+            'created_by'    => $this->user->id,
         ]);
 
         expect($connector)->toBeInstanceOf(IntegrationConnector::class)
@@ -98,9 +98,9 @@ describe('IntegrationManager', function () {
         $manager = app(IntegrationManager::class);
         // Verify the manager has key methods for connector management
         expect(
-            method_exists($manager, 'getConnector') ||
-            method_exists($manager, 'getDrivers') ||
-            method_exists($manager, 'driver')
+            method_exists($manager, 'resolveConnector') ||
+            method_exists($manager, 'connect') ||
+            method_exists($manager, 'getAvailable')
         )->toBeTrue();
     });
 });
@@ -121,9 +121,9 @@ describe('Integration API - Connectors', function () {
     test('can create a connector via API', function () {
         $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/v1/integration/connectors', [
-                'name'   => 'API Connector',
-                'type'   => 'webhook',
-                'config' => ['url' => 'https://example.com/webhook'],
+                'name'          => 'API Connector',
+                'provider_type' => 'webhook',
+                'config'        => ['url' => 'https://example.com/webhook'],
             ])
             ->assertCreated();
     });
@@ -159,7 +159,7 @@ describe('Integration API - Connectors', function () {
                 'url'    => 'https://example.com/hook',
                 'events' => ['order.created'],
             ])
-            ->assertOk();
+            ->assertCreated();
     });
 
     test('can dispatch to a connector via API', function () {
@@ -172,7 +172,7 @@ describe('Integration API - Connectors', function () {
                 'event'   => 'test.ping',
                 'payload' => ['key' => 'value'],
             ])
-            ->assertOk();
+            ->assertCreated();
     });
 
     test('can get connector logs via API', function () {
@@ -190,11 +190,11 @@ describe('Integration API - Connectors', function () {
             ->getJson('/api/v1/integration/stats')
             ->assertOk();
     });
+});
 
-    test('unauthenticated user cannot access connectors', function () {
-        $this->getJson('/api/v1/integration/connectors')
-            ->assertUnauthorized();
-    });
+test('unauthenticated user cannot access connectors', function () {
+    $this->getJson('/api/v1/integration/connectors')
+        ->assertUnauthorized();
 });
 
 // ─── API Endpoints — Backend Status ──────────────────────────────────────────
