@@ -16,7 +16,11 @@ class PurchaseOrderControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
         $this->user = User::factory()->create();
+        $this->user->assignRole('purchasing-manager');
         $this->supplier = Supplier::factory()->create();
     }
 

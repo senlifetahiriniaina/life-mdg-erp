@@ -13,7 +13,11 @@ class SupplierControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
         $this->user = User::factory()->create();
+        $this->user->assignRole('purchasing-manager');
     }
 
     public function test_can_list_suppliers()
@@ -61,7 +65,7 @@ class SupplierControllerTest extends TestCase
         $supplier = Supplier::factory()->create();
 
         $response = $this->actingAs($this->user, 'sanctum')
-            ->patchJson("/api/v1/achats/suppliers/{$supplier->id}", [
+            ->putJson("/api/v1/achats/suppliers/{$supplier->id}", [
                 'email' => 'newemail@test.com',
                 'phone' => '+1-555-9999',
             ]);

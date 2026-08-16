@@ -7,7 +7,11 @@ use Modules\Accounting\Models\ExpenseReport;
 
 
 beforeEach(function () {
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
     $this->user = User::factory()->create();
+    $this->user->assignRole('accountant');
     $this->token = $this->user->createToken('test')->plainTextToken;
 });
 

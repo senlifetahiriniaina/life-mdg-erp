@@ -10,6 +10,8 @@ use Spatie\Permission\Models\Role;
 
 test('can create approval workflow', function () {
     $user = User::factory()->create();
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $user->assignRole('admin');
 
     $response = $this->actingAs($user, 'sanctum')
         ->postJson('/api/v1/validation/workflows', [
