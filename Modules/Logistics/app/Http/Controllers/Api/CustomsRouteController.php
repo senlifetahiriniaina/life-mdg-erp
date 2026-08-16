@@ -231,7 +231,7 @@ class CustomsRouteController extends Controller
             ->when($request->input('status'), fn($q, $v) => $q->where('status', $v))
             ->when($request->input('type'),   fn($q, $v) => $q->where('type', $v))
             ->orderBy('name')
-            ->get();
+            ->paginate(20);
 
         return response()->json($vehicles);
     }

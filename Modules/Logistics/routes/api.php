@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Logistics\Http\Controllers\Api\CarrierController;
 use Modules\Logistics\Http\Controllers\Api\CarrierRateController;
 use Modules\Logistics\Http\Controllers\Api\CustomsDeclarationController;
+use Modules\Logistics\Http\Controllers\Api\CustomsRouteController;
 use Modules\Logistics\Http\Controllers\Api\DeliveryRoundController;
 use Modules\Logistics\Http\Controllers\Api\FreightInvoiceController;
 use Modules\Logistics\Http\Controllers\Api\LocationController;
@@ -161,4 +162,31 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1')->group(fun
         ->name('logistics.shipments.refresh-tracking');
     Route::get('logistics/shipments/{id}/tracking-events', [\Modules\Logistics\Http\Controllers\Api\ShipmentVisibilityController::class, 'trackingEvents'])
         ->name('logistics.shipments.tracking-events');
+});
+
+// ── Phase 47 — Customs Clearance + Route Optimization + Vehicles + Carrier Integrations ──
+// NOTE: routesIndex()/routesStore() (GET/POST logistics/routes) are deliberately NOT routed
+// here — they collide with the already-active RouteController::index/store on the same path.
+Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
+    Route::get('logistics/customs', [CustomsRouteController::class, 'customsIndex']);
+    Route::get('logistics/customs/document-checklist', [CustomsRouteController::class, 'customsDocumentChecklist']);
+    Route::get('logistics/customs/{id}', [CustomsRouteController::class, 'customsShow']);
+    Route::get('logistics/vehicles', [CustomsRouteController::class, 'vehiclesIndex']);
+    Route::get('logistics/routes/driver/{driverId}', [CustomsRouteController::class, 'routesDriverView']);
+
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('logistics/customs', [CustomsRouteController::class, 'customsStore']);
+        Route::post('logistics/customs/hs-code-suggest', [CustomsRouteController::class, 'customsHsCodeSuggest']);
+        Route::post('logistics/customs/{id}/calculate-duties', [CustomsRouteController::class, 'customsCalculateDuties']);
+        Route::put('logistics/customs/{id}/submit', [CustomsRouteController::class, 'customsSubmit']);
+        Route::put('logistics/customs/{id}/clear', [CustomsRouteController::class, 'customsClear']);
+
+        Route::put('logistics/routes/{id}/optimize', [CustomsRouteController::class, 'routesOptimize']);
+        Route::put('logistics/routes/{id}/start', [CustomsRouteController::class, 'routesStart']);
+        Route::put('logistics/routes/{id}/complete', [CustomsRouteController::class, 'routesComplete']);
+        Route::put('logistics/routes/{routeId}/stops/{stopId}/complete', [CustomsRouteController::class, 'routeStopComplete']);
+
+        Route::post('logistics/carriers/{id}/track', [CustomsRouteController::class, 'carrierTrack']);
+        Route::get('logistics/carriers/{id}/rate', [CustomsRouteController::class, 'carrierRate']);
+    });
 });

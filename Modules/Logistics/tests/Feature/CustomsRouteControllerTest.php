@@ -11,6 +11,12 @@ class CustomsRouteControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAsUser('logistics-manager');
+    }
+
     public function test_list_customs_declarations_returns_ok(): void
     {
         $response = $this->getJson('/api/v1/logistics/customs');
