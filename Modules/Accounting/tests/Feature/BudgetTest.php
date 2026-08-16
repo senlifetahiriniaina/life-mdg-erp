@@ -530,7 +530,7 @@ describe('Budget Management', function () {
         $budget = Budget::factory()->create(['created_by' => $this->user->id]);
 
         $this->deleteJson("/api/v1/accounting/budgets/{$budget->id}")
-            ->assertStatus(200);
+            ->assertStatus(204);
 
         $this->assertDatabaseMissing('acc_budgets', ['id' => $budget->id]);
     });

@@ -97,7 +97,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
     Route::get('invoices/overdue', [InvoiceController::class, 'overdue']);
     Route::get('expenses/pending', [ExpenseController::class, 'pending']);
     Route::get('expenses/by-category/{category}', [ExpenseController::class, 'byCategory']);
-    Route::get('budgets/over-budget', [BudgetManagementController::class, 'overBudgetLines']);
+    Route::get('budgets/over-budget', [BudgetController::class, 'overBudget']);
     Route::get('budgets/{budget}/variance', [BudgetManagementController::class, 'variance']);
     Route::get('budgets/{budget}/variance-trend', [BudgetManagementController::class, 'varianceTrend']);
     Route::get('budgets/{budget}/monthly-comparison', [BudgetManagementController::class, 'monthlyComparison']);

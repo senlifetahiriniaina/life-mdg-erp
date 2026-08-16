@@ -79,37 +79,23 @@ class BudgetManagementController extends Controller
         return response()->json(['data' => $forecast]);
     }
 
-    /** GET /budgets/summary */
+    /** GET /budgets/summary — delegates to BudgetService::getBudgetSummary() (already tested). */
     public function summary(Request $request): JsonResponse
     {
-        $year = $request->query('fiscal_year', date('Y'));
-        $budgets = Budget::where('fiscal_year', $year)->with('lines')->get();
-        $total = $budgets->sum(fn ($b) => $b->lines->sum('budgeted_amount'));
-        $actual = $budgets->sum(fn ($b) => $b->lines->sum('actual_amount'));
-
-        return response()->json([
-            'data' => [
-                'total_budgeted'   => $total,
-                'total_actual'     => $actual,
-                'variance'         => $total - $actual,
-                'variance_pct'     => $total > 0 ? round((($total - $actual) / $total) * 100, 2) : 0,
-                'budget_count'     => $budgets->count(),
-                'over_budget_count'=> $budgets->filter(fn ($b) => $b->lines->sum('actual_amount') > $b->lines->sum('budgeted_amount'))->count(),
-            ],
-        ]);
+        return response()->json($this->budgetService->getBudgetSummary());
     }
 
-    /** GET /budgets/department-breakdown */
+    /**
+     * GET /budgets/department-breakdown — delegates to
+     * BudgetService::getDepartmentBreakdown(), which groups by the real
+     * Budget.department column. This used to reimplement its own raw SQL
+     * against BudgetLine, grouping by a `department` column that has never
+     * existed on acc_budget_lines (department lives on the budget, not the
+     * line) — every call fatal'd.
+     */
     public function departmentBreakdown(Request $request): JsonResponse
     {
-        $year = $request->query('fiscal_year', date('Y'));
-        $lines = BudgetLine::query()
-            ->whereHas('budget', fn ($q) => $q->where('fiscal_year', $year))
-            ->selectRaw('department, SUM(budgeted_amount) as budgeted, SUM(actual_amount) as actual')
-            ->groupBy('department')
-            ->get();
-
-        return response()->json(['data' => $lines]);
+        return response()->json($this->budgetService->getDepartmentBreakdown());
     }
 
     /** POST /budgets */
@@ -154,10 +140,13 @@ class BudgetManagementController extends Controller
     public function createLine(Request $request, Budget $budget): JsonResponse
     {
         $validated = $request->validate([
-            'account_code'    => 'required|string',
+            'account_id'      => 'nullable|integer',
             'budgeted_amount' => 'required|numeric|min:0',
-            'department'      => 'nullable|string',
+            'category'        => 'nullable|string',
             'description'     => 'nullable|string',
+            'period'          => 'nullable|string',
+            'period_month'    => 'nullable|integer',
+            'period_year'     => 'nullable|integer',
         ]);
 
         $line = $this->budgetService->addLine($budget, $validated);
@@ -219,66 +208,67 @@ class BudgetManagementController extends Controller
     public function syncActuals(Budget $budget): JsonResponse
     {
         return response()->json([
-            'data' => [
-                'budget_id'    => $budget->id,
-                'status'       => 'sync_queued',
-                'message'      => 'Actual amounts sync job dispatched.',
-            ],
+            'message'          => 'Actual amounts sync job dispatched.',
+            'budget'           => $budget,
+            'variance_summary' => $this->varianceService->calculateVariance($budget),
         ]);
     }
 
     /** GET /budgets/{budget}/variance-report */
     public function varianceReport(Budget $budget): JsonResponse
     {
-        $report = $this->varianceService->varianceReport($budget);
-
-        return response()->json(['data' => $report]);
+        return response()->json($this->varianceService->varianceReport($budget));
     }
 
     /** GET /budgets/{budget}/monthly-trend */
     public function monthlyTrend(Budget $budget): JsonResponse
     {
-        $trend = $this->varianceService->monthlyTrend($budget);
-
-        return response()->json(['data' => $trend]);
+        return response()->json([
+            'budget_id'   => $budget->id,
+            'fiscal_year' => $budget->fiscal_year,
+            'trend'       => $this->varianceService->monthlyTrend($budget),
+        ]);
     }
 
     /** GET /budgets/{budget}/top-variances */
-    public function topVariances(Budget $budget): JsonResponse
+    public function topVariances(Request $request, Budget $budget): JsonResponse
     {
-        $top = $this->varianceService->topVariances($budget, 10);
+        $limit = (int) $request->query('limit', 10);
 
-        return response()->json(['data' => $top]);
+        return response()->json([
+            'budget_id' => $budget->id,
+            'limit'     => $limit,
+            'variances' => $this->varianceService->topVariances($budget, $limit),
+        ]);
     }
 
     /** GET /budgets/{budget}/scenarios */
     public function listScenarios(Budget $budget): JsonResponse
     {
-        $scenarios = BudgetScenario::where('budget_id', $budget->id)->get();
-
-        return response()->json(['data' => $scenarios]);
+        return response()->json(BudgetScenario::where('base_budget_id', $budget->id)->get());
     }
 
     /** POST /budgets/{budget}/scenarios */
     public function createScenario(Request $request, Budget $budget): JsonResponse
     {
         $validated = $request->validate([
-            'name'         => 'required|string|max:255',
-            'growth_rate'  => 'nullable|numeric',
-            'adjustments'  => 'nullable|array',
-            'notes'        => 'nullable|string',
+            'name'               => 'required|string|max:255',
+            'scenario_type'      => 'nullable|string',
+            'adjustment_type'    => 'nullable|string',
+            'revenue_adjustment' => 'nullable|numeric',
+            'expense_adjustment' => 'nullable|numeric',
+            'description'        => 'nullable|string',
+            'assumptions'        => 'nullable|array',
         ]);
 
-        $scenario = BudgetScenario::create(array_merge($validated, ['budget_id' => $budget->id]));
+        $scenario = BudgetScenario::create(array_merge($validated, ['base_budget_id' => $budget->id]));
 
-        return response()->json(['data' => $scenario], 201);
+        return response()->json($scenario, 201);
     }
 
     /** GET /budget-scenarios/{scenario}/project */
     public function projectScenario(BudgetScenario $scenario): JsonResponse
     {
-        $projected = $this->varianceService->projectScenario($scenario);
-
-        return response()->json(['data' => ['scenario' => $scenario, 'projection' => $projected]]);
+        return response()->json($this->varianceService->projectScenario($scenario));
     }
 }

@@ -31,6 +31,8 @@ class Budget extends Model
         'fiscal_year_end',
         'total_budget',
         'total_spent',
+        'total_revenue_budget',
+        'total_expense_budget',
         'status',
         'department',
         'currency',
@@ -47,6 +49,8 @@ class Budget extends Model
         'fiscal_year_end' => 'date',
         'total_budget' => 'decimal:2',
         'total_spent' => 'decimal:2',
+        'total_revenue_budget' => 'decimal:2',
+        'total_expense_budget' => 'decimal:2',
         'approved_at' => 'datetime',
     ];
 
