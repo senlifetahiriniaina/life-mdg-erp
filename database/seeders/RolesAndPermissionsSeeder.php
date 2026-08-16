@@ -149,6 +149,15 @@ class RolesAndPermissionsSeeder extends Seeder
         'payroll.payslip.generate', 'payroll.payslip.approve',
     ];
 
+    // Modules\AuditLog\Http\Controllers\Api\{AuditLogApiController,
+    // AuditLogAiAssistController} check auditlog.logs.export -- 'view' already
+    // exists from the generic MODULES/ACTIONS loop ('logs' is in
+    // MODULES['auditlog']), but 'export' isn't a standard CRUD verb, same
+    // reasoning as the other _PERMISSIONS constants above.
+    private const AUDITLOG_EXTRA_PERMISSIONS = [
+        'auditlog.logs.export',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat'],
@@ -162,7 +171,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier'],
         'accounting'       => ['invoice', 'journal', 'chart-of-account', 'tax_compliance', 'revenue_recognition', 'consolidation', 'depreciation', 'intercompany'],
         'helpdesk'         => ['ticket', 'team', 'agent-performance'],
-        'bi'               => ['dashboard', 'kpi', 'report'],
+        'bi'               => ['dashboard', 'kpi', 'report', 'bidatasource'],
         'analytics'        => ['forecast', 'anomaly'],
         'reporting'        => ['report', 'template', 'schedule'],
         'strategy'         => ['ratio', 'objective', 'plan'],
@@ -227,6 +236,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::PAYROLL_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::AUDITLOG_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

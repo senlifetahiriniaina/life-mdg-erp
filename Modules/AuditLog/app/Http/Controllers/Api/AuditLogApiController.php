@@ -23,7 +23,7 @@ class AuditLogApiController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('audit-log.view'), 403);
+        abort_unless($request->user()->can('auditlog.logs.view'), 403);
 
         $validated = $request->validate([
             'search'     => ['nullable', 'string', 'max:255'],
@@ -51,7 +51,7 @@ class AuditLogApiController extends Controller
      */
     public function show(Request $request, int $id): JsonResponse
     {
-        abort_unless($request->user()->can('audit-log.view'), 403);
+        abort_unless($request->user()->can('auditlog.logs.view'), 403);
 
         $log = AuditLog::with('user:id,name,email')->find($id);
 
@@ -69,7 +69,7 @@ class AuditLogApiController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('audit-log.view'), 403);
+        abort_unless($request->user()->can('auditlog.logs.view'), 403);
 
         $today     = AuditLog::where('created_at', '>=', now()->startOfDay())->count();
         $thisWeek  = AuditLog::where('created_at', '>=', now()->startOfWeek())->count();
@@ -103,7 +103,7 @@ class AuditLogApiController extends Controller
      */
     public function export(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('audit-log.export'), 403);
+        abort_unless($request->user()->can('auditlog.logs.export'), 403);
 
         $validated = $request->validate([
             'search'     => ['nullable', 'string', 'max:255'],

@@ -13,11 +13,12 @@ uses(RefreshDatabase::class);
 
 function auditApiUser(): User
 {
-    // AuditLogApiController checks $request->user()->can('audit-log.view'/'audit-log.export'),
+    // AuditLogApiController checks $request->user()->can('auditlog.logs.view'/'auditlog.logs.export'),
+    // the {module}.{resource}.{action} convention RolesAndPermissionsSeeder generates,
     // and every permission/role in this repo is seeded under the 'web' guard (Sanctum
     // authenticates the request, but Spatie's permission tables are guard-agnostic to that).
-    $viewPerm = Permission::firstOrCreate(['name' => 'audit-log.view', 'guard_name' => 'web']);
-    $exportPerm = Permission::firstOrCreate(['name' => 'audit-log.export', 'guard_name' => 'web']);
+    $viewPerm = Permission::firstOrCreate(['name' => 'auditlog.logs.view', 'guard_name' => 'web']);
+    $exportPerm = Permission::firstOrCreate(['name' => 'auditlog.logs.export', 'guard_name' => 'web']);
     $user = User::factory()->create();
     $user->givePermissionTo([$viewPerm, $exportPerm]);
     return $user;

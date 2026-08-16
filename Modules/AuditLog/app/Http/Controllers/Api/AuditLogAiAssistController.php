@@ -31,7 +31,7 @@ class AuditLogAiAssistController extends Controller
      */
     public function assist(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('audit-log.view'), 403);
+        abort_unless($request->user()->can('auditlog.logs.view'), 403);
 
         $validated = $request->validate([
             'action'  => ['required', 'string', 'max:128'],

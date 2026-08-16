@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\AI\Services\AiContextualAssistantService;
+use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
@@ -17,6 +18,8 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create(['role' => 'admin']);
+    Permission::firstOrCreate(['name' => 'auditlog.logs.view', 'guard_name' => 'web']);
+    $this->user->givePermissionTo('auditlog.logs.view');
     $this->actingAs($this->user);
 
     $this->mock(AiContextualAssistantService::class, function ($mock) {
