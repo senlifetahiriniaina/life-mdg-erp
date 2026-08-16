@@ -36,7 +36,7 @@ class StoreInvoiceRequest extends FormRequest
             'amount_due' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'payment_terms' => 'nullable|string',
-            'lines' => 'required_without:customer_id|array',
+            'lines' => 'required_without_all:customer_id,total|array',
             'lines.*' => 'array',
             'line_items' => 'nullable|array',
             'line_items.*' => 'array',

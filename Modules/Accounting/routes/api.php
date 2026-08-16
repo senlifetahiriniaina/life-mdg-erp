@@ -13,6 +13,7 @@ use Modules\Accounting\Http\Controllers\Api\JournalController;
 use Modules\Accounting\Http\Controllers\Api\OpenBankingController;
 use Modules\Accounting\Http\Controllers\Api\ReportController;
 use Modules\Accounting\Http\Controllers\Api\ReportingController;
+use Modules\Accounting\Http\Controllers\TaxComplianceReportController;
 use Modules\Accounting\Http\Controllers\Api\TaxController;
 use Modules\Accounting\Http\Controllers\Api\TaxRateController;
 use Modules\Accounting\Http\Controllers\Api\TaxCategoriesController;
@@ -237,6 +238,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
     Route::get('tax/compliance/export', [TaxComplianceController::class, 'export']);
     Route::post('tax/compliance/mark-overdue', [TaxComplianceController::class, 'markOverdue']);
 
+    // Tax Compliance Reports (formal filing register — TaxComplianceReportController)
+    Route::get('tax-compliance-reports', [TaxComplianceReportController::class, 'index']);
+    Route::post('tax-compliance-reports', [TaxComplianceReportController::class, 'store']);
+    Route::get('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'show']);
+    Route::put('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'update']);
+    Route::post('tax-compliance-reports/{report}/file', [TaxComplianceReportController::class, 'file']);
+    Route::delete('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'destroy']);
+
     // Financial Report Management
     Route::post('financial-reports/{report}/publish', [ReportingController::class, 'publish']);
     Route::post('financial-reports/{report}/review', [ReportingController::class, 'review']);
@@ -264,7 +273,6 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
     Route::post('intercompany-transactions', [ConsolidationController::class, 'recordTransaction']);
 
     // Expense Management
-    Route::post('expenses', [ExpensesController::class, 'store']);
     Route::put('expenses/{expense}', [ExpensesController::class, 'update']);
     Route::delete('expenses/{expense}', [ExpensesController::class, 'destroy']);
     Route::post('expenses/{expense}/approve', [ExpensesController::class, 'approve']);

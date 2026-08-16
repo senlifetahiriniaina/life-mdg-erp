@@ -2,11 +2,12 @@
 
 namespace Modules\Accounting\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\TaxComplianceReport;
 
-class TaxComplianceReportController
+class TaxComplianceReportController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
@@ -41,6 +42,10 @@ class TaxComplianceReportController
 
         $validated['company_id'] = $request->user()->company_id;
         $validated['status'] = 'draft';
+
+        if ($validated['total_tax_liability'] ?? null && $validated['total_tax_paid'] ?? null) {
+            $validated['tax_due_or_refund'] = $validated['total_tax_liability'] - $validated['total_tax_paid'];
+        }
 
         $report = TaxComplianceReport::create($validated);
 

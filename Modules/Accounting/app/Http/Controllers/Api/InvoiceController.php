@@ -111,7 +111,7 @@ class InvoiceController extends Controller
 
         $invoice = Invoice::create($data);
 
-        return response()->json(new InvoiceResource($invoice), 201);
+        return (new InvoiceResource($invoice))->response()->setStatusCode(201);
     }
 
     public function show(Invoice $invoice)
@@ -169,20 +169,14 @@ class InvoiceController extends Controller
 
     public function outstanding()
     {
-        $invoices = Invoice::where('status', 'sent')
-            ->where('due_date', '>=', now())
-            ->orderBy('due_date')
-            ->get();
+        $invoices = Invoice::outstanding()->orderBy('due_date')->get();
 
         return InvoiceResource::collection($invoices);
     }
 
     public function overdue()
     {
-        $invoices = Invoice::where('status', 'sent')
-            ->where('due_date', '<', now())
-            ->orderBy('due_date')
-            ->get();
+        $invoices = Invoice::overdue()->orderBy('due_date')->get();
 
         return InvoiceResource::collection($invoices);
     }
@@ -264,6 +258,6 @@ class InvoiceController extends Controller
             'paid_at' => $newPaid >= (float) $invoice->total ? now() : null,
         ]);
 
-        return response()->json(new InvoiceResource($invoice->fresh()), 201);
+        return (new InvoiceResource($invoice->fresh()))->response()->setStatusCode(200);
     }
 }

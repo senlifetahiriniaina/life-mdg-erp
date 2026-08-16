@@ -20,6 +20,7 @@ class TaxComplianceReportTest extends TestCase
         $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
+        $this->user->assignRole('accountant');
         $this->jurisdiction = TaxJurisdiction::factory()->create();
 
         $this->user->givePermissionTo('accounting.tax_compliance.view');
@@ -31,7 +32,7 @@ class TaxComplianceReportTest extends TestCase
     public function test_can_create_tax_report(): void
     {
         $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/tax-compliance-reports', [
+            ->postJson('/api/v1/accounting/tax-compliance-reports', [
                 'tax_jurisdiction_id' => $this->jurisdiction->id,
                 'report_period_start' => '2026-01-01',
                 'report_period_end' => '2026-12-31',
@@ -50,12 +51,12 @@ class TaxComplianceReportTest extends TestCase
     {
         TaxComplianceReport::factory()
             ->for($this->company)
-            ->for($this->jurisdiction)
+            ->for($this->jurisdiction, 'jurisdiction')
             ->count(3)
             ->create();
 
         $response = $this->actingAs($this->user)
-            ->getJson('/api/accounting/tax-compliance-reports');
+            ->getJson('/api/v1/accounting/tax-compliance-reports');
 
         $response->assertOk()
             ->assertJsonCount(3, 'data');
@@ -65,13 +66,13 @@ class TaxComplianceReportTest extends TestCase
     {
         $report = TaxComplianceReport::factory()
             ->for($this->company)
-            ->for($this->jurisdiction)
+            ->for($this->jurisdiction, 'jurisdiction')
             ->create(['status' => 'reviewed']);
 
         $this->user->givePermissionTo('accounting.tax_compliance.file');
 
         $response = $this->actingAs($this->user)
-            ->postJson("/api/accounting/tax-compliance-reports/{$report->id}/file", [
+            ->postJson("/api/v1/accounting/tax-compliance-reports/{$report->id}/file", [
                 'filing_reference_number' => 'IRS-2026-12345',
             ]);
 
@@ -85,13 +86,13 @@ class TaxComplianceReportTest extends TestCase
     {
         $report = TaxComplianceReport::factory()
             ->for($this->company)
-            ->for($this->jurisdiction)
+            ->for($this->jurisdiction, 'jurisdiction')
             ->create(['status' => 'draft']);
 
         $this->user->givePermissionTo('accounting.tax_compliance.file');
 
         $response = $this->actingAs($this->user)
-            ->postJson("/api/accounting/tax-compliance-reports/{$report->id}/file", [
+            ->postJson("/api/v1/accounting/tax-compliance-reports/{$report->id}/file", [
                 'filing_reference_number' => 'IRS-2026-12345',
             ]);
 
@@ -101,7 +102,7 @@ class TaxComplianceReportTest extends TestCase
     public function test_calculates_tax_due_correctly(): void
     {
         $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/tax-compliance-reports', [
+            ->postJson('/api/v1/accounting/tax-compliance-reports', [
                 'tax_jurisdiction_id' => $this->jurisdiction->id,
                 'report_period_start' => '2026-01-01',
                 'report_period_end' => '2026-12-31',
