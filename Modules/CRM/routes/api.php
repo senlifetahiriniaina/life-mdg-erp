@@ -21,8 +21,11 @@ use Modules\CRM\Http\Controllers\Api\PipelineController;
 use Modules\CRM\Http\Controllers\Api\QuoteController;
 use Modules\CRM\Http\Controllers\Api\TerritoryController;
 use Modules\CRM\Http\Controllers\Api\TerritoryManagementController;
+use Modules\CRM\Http\Controllers\Api\CallRecordingController;
 use Modules\CRM\Http\Controllers\Api\VoipController;
 use Modules\CRM\Http\Controllers\Api\WebFormController;
+use Modules\CRM\Http\Controllers\RevenueIntelligenceController;
+use Modules\CRM\Http\Controllers\WorkflowBuilderController;
 
 // Public web-form submission — no auth
 Route::post('v1/crm/forms/{slug}/submit', [WebFormController::class, 'submit'])
@@ -286,4 +289,52 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:CRM', 'throttle:s
 Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm')->group(function () {
     Route::post('ai/assist', [\Modules\CRM\Http\Controllers\Api\CRMAiAssistController::class, 'assist'])
         ->name('crm.ai.assist');
+});
+
+// ── Call recordings + AI summarization ──────────────────────────────────────
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm')->group(function () {
+    Route::get('calls/{callId}', [CallRecordingController::class, 'show'])
+        ->name('crm.calls.show');
+    Route::post('calls/{callId}/summarize', [CallRecordingController::class, 'summarize'])
+        ->name('crm.calls.summarize');
+    Route::get('calls/{callId}/summary', [CallRecordingController::class, 'getSummary'])
+        ->name('crm.calls.summary');
+});
+
+// ── Revenue intelligence (insights, trends, anomalies) ──────────────────────
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm/revenue-intelligence')->group(function () {
+    Route::get('insights', [RevenueIntelligenceController::class, 'getInsights'])
+        ->name('crm.revenue-intelligence.insights');
+    Route::post('insights/generate', [RevenueIntelligenceController::class, 'generateInsight'])
+        ->name('crm.revenue-intelligence.insights.generate');
+    Route::get('trends', [RevenueIntelligenceController::class, 'getTrends'])
+        ->name('crm.revenue-intelligence.trends');
+    Route::post('trends', [RevenueIntelligenceController::class, 'recordTrend'])
+        ->name('crm.revenue-intelligence.trends.record');
+    Route::get('anomalies', [RevenueIntelligenceController::class, 'getAnomalies'])
+        ->name('crm.revenue-intelligence.anomalies');
+    Route::post('anomalies/detect', [RevenueIntelligenceController::class, 'detectAnomaly'])
+        ->name('crm.revenue-intelligence.anomalies.detect');
+    Route::post('anomalies/{anomaly}/resolve', [RevenueIntelligenceController::class, 'resolveAnomaly'])
+        ->name('crm.revenue-intelligence.anomalies.resolve');
+    Route::get('summary', [RevenueIntelligenceController::class, 'getPerformanceSummary'])
+        ->name('crm.revenue-intelligence.summary');
+});
+
+// ── No-code workflow builder ─────────────────────────────────────────────────
+Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm/workflows')->group(function () {
+    Route::get('/', [WorkflowBuilderController::class, 'index'])
+        ->name('crm.workflows.index');
+    Route::post('/', [WorkflowBuilderController::class, 'create'])
+        ->name('crm.workflows.create');
+    Route::get('{workflow}', [WorkflowBuilderController::class, 'show'])
+        ->name('crm.workflows.show');
+    Route::put('{workflow}/save', [WorkflowBuilderController::class, 'saveWorkflow'])
+        ->name('crm.workflows.save');
+    Route::post('{workflow}/activate', [WorkflowBuilderController::class, 'activate'])
+        ->name('crm.workflows.activate');
+    Route::post('{workflow}/deactivate', [WorkflowBuilderController::class, 'deactivate'])
+        ->name('crm.workflows.deactivate');
+    Route::get('{workflow}/executions', [WorkflowBuilderController::class, 'getExecutions'])
+        ->name('crm.workflows.executions');
 });

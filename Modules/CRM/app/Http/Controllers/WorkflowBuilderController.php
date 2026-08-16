@@ -28,7 +28,7 @@ class WorkflowBuilderController
             'name'           => 'required|string|max:255',
             'description'    => 'nullable|string',
             'trigger_type'   => 'required|in:opportunity_created,contact_updated,manual',
-            'trigger_config' => 'nullable|json',
+            'trigger_config' => 'nullable|array',
         ]);
 
         $workflow = Workflow::create(array_merge($validated, [
@@ -50,7 +50,7 @@ class WorkflowBuilderController
     {
         $validated = $request->validate([
             'nodes' => 'required|array',
-            'edges' => 'required|array',
+            'edges' => 'present|array',
             'name'  => 'nullable|string',
         ]);
 

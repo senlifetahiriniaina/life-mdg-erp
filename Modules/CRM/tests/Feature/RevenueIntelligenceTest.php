@@ -24,7 +24,7 @@ class RevenueIntelligenceTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $response = $this->postJson('v1/crm/revenue-intelligence/insights/generate', [
+        $response = $this->postJson('/api/v1/crm/revenue-intelligence/insights/generate', [
             'insight_type' => 'trend',
             'category'     => 'sales_performance',
             'title'        => 'Revenue Growth Trend',
@@ -44,7 +44,7 @@ class RevenueIntelligenceTest extends TestCase
 
         RevenueInsight::factory()->count(5)->create();
 
-        $response = $this->getJson('v1/crm/revenue-intelligence/insights');
+        $response = $this->getJson('/api/v1/crm/revenue-intelligence/insights');
 
         $response->assertStatus(200);
         $response->assertJsonCount(5, 'data');
@@ -54,7 +54,7 @@ class RevenueIntelligenceTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $response = $this->postJson('v1/crm/revenue-intelligence/anomalies/detect', [
+        $response = $this->postJson('/api/v1/crm/revenue-intelligence/anomalies/detect', [
             'anomaly_type'    => 'unusual_spike',
             'metric_name'     => 'closed_revenue',
             'detected_value'  => 100000,
@@ -75,7 +75,7 @@ class RevenueIntelligenceTest extends TestCase
         RevenueInsight::factory()->count(3)->create();
         RevenueAnomaly::factory()->count(2)->create(['severity' => 'high']);
 
-        $response = $this->getJson('v1/crm/revenue-intelligence/summary');
+        $response = $this->getJson('/api/v1/crm/revenue-intelligence/summary');
 
         $response->assertStatus(200);
         $response->assertJsonStructure(['active_insights', 'critical_anomalies', 'recent_trends']);

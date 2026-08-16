@@ -23,7 +23,7 @@ class WorkflowBuilderTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $response = $this->postJson('v1/crm/workflows', [
+        $response = $this->postJson('/api/v1/crm/workflows', [
             'name'           => 'New Opportunity Workflow',
             'description'    => 'Workflow for new opportunities',
             'trigger_type'   => 'opportunity_created',
@@ -43,7 +43,7 @@ class WorkflowBuilderTest extends TestCase
 
         $workflow = Workflow::factory()->create(['owner_id' => $this->user->id]);
 
-        $response = $this->putJson("v1/crm/workflows/{$workflow->id}/save", [
+        $response = $this->putJson("/api/v1/crm/workflows/{$workflow->id}/save", [
             'nodes' => [
                 [
                     'id'   => 'node-1',
@@ -74,7 +74,7 @@ class WorkflowBuilderTest extends TestCase
             'position_y' => 0,
         ]);
 
-        $response = $this->postJson("v1/crm/workflows/{$workflow->id}/activate");
+        $response = $this->postJson("/api/v1/crm/workflows/{$workflow->id}/activate");
 
         $response->assertStatus(200);
         $this->assertTrue($workflow->fresh()->status === 'active');
@@ -86,7 +86,7 @@ class WorkflowBuilderTest extends TestCase
 
         $workflow = Workflow::factory()->create(['owner_id' => $this->user->id]);
 
-        $response = $this->postJson("v1/crm/workflows/{$workflow->id}/activate");
+        $response = $this->postJson("/api/v1/crm/workflows/{$workflow->id}/activate");
 
         $response->assertStatus(400);
     }
