@@ -18,7 +18,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/settings')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     Route::post('ai/assist', [\Modules\Settings\Http\Controllers\Api\SettingsAiAssistController::class, 'assist'])
         ->name('settings.ai.assist');
 });
