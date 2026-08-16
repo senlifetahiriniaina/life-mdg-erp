@@ -119,6 +119,17 @@ class RolesAndPermissionsSeeder extends Seeder
         'hr.documents.delete', 'hr.documents.remind',
     ];
 
+    // Modules\Sales\Http\Controllers\Api\{SalesController,SalesAiAssistController}
+    // gate every action on flat sales.{read,view,create,update} (no resource
+    // segment), not the sales.order.*/sales.line.*/sales.quotation.* the generic
+    // MODULES/ACTIONS loop produces for the 'sales' entry below -- same reasoning
+    // as SETTINGS_PERMISSIONS. Both 'read' (list/show) and 'view' (AI-assist gate)
+    // exist because the controllers were written independently and never agreed
+    // on one verb.
+    private const SALES_PERMISSIONS = [
+        'sales.read', 'sales.view', 'sales.create', 'sales.update',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'sales'            => ['order', 'line', 'quotation'],
@@ -184,6 +195,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::HR_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::SALES_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

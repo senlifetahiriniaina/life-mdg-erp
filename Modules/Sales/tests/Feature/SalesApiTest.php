@@ -384,7 +384,7 @@ test('orders list supports per_page pagination', function () {
 
     $this->getJson('/api/v1/sales/orders?per_page=2&page=1')
         ->assertOk()
-        ->assertJsonStructure(['data', 'meta' => ['total', 'per_page', 'current_page', 'last_page']]);
+        ->assertJsonStructure(['data', 'current_page', 'per_page', 'total', 'last_page']);
 });
 
 test('quotations list can be filtered by status sent', function () {

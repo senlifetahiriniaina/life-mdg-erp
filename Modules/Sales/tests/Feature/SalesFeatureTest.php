@@ -69,8 +69,8 @@ test('can create a sales order via API', function () {
         ],
     ])
         ->assertCreated()
-        ->assertJsonPath('data.status', 'draft')
-        ->assertJsonPath('data.currency', 'XOF');
+        ->assertJsonPath('status', 'draft')
+        ->assertJsonPath('currency', 'XOF');
 });
 
 test('creating a sales order without lines returns 422', function () {

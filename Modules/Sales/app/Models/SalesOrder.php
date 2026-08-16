@@ -116,7 +116,7 @@ class SalesOrder extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, ['draft', 'confirmed'], true);
+        return $this->status === 'draft';
     }
 
     public function isCancellable(): bool

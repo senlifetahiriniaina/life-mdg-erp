@@ -108,7 +108,7 @@ class SalesController extends Controller
         $order = SalesOrder::findOrFail($id);
 
         if (! $order->isEditable()) {
-            return response()->json(['message' => 'Only draft or confirmed orders can be updated.'], 422);
+            return response()->json(['message' => 'Only draft orders can be updated.'], 422);
         }
 
         $validated = $request->validate([

@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\AI\Services\AiContextualAssistantService;
 
@@ -16,8 +15,10 @@ uses(RefreshDatabase::class);
  */
 
 beforeEach(function () {
-    $this->user = User::factory()->create(['role' => 'sales-rep']);
-    $this->actingAs($this->user);
+    // 'sales-rep' (a raw legacy users.role string, never a real Spatie role
+    // here) is CRM-only per RolesAndPermissionsSeeder's own docblock — the
+    // role that actually carries sales.* permissions is 'sales-manager'.
+    $this->user = actingAsUser('sales-manager');
 
     $this->mock(AiContextualAssistantService::class, function ($mock) {
         $mock->shouldReceive('getGuidance')

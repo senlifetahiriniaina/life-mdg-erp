@@ -172,7 +172,7 @@ test('test_api_can_list_orders', function () {
         ->getJson('/api/v1/sales/orders');
 
     $response->assertStatus(200)
-        ->assertJsonStructure(['data', 'meta']);
+        ->assertJsonStructure(['data', 'current_page', 'per_page', 'total']);
 });
 
 test('test_api_can_create_order_via_endpoint', function () {
@@ -359,5 +359,5 @@ test('orders list endpoint supports pagination', function () {
         ->getJson('/api/v1/sales/orders?per_page=2&page=1');
 
     $response->assertStatus(200)
-        ->assertJsonStructure(['data', 'meta' => ['total', 'per_page', 'current_page']]);
+        ->assertJsonStructure(['data', 'current_page', 'per_page', 'total']);
 });
