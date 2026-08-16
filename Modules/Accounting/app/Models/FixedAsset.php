@@ -5,6 +5,7 @@ namespace Modules\Accounting\Models;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -46,7 +47,7 @@ class FixedAsset extends Model
     protected $table = 'acc_fixed_assets';
 
     protected $fillable = [
-        'tenant_id', 'asset_code', 'name', 'description', 'asset_class',
+        'tenant_id', 'company_id', 'asset_code', 'name', 'description', 'asset_class',
         'acquisition_date', 'acquisition_cost', 'salvage_value', 'useful_life_years',
         'depreciation_method', 'asset_account_id', 'depreciation_expense_account_id',
         'accumulated_depreciation_account_id', 'status', 'disposal_date',
@@ -60,6 +61,11 @@ class FixedAsset extends Model
         'salvage_value' => 'encrypted:decimal:2',
         'disposal_proceeds' => 'encrypted:decimal:2',
     ];
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Company::class, 'company_id');
+    }
 
     public function depreciations(): HasMany
     {

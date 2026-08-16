@@ -96,6 +96,8 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.tax_compliance.file', 'accounting.tax_compliance.restore', 'accounting.tax_compliance.force_delete',
         'accounting.revenue_recognition.recognize', 'accounting.revenue_recognition.restore', 'accounting.revenue_recognition.force_delete',
         'accounting.consolidation.restore', 'accounting.consolidation.force_delete',
+        'accounting.depreciation.record', 'accounting.depreciation.restore', 'accounting.depreciation.force_delete',
+        'accounting.intercompany.clear', 'accounting.intercompany.restore', 'accounting.intercompany.force_delete',
     ];
 
     // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
@@ -127,7 +129,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier'],
-        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'tax_compliance', 'revenue_recognition', 'consolidation'],
+        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'tax_compliance', 'revenue_recognition', 'consolidation', 'depreciation', 'intercompany'],
         'helpdesk'         => ['ticket', 'team'],
         'bi'               => ['dashboard', 'kpi', 'report'],
         'analytics'        => ['forecast', 'anomaly'],
