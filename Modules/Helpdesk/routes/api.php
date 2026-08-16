@@ -15,6 +15,7 @@ use Modules\Helpdesk\Http\Controllers\Api\LiveChatController;
 use Modules\Helpdesk\Http\Controllers\Api\SlaController;
 use Modules\Helpdesk\Http\Controllers\Api\TeamController;
 use Modules\Helpdesk\Http\Controllers\Api\CommunityForumController;
+use Modules\Helpdesk\Http\Controllers\Api\CustomerServiceAIController;
 use Modules\Helpdesk\Http\Controllers\Api\TicketCommentController;
 use Modules\Helpdesk\Http\Controllers\Api\TicketController;
 
@@ -184,6 +185,47 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throt
         Route::post('helpdesk/kb/articles/{article}/publish', [KnowledgeBaseController::class, 'publishArticle']);
         Route::post('helpdesk/kb/articles/{article}/view', [KnowledgeBaseController::class, 'recordView']);
         Route::post('helpdesk/kb/articles/{article}/feedback', [KnowledgeBaseController::class, 'submitFeedback']);
+    });
+});
+
+// ── Customer Service AI (sentiment, escalation, response AI, agent performance) ──
+// Reconnects Modules\Helpdesk\Http\Controllers\Api\CustomerServiceAIController's
+// 21 existing action methods — no new controller logic added here.
+Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
+    // Sentiment / emotion / language analysis
+    Route::get('helpdesk/cs-ai/sentiment', [CustomerServiceAIController::class, 'getSentimentAnalysis']);
+    Route::get('helpdesk/cs-ai/emotion', [CustomerServiceAIController::class, 'getEmotionAnalysis']);
+    Route::get('helpdesk/cs-ai/language', [CustomerServiceAIController::class, 'getLanguageDetection']);
+
+    // Routing rules
+    Route::get('helpdesk/cs-ai/routing-rules', [CustomerServiceAIController::class, 'listRoutingRules']);
+
+    // Escalation prediction
+    Route::get('helpdesk/cs-ai/escalation-prediction', [CustomerServiceAIController::class, 'getEscalationPrediction']);
+    Route::get('helpdesk/cs-ai/urgency-factors', [CustomerServiceAIController::class, 'getUrgencyFactors']);
+
+    // AI response suggestions
+    Route::get('helpdesk/cs-ai/response-templates', [CustomerServiceAIController::class, 'listResponseTemplates']);
+    Route::get('helpdesk/cs-ai/response-suggestions', [CustomerServiceAIController::class, 'getResponseSuggestions']);
+
+    // Satisfaction / NPS prediction
+    Route::get('helpdesk/cs-ai/satisfaction-prediction', [CustomerServiceAIController::class, 'getSatisfactionPrediction']);
+    Route::get('helpdesk/cs-ai/nps-prediction', [CustomerServiceAIController::class, 'getNPSPrediction']);
+
+    // Agent performance analytics
+    Route::get('helpdesk/cs-ai/agents/metrics', [CustomerServiceAIController::class, 'getAgentMetrics']);
+    Route::get('helpdesk/cs-ai/agents/trends', [CustomerServiceAIController::class, 'getAgentPerformanceTrends']);
+    Route::get('helpdesk/cs-ai/agents/skills', [CustomerServiceAIController::class, 'getAgentSkills']);
+    Route::get('helpdesk/cs-ai/coaching-recommendations', [CustomerServiceAIController::class, 'listCoachingRecommendations']);
+    Route::get('helpdesk/cs-ai/team-benchmarking', [CustomerServiceAIController::class, 'getTeamBenchmarking']);
+    Route::get('helpdesk/cs-ai/performance-goals', [CustomerServiceAIController::class, 'listPerformanceGoals']);
+
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('helpdesk/cs-ai/routing-rules', [CustomerServiceAIController::class, 'createRoutingRule']);
+        Route::post('helpdesk/cs-ai/response-suggestions/feedback', [CustomerServiceAIController::class, 'recordSuggestionFeedback']);
+        Route::post('helpdesk/cs-ai/coaching-recommendations', [CustomerServiceAIController::class, 'createCoachingRecommendation']);
+        Route::post('helpdesk/cs-ai/performance-goals', [CustomerServiceAIController::class, 'createPerformanceGoal']);
+        Route::post('helpdesk/cs-ai/performance-goals/progress', [CustomerServiceAIController::class, 'updateGoalProgress']);
     });
 });
 
