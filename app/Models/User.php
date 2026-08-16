@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasPasswordHistory;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -39,7 +40,7 @@ use Spatie\Permission\Traits\HasRoles;
  */
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, HasPasswordHistory, HasRoles, Notifiable, SoftDeletes;
 
     protected static function newFactory(): UserFactory
     {

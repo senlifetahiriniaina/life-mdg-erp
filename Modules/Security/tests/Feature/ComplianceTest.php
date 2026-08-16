@@ -22,6 +22,8 @@ class ComplianceTest extends TestCase
         parent::setUp();
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->user->assignRole('security-admin');
     }
 
     public function test_list_compliance_controls(): void
@@ -45,7 +47,7 @@ class ComplianceTest extends TestCase
         ]);
 
         $response->assertCreated();
-        $this->assertDatabaseHas('compliance_controls', [
+        $this->assertDatabaseHas('security_compliance_controls', [
             'framework' => 'GDPR',
             'control_id' => 'GDPR-001',
         ]);
@@ -55,7 +57,7 @@ class ComplianceTest extends TestCase
     {
         $control = ComplianceControl::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/controls/{$control->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/controls/{$control->id}");
 
         $response->assertOk();
         $response->assertJsonPath('id', $control->id);
@@ -65,7 +67,7 @@ class ComplianceTest extends TestCase
     {
         $control = ComplianceControl::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->patchJson("/v1/security/compliance/controls/{$control->id}", [
+        $response = $this->actingAs($this->user)->patchJson("/api/v1/security/compliance/controls/{$control->id}", [
             'implementation_status' => 'implemented',
         ]);
 
@@ -77,7 +79,7 @@ class ComplianceTest extends TestCase
     {
         $control = ComplianceControl::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/compliance/controls/{$control->id}/verify");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/compliance/controls/{$control->id}/verify");
 
         $response->assertOk();
         $response->assertJsonPath('implementation_status', 'verified');
@@ -88,7 +90,7 @@ class ComplianceTest extends TestCase
     {
         $control = ComplianceControl::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->deleteJson("/v1/security/compliance/controls/{$control->id}");
+        $response = $this->actingAs($this->user)->deleteJson("/api/v1/security/compliance/controls/{$control->id}");
 
         $response->assertNoContent();
     }
@@ -155,7 +157,7 @@ class ComplianceTest extends TestCase
     {
         $audit = ComplianceAudit::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/audits/{$audit->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/audits/{$audit->id}");
 
         $response->assertOk();
         $response->assertJsonPath('id', $audit->id);
@@ -163,9 +165,9 @@ class ComplianceTest extends TestCase
 
     public function test_update_compliance_audit(): void
     {
-        $audit = ComplianceAudit::factory()->for($this->company)->create();
+        $audit = ComplianceAudit::factory()->for($this->company)->create(['audit_status' => 'in_progress']);
 
-        $response = $this->actingAs($this->user)->patchJson("/v1/security/compliance/audits/{$audit->id}", [
+        $response = $this->actingAs($this->user)->patchJson("/api/v1/security/compliance/audits/{$audit->id}", [
             'controls_evaluated' => 50,
             'controls_compliant' => 45,
         ]);
@@ -178,21 +180,21 @@ class ComplianceTest extends TestCase
     {
         $audit = ComplianceAudit::factory()->for($this->company)->create(['audit_status' => 'in_progress']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/compliance/audits/{$audit->id}/complete", [
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/compliance/audits/{$audit->id}/complete", [
             'compliance_score' => 95.5,
             'findings' => ['All controls verified'],
         ]);
 
         $response->assertOk();
         $response->assertJsonPath('audit_status', 'completed');
-        $response->assertJsonPath('compliance_score', 95.5);
+        $response->assertJsonPath('compliance_score', '95.50');
     }
 
     public function test_delete_compliance_audit(): void
     {
         $audit = ComplianceAudit::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->deleteJson("/v1/security/compliance/audits/{$audit->id}");
+        $response = $this->actingAs($this->user)->deleteJson("/api/v1/security/compliance/audits/{$audit->id}");
 
         $response->assertNoContent();
     }
@@ -224,7 +226,7 @@ class ComplianceTest extends TestCase
     {
         $violation = ComplianceViolation::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/violations/{$violation->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/violations/{$violation->id}");
 
         $response->assertOk();
         $response->assertJsonPath('id', $violation->id);
@@ -234,7 +236,7 @@ class ComplianceTest extends TestCase
     {
         $violation = ComplianceViolation::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->patchJson("/v1/security/compliance/violations/{$violation->id}", [
+        $response = $this->actingAs($this->user)->patchJson("/api/v1/security/compliance/violations/{$violation->id}", [
             'violation_status' => 'remediated',
             'remediation_notes' => 'Issue resolved',
         ]);
@@ -247,7 +249,7 @@ class ComplianceTest extends TestCase
     {
         $violation = ComplianceViolation::factory()->for($this->company)->create(['violation_status' => 'open']);
 
-        $response = $this->actingAs($this->user)->patchJson("/v1/security/compliance/violations/{$violation->id}", [
+        $response = $this->actingAs($this->user)->patchJson("/api/v1/security/compliance/violations/{$violation->id}", [
             'violation_status' => 'remediated',
         ]);
 
@@ -262,7 +264,7 @@ class ComplianceTest extends TestCase
         foreach ($severities as $severity) {
             $violation = ComplianceViolation::factory()->for($this->company)->create(['severity' => $severity]);
 
-            $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/violations/{$violation->id}");
+            $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/violations/{$violation->id}");
 
             $response->assertOk();
             $response->assertJsonPath('severity', $severity);
@@ -274,7 +276,7 @@ class ComplianceTest extends TestCase
         $otherCompany = Company::factory()->create();
         $control = ComplianceControl::factory()->for($otherCompany)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/controls/{$control->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/controls/{$control->id}");
 
         $response->assertForbidden();
     }
@@ -287,14 +289,14 @@ class ComplianceTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
-        $response->assertJsonPath('meta.total', 20);
+        $response->assertJsonPath('total', 20);
     }
 
     public function test_compliance_score_validation(): void
     {
         $audit = ComplianceAudit::factory()->for($this->company)->create(['audit_status' => 'in_progress']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/compliance/audits/{$audit->id}/complete", [
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/compliance/audits/{$audit->id}/complete", [
             'compliance_score' => 150,
         ]);
 
@@ -305,7 +307,7 @@ class ComplianceTest extends TestCase
     {
         $audit = ComplianceAudit::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/audits/{$audit->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/audits/{$audit->id}");
 
         $response->assertOk();
         $response->assertJsonPath('audit_start_date', fn($date) => $date !== null);
@@ -315,7 +317,7 @@ class ComplianceTest extends TestCase
     {
         $violation = ComplianceViolation::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/compliance/violations/{$violation->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/compliance/violations/{$violation->id}");
 
         $response->assertOk();
     }
@@ -342,7 +344,7 @@ class ComplianceTest extends TestCase
         $findings = ['Finding 1', 'Finding 2'];
         $audit = ComplianceAudit::factory()->for($this->company)->create(['audit_status' => 'in_progress']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/compliance/audits/{$audit->id}/complete", [
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/compliance/audits/{$audit->id}/complete", [
             'compliance_score' => 85,
             'findings' => $findings,
         ]);

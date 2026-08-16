@@ -22,6 +22,8 @@ class IncidentTest extends TestCase
         parent::setUp();
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->user->assignRole('security-admin');
     }
 
     public function test_list_security_incidents(): void
@@ -55,7 +57,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/incidents/{$incident->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/incidents/{$incident->id}");
 
         $response->assertOk();
         $response->assertJsonPath('id', $incident->id);
@@ -65,7 +67,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->patchJson("/v1/security/incidents/{$incident->id}", [
+        $response = $this->actingAs($this->user)->patchJson("/api/v1/security/incidents/{$incident->id}", [
             'description' => 'Updated description',
         ]);
 
@@ -77,7 +79,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create(['incident_status' => 'open']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/incidents/{$incident->id}/investigate");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/incidents/{$incident->id}/investigate");
 
         $response->assertOk();
         $response->assertJsonPath('incident_status', 'investigating');
@@ -87,7 +89,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create(['incident_status' => 'investigating']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/incidents/{$incident->id}/resolve", [
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/incidents/{$incident->id}/resolve", [
             'resolution_notes' => 'Blocked malicious IP, reset passwords',
         ]);
 
@@ -100,7 +102,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create(['incident_status' => 'resolved']);
 
-        $response = $this->actingAs($this->user)->deleteJson("/v1/security/incidents/{$incident->id}");
+        $response = $this->actingAs($this->user)->deleteJson("/api/v1/security/incidents/{$incident->id}");
 
         $response->assertNoContent();
     }
@@ -164,7 +166,7 @@ class IncidentTest extends TestCase
     {
         $threat = ThreatIndicator::factory()->create(['is_whitelisted' => false]);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/threats/{$threat->id}/whitelist");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/threats/{$threat->id}/whitelist");
 
         $response->assertOk();
         $response->assertJsonPath('is_whitelisted', true);
@@ -174,7 +176,7 @@ class IncidentTest extends TestCase
     {
         $threat = ThreatIndicator::factory()->create(['is_whitelisted' => true]);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/threats/{$threat->id}/unwhitelist");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/threats/{$threat->id}/unwhitelist");
 
         $response->assertOk();
         $response->assertJsonPath('is_whitelisted', false);
@@ -218,13 +220,13 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/incidents/{$incident->id}/responses", [
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/incidents/{$incident->id}/responses", [
             'response_type' => 'block',
             'response_config' => ['target' => '192.168.1.100'],
         ]);
 
         $response->assertCreated();
-        $this->assertDatabaseHas('incident_responses', [
+        $this->assertDatabaseHas('security_incident_responses', [
             'security_incident_id' => $incident->id,
         ]);
     }
@@ -234,7 +236,7 @@ class IncidentTest extends TestCase
         $otherCompany = Company::factory()->create();
         $incident = SecurityIncident::factory()->for($otherCompany)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/incidents/{$incident->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/incidents/{$incident->id}");
 
         $response->assertForbidden();
     }
@@ -247,7 +249,7 @@ class IncidentTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
-        $response->assertJsonPath('meta.total', 20);
+        $response->assertJsonPath('total', 20);
     }
 
     public function test_filter_incidents_by_status(): void
@@ -264,7 +266,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/incidents/{$incident->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/incidents/{$incident->id}");
 
         $response->assertOk();
         $response->assertJsonPath('detected_at', fn($date) => $date !== null);
@@ -289,7 +291,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create(['incident_status' => 'open']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/incidents/{$incident->id}/resolve", [
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/incidents/{$incident->id}/resolve", [
             'resolution_notes' => 'Test',
         ]);
 
@@ -326,7 +328,7 @@ class IncidentTest extends TestCase
         $incident = SecurityIncident::factory()->for($this->company)->create();
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson("/v1/security/incidents/{$incident->id}/responses", [
+            $response = $this->actingAs($this->user)->postJson("/api/v1/security/incidents/{$incident->id}/responses", [
                 'response_type' => $type,
             ]);
 
@@ -345,7 +347,7 @@ class IncidentTest extends TestCase
     {
         $incident = SecurityIncident::factory()->for($this->company)->create(['incident_status' => 'resolved']);
 
-        $this->actingAs($this->user)->deleteJson("/v1/security/incidents/{$incident->id}");
+        $this->actingAs($this->user)->deleteJson("/api/v1/security/incidents/{$incident->id}");
 
         $this->assertNull(SecurityIncident::find($incident->id));
         $this->assertNotNull(SecurityIncident::withTrashed()->find($incident->id));

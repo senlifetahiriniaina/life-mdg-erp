@@ -16,7 +16,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/security')->
     Route::get('compliance/controls', [ComplianceController::class, 'indexControls']);
     Route::post('compliance/controls', [ComplianceController::class, 'storeControl']);
     Route::get('compliance/controls/{control}', [ComplianceController::class, 'showControl']);
-    Route::put('compliance/controls/{control}', [ComplianceController::class, 'updateControl']);
+    Route::match(['put', 'patch'], 'compliance/controls/{control}', [ComplianceController::class, 'updateControl']);
     Route::post('compliance/controls/{control}/verify', [ComplianceController::class, 'verifyControl']);
     Route::delete('compliance/controls/{control}', [ComplianceController::class, 'deleteControl']);
 
@@ -24,20 +24,20 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/security')->
     Route::get('compliance/audits', [ComplianceController::class, 'indexAudits']);
     Route::post('compliance/audits', [ComplianceController::class, 'storeAudit']);
     Route::get('compliance/audits/{audit}', [ComplianceController::class, 'showAudit']);
-    Route::put('compliance/audits/{audit}', [ComplianceController::class, 'updateAudit']);
+    Route::match(['put', 'patch'], 'compliance/audits/{audit}', [ComplianceController::class, 'updateAudit']);
     Route::post('compliance/audits/{audit}/complete', [ComplianceController::class, 'completeAudit']);
     Route::delete('compliance/audits/{audit}', [ComplianceController::class, 'deleteAudit']);
 
     // Compliance Violations
     Route::get('compliance/violations', [ComplianceController::class, 'indexViolations']);
     Route::get('compliance/violations/{violation}', [ComplianceController::class, 'showViolation']);
-    Route::put('compliance/violations/{violation}', [ComplianceController::class, 'updateViolation']);
+    Route::match(['put', 'patch'], 'compliance/violations/{violation}', [ComplianceController::class, 'updateViolation']);
 
     // Encryption Keys
     Route::get('encryption/keys', [EncryptionController::class, 'indexKeys']);
     Route::post('encryption/keys', [EncryptionController::class, 'storeKey']);
     Route::get('encryption/keys/{key}', [EncryptionController::class, 'showKey']);
-    Route::put('encryption/keys/{key}', [EncryptionController::class, 'updateKey']);
+    Route::match(['put', 'patch'], 'encryption/keys/{key}', [EncryptionController::class, 'updateKey']);
     Route::post('encryption/keys/{key}/rotate', [EncryptionController::class, 'rotateKey']);
     Route::post('encryption/keys/{key}/revoke', [EncryptionController::class, 'revokeKey']);
     Route::delete('encryption/keys/{key}', [EncryptionController::class, 'deleteKey']);
@@ -49,7 +49,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/security')->
     Route::get('incidents', [IncidentController::class, 'indexIncidents']);
     Route::post('incidents', [IncidentController::class, 'storeIncident']);
     Route::get('incidents/{incident}', [IncidentController::class, 'showIncident']);
-    Route::put('incidents/{incident}', [IncidentController::class, 'updateIncident']);
+    Route::match(['put', 'patch'], 'incidents/{incident}', [IncidentController::class, 'updateIncident']);
     Route::post('incidents/{incident}/investigate', [IncidentController::class, 'investigateIncident']);
     Route::post('incidents/{incident}/resolve', [IncidentController::class, 'resolveIncident']);
     Route::delete('incidents/{incident}', [IncidentController::class, 'deleteIncident']);

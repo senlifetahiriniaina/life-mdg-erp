@@ -130,7 +130,7 @@ class EncryptionController extends Controller
             'table_name' => 'required|string',
             'column_name' => 'required|string',
             'encryption_algorithm' => 'required|in:AES-256-GCM,RSA',
-            'encryption_key_id' => 'required|exists:encryption_keys,id',
+            'encryption_key_id' => 'required|exists:security_encryption_keys,id',
             'is_searchable' => 'boolean',
         ]);
 

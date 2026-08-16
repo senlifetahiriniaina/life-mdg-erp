@@ -22,6 +22,8 @@ class EncryptionTest extends TestCase
         parent::setUp();
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->user->assignRole('security-admin');
     }
 
     public function test_list_encryption_keys(): void
@@ -45,7 +47,7 @@ class EncryptionTest extends TestCase
         ]);
 
         $response->assertCreated();
-        $this->assertDatabaseHas('encryption_keys', [
+        $this->assertDatabaseHas('security_encryption_keys', [
             'key_name' => 'Primary Data Key',
             'key_type' => 'AES-256-GCM',
         ]);
@@ -69,7 +71,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/encryption/keys/{$key->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/encryption/keys/{$key->id}");
 
         $response->assertOk();
         $response->assertJsonPath('id', $key->id);
@@ -79,7 +81,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create();
 
-        $response = $this->actingAs($this->user)->patchJson("/v1/security/encryption/keys/{$key->id}", [
+        $response = $this->actingAs($this->user)->patchJson("/api/v1/security/encryption/keys/{$key->id}", [
             'key_name' => 'Updated Key Name',
         ]);
 
@@ -91,7 +93,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create(['key_status' => 'active']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/encryption/keys/{$key->id}/rotate");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/encryption/keys/{$key->id}/rotate");
 
         $response->assertCreated();
         $this->assertDatabaseHas('key_rotation_logs', [
@@ -105,7 +107,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create(['key_status' => 'active']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/encryption/keys/{$key->id}/revoke");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/encryption/keys/{$key->id}/revoke");
 
         $response->assertOk();
         $response->assertJsonPath('key_status', 'revoked');
@@ -115,7 +117,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create(['key_status' => 'revoked']);
 
-        $response = $this->actingAs($this->user)->deleteJson("/v1/security/encryption/keys/{$key->id}");
+        $response = $this->actingAs($this->user)->deleteJson("/api/v1/security/encryption/keys/{$key->id}");
 
         $response->assertNoContent();
     }
@@ -124,7 +126,7 @@ class EncryptionTest extends TestCase
     {
         $key = EncryptionKey::factory()->for($this->company)->create(['key_status' => 'revoked']);
 
-        $response = $this->actingAs($this->user)->postJson("/v1/security/encryption/keys/{$key->id}/rotate");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/encryption/keys/{$key->id}/rotate");
 
         $response->assertForbidden();
     }
@@ -134,7 +136,7 @@ class EncryptionTest extends TestCase
         $otherCompany = Company::factory()->create();
         $key = EncryptionKey::factory()->for($otherCompany)->create();
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/encryption/keys/{$key->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/encryption/keys/{$key->id}");
 
         $response->assertForbidden();
     }
@@ -213,7 +215,7 @@ class EncryptionTest extends TestCase
 
         $key = EncryptionKey::factory()->for($this->company)->create(['metadata' => $metadata]);
 
-        $response = $this->actingAs($this->user)->getJson("/v1/security/encryption/keys/{$key->id}");
+        $response = $this->actingAs($this->user)->getJson("/api/v1/security/encryption/keys/{$key->id}");
 
         $response->assertOk();
         $response->assertJsonPath('metadata.environment', 'production');
@@ -227,7 +229,7 @@ class EncryptionTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
-        $response->assertJsonPath('meta.total', 20);
+        $response->assertJsonPath('total', 20);
     }
 
     public function test_encryption_key_status_active_by_default(): void

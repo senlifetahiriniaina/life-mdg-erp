@@ -38,6 +38,7 @@ class SecurityIncident extends Model
     ];
 
     protected $casts = [
+        'company_id' => 'integer',
         'threat_indicators' => 'array',
         'affected_resources' => 'array',
         'detected_at' => 'datetime',

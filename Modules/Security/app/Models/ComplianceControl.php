@@ -34,6 +34,7 @@ class ComplianceControl extends Model
     ];
 
     protected $casts = [
+        'company_id' => 'integer',
         'implementation_details' => 'array',
         'last_verified_at' => 'datetime',
         'created_at' => 'datetime',

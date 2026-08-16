@@ -23,6 +23,7 @@ class EncryptedField extends Model
     ];
 
     protected $casts = [
+        'company_id' => 'integer',
         'is_searchable' => 'boolean',
         'is_encrypted' => 'boolean',
         'metadata' => 'array',

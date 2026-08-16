@@ -34,6 +34,7 @@ class ComplianceViolation extends Model
     ];
 
     protected $casts = [
+        'company_id' => 'integer',
         'detected_at' => 'datetime',
         'remediation_deadline' => 'datetime',
         'remediated_at' => 'datetime',

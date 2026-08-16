@@ -37,6 +37,7 @@ class EncryptionKey extends Model
     ];
 
     protected $casts = [
+        'company_id' => 'integer',
         'key_length_bits' => 'integer',
         'created_at' => 'datetime',
         'rotated_at' => 'datetime',

@@ -28,6 +28,8 @@ class AuthenticationEventTest extends TestCase
         parent::setUp();
         $this->company = Company::factory()->create();
         $this->user    = User::factory()->for($this->company)->create();
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->user->assignRole('security-admin');
     }
 
     // ─── Creation ─────────────────────────────────────────────────────────────

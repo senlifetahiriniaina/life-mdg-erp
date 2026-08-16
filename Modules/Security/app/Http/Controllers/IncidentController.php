@@ -128,7 +128,7 @@ class IncidentController extends Controller
 
         $validated = $request->validate([
             'indicator_type' => 'required|in:ip_address,domain,hash,email,user_agent',
-            'indicator_value' => 'required|string|unique:threat_indicators',
+            'indicator_value' => 'required|string|unique:security_threat_indicators',
             'threat_level' => 'required|in:low,medium,high,critical',
             'description' => 'required|string',
             'source' => 'in:internal_detection,threat_feed,user_report',

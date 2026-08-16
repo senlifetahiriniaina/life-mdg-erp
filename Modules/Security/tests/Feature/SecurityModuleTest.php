@@ -249,7 +249,10 @@ class SecurityModuleTest extends TestCase
     /** @test */
     public function test_session_security_config_exists(): void
     {
-        $config = config('session-security');
+        // SessionSecurityService actually reads config('session.*') (the
+        // custom session_timeout/idle_timeout/... keys added to Laravel's
+        // own session config, not a separate session-security namespace).
+        $config = config('session');
 
         $this->assertIsArray($config);
         $this->assertArrayHasKey('session_timeout', $config);

@@ -26,6 +26,7 @@ class ComplianceAudit extends Model
     ];
 
     protected $casts = [
+        'company_id' => 'integer',
         'audit_start_date' => 'datetime',
         'audit_end_date' => 'datetime',
         'controls_evaluated' => 'integer',

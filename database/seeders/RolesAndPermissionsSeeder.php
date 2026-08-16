@@ -130,8 +130,19 @@ class RolesAndPermissionsSeeder extends Seeder
         'sales.read', 'sales.view', 'sales.create', 'sales.update',
     ];
 
+    // Modules\Security\Policies\{SecurityIncident,ComplianceAudit,ComplianceControl,
+    // EncryptionKey,ThreatIndicator}Policy check security.{resource}.{view,create,update,
+    // delete} -- the generic ACTIONS list already produces those (plus an unused
+    // .view-any) once 'security' is added to MODULES below, so no extra const is
+    // needed for the standard verbs. EncryptionKeyPolicy::rotate() checks the one
+    // non-standard verb, security.encryption.rotate.
+    private const SECURITY_EXTRA_PERMISSIONS = [
+        'security.encryption.rotate',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
+        'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat'],
         'sales'            => ['order', 'line', 'quotation'],
         'hr'               => ['employee', 'department', 'job-position', 'leave', 'leave-type'],
         'payroll'          => ['payslip', 'run', 'tax-config'],
@@ -202,6 +213,10 @@ class RolesAndPermissionsSeeder extends Seeder
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
+        foreach (self::SECURITY_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
         // ── Roles ──────────────────────────────────────────────────────────────
 
         // super-admin: Gate::before bypass — no permission assignment needed
@@ -263,14 +278,15 @@ class RolesAndPermissionsSeeder extends Seeder
             ])
         ));
 
-        // security-admin: audit logs, 2FA policy, sessions, API keys
+        // security-admin: audit logs, 2FA policy, sessions, API keys, and the whole
+        // Security module (incident/audit/compliance/encryption/threat registers)
         $securityAdmin = Role::firstOrCreate(['name' => 'security-admin', 'guard_name' => 'web']);
         $securityAdmin->syncPermissions(array_filter(
             $allPermissions,
             fn(Permission $p) => in_array($p->name, [
                 'admin.audit.view', 'admin.security.manage', 'admin.users.view',
                 'auditlog.logs.view-any', 'auditlog.logs.view',
-            ])
+            ]) || str_starts_with($p->name, 'security.')
         ));
 
         // billing-admin: plans, subscriptions, billing
