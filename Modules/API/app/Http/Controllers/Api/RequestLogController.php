@@ -10,7 +10,7 @@ class RequestLogController extends Controller
 {
     public function index(Request $request)
     {
-        $query = DB::table('api_request_logs')->where('tenant_id', $request->user()->id);
+        $query = DB::table('api_requests')->where('tenant_id', $request->user()->id);
         if ($request->api_key_id) {
             $query->where('api_key_id', $request->api_key_id);
         }
@@ -23,7 +23,7 @@ class RequestLogController extends Controller
 
     public function stats(Request $request)
     {
-        $stats = DB::table('api_request_logs')
+        $stats = DB::table('api_requests')
             ->where('tenant_id', $request->user()->id)
             ->where('created_at', '>=', now()->subDays(7))
             ->selectRaw('DATE(created_at) as date, COUNT(*) as total, AVG(duration_ms) as avg_ms, SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as errors')

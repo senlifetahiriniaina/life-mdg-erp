@@ -31,13 +31,13 @@ class ApiKeyController extends Controller
         $rawKey = 'wh_' . Str::random(40);
         $id = DB::table('api_keys')->insertGetId([
             'tenant_id' => $request->user()->id,
+            'user_id' => $request->user()->id,
             'name' => $data['name'],
-            'key' => Hash::make($rawKey),
-            'key_prefix' => substr($rawKey, 0, 12),
-            'permissions' => json_encode($data['permissions'] ?? ['read']),
+            'key_hash' => Hash::make($rawKey),
+            'key_prefix' => substr($rawKey, 0, 8),
+            'scopes' => json_encode($data['permissions'] ?? ['read']),
             'rate_limit' => $data['rate_limit'] ?? 1000,
             'expires_at' => $data['expires_at'] ?? null,
-            'created_by' => $request->user()->id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -59,7 +59,7 @@ class ApiKeyController extends Controller
 
     public function logs(Request $request, $id)
     {
-        $logs = DB::table('api_request_logs')->where('api_key_id', $id)->where('tenant_id', $request->user()->id)->orderByDesc('created_at')->limit(100)->get();
+        $logs = DB::table('api_requests')->where('api_key_id', $id)->where('tenant_id', $request->user()->id)->orderByDesc('created_at')->limit(100)->get();
         return response()->json(['data' => $logs]);
     }
 }
