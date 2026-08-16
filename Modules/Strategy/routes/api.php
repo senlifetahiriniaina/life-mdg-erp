@@ -55,10 +55,14 @@ Route::prefix('v1/strategy')->middleware('auth:sanctum', 'session.security')->gr
     Route::put('signals/{id}/dismiss', [SignalController::class, 'dismiss']);
 
     // Objective Links (polymorphic resource linking)
-    Route::get('resource/{type}/{id}', [StrategyObjectiveLinkController::class, 'getResourceHierarchy']);
+    // {type} is a composite "Module/Model" string (e.g. "Accounting/Invoice"), so it must
+    // be allowed to span an extra path segment via a permissive regex constraint.
+    Route::get('resource/{type}/{id}', [StrategyObjectiveLinkController::class, 'getResourceHierarchy'])
+        ->where('type', '.*')->where('id', '[0-9]+');
     Route::post('objective-links/link', [StrategyObjectiveLinkController::class, 'link']);
     Route::delete('objective-links/{id}', [StrategyObjectiveLinkController::class, 'unlinkById']);
-    Route::delete('resource/{type}/{id}', [StrategyObjectiveLinkController::class, 'unlink']);
+    Route::delete('resource/{type}/{id}', [StrategyObjectiveLinkController::class, 'unlink'])
+        ->where('type', '.*')->where('id', '[0-9]+');
     Route::put('objective-links/{id}', [StrategyObjectiveLinkController::class, 'updateContribution']);
     Route::post('objective-links/bulk-link', [StrategyObjectiveLinkController::class, 'bulkLink']);
     Route::get('objective/{id}/links', [StrategyObjectiveLinkController::class, 'getLinkedResources']);

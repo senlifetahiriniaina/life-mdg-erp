@@ -98,7 +98,7 @@ class OkrController extends Controller
     public function tree(Request $request): JsonResponse
     {
         $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
-        $planId   = $request->integer('plan_id');
+        $planId   = $request->filled('plan_id') ? $request->integer('plan_id') : null;
 
         $tree = $this->service->getOkrTree($tenantId, $planId);
 

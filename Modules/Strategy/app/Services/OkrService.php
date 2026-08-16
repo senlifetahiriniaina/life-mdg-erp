@@ -78,9 +78,21 @@ class OkrService
     /**
      * Returns nested OKR structure for org-chart style rendering.
      */
-    public function getOkrTree(string $tenantId, int $planId): array
+    public function getOkrTree(string $tenantId, ?int $planId = null): array
     {
-        $plan = StrategyPlan::forTenant($tenantId)->findOrFail($planId);
+        $plan = $planId
+            ? StrategyPlan::forTenant($tenantId)->find($planId)
+            : StrategyPlan::forTenant($tenantId)->active()->first();
+
+        if (! $plan) {
+            return [
+                'plan_id'    => null,
+                'plan_name'  => null,
+                'objectives' => [],
+            ];
+        }
+
+        $planId = $plan->id;
 
         $objectives = StrategyObjective::where('plan_id', $planId)
             ->whereNull('parent_id')
