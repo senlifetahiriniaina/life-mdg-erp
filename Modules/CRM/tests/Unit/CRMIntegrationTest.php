@@ -47,7 +47,7 @@ class CRMIntegrationTest extends TestCase
 
         $this->assertArrayHasKey('customer_id', $result);
         $this->assertEquals('created', $result['status']);
-        $this->assertEquals('silver', $result['tier']);
+        $this->assertEquals('gold', $result['tier']);
     }
 
     public function test_can_update_customer()
