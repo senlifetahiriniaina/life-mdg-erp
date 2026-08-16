@@ -31,7 +31,7 @@ class PayrollAiAssistController extends Controller
      */
     public function assist(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('payroll.view'), 403);
+        abort_unless($request->user()->can('payroll.payslip.view'), 403);
 
         $validated = $request->validate([
             'action'  => ['required', 'string', 'max:128'],

@@ -8,7 +8,8 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\HR\Models\PayrollRecord;
+use Modules\HR\Models\Employee;
+use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Services\PayrollIntegrationService;
 
 /**
@@ -21,24 +22,26 @@ class PayrollController extends Controller
     public function __construct(private readonly PayrollIntegrationService $service) {}
 
     /**
-     * List payroll records for the current tenant and period.
+     * List payslips for the current tenant and period.
      */
     public function index(Request $request): JsonResponse
     {
         // Compliance First — RBAC: only HR managers, payroll admins, and super-admins
-        abort_unless($request->user()->can('payroll.payslips.view'), 403);
+        abort_unless($request->user()->can('payroll.payslip.view'), 403);
 
         $request->validate([
-            'period' => ['nullable', 'date_format:Y-m'],
+            'period'      => ['nullable', 'date_format:Y-m'],
+            'month'       => ['nullable', 'date_format:Y-m'],
+            'employee_id' => ['nullable', 'integer'],
         ]);
 
-        [$year, $month] = explode('-', $request->input('period', now()->format('Y-m')));
-        $start = Carbon::createFromDate((int)$year, (int)$month, 1)->startOfMonth();
-        $end   = $start->copy()->endOfMonth();
+        $period = $request->input('period', $request->input('month', now()->format('Y-m')));
+        [$year, $month] = explode('-', $period);
+        $periodDate = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth()->toDateString();
 
-        $records = PayrollRecord::with('employee:id,first_name,last_name,employee_number')
-            ->whereHas('employee', fn($q) => $q->where('tenant_id', auth()->user()->tenant_id))
-            ->whereBetween('period_start', [$start, $end])
+        $records = Payslip::where('tenant_id', $this->tenantId($request))
+            ->whereDate('period', $periodDate)
+            ->when($request->filled('employee_id'), fn ($q) => $q->where('employee_id', $request->integer('employee_id')))
             ->latest()
             ->paginate(50);
 
@@ -52,18 +55,18 @@ class PayrollController extends Controller
      */
     public function generate(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('payroll.payslips.generate'), 403);
+        abort_unless($request->user()->can('payroll.payslip.generate'), 403);
 
         $validated = $request->validate([
             'period' => ['required', 'date_format:Y-m'],
         ]);
 
         [$year, $month] = explode('-', $validated['period']);
-        $start = Carbon::createFromDate((int)$year, (int)$month, 1)->startOfMonth();
+        $start = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth();
         $end   = $start->copy()->endOfMonth();
 
         $result = $this->service->generatePayslips(
-            auth()->user()->tenant_id,
+            $this->tenantId($request),
             $start,
             $end
         );
@@ -76,18 +79,17 @@ class PayrollController extends Controller
      */
     public function approveBatch(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('payroll.payslips.approve'), 403);
+        abort_unless($request->user()->can('payroll.payslip.approve'), 403);
 
         $validated = $request->validate([
             'period' => ['required', 'date_format:Y-m'],
         ]);
 
         [$year, $month] = explode('-', $validated['period']);
-        $start = Carbon::createFromDate((int)$year, (int)$month, 1)->startOfMonth();
-        $end   = $start->copy()->endOfMonth();
+        $periodDate = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth()->toDateString();
 
-        $count = PayrollRecord::whereHas('employee', fn($q) => $q->where('tenant_id', auth()->user()->tenant_id))
-            ->whereBetween('period_start', [$start, $end])
+        $count = Payslip::where('tenant_id', $this->tenantId($request))
+            ->whereDate('period', $periodDate)
             ->where('status', 'draft')
             ->update(['status' => 'approved']);
 
@@ -99,26 +101,27 @@ class PayrollController extends Controller
      */
     public function processPayment(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('payroll.payslip.approve'), 403);
+
         $validated = $request->validate([
             'period' => ['required', 'date_format:Y-m'],
         ]);
 
         [$year, $month] = explode('-', $validated['period']);
-        $start = Carbon::createFromDate((int)$year, (int)$month, 1)->startOfMonth();
-        $end   = $start->copy()->endOfMonth();
+        $periodDate = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth()->toDateString();
 
-        $records = PayrollRecord::whereHas('employee', fn($q) => $q->where('tenant_id', auth()->user()->tenant_id))
-            ->whereBetween('period_start', [$start, $end])
+        $records = Payslip::where('tenant_id', $this->tenantId($request))
+            ->whereDate('period', $periodDate)
             ->where('status', 'approved')
             ->get();
 
         $accountingResult = $this->service->postPayslipsToAccounting($records->pluck('id')->toArray());
 
-        $records->each(fn($r) => $r->update(['status' => 'paid', 'payment_date' => now()]));
+        $records->each(fn ($r) => $r->update(['status' => 'paid', 'paid_at' => now()]));
 
         return response()->json([
-            'paid_count'   => $records->count(),
-            'accounting'   => $accountingResult,
+            'paid_count' => $records->count(),
+            'accounting' => $accountingResult,
         ]);
     }
 
@@ -132,10 +135,9 @@ class PayrollController extends Controller
         ]);
 
         [$year, $month] = explode('-', $request->input('period', now()->format('Y-m')));
-        $start = Carbon::createFromDate((int)$year, (int)$month, 1)->startOfMonth();
-        $end   = $start->copy()->endOfMonth();
+        $start = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth();
 
-        $summary = $this->service->getPayrollSummary(auth()->user()->tenant_id, $start, $end);
+        $summary = $this->service->getPayrollSummary($this->tenantId($request), $start, $start);
 
         return response()->json(['statistics' => array_merge($summary, ['currency' => 'XOF'])]);
     }
@@ -146,32 +148,45 @@ class PayrollController extends Controller
     public function taxesByCountry(Request $request): JsonResponse
     {
         $request->validate([
-            'period' => ['nullable', 'date_format:Y-m'],
+            'period'  => ['nullable', 'date_format:Y-m'],
+            'country' => ['nullable', 'string', 'size:2'],
         ]);
 
         [$year, $month] = explode('-', $request->input('period', now()->format('Y-m')));
-        $start = Carbon::createFromDate((int)$year, (int)$month, 1)->startOfMonth();
-        $end   = $start->copy()->endOfMonth();
+        $periodDate = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth()->toDateString();
 
-        $records = PayrollRecord::with('employee:id,first_name,last_name,country_code')
-            ->whereHas('employee', fn($q) => $q->where('tenant_id', auth()->user()->tenant_id))
-            ->whereBetween('period_start', [$start, $end])
+        $records = Payslip::where('tenant_id', $this->tenantId($request))
+            ->whereDate('period', $periodDate)
             ->get();
 
-        $taxes = $records->groupBy(fn($r) => $r->employee->country_code ?? 'SN')
+        $countryByEmployee = Employee::whereIn('id', $records->pluck('employee_id')->unique())
+            ->pluck('nationality', 'id');
+
+        $taxes = $records
+            ->groupBy(fn ($r) => $countryByEmployee->get($r->employee_id) ?? 'SN')
+            ->when(
+                $request->filled('country'),
+                fn ($groups) => $groups->only([strtoupper((string) $request->input('country'))])
+            )
             ->map(function ($group, $country) {
-                $totalGross = $group->sum('gross_salary');
+                $totalGross = (float) $group->sum('gross_salary');
+
                 return [
-                    'country_code'   => $country,
-                    'employee_count' => $group->count(),
-                    'total_gross'    => $totalGross,
-                    'total_tax'      => $this->service->calculateIncomeTax($totalGross, $country),
-                    'social_security'=> $this->service->calculateSocialSecurity($totalGross, $country),
-                    'health_insurance'=> 0,
+                    'country_code'     => $country,
+                    'employee_count'   => $group->count(),
+                    'total_gross'      => $totalGross,
+                    'total_tax'        => $this->service->calculateIncomeTax($totalGross, $country),
+                    'social_security'  => $this->service->calculateSocialSecurity($totalGross, $country),
+                    'health_insurance' => 0,
                 ];
             })
             ->values();
 
         return response()->json(['taxes' => $taxes]);
+    }
+
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()->tenant_id ?? 0);
     }
 }

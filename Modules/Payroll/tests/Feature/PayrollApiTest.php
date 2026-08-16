@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -26,8 +25,7 @@ describe('Payroll API - Authentication', function () {
 
 describe('Payroll API - Payslips', function () {
     beforeEach(function () {
-        $this->user = User::factory()->create();
-        $this->actingAs($this->user);
+        $this->user = actingAsUser('hr-manager');
     });
 
     it('returns payslips list', function () {
@@ -68,8 +66,7 @@ describe('Payroll API - Payslips', function () {
 
 describe('Payroll API - Generate', function () {
     beforeEach(function () {
-        $this->user = User::factory()->create();
-        $this->actingAs($this->user);
+        $this->user = actingAsUser('hr-manager');
     });
 
     it('validates required period field', function () {
@@ -94,8 +91,7 @@ describe('Payroll API - Generate', function () {
 
 describe('Payroll API - Batch Approve', function () {
     beforeEach(function () {
-        $this->user = User::factory()->create();
-        $this->actingAs($this->user);
+        $this->user = actingAsUser('hr-manager');
     });
 
     it('accepts batch approval with period', function () {
@@ -120,8 +116,7 @@ describe('Payroll API - Batch Approve', function () {
 
 describe('Payroll API - Process Payment', function () {
     beforeEach(function () {
-        $this->user = User::factory()->create();
-        $this->actingAs($this->user);
+        $this->user = actingAsUser('hr-manager');
     });
 
     it('accepts payment processing request with period', function () {

@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\AI\Services\AiContextualAssistantService;
 
@@ -16,8 +15,7 @@ uses(RefreshDatabase::class);
  */
 
 beforeEach(function () {
-    $this->user = User::factory()->create(['role' => 'hr-manager']);
-    $this->actingAs($this->user);
+    $this->user = actingAsUser('hr-manager');
 
     $this->mock(AiContextualAssistantService::class, function ($mock) {
         $mock->shouldReceive('getGuidance')

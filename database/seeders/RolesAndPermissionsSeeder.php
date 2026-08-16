@@ -140,6 +140,15 @@ class RolesAndPermissionsSeeder extends Seeder
         'security.encryption.rotate',
     ];
 
+    // Modules\Payroll\Http\Controllers\Api\PayrollController checks
+    // payroll.payslip.{view,generate,approve} -- 'view' already exists from the
+    // generic MODULES/ACTIONS loop ('payslip' is in MODULES['payroll']), but
+    // 'generate'/'approve' aren't standard CRUD verbs, same reasoning as the
+    // other _PERMISSIONS constants above.
+    private const PAYROLL_EXTRA_PERMISSIONS = [
+        'payroll.payslip.generate', 'payroll.payslip.approve',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat'],
@@ -214,6 +223,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::SECURITY_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::PAYROLL_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
