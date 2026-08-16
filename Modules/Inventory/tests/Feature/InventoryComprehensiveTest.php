@@ -9,9 +9,8 @@ use Modules\Inventory\Models\ItemAbcAnalysis;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\SerialNumber;
 use Modules\Inventory\Models\Stock;
+use Modules\Inventory\Models\TransferOrder;
 use Modules\Inventory\Models\Warehouse;
-use Modules\Inventory\Models\WarehouseTransfer;
-use Modules\Inventory\Models\WarehouseTransferItem;
 use Modules\Inventory\Services\AI\ABCAnalysisService;
 use Modules\Inventory\Services\CycleCountService;
 use Modules\Inventory\Services\SerialNumberService;
@@ -57,7 +56,7 @@ it('can record count and track variance', function () {
     $service->recordCount($line, 48);
 
     $line->refresh();
-    expect($line->counted_qty)->toBe(48.0);
+    expect((float) $line->counted_qty)->toBe(48.0);
     expect($line->variance)->toBe(-2.0);
     expect($line->status)->toBe('counted');
 });
@@ -221,9 +220,9 @@ it('can create warehouse transfer', function () {
 
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/inventory/transfer-orders', [
-            'warehouse_from_id' => $this->warehouse->id,
-            'warehouse_to_id' => $warehouse2->id,
-            'items' => [
+            'from_warehouse_id' => $this->warehouse->id,
+            'to_warehouse_id' => $warehouse2->id,
+            'lines' => [
                 [
                     'product_id' => $product->id,
                     'quantity' => 50,
@@ -232,44 +231,50 @@ it('can create warehouse transfer', function () {
         ])
         ->assertCreated();
 
-    expect($response->json('status'))->toBe('pending');
+    expect($response->json('status'))->toBe('draft');
 });
 
 it('can track transfer status and complete transfer', function () {
     $warehouse2 = Warehouse::factory()->create();
-    $transfer = WarehouseTransfer::factory()->create([
-        'warehouse_from_id' => $this->warehouse->id,
-        'warehouse_to_id' => $warehouse2->id,
-        'status' => 'pending',
+    $transfer = TransferOrder::factory()->create([
+        'from_warehouse_id' => $this->warehouse->id,
+        'to_warehouse_id' => $warehouse2->id,
+        'status' => 'approved',
     ]);
 
     $response = $this->withToken($this->token)
-        ->putJson("/api/v1/inventory/transfers/{$transfer->id}", [
-            'status' => 'in_transit',
-        ])
+        ->postJson("/api/v1/inventory/transfer-orders/{$transfer->id}/ship")
         ->assertOk();
 
-    $transfer->refresh();
-    expect($transfer->status)->toBe('in_transit');
+    expect($response->json('status'))->toBe('in_transit');
+
+    $response = $this->withToken($this->token)
+        ->postJson("/api/v1/inventory/transfer-orders/{$transfer->id}/receive")
+        ->assertOk();
+
+    expect($response->json('status'))->toBe('received');
 });
 
 it('can validate transfer timeline (24h SLA)', function () {
     $warehouse2 = Warehouse::factory()->create();
-    $transfer = WarehouseTransfer::factory()->create([
-        'warehouse_from_id' => $this->warehouse->id,
-        'warehouse_to_id' => $warehouse2->id,
+    $overdueTransfer = TransferOrder::factory()->create([
+        'from_warehouse_id' => $this->warehouse->id,
+        'to_warehouse_id' => $warehouse2->id,
         'status' => 'in_transit',
-        'created_at' => now()->subHours(25),
+        'expected_delivery_date' => now()->subHours(25),
+        'received_at' => null,
     ]);
 
-    // Transfer is overdue (created > 24h ago, not completed)
-    $response = $this->withToken($this->token)
-        ->getJson('/api/v1/inventory/transfers/alerts')
-        ->assertOk();
+    $onTimeTransfer = TransferOrder::factory()->create([
+        'from_warehouse_id' => $this->warehouse->id,
+        'to_warehouse_id' => $warehouse2->id,
+        'status' => 'in_transit',
+        'expected_delivery_date' => now()->addDays(2),
+        'received_at' => null,
+    ]);
 
-    $data = $response->json();
-    // Should include overdue transfer
-    expect($data)->toHaveKey('overdue_transfers');
+    expect($overdueTransfer->isOverdue())->toBeTrue();
+    expect($onTimeTransfer->isOverdue())->toBeFalse();
 });
 
 // ========== INTEGRATION TESTS ==========

@@ -15,17 +15,24 @@ class TenantFactory extends Factory
     public function definition(): array
     {
         return [
-                        'id' => fake()->word(),
-            'slug' => fake()->slug(),
-            'name' => fake()->word(),
-            'company_name' => fake()->word(),
-            'plan' => fake()->word(),
-            'trial_ends_at' => fake()->word(),
-            'settings' => fake()->word(),
-            'onboarding_completed_at' => fake()->word(),
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'slug' => fake()->unique()->slug(),
+            'name' => fake()->company(),
+            'company_name' => fake()->company(),
+            'country_code' => fake()->randomElement(['MG', 'SN', 'CI', 'CM']),
+            'currency' => fake()->randomElement(['MGA', 'XOF', 'XAF']),
+            'locale' => fake()->randomElement(['fr', 'en', 'mg']),
+            'plan' => fake()->randomElement(['starter', 'pro', 'enterprise']),
+            'status' => fake()->randomElement(['trial', 'active', 'suspended']),
+            'trial_ends_at' => fake()->dateTimeBetween('now', '+30 days'),
+            'settings' => [],
+            'onboarding_step' => fake()->numberBetween(0, 5),
+            'onboarding_completed_at' => null,
+            'contact_email' => fake()->companyEmail(),
             'is_active' => true,
-            'domain' => fake()->word(),
-            'data' => fake()->word(),
+            'domain' => fake()->domainName(),
+            'data' => [],
         ];
     }
 

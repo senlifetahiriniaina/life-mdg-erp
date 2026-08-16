@@ -109,7 +109,7 @@ class ProductController extends Controller
 
         $product = $this->service->createProduct($data);
 
-        return response()->json(new ProductResource($product), 201);
+        return (new ProductResource($product))->response()->setStatusCode(201);
     }
 
     /**

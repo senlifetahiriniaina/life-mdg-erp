@@ -108,4 +108,9 @@ class Product extends Model
     {
         return $this->hasMany(Stock::class, 'product_id');
     }
+
+    public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\Modules\Core\Models\Tenant::class, 'tenant_id');
+    }
 }

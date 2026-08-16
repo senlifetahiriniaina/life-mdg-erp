@@ -5,6 +5,9 @@ namespace Modules\Inventory\Tests\Feature;
 use Tests\TestCase;
 use Modules\Inventory\Services\ReorderAutomationService;
 use Modules\Inventory\Models\Product;
+use Modules\Inventory\Models\Stock;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Core\Models\Tenant;
 use App\Models\User;
 
 class ReorderAutomationServiceTest extends TestCase
@@ -12,6 +15,7 @@ class ReorderAutomationServiceTest extends TestCase
     private ReorderAutomationService $service;
     private User $user;
     private Product $product;
+    private Warehouse $warehouse;
 
     protected function setUp(): void
     {
@@ -23,13 +27,18 @@ class ReorderAutomationServiceTest extends TestCase
             'tenant_id' => $this->user->tenant_id,
             'sku' => 'TEST-SKU-001',
             'name' => 'Test Product',
-            'track_inventory' => true,
+            'is_active' => true,
             'status' => 'active',
-            'quantity_on_hand' => 30,
             'reorder_point' => 50,
-            'reorder_quantity' => 100,
-            'safety_stock' => 20,
-            'cost' => 10000,
+            'reorder_qty' => 100,
+            'cost_price' => 10000,
+        ]);
+
+        $this->warehouse = Warehouse::factory()->create();
+        Stock::create([
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'quantity' => 30,
         ]);
     }
 
@@ -44,7 +53,7 @@ class ReorderAutomationServiceTest extends TestCase
     /** @test */
     public function it_does_not_reorder_products_above_threshold()
     {
-        $this->product->update(['quantity_on_hand' => 100]);
+        Stock::where('product_id', $this->product->id)->update(['quantity' => 100]);
 
         $shouldReorder = $this->service->shouldReorder($this->product);
 
@@ -109,7 +118,7 @@ class ReorderAutomationServiceTest extends TestCase
     /** @test */
     public function it_marks_status_as_critical_when_at_safety_stock()
     {
-        $this->product->update(['quantity_on_hand' => 15]);
+        Stock::where('product_id', $this->product->id)->update(['quantity' => 15]);
 
         $status = $this->service->getReorderStatus($this->product);
 
@@ -144,7 +153,8 @@ class ReorderAutomationServiceTest extends TestCase
     /** @test */
     public function it_calculates_west_african_seasonal_factor()
     {
-        $this->product->tenant()->update(['country' => 'SN']);
+        $tenant = Tenant::factory()->create(['country_code' => 'SN']);
+        $this->product->update(['tenant_id' => $tenant->id]);
 
         // Test Ramadan period (high season)
         $factorRamadan = $this->service->getSeasonalAdjustmentFactor($this->product);

@@ -20,10 +20,10 @@ class ReorderAutomationService
     /**
      * Check all products and generate reorders if needed
      */
-    public function generateReordersForTenant(int $tenantId): array
+    public function generateReordersForTenant(?int $tenantId): array
     {
         $products = Product::where('tenant_id', $tenantId)
-            ->where('track_inventory', true)
+            ->where('is_active', true)
             ->where('status', 'active')
             ->get();
 
@@ -58,7 +58,7 @@ class ReorderAutomationService
      */
     public function shouldReorder(Product $product): bool
     {
-        $currentStock = $product->quantity_on_hand;
+        $currentStock = (float) $product->stock()->sum('quantity');
         $reorderPoint = $this->computeReorderPoint($product);
 
         if ($currentStock > $reorderPoint) {
@@ -94,7 +94,7 @@ class ReorderAutomationService
         $currentMonth = now()->month;
 
         // Regional seasonal patterns
-        $tenantCountry = $product->tenant?->country ?? 'SN';
+        $tenantCountry = $product->tenant?->country_code ?? 'SN';
 
         return match ($tenantCountry) {
             'SN', 'CI', 'CM' => $this->getWestAfricanSeasonalFactor($currentMonth),
@@ -217,7 +217,7 @@ class ReorderAutomationService
      */
     public function computeOrderQuantity(Product $product): int
     {
-        $baseQuantity = $product->reorder_quantity ?? 100;
+        $baseQuantity = $product->reorder_qty ?? 100;
         $minOrderQuantity = $product->min_order_quantity ?? 10;
         $maxOrderQuantity = $product->max_order_quantity ?? 1000;
 
@@ -243,7 +243,7 @@ class ReorderAutomationService
      */
     public function getReorderStatus(Product $product): array
     {
-        $currentStock = $product->quantity_on_hand;
+        $currentStock = (float) $product->stock()->sum('quantity');
         $reorderPoint = $this->computeReorderPoint($product);
         $safetyStock = $product->safety_stock ?? 20;
 
@@ -282,7 +282,7 @@ class ReorderAutomationService
             return null;
         }
 
-        $currentStock = $product->quantity_on_hand;
+        $currentStock = (float) $product->stock()->sum('quantity');
         $safetyStock = $product->safety_stock ?? 20;
 
         return (int) ceil(($currentStock - $safetyStock) / $dailyConsumption);
@@ -291,10 +291,10 @@ class ReorderAutomationService
     /**
      * Get reorder recommendations for dashboard
      */
-    public function getReorderRecommendations(int $tenantId, int $limit = 10): array
+    public function getReorderRecommendations(?int $tenantId, int $limit = 10): array
     {
         $products = Product::where('tenant_id', $tenantId)
-            ->where('track_inventory', true)
+            ->where('is_active', true)
             ->where('status', 'active')
             ->get()
             ->map(function (Product $product) {

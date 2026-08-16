@@ -48,8 +48,8 @@ describe('Product API', function () {
         });
 
         test('can filter products by status', function () {
-            Product::factory()->create(['is_active' => true]);
-            Product::factory()->count(2)->create(['is_active' => false]);
+            Product::factory()->create(['status' => 'active', 'is_active' => true]);
+            Product::factory()->count(2)->create(['status' => 'inactive', 'is_active' => false]);
 
             $response = $this->actingAs($this->user, 'sanctum')
                 ->getJson('/api/v1/inventory/products?status=active');
@@ -103,7 +103,7 @@ describe('Product API', function () {
                 ->postJson('/api/v1/inventory/products', []);
 
             $response->assertStatus(422)
-                ->assertJsonValidationErrors(['sku', 'name', 'cost_price', 'sale_price']);
+                ->assertJsonValidationErrors(['sku', 'name', 'selling_price']);
         });
     });
 
@@ -162,7 +162,7 @@ describe('Product API', function () {
 
     describe('Delete Product', function () {
         test('can delete a product', function () {
-            $product = Product::factory()->create();
+            $product = Product::factory()->create(['status' => 'inactive', 'is_active' => false]);
 
             $response = $this->actingAs($this->user, 'sanctum')
                 ->deleteJson("/api/v1/inventory/products/{$product->id}");
@@ -230,7 +230,7 @@ describe('Product API', function () {
                 ->getJson('/api/v1/inventory/products/valuation');
 
             $response->assertStatus(200)
-                ->assertJsonCount(1, 'data');
+                ->assertJsonCount(1, 'by_warehouse');
         });
     });
 
