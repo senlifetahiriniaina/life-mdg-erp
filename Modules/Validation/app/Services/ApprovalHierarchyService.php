@@ -83,4 +83,26 @@ class ApprovalHierarchyService
             ->where('is_active', true)
             ->first();
     }
+
+    public function getHierarchy(int $id): ApprovalHierarchy
+    {
+        return ApprovalHierarchy::findOrFail($id);
+    }
+
+    public function canApprove(User $user, ApprovalHierarchy $hierarchy, int $levelOrder): bool
+    {
+        $level = $hierarchy->levels()->where('level_order', $levelOrder)->first();
+
+        if (! $level) {
+            return false;
+        }
+
+        foreach ($level->activeApprovers()->get() as $levelApprover) {
+            if ($levelApprover->resolvesToUsers()->contains('id', $user->id)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
