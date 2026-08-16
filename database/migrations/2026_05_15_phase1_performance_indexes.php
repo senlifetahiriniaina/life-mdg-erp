@@ -68,7 +68,13 @@ return new class extends Migration
         }
 
         // Inventory Module - Product and movement queries
-        if (Schema::hasTable('inventory_products')) {
+        // inventory_products is the SKU-level catalogue and has no
+        // warehouse_id column (a product isn't scoped to one warehouse —
+        // per-warehouse stock lives elsewhere) — this index was silently
+        // dead on arrival (SQLite lets an index reference a nonexistent
+        // column at CREATE time, then fails any later schema-rewriting
+        // ALTER TABLE anywhere in the database on that dangling reference).
+        if (Schema::hasTable('inventory_products') && Schema::hasColumn('inventory_products', 'warehouse_id')) {
             Schema::table('inventory_products', function (Blueprint $table) {
                 if (!Schema::hasIndex('inventory_products', 'idx_products_warehouse_status_sku')) {
                     $table->index(['warehouse_id', 'status', 'sku'], 'idx_products_warehouse_status_sku');

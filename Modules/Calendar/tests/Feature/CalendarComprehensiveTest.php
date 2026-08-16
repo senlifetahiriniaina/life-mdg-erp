@@ -241,6 +241,7 @@ describe('Calendar API - Calendars', function () {
     });
 
     test('unauthenticated user cannot access calendars', function () {
+        \Illuminate\Support\Facades\Auth::forgetGuards();
         $this->getJson('/api/v1/calendar/calendars')
             ->assertUnauthorized();
     });
@@ -256,7 +257,10 @@ describe('Calendar API - Events', function () {
 
     test('can list events', function () {
         $this->actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/calendar/events')
+            ->getJson('/api/v1/calendar/events?' . http_build_query([
+                'start' => now()->subDay()->toDateString(),
+                'end'   => now()->addDay()->toDateString(),
+            ]))
             ->assertOk();
     });
 
@@ -274,7 +278,7 @@ describe('Calendar API - Events', function () {
     test('can update an event via API', function () {
         $event = CalendarEvent::factory()->create([
             'calendar_id' => $this->calendar->id,
-            'user_id'     => $this->user->id,
+            'created_by'  => $this->user->id,
         ]);
 
         $this->actingAs($this->user, 'sanctum')
@@ -287,7 +291,7 @@ describe('Calendar API - Events', function () {
     test('can delete an event via API', function () {
         $event = CalendarEvent::factory()->create([
             'calendar_id' => $this->calendar->id,
-            'user_id'     => $this->user->id,
+            'created_by'  => $this->user->id,
         ]);
 
         $this->actingAs($this->user, 'sanctum')
@@ -317,7 +321,7 @@ describe('Calendar API - Attendees', function () {
         $this->calendar = Calendar::factory()->create(['user_id' => $this->user->id]);
         $this->event    = CalendarEvent::factory()->create([
             'calendar_id' => $this->calendar->id,
-            'user_id'     => $this->user->id,
+            'created_by'  => $this->user->id,
         ]);
     });
 
@@ -354,7 +358,7 @@ describe('Calendar Models', function () {
         $calendar = Calendar::factory()->create(['user_id' => $this->user->id]);
         $event    = CalendarEvent::factory()->create([
             'calendar_id' => $calendar->id,
-            'user_id'     => $this->user->id,
+            'created_by'  => $this->user->id,
         ]);
         expect($event->id)->not->toBeNull();
     });

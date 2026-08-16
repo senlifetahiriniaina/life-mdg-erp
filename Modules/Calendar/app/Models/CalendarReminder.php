@@ -24,12 +24,13 @@ class CalendarReminder extends Model
     protected $table = 'calendar_reminders';
 
     protected $fillable = [
-        'event_id', 'user_id', 'minutes_before', 'method', 'sent_at',
+        'event_id', 'user_id', 'minutes_before', 'method', 'is_sent', 'sent_at',
     ];
 
     protected $casts = [
         'sent_at'        => 'datetime',
         'minutes_before' => 'integer',
+        'is_sent'        => 'boolean',
     ];
 
     public function event(): BelongsTo
