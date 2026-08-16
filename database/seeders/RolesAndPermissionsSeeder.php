@@ -98,6 +98,14 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.consolidation.restore', 'accounting.consolidation.force_delete',
     ];
 
+    // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
+    // delete} (no resource segment), not the settings.setting.*/settings.group.* the
+    // generic MODULES/ACTIONS loop produces for the 'settings' entry below -- same
+    // reasoning as the other _PERMISSIONS constants above.
+    private const SETTINGS_PERMISSIONS = [
+        'settings.view', 'settings.create', 'settings.update', 'settings.delete',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'sales'            => ['order', 'line', 'quotation'],
@@ -155,6 +163,10 @@ class RolesAndPermissionsSeeder extends Seeder
         // Same reasoning as ANALYTICS_PERMISSIONS above, for Accounting's
         // tax_compliance/revenue_recognition/consolidation policies.
         foreach (self::ACCOUNTING_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::SETTINGS_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

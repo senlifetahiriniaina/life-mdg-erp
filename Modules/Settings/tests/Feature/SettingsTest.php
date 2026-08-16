@@ -11,6 +11,9 @@ use Modules\Settings\Services\SettingsService;
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
     $this->user  = User::factory()->create(['company_id' => Company::factory()->create()->id]);
     $this->token = $this->user->createToken('test')->plainTextToken;
 });
@@ -271,13 +274,15 @@ it('stores encrypted type without plain-text in database', function () {
 
 it('tenant A cannot read tenant B settings', function () {
     // Create tenant A user
-    $userA = User::factory()->create(['company_id' => 10]);
+    $companyA = Company::factory()->create();
+    $userA = User::factory()->create(['company_id' => $companyA->id]);
     // Create tenant B user
-    $userB = User::factory()->create(['company_id' => 20]);
+    $companyB = Company::factory()->create();
+    $userB = User::factory()->create(['company_id' => $companyB->id]);
 
     // Create a setting for tenant B
     Setting::withoutGlobalScopes()->create([
-        'tenant_id'  => 20,
+        'tenant_id'  => $companyB->id,
         'module'     => 'crm',
         'key'        => 'secret_config',
         'value'      => 'tenant_b_secret',

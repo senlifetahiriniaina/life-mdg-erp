@@ -11,8 +11,11 @@ class SettingPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('settings.view')
-            || $user->hasRole('admin');
+        // Same permissive-by-default convention as viewAny() across the rest of this
+        // codebase (e.g. StrategyKpiPolicy) -- listing/reading a module's settings is
+        // not itself sensitive; individual non-public settings are still gated by
+        // view()/belongsToTenant() below.
+        return true;
     }
 
     public function view(User $user, Setting $setting): bool
