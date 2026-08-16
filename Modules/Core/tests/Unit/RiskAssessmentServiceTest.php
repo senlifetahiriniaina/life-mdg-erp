@@ -286,17 +286,16 @@ class RiskAssessmentServiceTest extends TestCase
      */
     private function createMockRequest(string $ip)
     {
-        $request = $this->createMock('Illuminate\Http\Request');
-        $request->method('ip')->willReturn($ip);
-        $request->method('userAgent')->willReturn('Mozilla/5.0 Test User Agent');
-        $request->method('server')->willReturnCallback(function ($key) {
-            return match ($key) {
-                'HTTP_ACCEPT_LANGUAGE' => 'en-US,en;q=0.9',
-                'HTTP_ACCEPT_ENCODING' => 'gzip, deflate, br',
-                default => null,
-            };
-        });
-
-        return $request;
+        // Real Request instead of createMock(): Illuminate\Http\Request defines
+        // its own method() (the HTTP verb accessor), which shadows PHPUnit's
+        // fluent ->method() mock configurator for this class — every
+        // $request->method('ip') call returned null and ->willReturn() fataled
+        // before the service under test was ever invoked.
+        return \Illuminate\Http\Request::create('/', 'GET', [], [], [], [
+            'REMOTE_ADDR'          => $ip,
+            'HTTP_USER_AGENT'      => 'Mozilla/5.0 Test User Agent',
+            'HTTP_ACCEPT_LANGUAGE' => 'en-US,en;q=0.9',
+            'HTTP_ACCEPT_ENCODING' => 'gzip, deflate, br',
+        ]);
     }
 }

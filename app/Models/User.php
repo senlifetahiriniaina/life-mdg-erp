@@ -54,11 +54,12 @@ class User extends Authenticatable
         'two_factor_recovery_codes', 'failed_login_attempts', 'locked_until',
         'last_login_at', 'last_login_ip',
         'cookie_consent', 'marketing_consent', 'cookie_consent_at', 'marketing_consent_at',
+        'mfa_method', 'mfa_secret', 'mfa_verified', 'mfa_backup_codes',
     ];
 
     protected $hidden = [
         'password', 'remember_token', 'google2fa_secret',
-        'two_factor_recovery_codes',
+        'two_factor_recovery_codes', 'mfa_secret', 'mfa_backup_codes',
     ];
 
     /**
@@ -79,6 +80,8 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_recovery_codes' => 'encrypted:array',
             'locked_until' => 'datetime',
+            'mfa_verified' => 'boolean',
+            'mfa_backup_codes' => 'encrypted:array',
             'cookie_consent' => 'boolean',
             'marketing_consent' => 'boolean',
             'cookie_consent_at' => 'datetime',
