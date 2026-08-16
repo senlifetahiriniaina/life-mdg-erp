@@ -11,6 +11,12 @@ class TimesheetAdvancedControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAsUser('employee');
+    }
+
     public function test_list_timesheets_returns_ok(): void
     {
         $response = $this->getJson('/api/v1/timesheets');
@@ -20,7 +26,7 @@ class TimesheetAdvancedControllerTest extends TestCase
     public function test_log_hours_validates_required_fields(): void
     {
         $response = $this->postJson('/api/v1/timesheets', []);
-        $response->assertStatus(422)->assertJsonValidationErrors(['employee_id', 'date', 'hours_logged']);
+        $response->assertStatus(422)->assertJsonValidationErrors(['employee_id', 'work_date', 'hours_logged']);
     }
 
     public function test_utilization_returns_ok(): void
