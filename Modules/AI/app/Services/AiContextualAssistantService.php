@@ -227,7 +227,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -1109,8 +1109,7 @@ PROMPT;
                 'how_to_do'           => [
                     'Vérifiez le composant reçu par rapport au bon de commande (quantité, référence, état).',
                     'Consultez la checklist ISO générée pour ce composant.',
-                    'Enregistrez le résultat du contrôle (conforme / non-conforme).',
-                    'Si conforme, marquez le composant "Disponible". Si non-conforme, déclenchez le retour fournisseur.',
+                    'Enregistrez le résultat du contrôle (conforme / non-conforme) : si conforme, marquez le composant "Disponible" ; si non-conforme, déclenchez le retour fournisseur.',
                 ],
                 'decision_indicators' => [
                     ['label' => 'Contrôles en attente', 'value' => '—', 'status' => 'warning'],
@@ -2144,7 +2143,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -3026,8 +3025,7 @@ PROMPT;
                 'how_to_do'           => [
                     'Check the ISO-generated checklist for this component.',
                     'Verify the received component against the purchase order (qty, reference, condition).',
-                    'Record the inspection result (pass / fail) and any observations.',
-                    'If passed, mark the component as Available. If failed, trigger supplier return.',
+                    'Record the inspection result (pass / fail): if passed, mark the component as Available; if failed, trigger supplier return.',
                 ],
                 'decision_indicators' => [
                     ['label' => 'Pending checks', 'value' => '—', 'status' => 'warning'],
@@ -4071,7 +4069,21 @@ PROMPT;
             'warnings'            => [],
             'next_actions'        => [],
             'tips'                => [],
+        ];
+    }
 
+    /**
+     * Fallback guidance written for modules added to supportedModules() but
+     * never merged into frenchMap()/englishMap() -- they previously sat as
+     * dead extra keys inside emptyGuidance(), never reached by the
+     * frenchMap()/englishMap() lookup in fallbackGuidance(), and leaking
+     * into every single fallback response as extra array keys.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapPhase52(): array
+    {
+        return [
             // ─── SMS ───────────────────────────────────────────────────────
             'SMS.view_dashboard' => [
                 'enabled'             => true,
@@ -4223,6 +4235,448 @@ PROMPT;
                 'how_to_do'           => [
                     'Les préférences partagées s\'appliquent à tous les modules.',
                     'Consultez les helpers et composants disponibles pour votre équipe.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+
+            'SMS.configure_provider' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Configurez le fournisseur SMS à utiliser pour vos envois.',
+                'how_to_do'           => [
+                    'Choisissez un fournisseur régional (Orange, MTN, Airtel) selon votre marché.',
+                    'Renseignez la clé API et le sender ID fournis par l\'opérateur.',
+                    'Envoyez un SMS de test avant d\'activer le fournisseur en production.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Un sender ID non validé par l\'opérateur peut bloquer tous les envois.'],
+                'next_actions'        => [
+                    ['label' => 'Voir tableau de bord', 'action' => 'view_dashboard', 'module' => 'SMS'],
+                ],
+                'tips'                => [],
+            ],
+            'Payroll.approve_payroll' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Validez la paie générée avant versement des salaires.',
+                'how_to_do'           => [
+                    'Vérifiez le total de la masse salariale par rapport au budget.',
+                    'Contrôlez les anomalies signalées (écarts, doublons).',
+                    'Approuvez pour déclencher le versement et l\'écriture comptable.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Une fois approuvée, la paie ne peut plus être modifiée pour cette période.'],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Payroll.export_payroll' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Exportez les données de paie pour la déclaration ou l\'archivage.',
+                'how_to_do'           => [
+                    'Sélectionnez la période et le format (CSV, PDF, déclaration CNSS).',
+                    'Vérifiez que la paie a bien été approuvée avant export.',
+                    'Téléchargez le fichier ou envoyez-le directement à l\'organisme concerné.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Notes.create_note' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Créez une nouvelle note ou page wiki.',
+                'how_to_do'           => [
+                    'Choisissez l\'espace de travail et donnez un titre clair.',
+                    'Rédigez le contenu avec titres, listes et blocs de code si besoin.',
+                    'Partagez la note avec votre équipe ou gardez-la privée.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Rechercher', 'action' => 'search_notes', 'module' => 'Notes'],
+                ],
+                'tips'                => [],
+            ],
+            'Notes.search_notes' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Recherchez une note ou une page wiki existante.',
+                'how_to_do'           => [
+                    'Utilisez des mots-clés du titre ou du contenu.',
+                    'Filtrez par espace de travail ou par auteur si besoin.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'SmartTable.create_base' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Créez une nouvelle base de données métier.',
+                'how_to_do'           => [
+                    'Partez d\'un modèle (CRM, Inventaire, OKR…) ou d\'une base vide.',
+                    'Ajoutez des colonnes typées et définissez les relations entre tables.',
+                    'Partagez la base avec votre équipe.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Gérer la table', 'action' => 'manage_table', 'module' => 'SmartTable'],
+                ],
+                'tips'                => [],
+            ],
+            'SmartTable.manage_table' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Gérez la structure et les permissions d\'une base existante.',
+                'how_to_do'           => [
+                    'Ajoutez, renommez ou supprimez des colonnes selon vos besoins.',
+                    'Définissez les permissions de lecture/écriture par membre d\'équipe.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Supprimer une colonne efface définitivement les données associées.'],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'AuditLog.export_audit' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Exportez le journal d\'audit pour un contrôle réglementaire.',
+                'how_to_do'           => [
+                    'Filtrez par module, utilisateur ou plage de dates.',
+                    'Choisissez le format d\'export (CSV ou PDF).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'AuditLog.filter_events' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Filtrez les événements du journal d\'audit.',
+                'how_to_do'           => [
+                    'Combinez les filtres module, utilisateur, action et date.',
+                    'Enregistrez un filtre fréquent pour y accéder rapidement.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Exporter', 'action' => 'export_audit', 'module' => 'AuditLog'],
+                ],
+                'tips'                => [],
+            ],
+            'Settings.manage_integrations' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Gérez les intégrations tierces connectées à l\'ERP.',
+                'how_to_do'           => [
+                    'Activez ou désactivez une intégration depuis la liste disponible.',
+                    'Renseignez les clés API requises par chaque fournisseur.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Désactiver une intégration active peut interrompre des synchronisations en cours.'],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Settings.notification_preferences' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Définissez les préférences de notification par rôle.',
+                'how_to_do'           => [
+                    'Choisissez les canaux (email, in-app) par type d\'événement.',
+                    'Ajustez les préférences par rôle ou par utilisateur.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapPhase52(): array
+    {
+        return [
+            'SMS.view_dashboard' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Manage your SMS campaigns and delivery status.',
+                'how_to_do'           => [
+                    'Check the dashboard for delivery rate and costs.',
+                    'Create a campaign by selecting recipients from CRM.',
+                    'Choose the provider (Orange/MTN/Airtel) based on the target region.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Delivery rate', 'value' => '—', 'status' => 'ok'],
+                    ['label' => 'Messages sent', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => ['Check GDPR opt-outs before each campaign.'],
+                'next_actions'        => [
+                    ['label' => 'New campaign', 'action' => 'send_campaign', 'module' => 'SMS'],
+                    ['label' => 'Configure provider', 'action' => 'configure_provider', 'module' => 'SMS'],
+                ],
+                'tips'                => ['SMS in XOF via Orange SN has the best delivery rate (99%).'],
+            ],
+            'SMS.send_campaign' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Send an SMS campaign to your target audience.',
+                'how_to_do'           => [
+                    'Select or import the recipient list (CRM / CSV).',
+                    'Write the message (max 160 characters per SMS credit).',
+                    'Schedule the send time to maximize open rate.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Comply with UEMOA regulations on commercial messages.'],
+                'next_actions'        => [
+                    ['label' => 'View results', 'action' => 'view_dashboard', 'module' => 'SMS'],
+                ],
+                'tips'                => ['Average SMS open rate: 98% within 3 minutes.'],
+            ],
+            'SMS.configure_provider' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Configure the SMS provider used for your campaigns.',
+                'how_to_do'           => [
+                    'Choose a regional provider (Orange, MTN, Airtel) based on your market.',
+                    'Enter the API key and sender ID provided by the operator.',
+                    'Send a test SMS before enabling the provider in production.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['A sender ID not approved by the operator can block all sends.'],
+                'next_actions'        => [
+                    ['label' => 'View dashboard', 'action' => 'view_dashboard', 'module' => 'SMS'],
+                ],
+                'tips'                => [],
+            ],
+            'Payroll.view_dashboard' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Oversee this month\'s payroll and payslip status.',
+                'how_to_do'           => [
+                    'Verify all active employees are included for the period.',
+                    'Review adjustments (leave, absences, overtime).',
+                    'Generate payslips then submit for approval.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Payslips generated', 'value' => '—', 'status' => 'ok'],
+                    ['label' => 'Pending approval', 'value' => '—', 'status' => 'warning'],
+                    ['label' => 'Total payroll', 'value' => '— XOF', 'status' => 'ok'],
+                ],
+                'warnings'            => ['OHADA payroll must be paid by the last business day of the month.'],
+                'next_actions'        => [
+                    ['label' => 'Generate payslips', 'action' => 'generate_payslips', 'module' => 'Payroll'],
+                    ['label' => 'Approve payroll', 'action' => 'approve_payroll', 'module' => 'Payroll'],
+                ],
+                'tips'                => ['Enable AI anomaly detection (variances > 15% vs previous month).'],
+            ],
+            'Payroll.generate_payslips' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Generate payslips for the selected period.',
+                'how_to_do'           => [
+                    'Select the period (YYYY-MM).',
+                    'Check tax rules (CNSS, IRPP, TRIMF) for the country.',
+                    'Run the calculation — payslips move to "Draft" status.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Verify CNSS contributions before validation (2026 Senegal rate: 14%).'],
+                'next_actions'        => [
+                    ['label' => 'Approve', 'action' => 'approve_payroll', 'module' => 'Payroll'],
+                ],
+                'tips'                => [],
+            ],
+            'Payroll.approve_payroll' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Approve the generated payroll before disbursement.',
+                'how_to_do'           => [
+                    'Verify the total payroll amount against budget.',
+                    'Review flagged anomalies (variances, duplicates).',
+                    'Approve to trigger disbursement and the accounting entry.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Once approved, payroll can no longer be modified for this period.'],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Payroll.export_payroll' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Export payroll data for filing or archiving.',
+                'how_to_do'           => [
+                    'Select the period and format (CSV, PDF, CNSS filing).',
+                    'Verify payroll has been approved before exporting.',
+                    'Download the file or send it directly to the relevant authority.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Notes.view_notes' => [
+                'enabled'             => true,
+                'what_to_do'          => 'View and organize your notes and shared wiki pages.',
+                'how_to_do'           => [
+                    'Browse pages by workspace or use search.',
+                    'Private notes are only visible to their author.',
+                    'Create structured pages with headings, lists, and code blocks.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Create note', 'action' => 'create_note', 'module' => 'Notes'],
+                    ['label' => 'Search', 'action' => 'search_notes', 'module' => 'Notes'],
+                ],
+                'tips'                => ['Tag your notes with ERP modules to find them quickly.'],
+            ],
+            'Notes.create_note' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Create a new note or wiki page.',
+                'how_to_do'           => [
+                    'Choose the workspace and give it a clear title.',
+                    'Write the content with headings, lists, and code blocks as needed.',
+                    'Share the note with your team or keep it private.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Search', 'action' => 'search_notes', 'module' => 'Notes'],
+                ],
+                'tips'                => [],
+            ],
+            'Notes.search_notes' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Search for an existing note or wiki page.',
+                'how_to_do'           => [
+                    'Use keywords from the title or content.',
+                    'Filter by workspace or author if needed.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'SmartTable.view_dashboard' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Manage your Airtable-style no-code business databases.',
+                'how_to_do'           => [
+                    'Create a base from a template (CRM, Inventory, OKR…) or from scratch.',
+                    'Add typed columns (text, date, list, relation).',
+                    'Share the base with your team and filter/sort the data.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'New base', 'action' => 'create_base', 'module' => 'SmartTable'],
+                ],
+                'tips'                => ['Sync your SmartTables with CRM to build custom views.'],
+            ],
+            'SmartTable.create_base' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Create a new business database.',
+                'how_to_do'           => [
+                    'Start from a template (CRM, Inventory, OKR…) or an empty base.',
+                    'Add typed columns and define relations between tables.',
+                    'Share the base with your team.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Manage table', 'action' => 'manage_table', 'module' => 'SmartTable'],
+                ],
+                'tips'                => [],
+            ],
+            'SmartTable.manage_table' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Manage the structure and permissions of an existing base.',
+                'how_to_do'           => [
+                    'Add, rename, or remove columns as needed.',
+                    'Set read/write permissions per team member.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Deleting a column permanently erases its associated data.'],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'AuditLog.view_audit_log' => [
+                'enabled'             => true,
+                'what_to_do'          => 'View the audit log for traceability and GDPR compliance.',
+                'how_to_do'           => [
+                    'Filter by module, user, action, or date range.',
+                    'Export the log as CSV or PDF for regulatory audits.',
+                    'Configure alerts for sensitive actions (DELETE, PERMISSION_CHANGE).',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Critical events', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => ['Retain audit logs for at least 5 years (PDPL/GDPR requirement).'],
+                'next_actions'        => [
+                    ['label' => 'Export CSV', 'action' => 'export_audit', 'module' => 'AuditLog'],
+                ],
+                'tips'                => ['Enable real-time alerts for logins outside business hours.'],
+            ],
+            'AuditLog.export_audit' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Export the audit log for a regulatory review.',
+                'how_to_do'           => [
+                    'Filter by module, user, or date range.',
+                    'Choose the export format (CSV or PDF).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'AuditLog.filter_events' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Filter events in the audit log.',
+                'how_to_do'           => [
+                    'Combine module, user, action, and date filters.',
+                    'Save a frequent filter for quick access.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Export', 'action' => 'export_audit', 'module' => 'AuditLog'],
+                ],
+                'tips'                => [],
+            ],
+            'Settings.configure_settings' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Configure your company\'s global settings.',
+                'how_to_do'           => [
+                    'Fill in company information (name, currency, timezone).',
+                    'Configure active modules and third-party integrations.',
+                    'Set notification preferences per role.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Any currency change affects in-progress OHADA reports.'],
+                'next_actions'        => [
+                    ['label' => 'Manage integrations', 'action' => 'manage_integrations', 'module' => 'Settings'],
+                ],
+                'tips'                => ['Enable 2FA for all admin roles.'],
+            ],
+            'Settings.manage_integrations' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Manage third-party integrations connected to the ERP.',
+                'how_to_do'           => [
+                    'Enable or disable an integration from the available list.',
+                    'Enter the API keys required by each provider.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => ['Disabling an active integration can interrupt ongoing syncs.'],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Settings.notification_preferences' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Set notification preferences per role.',
+                'how_to_do'           => [
+                    'Choose channels (email, in-app) per event type.',
+                    'Adjust preferences per role or per user.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Shared.view_dashboard' => [
+                'enabled'             => true,
+                'what_to_do'          => 'Access shared resources and common utilities.',
+                'how_to_do'           => [
+                    'Shared preferences apply to all modules.',
+                    'Check the helpers and components available to your team.',
                 ],
                 'decision_indicators' => [],
                 'warnings'            => [],

@@ -75,7 +75,7 @@ test('supportedModules returns array with 7 modules', function () {
     $service  = new AiContextualAssistantService();
     $modules  = $service->supportedModules();
 
-    expect($modules)->toBeArray()->toHaveCount(7);
+    expect($modules)->toBeArray()->toHaveCount(33);
     expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup');
 });
 

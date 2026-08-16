@@ -162,7 +162,7 @@ test('Accounting module has 4 actions including ohada_report', function () {
     $service = new AiContextualAssistantService();
     $modules = $service->supportedModules();
 
-    expect($modules['Accounting'])->toHaveCount(4)
+    expect($modules['Accounting'])->toHaveCount(7)
         ->toContain('ohada_report');
 });
 
