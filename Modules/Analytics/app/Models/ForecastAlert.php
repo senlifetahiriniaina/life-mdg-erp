@@ -2,60 +2,53 @@
 
 namespace Modules\Analytics\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 class ForecastAlert extends Model
 {
     use HasFactory;
 
     protected $table = 'forecast_alerts';
 
-    public $timestamps = false;
-
     protected $fillable = [
-        'tenant_id',
-        'model_id',
+        'forecast_model_id',
         'alert_type',
         'severity',
-        'title',
         'message',
-        'predicted_date',
-        'predicted_value',
-        'threshold_value',
-        'is_acknowledged',
-        'acknowledged_by',
-        'acknowledged_at',
+        'context',
+        'status',
+        'triggered_at',
+        'resolved_at',
     ];
 
     protected $casts = [
-        'predicted_date'   => 'date',
-        'predicted_value'  => 'decimal:4',
-        'threshold_value'  => 'decimal:4',
-        'is_acknowledged'  => 'boolean',
-        'acknowledged_at'  => 'datetime',
-        'created_at'       => 'datetime',
+        'context'      => 'array',
+        'triggered_at' => 'datetime',
+        'resolved_at'  => 'datetime',
+        'created_at'   => 'datetime',
     ];
 
     // ─── Relations ────────────────────────────────────────────────
 
     public function forecastModel(): BelongsTo
     {
-        return $this->belongsTo(ForecastModel::class, 'model_id');
+        return $this->belongsTo(ForecastModel::class, 'forecast_model_id');
     }
 
     // ─── Actions ──────────────────────────────────────────────────
 
     /**
      * Accuse réception de l'alerte par un utilisateur donné.
+     * No dedicated acknowledged_by column exists — recorded in context.
      */
     public function acknowledge(int $userId): void
     {
         $this->update([
-            'is_acknowledged' => true,
-            'acknowledged_by' => $userId,
-            'acknowledged_at' => now(),
+            'status'      => 'acknowledged',
+            'resolved_at' => now(),
+            'context'     => array_merge($this->context ?? [], ['acknowledged_by' => $userId]),
         ]);
     }
 
@@ -63,7 +56,7 @@ class ForecastAlert extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('is_acknowledged', false);
+        return $query->where('status', 'active');
     }
 
     public function scopeCritical($query)
@@ -71,8 +64,12 @@ class ForecastAlert extends Model
         return $query->where('severity', 'critical');
     }
 
+    /**
+     * forecast_alerts has no tenant_id column — scoped through its
+     * forecast_model_id, which does belong to a tenant.
+     */
     public function scopeForTenant($query, int $tenantId)
     {
-        return $query->where('tenant_id', $tenantId);
+        return $query->whereHas('forecastModel', fn ($q) => $q->where('tenant_id', $tenantId));
     }
 }

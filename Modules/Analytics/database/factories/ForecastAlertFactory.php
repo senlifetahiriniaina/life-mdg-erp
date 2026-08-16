@@ -16,16 +16,16 @@ class ForecastAlertFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => fake()->numberBetween(1, 100),
-            'model_id' => ForecastModel::factory(),
+            'forecast_model_id' => ForecastModel::factory(),
             'alert_type' => fake()->randomElement(['stockout_risk', 'cashflow_deficit', 'above_threshold']),
             'severity' => fake()->randomElement(['info', 'warning', 'critical']),
-            'title' => fake()->sentence(4),
             'message' => fake()->sentence(),
-            'predicted_date' => fake()->date(),
-            'predicted_value' => fake()->randomFloat(4, 0, 100000),
-            'threshold_value' => fake()->randomFloat(4, 0, 100000),
-            'is_acknowledged' => fake()->boolean(),
+            'context' => [
+                'predicted_value' => fake()->randomFloat(4, 0, 100000),
+                'threshold_value' => fake()->randomFloat(4, 0, 100000),
+            ],
+            'status' => 'active',
+            'triggered_at' => fake()->dateTime(),
         ];
     }
 

@@ -12,16 +12,13 @@ class ForecastScenario extends Model
 
     protected $table = 'forecast_scenarios';
 
-    public $timestamps = false;
-
     protected $fillable = [
-        'tenant_id',
+        'forecast_model_id',
         'name',
         'description',
-        'base_model_id',
         'assumptions',
         'results',
-        'created_by',
+        'status',
     ];
 
     protected $casts = [
@@ -32,9 +29,9 @@ class ForecastScenario extends Model
 
     // ─── Relations ────────────────────────────────────────────────
 
-    public function baseModel(): BelongsTo
+    public function forecastModel(): BelongsTo
     {
-        return $this->belongsTo(ForecastModel::class, 'base_model_id');
+        return $this->belongsTo(ForecastModel::class, 'forecast_model_id');
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
@@ -49,8 +46,12 @@ class ForecastScenario extends Model
         return (float) array_sum(array_column($predictions, 'value'));
     }
 
+    /**
+     * forecast_scenarios has no tenant_id column — scoped through its
+     * forecast_model_id, which does belong to a tenant.
+     */
     public function scopeForTenant($query, int $tenantId)
     {
-        return $query->where('tenant_id', $tenantId);
+        return $query->whereHas('forecastModel', fn ($q) => $q->where('tenant_id', $tenantId));
     }
 }

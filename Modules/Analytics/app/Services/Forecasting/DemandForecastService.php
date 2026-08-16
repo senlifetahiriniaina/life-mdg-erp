@@ -61,12 +61,12 @@ class DemandForecastService
     {
         // Agréger les ventes par catégorie
         $rows = DB::table('sales_order_lines as sol')
-            ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
-            ->join('products as p', 'p.id', '=', 'sol.product_id')
-            ->selectRaw('DATE(so.ordered_at) as date, SUM(sol.quantity) as value')
+            ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+            ->join('inventory_products as p', 'p.id', '=', 'sol.product_id')
+            ->selectRaw('DATE(so.created_at) as date, SUM(sol.quantity) as value')
             ->where('so.tenant_id', $tenantId)
             ->where('p.category', $category)
-            ->where('so.ordered_at', '>=', now()->subYear())
+            ->where('so.created_at', '>=', now()->subYear())
             ->groupBy('date')
             ->orderBy('date')
             ->get()
@@ -77,12 +77,12 @@ class DemandForecastService
 
         // Top 5 produits de la catégorie
         $topProducts = DB::table('sales_order_lines as sol')
-            ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
-            ->join('products as p', 'p.id', '=', 'sol.product_id')
+            ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+            ->join('inventory_products as p', 'p.id', '=', 'sol.product_id')
             ->selectRaw('sol.product_id, p.name, SUM(sol.quantity) as total_qty')
             ->where('so.tenant_id', $tenantId)
             ->where('p.category', $category)
-            ->where('so.ordered_at', '>=', now()->subMonths(3))
+            ->where('so.created_at', '>=', now()->subMonths(3))
             ->groupBy('sol.product_id', 'p.name')
             ->orderByDesc('total_qty')
             ->limit(5)
@@ -104,10 +104,10 @@ class DemandForecastService
      */
     public function suggestReorderPoints(int $tenantId): array
     {
-        $products = DB::table('products')
+        $products = DB::table('inventory_products')
             ->where('tenant_id', $tenantId)
             ->where('is_active', true)
-            ->select('id', 'name', 'reorder_point', 'lead_time_days')
+            ->select('id', 'name', 'reorder_point')
             ->limit(100)
             ->get();
 

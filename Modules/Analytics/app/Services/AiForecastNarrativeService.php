@@ -51,7 +51,10 @@ class AiForecastNarrativeService
         string $locale         = 'fr',
         string $context        = '',
     ): array {
-        $apiKey = config('services.anthropic.key');
+        // Same config path as Modules\Core\Services\AI\AnthropicProvider — the
+        // provider registry's canonical location, not config/services.php
+        // (which has no 'anthropic' entry in this repo).
+        $apiKey = config('ai.providers.anthropic.api_key');
 
         if (empty($apiKey)) {
             return $this->getFallbackNarrative($module, $locale);

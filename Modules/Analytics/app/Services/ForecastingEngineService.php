@@ -52,11 +52,11 @@ class ForecastingEngineService
     {
         // Requête sur sales_order_lines groupée par date
         $rows = DB::table('sales_order_lines as sol')
-            ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
-            ->selectRaw('DATE(so.ordered_at) as date, SUM(sol.quantity) as value')
+            ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+            ->selectRaw('DATE(so.created_at) as date, SUM(sol.quantity) as value')
             ->where('so.tenant_id', $tenantId)
             ->when($entityType === 'product', fn ($q) => $q->where('sol.product_id', $entityId))
-            ->where('so.ordered_at', '>=', now()->subYear())
+            ->where('so.created_at', '>=', now()->subYear())
             ->groupBy('date')
             ->orderBy('date')
             ->get();
@@ -79,15 +79,15 @@ class ForecastingEngineService
 
     private function collectHrData(string $entityType, int $entityId, int $tenantId): array
     {
-        $rows = DB::table('employees')
-            ->selectRaw('DATE_FORMAT(hire_date, \'%Y-%m-01\') as date, COUNT(*) as value')
-            ->where('tenant_id', $tenantId)
+        // hr_employees has no tenant_id (single-tenant deployment); grouped
+        // in PHP rather than DATE_FORMAT() (MySQL-only, unavailable on SQLite).
+        return DB::table('hr_employees')
             ->where('status', 'active')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-
-        return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
+            ->pluck('hire_date')
+            ->groupBy(fn ($date) => \Carbon\Carbon::parse($date)->startOfMonth()->toDateString())
+            ->map(fn ($rows, $date) => ['date' => $date, 'value' => (float) count($rows)])
+            ->values()
+            ->toArray();
     }
 
     private function collectProductionData(int $tenantId): array
@@ -107,10 +107,10 @@ class ForecastingEngineService
     private function collectRevenueData(int $tenantId): array
     {
         $rows = DB::table('sales_orders')
-            ->selectRaw('DATE(ordered_at) as date, SUM(total_amount) as value')
+            ->selectRaw('DATE(created_at) as date, SUM(total) as value')
             ->where('tenant_id', $tenantId)
             ->where('status', 'confirmed')
-            ->where('ordered_at', '>=', now()->subYear())
+            ->where('created_at', '>=', now()->subYear())
             ->groupBy('date')
             ->orderBy('date')
             ->get();
@@ -543,14 +543,14 @@ USER;
         return match ($model->module) {
             'revenue' => DB::table('sales_orders')
                 ->where('tenant_id', $prediction->tenant_id)
-                ->whereDate('ordered_at', $date)
+                ->whereDate('created_at', $date)
                 ->where('status', 'confirmed')
-                ->sum('total_amount'),
+                ->sum('total'),
 
             'demand' => DB::table('sales_order_lines as sol')
-                ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
+                ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
                 ->where('so.tenant_id', $prediction->tenant_id)
-                ->whereDate('so.ordered_at', $date)
+                ->whereDate('so.created_at', $date)
                 ->when($model->entity_id, fn ($q) => $q->where('sol.product_id', $model->entity_id))
                 ->sum('sol.quantity'),
 
@@ -649,17 +649,25 @@ USER;
     private function createAlert(ForecastModel $model, array $data): void
     {
         // Éviter les doublons : une alerte par type et par modèle dans les 24 h
-        $exists = ForecastAlert::where('model_id', $model->id)
+        $exists = ForecastAlert::where('forecast_model_id', $model->id)
             ->where('alert_type', $data['alert_type'])
-            ->where('is_acknowledged', false)
+            ->where('status', 'active')
             ->where('created_at', '>=', now()->subDay())
             ->exists();
 
         if (! $exists) {
-            ForecastAlert::create(array_merge($data, [
-                'tenant_id' => $model->tenant_id,
-                'model_id'  => $model->id,
-            ]));
+            // forecast_alerts has no title/predicted_value/threshold_value/
+            // predicted_date columns — anything beyond alert_type/severity/
+            // message goes into the context JSON blob.
+            ForecastAlert::create([
+                'forecast_model_id' => $model->id,
+                'alert_type'        => $data['alert_type'],
+                'severity'          => $data['severity'],
+                'message'           => $data['message'],
+                'context'           => array_diff_key($data, array_flip(['alert_type', 'severity', 'message'])),
+                'status'            => 'active',
+                'triggered_at'      => now(),
+            ]);
         }
     }
 
@@ -683,12 +691,11 @@ USER;
         $predictions  = $this->runAlgorithm($model, $modifiedData, $model->horizon_days);
 
         return ForecastScenario::create([
-            'tenant_id'     => $model->tenant_id,
-            'name'          => $name,
-            'base_model_id' => $modelId,
-            'assumptions'   => $assumptions,
-            'results'       => ['predictions' => $predictions],
-            'created_by'    => auth()->id(),
+            'forecast_model_id' => $modelId,
+            'name'              => $name,
+            'assumptions'       => $assumptions,
+            'results'           => ['predictions' => $predictions],
+            'status'            => 'draft',
         ]);
     }
 

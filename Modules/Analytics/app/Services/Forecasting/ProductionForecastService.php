@@ -189,10 +189,10 @@ class ProductionForecastService
     private function getDemandForecast(int $tenantId, int $days): array
     {
         $history = DB::table('sales_order_lines as sol')
-            ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
-            ->selectRaw('DATE(so.ordered_at) as date, SUM(sol.quantity) as value')
+            ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+            ->selectRaw('DATE(so.created_at) as date, SUM(sol.quantity) as value')
             ->where('so.tenant_id', $tenantId)
-            ->where('so.ordered_at', '>=', now()->subYear())
+            ->where('so.created_at', '>=', now()->subYear())
             ->groupBy('date')
             ->orderBy('date')
             ->get()

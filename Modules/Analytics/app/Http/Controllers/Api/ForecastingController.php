@@ -186,7 +186,7 @@ class ForecastingController extends Controller
     {
         $tenantId  = $this->tenantId($request);
         $scenarios = ForecastScenario::forTenant($tenantId)
-            ->with('baseModel:id,name,module')
+            ->with('forecastModel:id,name,module')
             ->orderByDesc('created_at')
             ->paginate(20);
 

@@ -152,20 +152,22 @@ class CashflowForecastService
      */
     public function getOhadaProjection(int $tenantId): array
     {
-        // Soldes actuels des comptes de trésorerie OHADA (Cl.5)
-        $accounts = DB::table('chart_of_accounts')
-            ->where('tenant_id', $tenantId)
-            ->where('account_code', 'like', '5%')
-            ->select('account_code', 'account_name', 'balance')
-            ->orderBy('account_code')
+        // acc_chart_of_accounts is the OHADA account-plan definition
+        // (code/name/type), not a ledger with balances — a real Classe 5
+        // balance needs journal-entry aggregation (see getCurrentBalance()).
+        // Lists the Classe 5 accounts themselves; balance defaults to 0
+        // rather than a column that was never defined.
+        $accounts = DB::table('acc_chart_of_accounts')
+            ->where('code', 'like', '5%')
+            ->select('code as account_code', 'name as account_name')
+            ->orderBy('code')
             ->get()
+            ->map(fn ($a) => ['account_code' => $a->account_code, 'account_name' => $a->account_name, 'balance' => 0.0])
             ->toArray();
-
-        $total = array_sum(array_column((array) $accounts, 'balance'));
 
         return [
             'classe5'  => $accounts,
-            'total'    => round((float) $total, 2),
+            'total'    => 0.0,
             'currency' => $this->getTenantCurrency($tenantId),
             'label'    => 'Trésorerie OHADA (Classe 5)',
         ];
@@ -175,18 +177,23 @@ class CashflowForecastService
 
     private function getCurrentBalance(int $tenantId): float
     {
-        return (float) DB::table('chart_of_accounts')
-            ->where('tenant_id', $tenantId)
-            ->where('account_code', 'like', '5%')
-            ->sum('balance');
+        // acc_chart_of_accounts is the OHADA account-plan definition
+        // (code/name/type) — it has no tenant_id and no balance column.
+        // Deriving a real Classe 5 balance needs journal-entry aggregation
+        // (GLEntry), which CLAUDE.md already tracks as incomplete backlog
+        // for this Accounting module. Degrades to 0 rather than querying a
+        // column that was never defined.
+        return 0.0;
     }
 
     private function getExpectedInflows(int $tenantId, int $days): array
     {
-        $rows = DB::table('invoices')
-            ->where('tenant_id', $tenantId)
-            ->where('type', 'sale')
-            ->where('status', 'sent')
+        // acc_invoices has no tenant_id (single-tenant deployment); type is
+        // invoice|bill|credit_note and status is draft|posted|paid|cancelled
+        // (not the sale/purchase/sent/received values this used to filter on).
+        $rows = DB::table('acc_invoices')
+            ->where('type', 'invoice')
+            ->where('status', 'posted')
             ->whereDate('due_date', '<=', now()->addDays($days))
             ->selectRaw('DATE(due_date) as date, SUM(amount_due) as amount')
             ->groupBy('date')
@@ -197,10 +204,9 @@ class CashflowForecastService
 
     private function getExpectedOutflows(int $tenantId, int $days): array
     {
-        $rows = DB::table('invoices')
-            ->where('tenant_id', $tenantId)
-            ->where('type', 'purchase')
-            ->where('status', 'received')
+        $rows = DB::table('acc_invoices')
+            ->where('type', 'bill')
+            ->where('status', 'posted')
             ->whereDate('due_date', '<=', now()->addDays($days))
             ->selectRaw('DATE(due_date) as date, SUM(amount_due) as amount')
             ->groupBy('date')
@@ -214,11 +220,15 @@ class CashflowForecastService
         // Charges récurrentes : salaires (fin de mois), loyers (1er du mois)
         $outflows = [];
 
-        // Masse salariale mensuelle
-        $payroll = (float) DB::table('employees')
-            ->where('tenant_id', $tenantId)
-            ->where('status', 'active')
-            ->sum('base_salary');
+        // Masse salariale mensuelle (hr_employees has no tenant_id — single-tenant
+        // deployment — and no base_salary column; the real source is
+        // hr_employee_compensation, same as HrForecastService::getCurrentSalary()).
+        $employeeIds = DB::table('hr_employees')->where('status', 'active')->pluck('id');
+        $payroll     = (float) $employeeIds->sum(
+            fn ($id) => (float) (\Modules\HR\Models\EmployeeCompensation::where('employee_id', $id)
+                ->orderByDesc('effective_date')
+                ->value('base_salary') ?? 0.0)
+        );
 
         // Dernier jour du mois = paiement des salaires
         for ($i = 1; $i <= $days; $i++) {
@@ -233,14 +243,12 @@ class CashflowForecastService
 
     private function estimateDailyInflow(int $tenantId): float
     {
-        // Moyenne des entrées quotidiennes sur les 30 derniers jours
-        $avg = DB::table('accounting_transactions')
-            ->where('tenant_id', $tenantId)
-            ->where('type', 'income')
-            ->where('transaction_date', '>=', now()->subDays(30))
-            ->avg('amount');
-
-        return (float) ($avg ?? 0);
+        // accounting_transactions does not exist in this schema (invoicing
+        // is tracked via acc_invoices, already used in getExpectedInflows()).
+        // Falls back to 0 for dates with no invoice due, same "no data"
+        // degrade used elsewhere in this service rather than querying a
+        // table that was never created.
+        return 0.0;
     }
 
     private function getTenantCurrency(int $tenantId): string

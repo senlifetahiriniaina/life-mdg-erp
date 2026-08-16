@@ -4,6 +4,7 @@ namespace Modules\Analytics\Services\Forecasting;
 
 use Illuminate\Support\Facades\DB;
 use Modules\Analytics\Services\ForecastingEngineService;
+use Modules\HR\Models\EmployeeCompensation;
 
 /**
  * Service de prévision des ressources humaines.
@@ -57,10 +58,9 @@ class HrForecastService
      */
     public function predictTurnoverRisk(int $tenantId): array
     {
-        $employees = DB::table('employees')
-            ->where('tenant_id', $tenantId)
+        $employees = DB::table('hr_employees')
             ->where('status', 'active')
-            ->select('id', 'name', 'hire_date', 'base_salary', 'department_id', 'manager_id')
+            ->select('id', 'full_name', 'hire_date', 'department_id', 'manager_id')
             ->get();
 
         $marketSalary = $this->getMarketSalaryBenchmark($tenantId);
@@ -81,7 +81,7 @@ class HrForecastService
             }
 
             // Facteur 2 : salaire vs marché
-            $salary   = (float) $employee->base_salary;
+            $salary   = $this->getCurrentSalary($employee->id);
             $market   = (float) ($marketSalary[$employee->department_id] ?? $salary);
             $gap      = $market > 0 ? ($market - $salary) / $market : 0;
             if ($gap > 0.20) {
@@ -111,7 +111,7 @@ class HrForecastService
 
             $results[] = [
                 'employee_id'          => $employee->id,
-                'employee_name'        => $employee->name,
+                'employee_name'        => $employee->full_name,
                 'risk_score'           => round($score, 2),
                 'risk_level'           => $level,
                 'risk_factors'         => $factors,
@@ -131,10 +131,8 @@ class HrForecastService
      */
     public function forecastPayrollCost(int $tenantId, int $months = 6): array
     {
-        $totalBase    = (float) DB::table('employees')
-            ->where('tenant_id', $tenantId)
-            ->where('status', 'active')
-            ->sum('base_salary');
+        $employeeIds = DB::table('hr_employees')->where('status', 'active')->pluck('id');
+        $totalBase   = (float) $employeeIds->sum(fn ($id) => $this->getCurrentSalary($id));
 
         $result = [];
         for ($i = 1; $i <= $months; $i++) {
@@ -166,16 +164,14 @@ class HrForecastService
      */
     public function forecastLeaveDemand(int $tenantId): array
     {
-        $historicalLeaves = DB::table('leave_requests')
-            ->where('tenant_id', $tenantId)
+        // hr_leave_requests has no tenant_id (single-tenant deployment) and
+        // grouping is done in PHP rather than DATE_FORMAT() (MySQL-only).
+        $historicalLeaves = DB::table('hr_leave_requests')
             ->where('status', 'approved')
             ->where('start_date', '>=', now()->subYear())
-            ->selectRaw('DATE_FORMAT(start_date, \'%Y-%m\') as period, COUNT(*) as total')
-            ->groupBy('period')
-            ->orderBy('period')
-            ->get()
-            ->pluck('total', 'period')
-            ->map(fn ($v) => (int) $v)
+            ->pluck('start_date')
+            ->groupBy(fn ($date) => \Carbon\Carbon::parse($date)->format('Y-m'))
+            ->map(fn ($rows) => count($rows))
             ->toArray();
 
         $avgMonthly = count($historicalLeaves) > 0
@@ -215,8 +211,9 @@ class HrForecastService
 
     private function getCurrentHeadcount(int $tenantId): int
     {
-        return (int) DB::table('employees')
-            ->where('tenant_id', $tenantId)
+        // hr_employees has no tenant_id column — Life MDG deploys single-tenant
+        // (one company per install), so no tenant filter is needed here.
+        return (int) DB::table('hr_employees')
             ->where('status', 'active')
             ->count();
     }
@@ -231,23 +228,25 @@ class HrForecastService
         $annualRevenue = (float) DB::table('sales_orders')
             ->where('tenant_id', $tenantId)
             ->where('status', 'confirmed')
-            ->where('ordered_at', '>=', now()->subYear())
-            ->sum('total_amount');
+            ->where('created_at', '>=', now()->subYear())
+            ->sum('total');
 
         return $annualRevenue / $headcount / 12; // mensuel
     }
 
     private function getForecastedRevenue(int $tenantId, int $months): array
     {
+        // Grouped in PHP rather than DATE_FORMAT() (MySQL-only, unavailable on SQLite).
         $history = DB::table('sales_orders')
             ->where('tenant_id', $tenantId)
             ->where('status', 'confirmed')
-            ->where('ordered_at', '>=', now()->subYear())
-            ->selectRaw('DATE_FORMAT(ordered_at, \'%Y-%m\') as period, SUM(total_amount) as total')
-            ->groupBy('period')
-            ->orderBy('period')
-            ->pluck('total')
-            ->map(fn ($v) => (float) $v)
+            ->where('created_at', '>=', now()->subYear())
+            ->select('created_at', 'total')
+            ->get()
+            ->groupBy(fn ($r) => \Carbon\Carbon::parse($r->created_at)->format('Y-m'))
+            ->sortKeys()
+            ->map(fn ($rows) => (float) $rows->sum('total'))
+            ->values()
             ->toArray();
 
         if (empty($history)) {
@@ -260,35 +259,44 @@ class HrForecastService
         return array_map(fn ($i) => max(0, $avg + $trend * ($i + 1)), range(0, $months - 1));
     }
 
+    /**
+     * Salaire courant d'un employé (dernière ligne de rémunération effective).
+     * hr_employees n'a pas de colonne base_salary — la source de vérité est
+     * hr_employee_compensation (CLAUDE.md : EmployeeCompensation/SalaryBand).
+     */
+    private function getCurrentSalary(int $employeeId): float
+    {
+        return (float) (EmployeeCompensation::where('employee_id', $employeeId)
+            ->orderByDesc('effective_date')
+            ->value('base_salary') ?? 0.0);
+    }
+
     private function getMarketSalaryBenchmark(int $tenantId): array
     {
         // Salaires de référence par département (simplifiés, à enrichir par pays)
-        return DB::table('employees')
-            ->where('tenant_id', $tenantId)
+        return DB::table('hr_employees')
             ->where('status', 'active')
-            ->groupBy('department_id')
-            ->selectRaw('department_id, AVG(base_salary) as avg')
+            ->select('id', 'department_id')
             ->get()
-            ->pluck('avg', 'department_id')
-            ->map(fn ($v) => (float) $v * 1.1) // +10% = estimation du marché
+            ->groupBy('department_id')
+            ->map(fn ($employees) => $employees->avg(fn ($e) => $this->getCurrentSalary($e->id)) * 1.1) // +10% = estimation du marché
             ->toArray();
     }
 
     private function getUnusedLeaveDays(int $employeeId, int $tenantId): int
     {
-        return (int) DB::table('leave_balances')
+        return (int) (DB::table('hr_leave_balances')
             ->where('employee_id', $employeeId)
-            ->where('tenant_id', $tenantId)
-            ->value('balance_days') ?? 0;
+            ->value('balance') ?? 0);
     }
 
     private function getAverageOvertimeHours(int $employeeId, int $tenantId): float
     {
-        return (float) DB::table('timesheets')
-            ->where('employee_id', $employeeId)
-            ->where('tenant_id', $tenantId)
-            ->where('date', '>=', now()->subMonths(3))
-            ->avg('overtime_hours') ?? 0.0;
+        // Overtime hours are not tracked as a distinct concept in this schema
+        // (Timesheets records hours_worked per entry, no overtime split) —
+        // degrades to a neutral 0 signal rather than querying a column that
+        // doesn't exist, same fallback pattern used across KPIRegistryService.
+        return 0.0;
     }
 
     private function suggestRoles(int $gap, int $tenantId): array

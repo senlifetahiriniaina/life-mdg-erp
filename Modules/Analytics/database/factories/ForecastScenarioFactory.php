@@ -2,7 +2,6 @@
 
 namespace Modules\Analytics\Database\Factories;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Analytics\Models\ForecastModel;
 use Modules\Analytics\Models\ForecastScenario;
@@ -17,10 +16,9 @@ class ForecastScenarioFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => fake()->numberBetween(1, 100),
+            'forecast_model_id' => ForecastModel::factory(),
             'name' => fake()->words(3, true),
             'description' => fake()->sentence(),
-            'base_model_id' => ForecastModel::factory(),
             'assumptions' => [
                 'growth_rate' => fake()->randomFloat(2, -10, 20),
                 'price_increase' => fake()->randomFloat(2, 0, 10),
@@ -28,7 +26,7 @@ class ForecastScenarioFactory extends Factory
             'results' => [
                 'predictions' => [],
             ],
-            'created_by' => User::factory(),
+            'status' => 'draft',
         ];
     }
 
