@@ -95,7 +95,7 @@ it('blocks transfers during active cycle count', function () {
     $warehouse2 = Warehouse::factory()->create();
 
     $response = $this->withToken($this->token)
-        ->postJson('/api/v1/inventory/transfers', [
+        ->postJson('/api/v1/inventory/transfer-orders', [
             'warehouse_from_id' => $this->warehouse->id,
             'warehouse_to_id' => $warehouse2->id,
             'items' => [],
@@ -220,7 +220,7 @@ it('can create warehouse transfer', function () {
     ]);
 
     $response = $this->withToken($this->token)
-        ->postJson('/api/v1/inventory/transfers', [
+        ->postJson('/api/v1/inventory/transfer-orders', [
             'warehouse_from_id' => $this->warehouse->id,
             'warehouse_to_id' => $warehouse2->id,
             'items' => [
@@ -298,5 +298,5 @@ it('cycle count respects ABC classification for focus areas', function () {
 
 it('unauthenticated users cannot access inventory endpoints', function () {
     $this->getJson('/api/v1/inventory/cycle-counts')->assertUnauthorized();
-    $this->getJson('/api/v1/inventory/transfers')->assertUnauthorized();
+    $this->getJson('/api/v1/inventory/transfer-orders')->assertUnauthorized();
 });

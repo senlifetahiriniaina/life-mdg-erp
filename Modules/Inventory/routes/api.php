@@ -239,13 +239,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/inventory')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     Route::post('ai/assist', [\Modules\Inventory\Http\Controllers\Api\InventoryAiAssistController::class, 'assist'])
         ->name('inventory.ai.assist');
 });
 
 // ── EDI (850/856/810) ─────────────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/inventory')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     Route::post('edi/receive', [\Modules\Inventory\Http\Controllers\Api\EdiController::class, 'receive'])
         ->name('inventory.edi.receive');
     Route::post('edi/generate-810', [\Modules\Inventory\Http\Controllers\Api\EdiController::class, 'generate810'])
@@ -255,7 +255,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/inventory')-
 });
 
 // ── 3PL Fulfillment connectors ────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/inventory')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     Route::get('3pl/connectors', [\Modules\Inventory\Http\Controllers\Api\FulfillmentController::class, 'connectors'])
         ->name('inventory.3pl.connectors');
     Route::post('3pl/fulfill', [\Modules\Inventory\Http\Controllers\Api\FulfillmentController::class, 'fulfill'])
