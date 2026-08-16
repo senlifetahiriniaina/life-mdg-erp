@@ -86,6 +86,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'role
         Route::post('logistics/delivery-rounds/{deliveryRound}/start', [DeliveryRoundController::class, 'start']);
         Route::post('logistics/delivery-rounds/{deliveryRound}/complete', [DeliveryRoundController::class, 'complete']);
         Route::post('logistics/delivery-rounds/{deliveryRound}/optimize', [DeliveryRoundController::class, 'optimize']);
+        Route::post('logistics/delivery-rounds/{deliveryRound}/stops', [DeliveryRoundController::class, 'addStop']);
         Route::post('logistics/delivery-rounds/{deliveryRound}/stops/{stop}/pod', [DeliveryRoundController::class, 'proofOfDelivery']);
     });
 

@@ -182,11 +182,11 @@ class DeliveryRoundController extends Controller
             'status' => 'required|in:delivered,failed,partial',
             'recipient_name' => 'nullable|string|max:200',
             'notes' => 'nullable|string',
-            'delivered_at' => 'nullable|date',
+            'completed_at' => 'nullable|date',
         ]);
 
         $stop->update(array_merge($data, [
-            'delivered_at' => $data['delivered_at'] ?? now(),
+            'completed_at' => $data['completed_at'] ?? now(),
         ]));
 
         return response()->json($stop->fresh());

@@ -100,9 +100,13 @@ test('multi shipment optimization', function () {
 
     $response = $this->actingAs($this->user, 'sanctum')
         ->postJson('/api/v1/logistics/routes/optimize', [
-            'shipment_ids' => [$shipment1->id, $shipment2->id],
-            'vehicle_capacity' => 500,
-            'time_window' => '08:00-18:00',
+            'stops' => [
+                ['id' => (string) $shipment1->id, 'lat' => 18.8792, 'lng' => 47.5079],
+                ['id' => (string) $shipment2->id, 'lat' => 18.9146, 'lng' => 47.5316],
+            ],
+            'vehicles' => [
+                ['id' => 'v1', 'capacity' => 500, 'start_lat' => 18.8792, 'start_lng' => 47.5079],
+            ],
         ]);
 
     expect($response->status())->toBe(200);
