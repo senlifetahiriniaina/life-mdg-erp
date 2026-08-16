@@ -41,9 +41,9 @@ test('middleware includes rate limit headers in response', function () {
     $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/dashboard');
 
-    expect($response->headers->get('X-RateLimit-Limit'))->toBeDefined();
-    expect($response->headers->get('X-RateLimit-Remaining'))->toBeDefined();
-    expect($response->headers->get('X-RateLimit-Reset'))->toBeDefined();
+    expect($response->headers->get('X-RateLimit-Limit'))->not->toBeNull();
+    expect($response->headers->get('X-RateLimit-Remaining'))->not->toBeNull();
+    expect($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
 });
 
 test('middleware skips rate limiting for health endpoint', function () {
@@ -130,6 +130,11 @@ test('concurrent request limit is enforced', function () {
 
 test('admin routes also enforce rate limiting', function () {
     $admin = User::factory()->create();
+    $admin->forceFill([
+        'two_factor_enabled' => true,
+        'google2fa_secret' => 'JBSWY3DPEHPK3PXP',
+        'two_factor_confirmed_at' => now(),
+    ])->save();
     \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     $admin->assignRole('admin');
 

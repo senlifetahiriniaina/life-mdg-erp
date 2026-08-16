@@ -7,7 +7,6 @@ namespace App\Http\Middleware;
 use App\Services\RateLimitService;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class TenantRateLimitMiddleware
@@ -85,7 +84,7 @@ class TenantRateLimitMiddleware
     /**
      * Return rate limit exceeded response.
      */
-    private function rateLimitExceeded(array $limitInfo): Response
+    private function rateLimitExceeded(array $limitInfo): SymfonyResponse
     {
         $response = response()->json(
             [

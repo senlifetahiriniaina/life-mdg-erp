@@ -49,7 +49,7 @@ class RateLimitService
         $perMinute = $limits['requests_per_minute'];
         $attempts = $this->limiter->attempts($key);
 
-        if ($attempts > $perMinute) {
+        if ($attempts >= $perMinute) {
             return [
                 'limited' => true,
                 'retry_after' => $this->limiter->availableIn($key),
@@ -79,7 +79,7 @@ class RateLimitService
         $perHour = $limits['requests_per_hour'];
         $attempts = $this->limiter->attempts($key);
 
-        if ($attempts > $perHour) {
+        if ($attempts >= $perHour) {
             return [
                 'limited' => true,
                 'retry_after' => $this->limiter->availableIn($key),
