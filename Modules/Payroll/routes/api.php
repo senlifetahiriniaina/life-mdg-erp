@@ -13,7 +13,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:hr-manager,accounta
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/payroll')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
     Route::post('ai/assist', [\Modules\Payroll\Http\Controllers\Api\PayrollAiAssistController::class, 'assist'])
         ->name('payroll.ai.assist');
 });
