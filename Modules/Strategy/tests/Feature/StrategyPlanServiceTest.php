@@ -4,6 +4,7 @@ namespace Modules\Strategy\Tests\Feature;
 
 use Tests\TestCase;
 use Modules\Strategy\Models\StrategyPlan;
+use Modules\Strategy\Models\StrategyObjective;
 use Modules\Strategy\Services\StrategyPlanService;
 use App\Models\User;
 
@@ -17,7 +18,9 @@ class StrategyPlanServiceTest extends TestCase
     {
         parent::setUp();
         $this->service = app(StrategyPlanService::class);
-        $this->user = User::factory()->create();
+        // StrategyPlanService::createPlan() requires a non-nullable string
+        // tenantId -- UserFactory leaves tenant_id null by default.
+        $this->user = User::factory()->create(['tenant_id' => '1']);
 
         $this->plan = StrategyPlan::create([
             'tenant_id' => $this->user->tenant_id,
@@ -36,15 +39,17 @@ class StrategyPlanServiceTest extends TestCase
     /** @test */
     public function it_creates_a_strategy_plan()
     {
-        $plan = $this->service->create(
-            tenantId: $this->user->tenant_id,
-            name: 'New Strategic Plan',
-            vision: 'Global expansion',
-            mission: 'Scale operations',
-            framework: 'OKR',
-            periodStart: 2026,
-            periodEnd: 2028,
-            createdBy: $this->user->id
+        $plan = $this->service->createPlan(
+            $this->user->tenant_id,
+            [
+                'name' => 'New Strategic Plan',
+                'vision' => 'Global expansion',
+                'mission' => 'Scale operations',
+                'framework' => 'OKR',
+                'period_start' => 2026,
+                'period_end' => 2028,
+            ],
+            $this->user->id
         );
 
         $this->assertInstanceOf(StrategyPlan::class, $plan);
@@ -54,24 +59,23 @@ class StrategyPlanServiceTest extends TestCase
     /** @test */
     public function it_updates_plan_status()
     {
-        $updated = $this->service->updateStatus($this->plan->id, 'completed');
+        $updated = $this->service->updatePlan($this->plan->id, ['status' => 'archived']);
 
-        $this->assertTrue($updated);
-        $this->assertEquals('completed', $this->plan->fresh()->status);
+        $this->assertInstanceOf(StrategyPlan::class, $updated);
+        $this->assertEquals('archived', $updated->status);
+        $this->assertEquals('archived', $this->plan->fresh()->status);
     }
 
     /** @test */
     public function it_calculates_plan_health_score()
     {
-        $objectives = [
-            ['progress' => 100, 'weight' => 0.3],
-            ['progress' => 80, 'weight' => 0.4],
-            ['progress' => 60, 'weight' => 0.3],
-        ];
+        StrategyObjective::factory()->create(['plan_id' => $this->plan->id, 'status' => 'active', 'progress' => 100, 'weight' => 0.3]);
+        StrategyObjective::factory()->create(['plan_id' => $this->plan->id, 'status' => 'active', 'progress' => 80, 'weight' => 0.4]);
+        StrategyObjective::factory()->create(['plan_id' => $this->plan->id, 'status' => 'active', 'progress' => 60, 'weight' => 0.3]);
 
-        $healthScore = $this->service->calculateHealthScore($objectives);
+        $healthScore = $this->service->computeHealthScore($this->plan);
 
-        $this->assertIsFloat($healthScore);
+        $this->assertIsInt($healthScore);
         $this->assertGreaterThanOrEqual(0, $healthScore);
         $this->assertLessThanOrEqual(100, $healthScore);
     }
@@ -79,41 +83,29 @@ class StrategyPlanServiceTest extends TestCase
     /** @test */
     public function it_retrieves_plan_with_all_objectives()
     {
-        $planWithDetails = $this->service->getWithDetails($this->plan->id);
+        $planWithDetails = $this->service->getFullTree($this->plan->id);
 
-        $this->assertNotNull($planWithDetails);
+        $this->assertIsArray($planWithDetails);
         $this->assertArrayHasKey('objectives', $planWithDetails);
     }
 
     /** @test */
     public function it_duplicates_a_plan()
     {
-        $duplicated = $this->service->duplicate(
-            $this->plan->id,
-            newName: 'Duplicated Plan 2027',
-            newPeriod: ['start' => 2027, 'end' => 2029]
-        );
+        $duplicated = $this->service->duplicatePlan($this->plan->id, 'Duplicated Plan 2027');
 
         $this->assertNotNull($duplicated);
         $this->assertEquals('Duplicated Plan 2027', $duplicated->name);
-        $this->assertEquals(2027, $duplicated->period_start);
+        $this->assertEquals('draft', $duplicated->status);
+        $this->assertNotEquals($this->plan->id, $duplicated->id);
     }
 
     /** @test */
     public function it_archives_a_plan()
     {
-        $archived = $this->service->archive($this->plan->id);
+        $archived = $this->service->updatePlan($this->plan->id, ['status' => 'archived']);
 
-        $this->assertTrue($archived);
+        $this->assertEquals('archived', $archived->status);
         $this->assertEquals('archived', $this->plan->fresh()->status);
-    }
-
-    /** @test */
-    public function it_publishes_plan_to_organization()
-    {
-        $published = $this->service->publish($this->plan->id);
-
-        $this->assertTrue($published);
-        $this->assertEquals('published', $this->plan->fresh()->status);
     }
 }

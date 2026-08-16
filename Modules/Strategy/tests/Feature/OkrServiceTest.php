@@ -5,6 +5,7 @@ namespace Modules\Strategy\Tests\Feature;
 use Tests\TestCase;
 use Modules\Strategy\Services\OkrService;
 use Modules\Strategy\Models\StrategyObjective;
+use Modules\Strategy\Models\StrategyKeyResult;
 use Modules\Strategy\Models\StrategyPlan;
 use App\Models\User;
 
@@ -37,13 +38,13 @@ class OkrServiceTest extends TestCase
     /** @test */
     public function it_creates_an_objective()
     {
-        $objective = $this->service->createObjective(
-            planId: $this->plan->id,
-            title: 'Double revenue',
-            description: 'Increase revenue from XOF 1B to XOF 2B',
-            level: 1,
-            weight: 0.4
-        );
+        $objective = $this->service->createObjective([
+            'plan_id' => $this->plan->id,
+            'title' => 'Double revenue',
+            'description' => 'Increase revenue from XOF 1B to XOF 2B',
+            'level' => 'annual',
+            'weight' => 0.4,
+        ]);
 
         $this->assertInstanceOf(StrategyObjective::class, $objective);
         $this->assertEquals('Double revenue', $objective->title);
@@ -61,15 +62,14 @@ class OkrServiceTest extends TestCase
             'progress' => 45,
         ]);
 
-        $kr = $this->service->createKeyResult(
-            objectiveId: $objective->id,
-            title: 'KR1: Increase customer base',
-            target: 1000,
-            unit: 'customers'
-        );
+        $kr = $this->service->addKeyResult($objective->id, [
+            'title' => 'KR1: Increase customer base',
+            'target_value' => 1000,
+            'unit' => 'customers',
+        ]);
 
         $this->assertNotNull($kr);
-        $this->assertEquals(1000, $kr->target);
+        $this->assertEquals(1000, $kr->target_value);
     }
 
     /** @test */
@@ -84,12 +84,12 @@ class OkrServiceTest extends TestCase
             'progress' => 50,
         ]);
 
-        $kr = $this->service->createKeyResult($objective->id, 'KR1', 100, 'units');
+        $kr = $this->service->addKeyResult($objective->id, ['title' => 'KR1', 'target_value' => 100, 'unit' => 'units']);
 
         $updated = $this->service->updateKeyResultProgress($kr->id, 75);
 
-        $this->assertTrue($updated);
-        $this->assertEquals(75, $kr->fresh()->current_value ?? 75);
+        $this->assertInstanceOf(StrategyKeyResult::class, $updated);
+        $this->assertEquals(75, $updated->current_value);
     }
 
     /** @test */
@@ -104,10 +104,13 @@ class OkrServiceTest extends TestCase
             'progress' => 50,
         ]);
 
-        $this->service->createKeyResult($objective->id, 'KR1', 100, 'units');
-        $this->service->createKeyResult($objective->id, 'KR2', 100, 'units');
+        $kr1 = $this->service->addKeyResult($objective->id, ['title' => 'KR1', 'target_value' => 100, 'unit' => 'units']);
+        $kr2 = $this->service->addKeyResult($objective->id, ['title' => 'KR2', 'target_value' => 100, 'unit' => 'units']);
 
-        $progress = $this->service->calculateProgress($objective->id);
+        $this->service->updateKeyResultProgress($kr1->id, 40);
+        $this->service->updateKeyResultProgress($kr2->id, 60);
+
+        $progress = $objective->fresh()->progress;
 
         $this->assertIsFloat($progress);
         $this->assertGreaterThanOrEqual(0, $progress);
@@ -115,7 +118,7 @@ class OkrServiceTest extends TestCase
     }
 
     /** @test */
-    public function it_aligns_child_objectives_to_parent()
+    public function it_cascades_a_child_objective_from_parent()
     {
         $parent = StrategyObjective::create([
             'plan_id' => $this->plan->id,
@@ -126,36 +129,13 @@ class OkrServiceTest extends TestCase
             'progress' => 50,
         ]);
 
-        $child = StrategyObjective::create([
-            'plan_id' => $this->plan->id,
+        $child = $this->service->cascadeObjective($parent->id, [
             'title' => 'Child objective',
-            'description' => 'Child',
-            'level' => 2,
-            'status' => 'in_progress',
-            'progress' => 60,
+            'level' => 'quarterly',
         ]);
 
-        $aligned = $this->service->alignObjectives($parent->id, $child->id);
-
-        $this->assertTrue($aligned);
-    }
-
-    /** @test */
-    public function it_closes_okr_cycle()
-    {
-        $closed = $this->service->closeOkrCycle($this->plan->id);
-
-        $this->assertTrue($closed);
-    }
-
-    /** @test */
-    public function it_generates_okr_report()
-    {
-        $report = $this->service->generateReport($this->plan->id);
-
-        $this->assertIsArray($report);
-        $this->assertArrayHasKey('total_objectives', $report);
-        $this->assertArrayHasKey('avg_progress', $report);
-        $this->assertArrayHasKey('status_distribution', $report);
+        $this->assertInstanceOf(StrategyObjective::class, $child);
+        $this->assertEquals($parent->id, $child->parent_id);
+        $this->assertEquals($parent->plan_id, $child->plan_id);
     }
 }

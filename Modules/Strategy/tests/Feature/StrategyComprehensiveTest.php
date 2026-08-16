@@ -174,7 +174,7 @@ describe('KpiDataService', function () {
     });
 
     test('can fetch live value for a KPI', function () {
-        $kpi = StrategyKpi::factory()->create(['source' => 'static', 'static_value' => 15.0]);
+        $kpi = StrategyKpi::factory()->create(['source_module' => 'Accounting', 'source_key' => 'monthly_revenue']);
 
         try {
             $value = $this->service->fetchLiveValue($kpi);
@@ -204,10 +204,9 @@ describe('Strategy API - Plans', function () {
     test('can create a strategy plan', function () {
         $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/v1/strategy/plans', [
-                'name'       => 'Plan 2026',
-                'period'     => 'annual',
-                'start_date' => '2026-01-01',
-                'end_date'   => '2026-12-31',
+                'name'         => 'Plan 2026',
+                'period_start' => 2026,
+                'period_end'   => 2026,
             ])
             ->assertCreated();
     });
@@ -235,10 +234,12 @@ describe('Strategy API - Plans', function () {
 
         $this->actingAs($this->user, 'sanctum')
             ->deleteJson("/api/v1/strategy/plans/{$plan->id}")
-            ->assertNoContent();
+            ->assertOk()->assertJson(['message' => 'Plan deleted.']);
     });
 
     test('unauthenticated user cannot access strategy plans', function () {
+        $this->app['auth']->forgetGuards();
+
         $this->getJson('/api/v1/strategy/plans')
             ->assertUnauthorized();
     });
@@ -262,7 +263,8 @@ describe('Strategy API - OKRs', function () {
 
         $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/v1/strategy/objectives', [
-                'name'       => 'Grow Revenue',
+                'title'      => 'Grow Revenue',
+                'level'      => 'annual',
                 'plan_id'    => $plan->id,
                 'start_date' => '2026-01-01',
                 'end_date'   => '2026-12-31',

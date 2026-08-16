@@ -100,7 +100,7 @@ class KPIRegistryServiceTest extends TestCase
     {
         $crmKpis = $this->service->forModule('CRM');
 
-        $expectedKpis = ['lead_conversion_rate', 'customer_acquisition_cost', 'customer_lifetime_value'];
+        $expectedKpis = ['lead_conversion_rate', 'cac', 'clv'];
         foreach ($expectedKpis as $kpi) {
             $this->assertArrayHasKey($kpi, $crmKpis, "CRM should have {$kpi} KPI");
         }
@@ -111,7 +111,7 @@ class KPIRegistryServiceTest extends TestCase
     {
         $hrKpis = $this->service->forModule('HR');
 
-        $expectedKpis = ['employee_turnover_rate', 'revenue_per_employee'];
+        $expectedKpis = ['turnover_rate', 'revenue_per_employee'];
         foreach ($expectedKpis as $kpi) {
             $this->assertArrayHasKey($kpi, $hrKpis, "HR should have {$kpi} KPI");
         }

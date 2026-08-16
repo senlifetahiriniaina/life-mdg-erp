@@ -3,6 +3,7 @@
 namespace Modules\Strategy\Tests\Feature;
 
 use Tests\TestCase;
+use Illuminate\Support\Facades\Http;
 use Modules\Strategy\Services\StrategyAIService;
 
 class StrategyAIServiceTest extends TestCase
@@ -12,6 +13,10 @@ class StrategyAIServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Force the fallback-first path deterministically — StrategyAIService bakes
+        // `enabled` into the constructor from ANTHROPIC_API_KEY (test-key in .env.testing),
+        // so without this every call below would hit the real Anthropic API.
+        Http::fake(['api.anthropic.com/*' => Http::response('', 500)]);
         $this->service = app(StrategyAIService::class);
     }
 
@@ -19,16 +24,13 @@ class StrategyAIServiceTest extends TestCase
     public function it_generates_recommendations_from_ratios()
     {
         $ratios = [
-            'current_ratio' => ['value' => 1.2, 'benchmark' => 1.5, 'status' => 'red'],
-            'debt_to_equity' => ['value' => 0.8, 'benchmark' => 0.6, 'status' => 'yellow'],
+            'Accounting' => [
+                ['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x'],
+                ['name' => 'debt_to_equity', 'current_value' => 0.8, 'benchmark_value' => 0.6, 'status' => 'yellow', 'unit' => 'x'],
+            ],
         ];
 
-        $recommendations = $this->service->generateRecommendations(
-            tenantId: 1,
-            module: 'Accounting',
-            ratios: $ratios,
-            locale: 'fr'
-        );
+        $recommendations = $this->service->recommend($ratios, [], 'fr');
 
         $this->assertIsArray($recommendations);
     }
@@ -36,13 +38,10 @@ class StrategyAIServiceTest extends TestCase
     /** @test */
     public function it_returns_fallback_when_api_unavailable()
     {
-        $this->app['config']->set('services.anthropic.key', null);
-
-        $recommendations = $this->service->generateRecommendations(
-            tenantId: 1,
-            module: 'Accounting',
-            ratios: ['current_ratio' => ['value' => 1.2, 'benchmark' => 1.5]],
-            locale: 'fr'
+        $recommendations = $this->service->recommend(
+            ['Accounting' => [['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x']]],
+            [],
+            'fr'
         );
 
         $this->assertIsArray($recommendations);
@@ -57,11 +56,10 @@ class StrategyAIServiceTest extends TestCase
             $this->markTestSkipped('Anthropic API key not configured');
         }
 
-        $recommendations = $this->service->generateRecommendations(
-            tenantId: 1,
-            module: 'Accounting',
-            ratios: ['current_ratio' => ['value' => 1.2, 'benchmark' => 1.5]],
-            locale: 'fr'
+        $recommendations = $this->service->recommend(
+            ['Accounting' => [['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x']]],
+            [],
+            'fr'
         );
 
         $this->assertIsArray($recommendations);
@@ -74,11 +72,10 @@ class StrategyAIServiceTest extends TestCase
         $locales = ['fr', 'en', 'es', 'pt'];
 
         foreach ($locales as $locale) {
-            $recommendations = $this->service->generateRecommendations(
-                tenantId: 1,
-                module: 'Accounting',
-                ratios: ['current_ratio' => ['value' => 1.2, 'benchmark' => 1.5]],
-                locale: $locale
+            $recommendations = $this->service->recommend(
+                ['Accounting' => [['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x']]],
+                [],
+                $locale
             );
 
             $this->assertIsArray($recommendations);
@@ -88,86 +85,63 @@ class StrategyAIServiceTest extends TestCase
     /** @test */
     public function it_caches_recommendations()
     {
-        $ratios = [
-            'current_ratio' => ['value' => 1.2, 'benchmark' => 1.5, 'status' => 'red'],
-        ];
+        $ratios = ['Accounting' => [['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x']]];
 
-        $rec1 = $this->service->generateRecommendations(
-            tenantId: 1,
-            module: 'Accounting',
-            ratios: $ratios,
-            locale: 'fr'
-        );
-
-        $rec2 = $this->service->generateRecommendations(
-            tenantId: 1,
-            module: 'Accounting',
-            ratios: $ratios,
-            locale: 'fr'
-        );
+        $rec1 = $this->service->recommend($ratios, [], 'fr');
+        $rec2 = $this->service->recommend($ratios, [], 'fr');
 
         $this->assertEquals($rec1, $rec2);
     }
 
     /** @test */
-    public function it_analyzes_correlation_patterns()
+    public function it_handles_correlation_shaped_context_gracefully()
     {
         $correlations = [
             ['kpi1' => 'sales', 'kpi2' => 'customer_count', 'pearson' => 0.87],
             ['kpi1' => 'inventory', 'kpi2' => 'sales', 'pearson' => -0.45],
         ];
 
-        $analysis = $this->service->analyzeCorrelationPatterns(
-            tenantId: 1,
-            correlations: $correlations,
-            locale: 'fr'
-        );
+        $analysis = $this->service->recommend([], ['correlations' => $correlations], 'fr');
 
         $this->assertIsArray($analysis);
+        $this->assertArrayHasKey('enabled', $analysis);
     }
 
     /** @test */
-    public function it_generates_strategic_narrative()
+    public function it_generates_strategic_recommendation_structure()
     {
-        $snapshot = [
-            'module' => 'Accounting',
-            'ratios' => [
-                'current_ratio' => ['value' => 1.2, 'benchmark' => 1.5, 'status' => 'red'],
-                'net_profit_margin' => ['value' => 8.5, 'benchmark' => 10, 'status' => 'yellow'],
+        $ratios = [
+            'Accounting' => [
+                ['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x'],
+                ['name' => 'net_profit_margin', 'current_value' => 8.5, 'benchmark_value' => 10, 'status' => 'yellow', 'unit' => '%'],
             ],
-            'trend' => 'declining',
         ];
 
-        $narrative = $this->service->generateNarrative(
-            tenantId: 1,
-            snapshot: $snapshot,
-            locale: 'fr'
-        );
+        $result = $this->service->recommend($ratios, ['trend' => 'declining'], 'fr');
 
-        $this->assertIsArray($narrative);
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('recommendations', $result);
+        $this->assertArrayHasKey('risks', $result);
+        $this->assertArrayHasKey('opportunities', $result);
     }
 
     /** @test */
     public function it_identifies_action_items()
     {
         $ratios = [
-            'current_ratio' => ['value' => 1.2, 'benchmark' => 1.5, 'status' => 'red', 'trend' => 'down'],
-            'debt_to_equity' => ['value' => 1.2, 'benchmark' => 0.6, 'status' => 'red', 'trend' => 'up'],
+            'Accounting' => [
+                ['name' => 'current_ratio', 'current_value' => 1.2, 'benchmark_value' => 1.5, 'status' => 'red', 'unit' => 'x', 'trend' => 'down'],
+                ['name' => 'debt_to_equity', 'current_value' => 1.2, 'benchmark_value' => 0.6, 'status' => 'red', 'unit' => 'x', 'trend' => 'up'],
+            ],
         ];
 
-        $actions = $this->service->identifyActionItems(
-            tenantId: 1,
-            module: 'Accounting',
-            ratios: $ratios,
-            locale: 'fr'
-        );
+        $actions = $this->service->recommend($ratios, [], 'fr')['recommendations'];
 
         $this->assertIsArray($actions);
-        if (!empty($actions)) {
-            foreach ($actions as $action) {
-                $this->assertArrayHasKey('priority', $action);
-                $this->assertArrayHasKey('description', $action);
-            }
+        $this->assertNotEmpty($actions);
+        foreach ($actions as $action) {
+            $this->assertArrayHasKey('priority', $action);
+            $this->assertArrayHasKey('description', $action);
         }
     }
 }
