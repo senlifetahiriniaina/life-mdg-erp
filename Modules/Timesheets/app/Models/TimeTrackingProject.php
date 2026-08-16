@@ -40,6 +40,8 @@ class TimeTrackingProject extends Model
         'start_date' => 'datetime',
         'end_date' => 'datetime',
         'assigned_employees' => 'array',
+        'budget_hours' => 'float',
+        'hours_tracked' => 'float',
     ];
 
     protected $appends = ['remaining_hours', 'is_over_budget'];

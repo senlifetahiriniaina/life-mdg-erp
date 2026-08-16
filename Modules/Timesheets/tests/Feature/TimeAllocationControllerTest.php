@@ -17,13 +17,14 @@ class TimeAllocationControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // $this->seed(); // Removed: too slow for unit tests
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
     }
 
     #[Test]
     public function can_list_time_allocations()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
         TimeAllocation::factory()->count(3)->create(['entry_id' => $entry->id]);
 
@@ -38,6 +39,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_allocate_time_to_projects()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'hours_worked' => 8,
@@ -74,6 +76,7 @@ class TimeAllocationControllerTest extends TestCase
     public function allocation_hours_must_match_entry_hours()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'hours_worked' => 8,
@@ -100,6 +103,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_retrieve_specific_allocation()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
         $allocation = TimeAllocation::factory()->create(['entry_id' => $entry->id]);
 
@@ -114,6 +118,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_update_allocation()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
         $allocation = TimeAllocation::factory()->create([
             'entry_id' => $entry->id,
@@ -137,6 +142,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_delete_allocation()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
         $allocation = TimeAllocation::factory()->create(['entry_id' => $entry->id]);
 
@@ -152,6 +158,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_filter_allocations_by_billable_status()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
         TimeAllocation::factory()->count(3)->create([
             'entry_id' => $entry->id,
@@ -173,6 +180,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_allocate_via_entry_endpoint()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'hours_worked' => 8,
@@ -198,6 +206,7 @@ class TimeAllocationControllerTest extends TestCase
     public function can_get_allocations_by_project()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $project = TimeTrackingProject::factory()->create();
         $otherProject = TimeTrackingProject::factory()->create();
 

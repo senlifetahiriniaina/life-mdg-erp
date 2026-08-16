@@ -15,13 +15,14 @@ class TimesheetEntryControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // $this->seed(); // Removed: too slow for unit tests
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
     }
 
     #[Test]
     public function can_list_timesheet_entries()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entries = TimesheetEntry::factory()->count(5)->create([
             'employee_id' => $user->id,
         ]);
@@ -42,6 +43,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_create_timesheet_entry()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/timesheets/entries', [
@@ -67,6 +69,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function cannot_create_entry_with_invalid_hours()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/timesheets/entries', [
@@ -84,6 +87,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_retrieve_specific_timesheet_entry()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
 
         $response = $this->actingAs($user, 'sanctum')
@@ -97,6 +101,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_update_draft_timesheet_entry()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'status' => 'draft',
@@ -119,6 +124,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function cannot_update_submitted_timesheet_entry()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'status' => 'submitted',
@@ -136,6 +142,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_delete_draft_timesheet_entry()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'status' => 'draft',
@@ -153,6 +160,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_submit_timesheet_entry()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'status' => 'draft',
@@ -171,8 +179,9 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_approve_timesheet_entry()
     {
-        $approver = actingAsUser('admin');
+        $approver = $this->actingAsUser('admin');
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'status' => 'submitted',
@@ -193,8 +202,9 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_reject_timesheet_entry()
     {
-        $approver = actingAsUser('admin');
+        $approver = $this->actingAsUser('admin');
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $entry = TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'status' => 'submitted',
@@ -215,7 +225,9 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_filter_entries_by_employee()
     {
         $user1 = User::factory()->create();
+        $user1->assignRole('employee');
         $user2 = User::factory()->create();
+        $user2->assignRole('employee');
         TimesheetEntry::factory()->count(3)->create(['employee_id' => $user1->id]);
         TimesheetEntry::factory()->count(2)->create(['employee_id' => $user2->id]);
 
@@ -230,6 +242,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_filter_entries_by_status()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()->count(3)->create([
             'employee_id' => $user->id,
             'status' => 'draft',
@@ -250,6 +263,7 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_filter_entries_by_date_range()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'entry_date' => now()->subDays(5),
@@ -269,7 +283,7 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_get_pending_approvals()
     {
-        $approver = actingAsUser('admin');
+        $approver = $this->actingAsUser('admin');
         User::factory()->create();
         TimesheetEntry::factory()->count(5)->create(['status' => 'submitted']);
         TimesheetEntry::factory()->count(2)->create(['status' => 'approved']);

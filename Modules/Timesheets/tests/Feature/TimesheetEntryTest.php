@@ -6,10 +6,17 @@ use App\Models\User;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Spatie\Permission\Models\Role;
 
+beforeEach(function () {
+    // Routes require role:employee,manager,admin; RefreshDatabase wipes roles
+    // between tests, so both roles used in this file are re-seeded every time.
+    Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+});
 
 test('employee can create own timesheet entry', function () {
     $employee = User::factory()->create();
 
+    $employee->assignRole('employee');
     $response = $this->actingAs($employee, 'sanctum')
         ->postJson('/api/v1/timesheets/entries', [
             'employee_id' => $employee->id,
@@ -23,8 +30,10 @@ test('employee can create own timesheet entry', function () {
 
 test('employee can only see own timesheets', function () {
     $employee1 = User::factory()->create();
+    $employee1->assignRole('employee');
     $employee2 = User::factory()->create();
 
+    $employee2->assignRole('employee');
     TimesheetEntry::factory()->count(3)->create(['employee_id' => $employee1->id]);
     TimesheetEntry::factory()->count(2)->create(['employee_id' => $employee2->id]);
 
@@ -40,8 +49,11 @@ test('manager can see all timesheets', function () {
     $manager->assignRole('manager');
 
     $employee1 = User::factory()->create();
+
+    $employee1->assignRole('employee');
     $employee2 = User::factory()->create();
 
+    $employee2->assignRole('employee');
     TimesheetEntry::factory()->count(3)->create(['employee_id' => $employee1->id]);
     TimesheetEntry::factory()->count(2)->create(['employee_id' => $employee2->id]);
 
@@ -53,6 +65,7 @@ test('manager can see all timesheets', function () {
 
 test('employee can edit own draft timesheet', function () {
     $employee = User::factory()->create();
+    $employee->assignRole('employee');
     $entry = TimesheetEntry::factory()->create([
         'employee_id' => $employee->id,
         'status' => 'draft',
@@ -69,6 +82,7 @@ test('employee can edit own draft timesheet', function () {
 
 test('employee cannot edit submitted timesheet', function () {
     $employee = User::factory()->create();
+    $employee->assignRole('employee');
     $entry = TimesheetEntry::factory()->create([
         'employee_id' => $employee->id,
         'status' => 'submitted',
@@ -99,6 +113,7 @@ test('manager can approve timesheet entry', function () {
 
 test('employee cannot approve timesheets', function () {
     $employee = User::factory()->create();
+    $employee->assignRole('employee');
     $entry = TimesheetEntry::factory()->create([
         'status' => 'submitted',
     ]);
@@ -128,6 +143,7 @@ test('manager can reject timesheet with reason', function () {
 
 test('can submit draft timesheet', function () {
     $employee = User::factory()->create();
+    $employee->assignRole('employee');
     $entry = TimesheetEntry::factory()->create([
         'employee_id' => $employee->id,
         'status' => 'draft',

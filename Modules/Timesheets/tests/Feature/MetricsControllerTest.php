@@ -2,8 +2,8 @@
 
 namespace Modules\Timesheets\Tests\Feature;
 
-use App\Models\Department;
 use App\Models\User;
+use Modules\HR\Models\Department;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Timesheets\Models\TimeTrackingProject;
@@ -17,13 +17,14 @@ class MetricsControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // $this->seed(); // Removed: too slow for unit tests
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
     }
 
     #[Test]
     public function can_get_employee_metrics()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()
             ->count(10)
             ->create([
@@ -48,12 +49,14 @@ class MetricsControllerTest extends TestCase
     public function employee_metrics_include_only_approved_billable_hours()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()
             ->count(5)
             ->create([
                 'employee_id' => $user->id,
                 'hours_worked' => 8,
                 'status' => 'approved',
+                'entry_date' => now(),
             ]);
         TimesheetEntry::factory()
             ->count(3)
@@ -61,6 +64,7 @@ class MetricsControllerTest extends TestCase
                 'employee_id' => $user->id,
                 'hours_worked' => 4,
                 'status' => 'submitted',
+                'entry_date' => now(),
             ]);
 
         $response = $this->actingAs($user, 'sanctum')
@@ -75,6 +79,7 @@ class MetricsControllerTest extends TestCase
     public function can_get_project_metrics()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $project = TimeTrackingProject::factory()->create([
             'budget_hours' => 100,
         ]);
@@ -104,6 +109,7 @@ class MetricsControllerTest extends TestCase
     public function project_metrics_calculate_usage_percentage()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         $project = TimeTrackingProject::factory()->create([
             'budget_hours' => 100,
         ]);
@@ -128,6 +134,7 @@ class MetricsControllerTest extends TestCase
     public function can_get_summary_metrics()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()
             ->count(5)
             ->create([
@@ -161,6 +168,7 @@ class MetricsControllerTest extends TestCase
     public function summary_metrics_show_correct_counts()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()->count(5)->create([
             'employee_id' => $user->id,
             'hours_worked' => 8,
@@ -189,7 +197,9 @@ class MetricsControllerTest extends TestCase
         $dept2 = Department::factory()->create();
 
         $user1 = User::factory()->create(['department_id' => $dept1->id]);
+        $user1->assignRole('employee');
         $user2 = User::factory()->create(['department_id' => $dept2->id]);
+        $user2->assignRole('employee');
 
         TimesheetEntry::factory()->count(5)->create([
             'employee_id' => $user1->id,
@@ -211,6 +221,7 @@ class MetricsControllerTest extends TestCase
     public function summary_metrics_can_filter_by_date_range()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()->create([
             'employee_id' => $user->id,
             'entry_date' => now()->subDays(10),
@@ -233,6 +244,7 @@ class MetricsControllerTest extends TestCase
     public function average_hours_per_entry_calculates_correctly()
     {
         $user = User::factory()->create();
+        $user->assignRole('employee');
         TimesheetEntry::factory()->count(4)->create([
             'employee_id' => $user->id,
             'hours_worked' => 8,
