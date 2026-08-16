@@ -304,21 +304,18 @@ class XssPreventionService
     {
         $url = strtolower(trim($url));
 
-        // Relative URLs are safe
-        if (strpos($url, '://') === false && !str_starts_with($url, '//')) {
-            return true;
-        }
-
-        // Extract protocol
-        if (preg_match('/^([a-z]+):/i', $url, $matches)) {
+        // Extract protocol/scheme if present. This MUST run before any "relative URL"
+        // shortcut — a check like `strpos($url, '://') === false` is also true for
+        // "javascript:alert(1)"/"data:..."/"vbscript:..." (none use "//"), so those
+        // payloads were misclassified as safe relative URLs and never reached the
+        // protocol check below.
+        if (preg_match('/^([a-z][a-z0-9+.\-]*):/i', $url, $matches)) {
             $protocol = strtolower($matches[1]);
 
-            // Check against dangerous protocols
-            if (in_array($protocol, $this->dangerousProtocols, true)) {
-                return false;
-            }
+            return !in_array($protocol, $this->dangerousProtocols, true);
         }
 
+        // No scheme present (e.g. "/relative/path", "//host/path") — safe.
         return true;
     }
 

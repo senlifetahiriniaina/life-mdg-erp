@@ -47,13 +47,13 @@ class ModuleManager
      * tenant), all modules default to enabled so new tenants can explore the
      * full feature set before restricting access.
      */
-    public function isEnabled(string $module, ?string $department = null): bool
+    public function isEnabled(string $module, ?string $department = null, ?string $tenantId = null): bool
     {
         if (in_array($module, self::CORE_MODULES)) {
             return true;
         }
 
-        $tenantId = $this->currentTenantId();
+        $tenantId = $tenantId ?? $this->currentTenantId();
 
         // Fresh install: no rows in tenant_modules at all → all modules are on by default.
         if (! TenantModule::where('tenant_id', $tenantId)->exists()) {

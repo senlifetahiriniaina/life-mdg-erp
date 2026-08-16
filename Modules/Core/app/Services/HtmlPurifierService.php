@@ -46,7 +46,7 @@ class HtmlPurifierService
             'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             'blockquote', 'pre', 'code', 'span', 'div',
             'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
-            'img', 'iframe',
+            'img',
             // 'video'/'audio' removed: this HTMLPurifier version's core HTML
             // module doesn't support them ("Element 'video' is not supported"),
             // which purify() below silently caught and fell back to strip_tags()
@@ -153,18 +153,13 @@ class HtmlPurifierService
 
         // Set allowed elements
         if (isset($policy['allowed_tags'])) {
-            $config->set('HTML.Allowed', implode(',', $policy['allowed_tags']));
+            $config->set('HTML.Allowed', $this->buildAllowedString($policy));
         }
 
         // Set allowed protocols
         if (isset($policy['allowed_protocols'])) {
             $protocols = array_unique(array_merge($policy['allowed_protocols'], ['mailto']));
             $config->set('URI.AllowedSchemes', array_combine($protocols, array_fill(0, count($protocols), true)));
-        }
-
-        // Configure attributes
-        if (isset($policy['allowed_attributes'])) {
-            $this->configureAttributes($config, $policy['allowed_attributes']);
         }
 
         // Security settings
@@ -188,40 +183,28 @@ class HtmlPurifierService
     }
 
     /**
-     * Configure allowed attributes
+     * Build the HTML.Allowed directive string (e.g. "a[href|title],img[src|alt]")
+     * from the policy's allowed_tags + allowed_attributes.
      *
-     * @param HTMLPurifier_Config $config Purifier config
-     * @param array $attributes Attributes to allow
+     * @param array $policy Policy configuration
+     * @return string HTML.Allowed directive value
      */
-    private function configureAttributes(HTMLPurifier_Config $config, array $attributes): void
+    private function buildAllowedString(array $policy): string
     {
-        $rules = [];
+        $attributesByTag = $policy['allowed_attributes'] ?? [];
+        $globalAttrs = $attributesByTag['*'] ?? [];
 
-        foreach ($attributes as $tag => $attrs) {
-            if ($tag === '*') {
-                // Global attributes
-                foreach ($attrs as $attr) {
-                    if (strpos($attr, '*') !== false) {
-                        // Handle wildcards like data-*, aria-*
-                        $rules['*'] = '@' . $attr;
-                    } else {
-                        $rules['*'] = '@' . $attr;
-                    }
-                }
-            } else {
-                // Tag-specific attributes
-                foreach ($attrs as $attr) {
-                    if (strpos($attr, '*') !== false) {
-                        $rules[$tag] = '@' . $attr;
-                    } else {
-                        $rules[$tag] = '@' . $attr;
-                    }
-                }
-            }
+        $parts = [];
+        foreach ($policy['allowed_tags'] as $tag) {
+            $attrs = array_unique(array_merge($globalAttrs, $attributesByTag[$tag] ?? []));
+            // HTMLPurifier's HTML.Allowed doesn't support 'data-*'/'aria-*' wildcards —
+            // each attribute name must be literal — so drop wildcard entries here.
+            $attrs = array_values(array_filter($attrs, fn ($a) => strpos($a, '*') === false));
+
+            $parts[] = $attrs ? $tag . '[' . implode('|', $attrs) . ']' : $tag;
         }
 
-        // Set the attribute rules (simplified version)
-        // Full attribute configuration would require using the formal API
+        return implode(',', $parts);
     }
 
     /**
@@ -242,6 +225,8 @@ class HtmlPurifierService
         if (!empty($attributes)) {
             $this->defaultPolicy['allowed_attributes'][$tag] = $attributes;
         }
+
+        $this->policies['general'] = $this->defaultPolicy;
 
         // Clear cache
         $this->purifiers = [];
@@ -265,6 +250,8 @@ class HtmlPurifierService
         // Reindex array
         $this->defaultPolicy['allowed_tags'] = array_values($this->defaultPolicy['allowed_tags']);
 
+        $this->policies['general'] = $this->defaultPolicy;
+
         // Clear cache
         $this->purifiers = [];
     }
@@ -287,6 +274,8 @@ class HtmlPurifierService
         if (!in_array($attribute, $this->defaultPolicy['allowed_attributes'][$tag], true)) {
             $this->defaultPolicy['allowed_attributes'][$tag][] = $attribute;
         }
+
+        $this->policies['general'] = $this->defaultPolicy;
 
         // Clear cache
         $this->purifiers = [];

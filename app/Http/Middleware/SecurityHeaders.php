@@ -51,6 +51,8 @@ class SecurityHeaders
         $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+        $response->headers->set('Cross-Origin-Opener-Policy', config('security-headers.cross_origin_opener_policy', 'same-origin-allow-popups'));
+        $response->headers->set('Cross-Origin-Resource-Policy', config('security-headers.cross_origin_resource_policy', 'same-origin'));
 
         if ($request->secure() || app()->isProduction()) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
@@ -61,6 +63,7 @@ class SecurityHeaders
 
         if (! $isApi) {
             $nonce = $request->attributes->get('csp_nonce');
+            $response->headers->set('X-CSP-Nonce', $nonce);
 
             $csp = implode('; ', [
                 "default-src 'self'",

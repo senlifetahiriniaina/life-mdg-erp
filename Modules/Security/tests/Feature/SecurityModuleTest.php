@@ -262,8 +262,8 @@ class SecurityModuleTest extends TestCase
     /** @test */
     public function test_session_security_idle_timeout_less_than_session_timeout(): void
     {
-        $sessionTimeout = (int) config('session-security.session_timeout', 3600);
-        $idleTimeout    = (int) config('session-security.idle_timeout', 900);
+        $sessionTimeout = (int) config('session.session_timeout', 3600);
+        $idleTimeout    = (int) config('session.idle_timeout', 900);
 
         $this->assertLessThan($sessionTimeout, $idleTimeout);
     }

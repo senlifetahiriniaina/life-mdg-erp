@@ -31,7 +31,7 @@ describe('Security Headers', function () {
             $user = User::factory()->create();
             $this->actingAs($user, 'sanctum');
 
-            $response = $this->get('/api/users/me');
+            $response = $this->get('/api/v1/auth/me');
 
             // API responses should not have CSP header
             $response->assertHeaderMissing('Content-Security-Policy');
@@ -63,8 +63,8 @@ describe('Security Headers', function () {
                 $response2->headers->get('Content-Security-Policy-Report-Only');
 
             // Extract nonces
-            $nonce1 = $this->extractNonce($csp1);
-            $nonce2 = $this->extractNonce($csp2);
+            $nonce1 = extractNonce($csp1);
+            $nonce2 = extractNonce($csp2);
 
             expect($nonce1)->not->toEqual($nonce2);
         });
@@ -104,10 +104,8 @@ describe('Security Headers', function () {
             $user = User::factory()->create();
             $this->actingAs($user, 'sanctum');
 
-            $this->withoutMiddleware();
-
             // In production environment
-            config(['app.env' => 'production']);
+            $this->app['env'] = 'production';
 
             $response = $this->get('/dashboard');
 
@@ -199,7 +197,7 @@ describe('Security Headers', function () {
 
             $response = $this->get('/dashboard');
 
-            $response->assertHeaderExists('Permissions-Policy');
+            $response->assertHeader('Permissions-Policy');
         });
 
         test('permissions_policy_disables_sensitive_apis', function () {
@@ -224,7 +222,7 @@ describe('Security Headers', function () {
 
             $response = $this->get('/dashboard');
 
-            $response->assertHeaderExists('Referrer-Policy');
+            $response->assertHeader('Referrer-Policy');
         });
 
         test('referrer_policy_is_strict_origin', function () {
@@ -244,7 +242,7 @@ describe('Security Headers', function () {
             $user = User::factory()->create();
             $this->actingAs($user, 'sanctum');
 
-            $response = $this->get('/api/users/me');
+            $response = $this->get('/api/v1/auth/me');
 
             $cacheControl = $response->headers->get('Cache-Control');
 
@@ -273,7 +271,7 @@ describe('Security Headers', function () {
 
             $response = $this->get('/dashboard');
 
-            $response->assertHeaderExists('Cross-Origin-Opener-Policy');
+            $response->assertHeader('Cross-Origin-Opener-Policy');
         });
 
         test('cross_origin_resource_policy_header_present', function () {
@@ -282,7 +280,7 @@ describe('Security Headers', function () {
 
             $response = $this->get('/dashboard');
 
-            $response->assertHeaderExists('Cross-Origin-Resource-Policy');
+            $response->assertHeader('Cross-Origin-Resource-Policy');
         });
     });
 

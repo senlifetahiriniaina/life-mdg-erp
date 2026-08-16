@@ -180,11 +180,11 @@ class CoreModuleTest extends TestCase
 
         $manager->enable($tenantId, 'CRM');
         Cache::flush();
-        $this->assertTrue($manager->isEnabled('CRM'));
+        $this->assertTrue($manager->isEnabled('CRM', null, $tenantId));
 
         $manager->disable($tenantId, 'CRM');
         Cache::flush();
-        $this->assertFalse($manager->isEnabled('CRM'));
+        $this->assertFalse($manager->isEnabled('CRM', null, $tenantId));
     }
 
     /** @test */

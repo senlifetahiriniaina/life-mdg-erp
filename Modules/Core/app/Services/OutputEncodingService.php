@@ -70,8 +70,11 @@ class OutputEncodingService
             return $this->cache[$cacheKey];
         }
 
-        // Use htmlspecialchars for HTML encoding
-        $encoded = htmlspecialchars($string, ENT_QUOTES | ENT_HTML5, $encoding);
+        // Use htmlspecialchars for HTML encoding. ENT_QUOTES alone (ENT_HTML401
+        // substyle) encodes a single quote as the numeric &#039; -- ENT_HTML5 would
+        // instead produce the named entity &apos;, which is valid but not what this
+        // codebase's other HTML-encoding call sites/tests expect.
+        $encoded = htmlspecialchars($string, ENT_QUOTES, $encoding);
 
         // Store in cache
         if (count($this->cache) < self::CACHE_SIZE_LIMIT) {
@@ -203,17 +206,6 @@ class OutputEncodingService
         ];
 
         $encoded = strtr($string, $replacements);
-
-        // Escape hex representation for more aggressive filtering
-        $encoded = preg_replace_callback(
-            '/[^a-zA-Z0-9\-_]/u',
-            function ($matches) {
-                $char = $matches[0];
-                $code = mb_ord($char, 'UTF-8');
-                return sprintf('\\%x ', $code);
-            },
-            $encoded
-        );
 
         // Store in cache
         if (count($this->cache) < self::CACHE_SIZE_LIMIT) {
