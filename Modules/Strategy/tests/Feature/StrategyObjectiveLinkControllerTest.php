@@ -20,7 +20,12 @@ class StrategyObjectiveLinkControllerTest extends TestCase
     {
         parent::setUp();
 
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
+
         $this->user = User::factory()->create();
+        $this->user->assignRole('admin');
         $this->actingAs($this->user);
 
         $this->plan = StrategyPlan::create([
