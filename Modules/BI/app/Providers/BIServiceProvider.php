@@ -3,7 +3,18 @@
 namespace Modules\BI\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\BI\Models\AlertRule;
+use Modules\BI\Models\CustomVisualization;
+use Modules\BI\Models\DataStory;
+use Modules\BI\Models\ExternalDataSource;
+use Modules\BI\Models\ForecastModel;
+use Modules\BI\Policies\AlertPolicy;
+use Modules\BI\Policies\DataStoryPolicy;
+use Modules\BI\Policies\ExternalDataPolicy;
+use Modules\BI\Policies\ForecastingPolicy;
+use Modules\BI\Policies\VisualizationPolicy;
 use Modules\BI\Services\AI\BiAIService;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
@@ -27,8 +38,28 @@ class BIServiceProvider extends ServiceProvider
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
+        $this->registerPolicies();
 
 $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * Chantier 8.2 found 5 fully-written policies (AlertPolicy, DataStoryPolicy,
+     * ExternalDataPolicy, ForecastingPolicy, VisualizationPolicy) whose controllers
+     * already call $this->authorize() against them, but none were registered with
+     * Laravel's Gate anywhere — auto-discovery doesn't apply since each policy's
+     * class name doesn't match its model's name (e.g. AlertRule -> AlertPolicy, not
+     * AlertRulePolicy), and app/Providers/AppServiceProvider.php's $policies map
+     * never listed them either. Every authorize() call on these 5 controllers was
+     * failing (no policy resolvable) until this was added.
+     */
+    private function registerPolicies(): void
+    {
+        Gate::policy(AlertRule::class, AlertPolicy::class);
+        Gate::policy(DataStory::class, DataStoryPolicy::class);
+        Gate::policy(ExternalDataSource::class, ExternalDataPolicy::class);
+        Gate::policy(ForecastModel::class, ForecastingPolicy::class);
+        Gate::policy(CustomVisualization::class, VisualizationPolicy::class);
     }
 
     /**

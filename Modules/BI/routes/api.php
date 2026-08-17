@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use Modules\BI\Http\Controllers\Api\AiBiController;
 use Modules\BI\Http\Controllers\Api\AlertController;
+use Modules\BI\Http\Controllers\Api\AlertRuleController;
+use Modules\BI\Http\Controllers\Api\DataStoryController;
 use Modules\BI\Http\Controllers\Api\EmbedController;
 use Modules\BI\Http\Controllers\Api\AnalyticsController;
 use Modules\BI\Http\Controllers\Api\BiAIController;
@@ -12,11 +14,14 @@ use Modules\BI\Http\Controllers\Api\DashboardController;
 use Modules\BI\Http\Controllers\Api\DataSourceController;
 use Modules\BI\Http\Controllers\Api\DrillDownController;
 use Modules\BI\Http\Controllers\Api\ExportController;
+use Modules\BI\Http\Controllers\Api\ExternalDataSourceController;
+use Modules\BI\Http\Controllers\Api\ForecastingController;
 use Modules\BI\Http\Controllers\Api\KpiAlertController;
 use Modules\BI\Http\Controllers\Api\KpiController;
 use Modules\BI\Http\Controllers\Api\PredictiveAnalyticsController;
 use Modules\BI\Http\Controllers\Api\QueryController;
 use Modules\BI\Http\Controllers\Api\ReportController;
+use Modules\BI\Http\Controllers\Api\VisualizationController;
 
 // Default: Simple GET throttle (1000 req/min) with module/role checks
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:BI', 'role:manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
@@ -58,6 +63,37 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:B
 
     // Insights - reads
     Route::get('bi/insights', [BiInsightsController::class, 'index']);
+
+    // Alert Rules - reads
+    Route::get('bi/alert-rules', [AlertRuleController::class, 'index']);
+    Route::get('bi/alert-rules/{rule}', [AlertRuleController::class, 'show']);
+    Route::get('bi/alert-rules/{rule}/history', [AlertRuleController::class, 'history']);
+
+    // Data Stories - reads
+    Route::get('bi/data-stories', [DataStoryController::class, 'index']);
+    Route::get('bi/data-stories/{story}', [DataStoryController::class, 'show']);
+    Route::get('bi/data-stories/{story}/analytics', [DataStoryController::class, 'analytics']);
+    Route::get('bi/data-stories/{story}/views', [DataStoryController::class, 'views']);
+
+    // External Data Sources - reads
+    Route::get('bi/external-data-sources', [ExternalDataSourceController::class, 'index']);
+    Route::get('bi/external-data-sources/{source}', [ExternalDataSourceController::class, 'show']);
+    Route::get('bi/external-data-sources/{source}/sync-history', [ExternalDataSourceController::class, 'syncHistory']);
+
+    // Forecasting (advanced) - reads
+    Route::get('bi/forecast-models', [ForecastingController::class, 'index']);
+    Route::get('bi/forecast-models/{model}', [ForecastingController::class, 'show']);
+    Route::get('bi/forecast-models/{model}/predictions', [ForecastingController::class, 'predictions']);
+    Route::get('bi/forecast-models/{model}/scenarios', [ForecastingController::class, 'scenarios']);
+    Route::get('bi/forecast-scenarios/{scenario}/predictions', [ForecastingController::class, 'scenarioPredictions']);
+    Route::get('bi/forecast-models/{model}/accuracy', [ForecastingController::class, 'accuracy']);
+    Route::get('bi/forecast-models/{model}/retraining-logs', [ForecastingController::class, 'retrainingLogs']);
+
+    // Visualizations - reads (static routes must come before wildcard routes)
+    Route::get('bi/visualizations', [VisualizationController::class, 'index']);
+    Route::get('bi/visualizations/templates', [VisualizationController::class, 'templates']);
+    Route::get('bi/visualizations/{visualization}', [VisualizationController::class, 'show']);
+    Route::get('bi/visualizations/{visualization}/render', [VisualizationController::class, 'render']);
 
     // Complex analytics queries
     Route::middleware('throttle:complex_get')->group(function () {
@@ -119,6 +155,69 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:B
 
         Route::post('bi/predictive-models', [PredictiveAnalyticsController::class, 'store']);
         Route::post('bi/anomalies/{anomaly}/acknowledge', [PredictiveAnalyticsController::class, 'acknowledge']);
+
+        // Alert Rules - mutations
+        Route::post('bi/alert-rules', [AlertRuleController::class, 'store']);
+        Route::put('bi/alert-rules/{rule}', [AlertRuleController::class, 'update']);
+        Route::delete('bi/alert-rules/{rule}', [AlertRuleController::class, 'destroy']);
+        Route::post('bi/alert-rules/{rule}/activate', [AlertRuleController::class, 'activate']);
+        Route::post('bi/alert-rules/{rule}/deactivate', [AlertRuleController::class, 'deactivate']);
+        Route::post('bi/alert-rules/{rule}/pause', [AlertRuleController::class, 'pause']);
+        Route::post('bi/alert-rules/{rule}/conditions', [AlertRuleController::class, 'addCondition']);
+        Route::put('bi/alert-rules/{rule}/conditions/{condition}', [AlertRuleController::class, 'updateCondition']);
+        Route::delete('bi/alert-rules/{rule}/conditions/{condition}', [AlertRuleController::class, 'deleteCondition']);
+        Route::post('bi/alert-rules/{rule}/recipients', [AlertRuleController::class, 'addRecipient']);
+        Route::delete('bi/alert-rules/{rule}/recipients/{recipient}', [AlertRuleController::class, 'deleteRecipient']);
+        Route::post('bi/alert-rules/{rule}/escalations', [AlertRuleController::class, 'addEscalation']);
+        Route::post('bi/alert-history/{alert}/acknowledge', [AlertRuleController::class, 'acknowledgeAlert']);
+        Route::post('bi/alert-history/{alert}/resolve', [AlertRuleController::class, 'resolveAlert']);
+
+        // Data Stories - mutations
+        Route::post('bi/data-stories', [DataStoryController::class, 'store']);
+        Route::put('bi/data-stories/{story}', [DataStoryController::class, 'update']);
+        Route::delete('bi/data-stories/{story}', [DataStoryController::class, 'destroy']);
+        Route::post('bi/data-stories/{story}/publish', [DataStoryController::class, 'publish']);
+        Route::post('bi/data-stories/{story}/archive', [DataStoryController::class, 'archive']);
+        Route::post('bi/data-stories/{story}/share', [DataStoryController::class, 'share']);
+        Route::post('bi/data-stories/{story}/slides', [DataStoryController::class, 'addSlide']);
+        Route::put('bi/data-stories/{story}/slides/{slide}', [DataStoryController::class, 'updateSlide']);
+        Route::delete('bi/data-stories/{story}/slides/{slide}', [DataStoryController::class, 'deleteSlide']);
+        Route::post('bi/data-stories/{story}/narrative-flows', [DataStoryController::class, 'addNarrativeFlow']);
+        Route::put('bi/data-stories/{story}/narrative-flows/{flow}', [DataStoryController::class, 'updateNarrativeFlow']);
+
+        // External Data Sources - mutations
+        Route::post('bi/external-data-sources', [ExternalDataSourceController::class, 'store']);
+        Route::put('bi/external-data-sources/{source}', [ExternalDataSourceController::class, 'update']);
+        Route::delete('bi/external-data-sources/{source}', [ExternalDataSourceController::class, 'delete']);
+        Route::post('bi/external-data-sources/{source}/test-connection', [ExternalDataSourceController::class, 'testConnection']);
+        Route::post('bi/external-data-sources/{source}/connect', [ExternalDataSourceController::class, 'connect']);
+        Route::post('bi/external-data-sources/{source}/disconnect', [ExternalDataSourceController::class, 'disconnect']);
+        Route::post('bi/external-data-sources/{source}/credentials', [ExternalDataSourceController::class, 'storeCredential']);
+        Route::delete('bi/external-data-sources/{source}/credentials/{credential}', [ExternalDataSourceController::class, 'deleteCredential']);
+        Route::post('bi/external-data-sources/{source}/field-mappings', [ExternalDataSourceController::class, 'mapFields']);
+        Route::put('bi/external-data-sources/{source}/field-mappings/{mapping}', [ExternalDataSourceController::class, 'updateMapping']);
+        Route::delete('bi/external-data-sources/{source}/field-mappings/{mapping}', [ExternalDataSourceController::class, 'deleteMapping']);
+        Route::post('bi/external-data-sources/{source}/sync-config', [ExternalDataSourceController::class, 'configureSyncRequest']);
+        Route::post('bi/external-data-sources/{source}/sync', [ExternalDataSourceController::class, 'syncNow']);
+        Route::post('bi/external-data-sources/{source}/transformation-rules', [ExternalDataSourceController::class, 'addTransformationRule']);
+        Route::put('bi/external-data-sources/{source}/transformation-rules/{rule}', [ExternalDataSourceController::class, 'updateTransformationRule']);
+        Route::delete('bi/external-data-sources/{source}/transformation-rules/{rule}', [ExternalDataSourceController::class, 'deleteTransformationRule']);
+
+        // Forecasting (advanced) - mutations
+        Route::post('bi/forecast-models', [ForecastingController::class, 'store']);
+        Route::put('bi/forecast-models/{model}', [ForecastingController::class, 'update']);
+        Route::delete('bi/forecast-models/{model}', [ForecastingController::class, 'delete']);
+        Route::post('bi/forecast-models/{model}/scenarios', [ForecastingController::class, 'createScenario']);
+
+        // Visualizations - mutations
+        Route::post('bi/visualizations', [VisualizationController::class, 'store']);
+        Route::put('bi/visualizations/{visualization}', [VisualizationController::class, 'update']);
+        Route::delete('bi/visualizations/{visualization}', [VisualizationController::class, 'destroy']);
+        Route::post('bi/visualizations/{visualization}/export', [VisualizationController::class, 'export']);
+        Route::post('bi/visualizations/{visualization}/share', [VisualizationController::class, 'share']);
+        Route::post('bi/visualizations/{visualization}/performance', [VisualizationController::class, 'updatePerformance']);
+        Route::post('bi/visualizations/{visualization}/enable-real-time', [VisualizationController::class, 'enableRealTime']);
+        Route::post('bi/visualizations/{visualization}/disable-real-time', [VisualizationController::class, 'disableRealTime']);
     });
 
     // Advanced AI BI Analysis
@@ -149,6 +248,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:B
         Route::post('bi/predictive-models/{model}/train', [PredictiveAnalyticsController::class, 'train']);
         Route::post('bi/predictive-models/{model}/generate', [PredictiveAnalyticsController::class, 'generate']);
         Route::post('bi/anomalies/detect', [PredictiveAnalyticsController::class, 'detectAnomalies']);
+
+        // Forecasting (advanced) - lifecycle
+        Route::post('bi/forecast-models/{model}/train', [ForecastingController::class, 'train']);
+        Route::post('bi/forecast-models/{model}/deploy', [ForecastingController::class, 'deploy']);
+        Route::post('bi/forecast-models/{model}/archive', [ForecastingController::class, 'archive']);
+        Route::post('bi/forecast-models/{model}/mark-for-retraining', [ForecastingController::class, 'markForRetraining']);
     });
 
     // Predictive models - reads with complex throttle

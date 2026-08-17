@@ -137,6 +137,31 @@ class RolesAndPermissionsSeeder extends Seeder
         'hr.documents.delete', 'hr.documents.remind',
     ];
 
+    // Chantier 8.2 (BI): AlertRule/DataStory/ExternalDataSource/ForecastModel/
+    // CustomVisualization were 5 fully-written subsystems (policy + controller +
+    // authorize() calls already in place) that were never wired to a route or a
+    // seeded permission. Each uses its own 'bi.<resource>.' prefix so there is no
+    // collision across the 5 groups below.
+    private const BI_EXTRA_PERMISSIONS = [
+        // AlertRule
+        'bi.alert.view-any', 'bi.alert.view', 'bi.alert.create', 'bi.alert.update', 'bi.alert.delete',
+        'bi.alert.acknowledge', 'bi.alert.manage-rules', 'bi.alert.escalate', 'bi.alert.view-history',
+        // DataStory
+        'bi.datastory.view-any', 'bi.datastory.view', 'bi.datastory.create', 'bi.datastory.update', 'bi.datastory.delete',
+        'bi.datastory.publish', 'bi.datastory.share', 'bi.datastory.manage-narratives', 'bi.datastory.view-analytics',
+        // ExternalDataSource
+        'bi.externaldata.view-any', 'bi.externaldata.view', 'bi.externaldata.create', 'bi.externaldata.connect',
+        'bi.externaldata.disconnect', 'bi.externaldata.manage-credentials', 'bi.externaldata.configure-sync',
+        'bi.externaldata.transform-data', 'bi.externaldata.view-history', 'bi.externaldata.delete',
+        // Forecasting (ForecastModel)
+        'bi.forecasting.view-any', 'bi.forecasting.view', 'bi.forecasting.create', 'bi.forecasting.train',
+        'bi.forecasting.deploy', 'bi.forecasting.delete', 'bi.forecasting.archive', 'bi.forecasting.view-predictions',
+        'bi.forecasting.manage-scenarios', 'bi.forecasting.view-accuracy',
+        // Visualization (CustomVisualization)
+        'bi.visualization.view-any', 'bi.visualization.view', 'bi.visualization.create', 'bi.visualization.update',
+        'bi.visualization.delete', 'bi.visualization.export', 'bi.visualization.share',
+    ];
+
     // Modules\Helpdesk\Policies\CustomerServiceAIPolicy backs CustomerServiceAIController's
     // 21 cs-ai endpoints (sentiment/emotion/language analysis, routing rules, escalation
     // predictions, response templates/suggestions, satisfaction/NPS predictions, agent
@@ -278,6 +303,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::HELPDESK_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::BI_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
