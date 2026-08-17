@@ -32,8 +32,39 @@ function setupJob(array $overrides = []): ImportJob
     ], $overrides));
 }
 
-// ─── AiMappingService ─────────────────────────────────────────────────────────
+/**
+ * Stores $csvContent on the (faked) 'local' disk and returns an ImportJob
+ * pointing at it via source_file_path — the real precondition
+ * FileAnalysisService/ImportExecutorService expect (see resolveFilePath()).
+ */
+function storeCsvJob(string $csvContent, array $overrides = []): ImportJob
+{
+    $path = 'imports/' . uniqid('test_', true) . '.csv';
+    Storage::disk('local')->put($path, $csvContent);
 
+    return setupJob(array_merge([
+        'source_type'      => 'csv',
+        'source_file_path' => $path,
+    ], $overrides));
+}
+
+// ─── AiMappingService ─────────────────────────────────────────────────────────
+//
+// Note: two scenarios from the original phantom-API test set were dropped
+// rather than rewritten, because no real capability under that name exists:
+//   - "detects entity type from column headers": AiMappingService (the real,
+//     routed mapping pipeline behind SetupController) never infers the
+//     target entity — the caller picks target_module/target_entity up front
+//     when creating the ImportJob. A `detectEntityType()`-shaped method does
+//     exist on `Modules\Setup\Services\AiDataImportService::analyzeFile()`,
+//     but that service/its `DataImportController` are never registered in
+//     `Modules/Setup/routes/api.php` — a separate, unwired pipeline, not a
+//     same-feature duplicate to redirect this test to.
+//   - "validates a mapping configuration for required fields": there is no
+//     `validateMapping()` service method. The real "does this mapping cover
+//     all required target fields" check is inlined in
+//     `SetupController::validateJob()` (POST .../import-jobs/{id}/validate),
+//     already exercised by the "Import Job API" describe block below.
 describe('AiMappingService', function () {
     beforeEach(function () {
         $this->user = actingAsUser('admin');
@@ -44,59 +75,61 @@ describe('AiMappingService', function () {
         Http::fake([
             'https://api.anthropic.com/*' => Http::response([
                 'content' => [['type' => 'text', 'text' => json_encode([
-                    'mappings' => [
-                        ['source' => 'first_name', 'target' => 'first_name', 'confidence' => 0.98],
-                        ['source' => 'email',      'target' => 'email',      'confidence' => 0.99],
-                    ],
+                    ['source_field' => 'first_name', 'target_field' => 'first_name', 'target_table' => 'crm_contacts', 'transform_type' => 'direct', 'confidence' => 0.98],
+                    ['source_field' => 'email',      'target_field' => 'email',      'target_table' => 'crm_contacts', 'transform_type' => 'direct', 'confidence' => 0.99],
                 ])]],
             ], 200),
         ]);
 
-        $job = setupJob();
-        $sourceColumns = ['first_name', 'email', 'tel'];
-        $targetEntity  = 'contacts';
+        $job    = setupJob();
+        $schema = SourceSchema::factory()->create([
+            'import_job_id'    => $job->id,
+            'detected_columns' => [
+                ['name' => 'first_name', 'sample_values' => ['Jean'], 'inferred_type' => 'string'],
+                ['name' => 'email',      'sample_values' => ['jean@test.com'], 'inferred_type' => 'email'],
+                ['name' => 'tel',        'sample_values' => ['+221771234567'], 'inferred_type' => 'phone'],
+            ],
+        ]);
 
-        $result = $this->service->suggestMappings($job, $sourceColumns, $targetEntity);
-
-        expect($result)->toBeArray();
-    });
-
-    test('detects entity type from column headers', function () {
-        $columns = ['first_name', 'last_name', 'email', 'phone'];
-        $result  = $this->service->detectEntityType($columns);
-
-        expect($result)->toBeString();
-    });
-
-    test('validates a mapping configuration for required fields', function () {
-        $job = setupJob(['target_entity' => 'contacts']);
-        $mappings = [
-            ['source_column' => 'email',      'target_field' => 'email',      'transform' => null],
-            ['source_column' => 'first_name', 'target_field' => 'first_name', 'transform' => null],
-        ];
-
-        $result = $this->service->validateMapping($job, $mappings);
+        $result = $this->service->suggestMappings($job, $schema);
 
         expect($result)->toBeArray()
-            ->and($result)->toHaveKey('valid');
+            ->and($result)->toHaveCount(2)
+            ->and($result[0])->toHaveKeys(['source_field', 'target_field', 'confidence']);
     });
 
-    test('returns fallback suggestions when Claude API is unavailable', function () {
+    test('returns empty suggestions when Claude API is unavailable (graceful degradation)', function () {
         Http::fake([
             'https://api.anthropic.com/*' => Http::response([], 500),
         ]);
 
         $job    = setupJob();
-        $result = $this->service->suggestMappings($job, ['nom', 'prenom', 'courriel'], 'contacts');
+        $schema = SourceSchema::factory()->create([
+            'import_job_id'    => $job->id,
+            'detected_columns' => [['name' => 'nom'], ['name' => 'prenom'], ['name' => 'courriel']],
+        ]);
 
-        expect($result)->toBeArray();
+        $result = $this->service->suggestMappings($job, $schema);
+
+        expect($result)->toBeArray()->toBeEmpty();
     });
 
-    test('handles empty column list gracefully', function () {
-        $job    = setupJob();
-        $result = $this->service->suggestMappings($job, [], 'contacts');
+    test('handles empty source column list gracefully', function () {
+        Http::fake([
+            'https://api.anthropic.com/*' => Http::response([
+                'content' => [['type' => 'text', 'text' => '[]']],
+            ], 200),
+        ]);
 
-        expect($result)->toBeArray();
+        $job    = setupJob();
+        $schema = SourceSchema::factory()->create([
+            'import_job_id'    => $job->id,
+            'detected_columns' => [],
+        ]);
+
+        $result = $this->service->suggestMappings($job, $schema);
+
+        expect($result)->toBeArray()->toBeEmpty();
     });
 });
 
@@ -111,86 +144,101 @@ describe('FileAnalysisService', function () {
 
     test('analyzes CSV structure and returns column headers', function () {
         $csvContent = "first_name,last_name,email\nJean,Dupont,jean@example.com\nMarie,Martin,marie@example.com\n";
-        $file = UploadedFile::fake()->createWithContent('contacts.csv', $csvContent);
+        $job = storeCsvJob($csvContent);
 
-        $job = setupJob(['source_type' => 'csv']);
-        $result = $this->service->analyzeFile($job, $file->path());
+        $schema = $this->service->analyzeFile($job);
 
-        expect($result)->toBeArray();
+        expect($schema)->toBeInstanceOf(SourceSchema::class)
+            ->and(array_column($schema->detected_columns, 'name'))->toBe(['first_name', 'last_name', 'email'])
+            ->and($schema->row_count)->toBe(2);
     });
 
     test('detects comma delimiter in CSV file', function () {
         $csvContent = "col1,col2,col3\nval1,val2,val3\n";
-        $file = UploadedFile::fake()->createWithContent('data.csv', $csvContent);
+        $job = storeCsvJob($csvContent);
 
-        $delimiter = $this->service->detectDelimiter($file->path());
+        $result = $this->service->analyzeCsv($job);
 
-        expect($delimiter)->toBe(',');
+        expect($result['delimiter'])->toBe(',');
     });
 
     test('detects semicolon delimiter in CSV file', function () {
         $csvContent = "col1;col2;col3\nval1;val2;val3\n";
-        $file = UploadedFile::fake()->createWithContent('data.csv', $csvContent);
+        $job = storeCsvJob($csvContent);
 
-        $delimiter = $this->service->detectDelimiter($file->path());
+        $result = $this->service->analyzeCsv($job);
 
-        expect($delimiter)->toBe(';');
+        expect($result['delimiter'])->toBe(';');
     });
 
     test('counts rows in CSV file', function () {
         $csvContent = "col1,col2\nrow1a,row1b\nrow2a,row2b\nrow3a,row3b\n";
-        $file = UploadedFile::fake()->createWithContent('data.csv', $csvContent);
+        $job = storeCsvJob($csvContent);
 
-        $count = $this->service->countRows($file->path());
+        $result = $this->service->analyzeCsv($job);
 
-        expect($count)->toBeGreaterThanOrEqual(3);
+        expect($result['row_count'])->toBeGreaterThanOrEqual(3);
     });
 
     test('detects encoding of CSV file', function () {
         $csvContent = "name,email\nJean,jean@test.com\n";
-        $file = UploadedFile::fake()->createWithContent('data.csv', $csvContent);
+        $job = storeCsvJob($csvContent);
 
-        $encoding = $this->service->detectEncoding($file->path());
+        $result = $this->service->analyzeCsv($job);
 
-        expect($encoding)->toBeString();
+        expect($result['encoding'])->toBeString();
     });
 });
 
 // ─── ImportExecutorService ────────────────────────────────────────────────────
-
+//
+// Note: "handles dry-run validation without persisting data" (phantom
+// `ImportExecutorService::dryRun()`) was dropped rather than rewritten —
+// the service has no dry-run method. The real dry-run/validation capability
+// is `SetupController::validateJob()` (POST .../import-jobs/{id}/validate),
+// already exercised by the "Import Job API" describe block below.
 describe('ImportExecutorService', function () {
     beforeEach(function () {
         $this->user    = actingAsUser('admin');
         $this->service = app(ImportExecutorService::class);
+        Storage::fake('local');
     });
 
     test('executes import and updates job status to completed', function () {
-        $job = setupJob(['status' => 'validated']);
-
-        SourceSchema::factory()->create([
-            'import_job_id' => $job->id,
-            'columns'       => json_encode(['first_name', 'email']),
+        $csvContent = "first_name,last_name,email\nJean,Dupont,jean@example.com\n";
+        $job = storeCsvJob($csvContent, [
+            'status'        => 'validated',
+            'target_module' => 'CRM',
+            'target_entity' => 'contacts',
         ]);
 
-        FieldMapping::factory()->create([
-            'import_job_id' => $job->id,
-            'source_column' => 'email',
-            'target_field'  => 'email',
-        ]);
+        // Real analysis step — populates the SourceSchema (detected_columns,
+        // delimiter) the executor reads while streaming the file.
+        app(FileAnalysisService::class)->analyzeFile($job);
 
-        $result = $this->service->execute($job);
+        foreach (['first_name', 'last_name', 'email'] as $field) {
+            FieldMapping::factory()->create([
+                'import_job_id'  => $job->id,
+                'source_field'   => $field,
+                'target_field'   => $field,
+                'target_table'   => 'crm_contacts',
+                'transform_type' => 'direct',
+                'is_confirmed'   => true,
+            ]);
+        }
 
-        expect($result)->toBeArray()
-            ->and($result)->toHaveKey('status');
+        $this->service->execute($job);
+
+        expect($job->fresh()->status)->toBe('completed');
     });
 
-    test('tracks import progress during execution', function () {
-        $job = setupJob(['status' => 'validated', 'total_rows' => 100]);
+    test('tracks import progress via the real ImportJob::getProgressPercent() helper', function () {
+        // ImportExecutorService itself has no getProgress() method — progress
+        // is exposed by ImportJob::getProgressPercent(), computed from the
+        // imported_rows/total_rows columns the service updates during execute().
+        $job = setupJob(['status' => 'importing', 'total_rows' => 100, 'imported_rows' => 40]);
 
-        $progress = $this->service->getProgress($job);
-
-        expect($progress)->toBeArray()
-            ->and($progress)->toHaveKey('processed_rows');
+        expect($job->getProgressPercent())->toBe(40.0);
     });
 
     test('records import errors when rows fail validation', function () {
@@ -204,27 +252,16 @@ describe('ImportExecutorService', function () {
             ->and($error->row_number)->toBe(5);
     });
 
-    test('returns error list for a job', function () {
+    test('returns error list for a job via the real importErrors relationship', function () {
+        // ImportExecutorService has no getErrors() method — errors are
+        // queried through ImportJob::importErrors(), the same relationship
+        // SetupController::listErrors() (GET .../import-jobs/{id}/errors) uses.
         $job = setupJob(['status' => 'failed']);
         ImportError::factory()->count(3)->create(['import_job_id' => $job->id]);
 
-        $errors = $this->service->getErrors($job);
+        $errors = $job->importErrors()->get();
 
         expect($errors)->toHaveCount(3);
-    });
-
-    test('handles dry-run validation without persisting data', function () {
-        $job = setupJob(['status' => 'mapped']);
-        FieldMapping::factory()->create([
-            'import_job_id' => $job->id,
-            'source_column' => 'email',
-            'target_field'  => 'email',
-        ]);
-
-        $result = $this->service->dryRun($job);
-
-        expect($result)->toBeArray()
-            ->and($result)->toHaveKey('valid');
     });
 });
 
