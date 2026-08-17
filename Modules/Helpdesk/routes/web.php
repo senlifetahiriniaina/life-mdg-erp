@@ -5,6 +5,7 @@ use Inertia\Inertia;
 use Modules\Helpdesk\Http\Controllers\Web\ChatWebController;
 use Modules\Helpdesk\Http\Controllers\Web\EscalationWebController;
 use Modules\Helpdesk\Http\Controllers\Web\PortalWebController;
+use Modules\Helpdesk\Http\Controllers\Web\SlaAutomationWebController;
 use Modules\Helpdesk\Http\Controllers\Web\TicketWebController;
 
 /*
@@ -26,6 +27,13 @@ Route::middleware(['auth', 'module:Helpdesk'])->group(function () {
     // SLA & Escalation management
     Route::get('/helpdesk/escalation', [EscalationWebController::class, 'index'])->name('helpdesk.escalation.index');
 
+    // SLA Automation — breach detection/compliance/performance dashboard for
+    // SlaController's real, migrated, and already-live SlaPolicy/SlaBreach
+    // engine (SlaService::apply() runs on every ticket creation). Genuinely
+    // distinct from the escalation-rule config above, which manages the
+    // separate HelpdeskSlaPolicy/EscalationRule pair instead.
+    Route::get('/helpdesk/sla-automation', [SlaAutomationWebController::class, 'index'])->name('helpdesk.sla-automation.index');
+
     // Knowledge base
     Route::get('/helpdesk/knowledge-base', fn () => Inertia::render('Helpdesk/KnowledgeBase/Index'))->name('helpdesk.knowledge-base.index');
 
@@ -46,3 +54,10 @@ Route::middleware(['auth', 'module:Helpdesk'])->group(function () {
     // as excluded from Life MDG's scope (360°-review territory).
     Route::get('/helpdesk/quality-assurance', fn () => Inertia::render('Helpdesk/QualityAssurance/Index'))->name('helpdesk.quality-assurance.index');
 });
+
+// Self-service answer-bot widget — standalone (no AppLayout, by design, so it can
+// be embedded via iframe on an external site), calling the already-public
+// AnswerBotController::ask()/deflect() endpoints (helpdesk/bot/ask, .../deflect —
+// no auth:sanctum). Deliberately outside the ['auth', 'module:Helpdesk'] group
+// above: an anonymous visitor asking a question is exactly who this is for.
+Route::get('/helpdesk/bot/widget', fn () => Inertia::render('Helpdesk/Bot/Widget'))->name('helpdesk.bot.widget');

@@ -137,6 +137,34 @@ class RolesAndPermissionsSeeder extends Seeder
         'hr.documents.delete', 'hr.documents.remind',
     ];
 
+    // Modules\Helpdesk\Policies\CustomerServiceAIPolicy backs CustomerServiceAIController's
+    // 21 cs-ai endpoints (sentiment/emotion/language analysis, routing rules, escalation
+    // predictions, response templates/suggestions, satisfaction/NPS predictions, agent
+    // performance/coaching/goals) with 44 distinct helpdesk.{resource}.{verb} strings that
+    // don't match the generic MODULES/ACTIONS loop's helpdesk resources (ticket, team,
+    // agent-performance) at all — same reasoning as the other _PERMISSIONS constants.
+    // Chantier 8.2 found the policy existed but was never wired into the controller nor
+    // seeded here.
+    private const HELPDESK_EXTRA_PERMISSIONS = [
+        'helpdesk.sentiment.view', 'helpdesk.sentiment.manage', 'helpdesk.sentiment.deploy',
+        'helpdesk.emotion.view',
+        'helpdesk.language.view', 'helpdesk.language.manage',
+        'helpdesk.routing.view', 'helpdesk.routing.create', 'helpdesk.routing.update', 'helpdesk.routing.delete',
+        'helpdesk.escalation.view', 'helpdesk.escalation.manage', 'helpdesk.escalation.deploy',
+        'helpdesk.urgency.view', 'helpdesk.escalation.manage-workflows', 'helpdesk.escalation.execute',
+        'helpdesk.response.view', 'helpdesk.response.create', 'helpdesk.response.update', 'helpdesk.response.delete',
+        'helpdesk.response.variants.view', 'helpdesk.response.variants.generate',
+        'helpdesk.response.suggestions.view', 'helpdesk.response.performance.view',
+        'helpdesk.satisfaction.view', 'helpdesk.satisfaction.manage', 'helpdesk.satisfaction.deploy',
+        'helpdesk.nps.view', 'helpdesk.satisfaction.manage-factors',
+        'helpdesk.agent-metrics.view', 'helpdesk.team-metrics.view',
+        'helpdesk.agent-trends.view', 'helpdesk.agent-skills.view', 'helpdesk.agent-skills.manage',
+        'helpdesk.coaching.view', 'helpdesk.coaching.create', 'helpdesk.coaching.update',
+        'helpdesk.benchmarking.view', 'helpdesk.benchmarking.generate',
+        'helpdesk.goals.view', 'helpdesk.goals.create', 'helpdesk.goals.update', 'helpdesk.goals.delete',
+        'helpdesk.ai.export', 'helpdesk.ai.reports', 'helpdesk.ai.configure',
+    ];
+
     // Modules\Sales\Http\Controllers\Api\{SalesController,SalesAiAssistController}
     // gate every action on flat sales.{read,view,create,update} (no resource
     // segment), not the sales.order.*/sales.line.*/sales.quotation.* the generic
@@ -246,6 +274,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::HR_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::HELPDESK_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

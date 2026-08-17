@@ -4,7 +4,9 @@ namespace Modules\Helpdesk\Providers;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Helpdesk\Policies\CustomerServiceAIPolicy;
 use Modules\Helpdesk\Services\AI\HelpdeskAIService;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
@@ -29,8 +31,26 @@ class HelpdeskServiceProvider extends ServiceProvider
         $this->registerConfig();
         $this->registerViews();
         $this->registerTicketSourceMorphMap();
+        $this->registerCustomerServiceAiGates();
 
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * CustomerServiceAIPolicy bundles authorization for 16 different cs-ai models
+     * (SentimentScore, RoutingRule, EscalationPrediction, PerformanceGoal, ...) under
+     * one class, so it doesn't fit Laravel's one-policy-per-model auto-discovery or
+     * the App\Providers\AppServiceProvider::$policies model=>policy map. Registering
+     * each of its public ability methods as its own Gate ability lets
+     * CustomerServiceAIController call $this->authorize('viewSentimentAnalysis') /
+     * $this->authorize('updatePerformanceGoal', $goal) the same way every other
+     * policy-backed controller in this codebase does.
+     */
+    private function registerCustomerServiceAiGates(): void
+    {
+        foreach (get_class_methods(CustomerServiceAIPolicy::class) as $ability) {
+            Gate::define($ability, [CustomerServiceAIPolicy::class, $ability]);
+        }
     }
 
     /**

@@ -63,14 +63,4 @@ class HelpdeskAIController extends Controller
 
         return response()->json($this->ai->predictEscalation($data['ticket_id'], $data['ticket_data']));
     }
-
-    public function kbChatbot(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'query' => ['required', 'string', 'max:500'],
-            'category_id' => ['nullable', 'integer'],
-        ]);
-
-        return response()->json($this->ai->kbChatbotResponse($data['query'], $data['category_id'] ?? null));
-    }
 }

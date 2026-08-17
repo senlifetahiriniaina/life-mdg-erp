@@ -9,7 +9,6 @@ use Modules\Helpdesk\Http\Controllers\Api\EscalationController;
 use Modules\Helpdesk\Http\Controllers\Api\ForumController;
 use Modules\Helpdesk\Http\Controllers\Api\HelpdeskAIController;
 use Modules\Helpdesk\Http\Controllers\Api\KbArticleController;
-use Modules\Helpdesk\Http\Controllers\Api\KbCategoryController;
 use Modules\Helpdesk\Http\Controllers\Api\KbChatbotController;
 use Modules\Helpdesk\Http\Controllers\Api\KbPortalController;
 use Modules\Helpdesk\Http\Controllers\Api\KnowledgeBaseController;
@@ -93,25 +92,18 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
         Route::delete('helpdesk/teams/{team}', [TeamController::class, 'destroy'])->name('helpdesk.teams.destroy');
     });
 
-    // Knowledge Base — static routes before apiResource to avoid {kbArticle} shadowing
+    // Knowledge Base — static routes before apiResource to avoid {kbArticle} shadowing.
+    // Category/article CRUD (index/show/store/update/destroy/feedback) previously also
+    // existed on KbCategoryController/KbArticleController, but Laravel's RouteCollection
+    // keys routes by method+URI (last registration wins on a collision) and the
+    // KnowledgeBaseController registrations further below were always registered later,
+    // so those duplicate KbCategoryController/KbArticleController routes were dead —
+    // removed in Chantier 8.2 along with the now-fully-redundant KbCategoryController.
     Route::get('helpdesk/kb/articles/suggest', [KbArticleController::class, 'suggest'])->name('helpdesk.kb.articles.suggest');
     Route::get('helpdesk/kb/articles/suggestions', [KnowledgeBaseController::class, 'suggestions']);
     Route::get('helpdesk/kb/articles/popular', [KnowledgeBaseController::class, 'popular']);
     Route::middleware('throttle:complex_get')->group(function () {
         Route::get('helpdesk/kb/articles/search', [KnowledgeBaseController::class, 'search']);
-    });
-    Route::get('helpdesk/kb/categories', [KbCategoryController::class, 'index'])->name('helpdesk.kb.categories.index');
-    Route::get('helpdesk/kb/categories/{kbCategory}', [KbCategoryController::class, 'show'])->name('helpdesk.kb.categories.show');
-    Route::get('helpdesk/kb/articles', [KbArticleController::class, 'index'])->name('helpdesk.kb.articles.index');
-    Route::get('helpdesk/kb/articles/{kbArticle}', [KbArticleController::class, 'show'])->name('helpdesk.kb.articles.show');
-    Route::middleware('throttle:create_post')->group(function () {
-        Route::post('helpdesk/kb/categories', [KbCategoryController::class, 'store'])->name('helpdesk.kb.categories.store');
-        Route::put('helpdesk/kb/categories/{kbCategory}', [KbCategoryController::class, 'update'])->name('helpdesk.kb.categories.update');
-        Route::delete('helpdesk/kb/categories/{kbCategory}', [KbCategoryController::class, 'destroy'])->name('helpdesk.kb.categories.destroy');
-        Route::post('helpdesk/kb/articles', [KbArticleController::class, 'store'])->name('helpdesk.kb.articles.store');
-        Route::put('helpdesk/kb/articles/{kbArticle}', [KbArticleController::class, 'update'])->name('helpdesk.kb.articles.update');
-        Route::delete('helpdesk/kb/articles/{kbArticle}', [KbArticleController::class, 'destroy'])->name('helpdesk.kb.articles.destroy');
-        Route::post('helpdesk/kb/articles/{kbArticle}/feedback', [KbArticleController::class, 'feedback'])->name('helpdesk.kb.articles.feedback');
     });
 
     Route::middleware('throttle:ai')->prefix('helpdesk/ai')->group(function () {

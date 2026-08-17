@@ -44,6 +44,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getSentimentAnalysis(Request $request): JsonResponse
     {
+        $this->authorize('viewSentimentAnalysis');
+
         $ticketId = $request->query('ticket_id');
         $includeHistory = $request->boolean('include_history', false);
 
@@ -77,6 +79,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getEmotionAnalysis(Request $request): JsonResponse
     {
+        $this->authorize('viewEmotionAnalysis');
+
         $ticketId = $request->query('ticket_id');
 
         $emotion = EmotionAnalysis::where('ticket_id', $ticketId)
@@ -110,6 +114,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getLanguageDetection(Request $request): JsonResponse
     {
+        $this->authorize('viewLanguageDetection');
+
         $ticketId = $request->query('ticket_id');
 
         $language = LanguageDetection::where('ticket_id', $ticketId)
@@ -139,6 +145,8 @@ class CustomerServiceAIController extends Controller
      */
     public function listRoutingRules(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewRoutingRules');
+
         $query = RoutingRule::with('team')
             ->when($request->query('team_id'), fn($q) => $q->where('team_id', $request->query('team_id')))
             ->when($request->query('sentiment_trigger'), fn($q) => $q->where('sentiment_trigger', $request->query('sentiment_trigger')))
@@ -158,6 +166,8 @@ class CustomerServiceAIController extends Controller
      */
     public function createRoutingRule(Request $request): JsonResponse
     {
+        $this->authorize('createRoutingRule');
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'rule_type' => 'required|string|in:sentiment_based,emotion_based,urgency_based',
@@ -176,6 +186,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getEscalationPrediction(Request $request): JsonResponse
     {
+        $this->authorize('viewEscalationPredictions');
+
         $ticketId = $request->query('ticket_id');
 
         $prediction = EscalationPrediction::where('ticket_id', $ticketId)
@@ -205,6 +217,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getUrgencyFactors(Request $request): JsonResponse
     {
+        $this->authorize('viewUrgencyFactors');
+
         $ticketId = $request->query('ticket_id');
 
         $factors = UrgencyFactor::where('ticket_id', $ticketId)
@@ -241,6 +255,8 @@ class CustomerServiceAIController extends Controller
      */
     public function listResponseTemplates(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewResponseTemplates');
+
         $query = ResponseTemplate::when($request->query('category'), fn($q) => $q->where('category', $request->query('category')))
             ->when($request->query('language'), fn($q) => $q->where('language', $request->query('language')))
             ->when($request->query('tone'), fn($q) => $q->where('tone', $request->query('tone')))
@@ -258,6 +274,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getResponseSuggestions(Request $request): JsonResponse
     {
+        $this->authorize('viewResponseSuggestions');
+
         $ticketId = $request->query('ticket_id');
         $limit = $request->query('limit', 5);
 
@@ -290,6 +308,8 @@ class CustomerServiceAIController extends Controller
      */
     public function recordSuggestionFeedback(Request $request): JsonResponse
     {
+        $this->authorize('viewResponseSuggestions');
+
         $validated = $request->validate([
             'suggestion_id' => 'required|integer|exists:cs_response_suggestions,id',
             'accepted' => 'required|boolean',
@@ -315,6 +335,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getSatisfactionPrediction(Request $request): JsonResponse
     {
+        $this->authorize('viewSatisfactionPredictions');
+
         $ticketId = $request->query('ticket_id');
 
         $prediction = SatisfactionPrediction::where('ticket_id', $ticketId)
@@ -341,6 +363,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getNPSPrediction(Request $request): JsonResponse
     {
+        $this->authorize('viewNPSPredictions');
+
         $ticketId = $request->query('ticket_id');
 
         $nps = NPSPredictor::where('ticket_id', $ticketId)
@@ -372,6 +396,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getAgentMetrics(Request $request): JsonResponse
     {
+        $this->authorize('viewAgentMetrics');
+
         $validated = $request->validate([
             'agent_id' => 'required|integer',
             'start_date' => 'required|date',
@@ -413,6 +439,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getAgentPerformanceTrends(Request $request): JsonResponse
     {
+        $this->authorize('viewAgentPerformanceTrends');
+
         $validated = $request->validate([
             'agent_id' => 'required|integer',
             'period_type' => 'string|in:daily,weekly,monthly,quarterly',
@@ -445,6 +473,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getAgentSkills(Request $request): JsonResponse
     {
+        $this->authorize('viewAgentSkills');
+
         $validated = $request->validate([
             'agent_id' => 'required|integer',
             'category' => 'string',
@@ -480,6 +510,8 @@ class CustomerServiceAIController extends Controller
      */
     public function listCoachingRecommendations(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewCoachingRecommendations');
+
         $query = AgentCoachingRecommendation::with(['agent', 'generatedBy'])
             ->when($request->query('agent_id'), fn($q) => $q->where('agent_id', $request->query('agent_id')))
             ->when($request->query('status'), fn($q) => $q->where('status', $request->query('status')))
@@ -499,6 +531,8 @@ class CustomerServiceAIController extends Controller
      */
     public function createCoachingRecommendation(Request $request): JsonResponse
     {
+        $this->authorize('createCoachingRecommendation');
+
         $validated = $request->validate([
             'agent_id' => 'required|integer|exists:users,id',
             'recommendation_type' => 'required|string',
@@ -520,6 +554,8 @@ class CustomerServiceAIController extends Controller
      */
     public function getTeamBenchmarking(Request $request): JsonResponse
     {
+        $this->authorize('viewTeamBenchmarking');
+
         $teamId = $request->query('team_id');
 
         $benchmark = TeamBenchmarking::where('team_id', $teamId)
@@ -557,6 +593,8 @@ class CustomerServiceAIController extends Controller
      */
     public function listPerformanceGoals(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewPerformanceGoals');
+
         $query = PerformanceGoal::with(['agent', 'createdBy'])
             ->when($request->query('agent_id'), fn($q) => $q->where('agent_id', $request->query('agent_id')))
             ->when($request->query('status'), fn($q) => $q->where('status', $request->query('status')))
@@ -577,6 +615,8 @@ class CustomerServiceAIController extends Controller
      */
     public function createPerformanceGoal(Request $request): JsonResponse
     {
+        $this->authorize('createPerformanceGoal');
+
         $validated = $request->validate([
             'agent_id' => 'required|integer|exists:users,id',
             'goal_description' => 'required|string',
@@ -609,6 +649,7 @@ class CustomerServiceAIController extends Controller
         ]);
 
         $goal = PerformanceGoal::findOrFail($validated['goal_id']);
+        $this->authorize('updatePerformanceGoal', $goal);
 
         if (isset($validated['current_value']) && isset($goal->target_value)) {
             $progress = $validated['current_value'] / $goal->target_value;
