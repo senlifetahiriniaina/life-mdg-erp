@@ -215,6 +215,9 @@ describe('POST /api/v1/logistics/routes/optimize', function () {
 
     beforeEach(function () {
         $this->user = User::factory()->create();
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
         Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
         $this->user->assignRole('logistics-manager');
     });
@@ -290,6 +293,9 @@ describe('GET /api/v1/logistics/routes/optimize/{jobId}/result', function () {
 
     beforeEach(function () {
         $this->user = User::factory()->create();
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
         Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
         $this->user->assignRole('logistics-manager');
     });

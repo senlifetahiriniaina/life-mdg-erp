@@ -19,6 +19,8 @@ class ShipmentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Shipment::class);
+
         $q = Shipment::query()
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
@@ -39,6 +41,8 @@ class ShipmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Shipment::class);
+
         $data = $request->validate([
             'reference' => 'nullable|string|max:100|unique:logistics_shipments,reference',
             'tracking_number' => 'nullable|string|max:100',
@@ -78,11 +82,15 @@ class ShipmentController extends Controller
 
     public function show(Shipment $shipment): JsonResponse
     {
+        $this->authorize('view', $shipment);
+
         return response()->json(['data' => $shipment]);
     }
 
     public function update(Request $request, Shipment $shipment): JsonResponse
     {
+        $this->authorize('update', $shipment);
+
         $data = $request->validate([
             'status' => 'nullable|string',
             'carrier_id' => 'nullable|integer|exists:logistics_carriers,id',
@@ -104,6 +112,8 @@ class ShipmentController extends Controller
 
     public function destroy(Shipment $shipment): JsonResponse
     {
+        $this->authorize('delete', $shipment);
+
         $shipment->delete();
 
         return response()->json(['message' => 'Deleted.']);
@@ -111,6 +121,8 @@ class ShipmentController extends Controller
 
     public function book(Request $request, Shipment $shipment): JsonResponse
     {
+        $this->authorize('update', $shipment);
+
         $shipment->update(['status' => 'booked']);
 
         return response()->json(['data' => $shipment->fresh()]);
@@ -118,6 +130,8 @@ class ShipmentController extends Controller
 
     public function dispatch(Shipment $shipment): JsonResponse
     {
+        $this->authorize('update', $shipment);
+
         $shipment->update(['status' => 'dispatched']);
 
         return response()->json(['data' => $shipment->fresh()]);
@@ -125,6 +139,8 @@ class ShipmentController extends Controller
 
     public function deliver(Request $request, Shipment $shipment): JsonResponse
     {
+        $this->authorize('update', $shipment);
+
         $data = $request->validate([
             'delivery_date' => 'nullable|date',
             'delivered_at' => 'nullable|date',
@@ -137,6 +153,8 @@ class ShipmentController extends Controller
 
     public function cancel(Shipment $shipment): JsonResponse
     {
+        $this->authorize('update', $shipment);
+
         $shipment->update(['status' => 'cancelled']);
 
         return response()->json(['data' => $shipment->fresh()]);
@@ -144,6 +162,8 @@ class ShipmentController extends Controller
 
     public function trackingHistory(Shipment $shipment): JsonResponse
     {
+        $this->authorize('view', $shipment);
+
         return response()->json(['data' => $shipment->trackingEvents()->orderBy('recorded_at')->get()]);
     }
 }

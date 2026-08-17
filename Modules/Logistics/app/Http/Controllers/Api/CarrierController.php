@@ -19,6 +19,8 @@ class CarrierController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Carrier::class);
+
         $q = Carrier::query()
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
@@ -40,6 +42,8 @@ class CarrierController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Carrier::class);
+
         $data = $request->validate([
             'name' => 'required|string|max:200',
             'code' => 'nullable|string|max:10|unique:logistics_carriers,code',
@@ -60,17 +64,23 @@ class CarrierController extends Controller
 
     public function show(Carrier $carrier): JsonResponse
     {
+        $this->authorize('view', $carrier);
+
         return response()->json(['data' => $carrier->load('rates')]);
     }
 
     public function rates(Carrier $carrier): JsonResponse
     {
+        $this->authorize('view', $carrier);
+
         $rates = $carrier->rates()->get();
         return response()->json(['data' => $rates]);
     }
 
     public function update(Request $request, Carrier $carrier): JsonResponse
     {
+        $this->authorize('update', $carrier);
+
         $data = $request->validate([
             'name' => 'sometimes|string|max:200',
             'type' => 'sometimes|nullable|in:road,air,sea,rail,multimodal',
@@ -89,6 +99,8 @@ class CarrierController extends Controller
 
     public function destroy(Carrier $carrier): JsonResponse
     {
+        $this->authorize('delete', $carrier);
+
         $carrier->delete();
 
         return response()->json(['message' => 'Deleted.']);
@@ -96,6 +108,8 @@ class CarrierController extends Controller
 
     public function performance(Carrier $carrier): JsonResponse
     {
+        $this->authorize('view', $carrier);
+
         $stats = $this->service->getCarrierPerformance($carrier);
 
         return response()->json($stats);
@@ -103,6 +117,8 @@ class CarrierController extends Controller
 
     public function select(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Carrier::class);
+
         $data = $request->validate([
             'origin_country' => 'required|string|size:2',
             'destination_country' => 'required|string|size:2',

@@ -23,7 +23,7 @@ use Modules\Inventory\Http\Controllers\Api\WarehouseController;
 use Modules\Inventory\Http\Controllers\Api\WavePickingController;
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin', 'throttle:simple_get'])->group(function () {
     // Ecommerce Sync routes (write operations)
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('sync/ecommerce/product/{product}', [EcommerceSyncController::class, 'syncProduct']);
@@ -239,13 +239,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
     Route::post('ai/assist', [\Modules\Inventory\Http\Controllers\Api\InventoryAiAssistController::class, 'assist'])
         ->name('inventory.ai.assist');
 });
 
 // ── EDI (850/856/810) ─────────────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
     Route::post('edi/receive', [\Modules\Inventory\Http\Controllers\Api\EdiController::class, 'receive'])
         ->name('inventory.edi.receive');
     Route::post('edi/generate-810', [\Modules\Inventory\Http\Controllers\Api\EdiController::class, 'generate810'])
@@ -255,7 +255,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
 });
 
 // ── 3PL Fulfillment connectors ────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
     Route::get('3pl/connectors', [\Modules\Inventory\Http\Controllers\Api\FulfillmentController::class, 'connectors'])
         ->name('inventory.3pl.connectors');
     Route::post('3pl/fulfill', [\Modules\Inventory\Http\Controllers\Api\FulfillmentController::class, 'fulfill'])

@@ -236,6 +236,17 @@ class RolesAndPermissionsSeeder extends Seeder
     // approve,export,archive} -- 'core' isn't in MODULES at all (unlike
     // security/payroll/auditlog above, which only needed one or two extra
     // non-standard verbs), so every verb needs to be listed here explicitly.
+    // Chantier 8.3 (Logistics): DeliveryRoundPolicy checks
+    // logistics.deliveryround.{view-any,view,create,update,delete,approve,
+    // export,archive} -- 'deliveryround' isn't in MODULES['logistics'] at all
+    // (only shipment/route/carrier/customs-declaration), so every verb needs
+    // to be listed here explicitly, same reasoning as CORE_EXTRA_PERMISSIONS.
+    private const LOGISTICS_EXTRA_PERMISSIONS = [
+        'logistics.deliveryround.view-any', 'logistics.deliveryround.view', 'logistics.deliveryround.create',
+        'logistics.deliveryround.update', 'logistics.deliveryround.delete', 'logistics.deliveryround.approve',
+        'logistics.deliveryround.export', 'logistics.deliveryround.archive',
+    ];
+
     private const CORE_EXTRA_PERMISSIONS = [
         'core.approvalworkflow.view-any', 'core.approvalworkflow.view', 'core.approvalworkflow.create',
         'core.approvalworkflow.update', 'core.approvalworkflow.delete', 'core.approvalworkflow.approve',
@@ -327,6 +338,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::CORE_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::LOGISTICS_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

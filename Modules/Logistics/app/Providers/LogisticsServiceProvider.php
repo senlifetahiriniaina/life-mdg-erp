@@ -3,7 +3,14 @@
 namespace Modules\Logistics\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Logistics\Models\Carrier;
+use Modules\Logistics\Models\DeliveryRound;
+use Modules\Logistics\Models\Shipment;
+use Modules\Logistics\Policies\CarrierPolicy;
+use Modules\Logistics\Policies\DeliveryRoundPolicy;
+use Modules\Logistics\Policies\ShipmentPolicy;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -23,7 +30,22 @@ class LogisticsServiceProvider extends ServiceProvider
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
+        $this->registerPolicies();
 $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * Chantier 8.3 found CarrierPolicy/ShipmentPolicy/DeliveryRoundPolicy fully
+     * written but never invoked by their controllers, and never registered
+     * with Laravel's Gate (Modules-namespaced policies don't auto-discover —
+     * confirmed the hard way in Core's own registerPolicies(), same reasoning
+     * applies here).
+     */
+    private function registerPolicies(): void
+    {
+        Gate::policy(Carrier::class, CarrierPolicy::class);
+        Gate::policy(Shipment::class, ShipmentPolicy::class);
+        Gate::policy(DeliveryRound::class, DeliveryRoundPolicy::class);
     }
 
     public function register(): void

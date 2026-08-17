@@ -10,6 +10,9 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
     Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
     $this->user->assignRole('logistics-manager');
 });

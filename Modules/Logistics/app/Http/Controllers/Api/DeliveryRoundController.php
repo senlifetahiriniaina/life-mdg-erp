@@ -17,6 +17,8 @@ class DeliveryRoundController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', DeliveryRound::class);
+
         $q = DeliveryRound::with('carrier:id,name', 'creator:id,name')
             ->withCount('stops')
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
@@ -35,6 +37,8 @@ class DeliveryRoundController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', DeliveryRound::class);
+
         $validated = $request->validate([
             'driver_name' => 'required|string|max:200',
             'driver_phone' => 'nullable|string|max:30',
@@ -78,6 +82,8 @@ class DeliveryRoundController extends Controller
 
     public function addStop(Request $request, DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('update', $deliveryRound);
+
         $data = $request->validate([
             'location_id' => 'nullable|integer',
             'shipment_id' => 'nullable|integer|exists:logistics_shipments,id',
@@ -99,6 +105,8 @@ class DeliveryRoundController extends Controller
 
     public function show(DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('view', $deliveryRound);
+
         return response()->json(
             $deliveryRound->load('carrier:id,name', 'creator:id,name', 'stops.shipment:id,reference,consignee_name')
         );
@@ -106,6 +114,8 @@ class DeliveryRoundController extends Controller
 
     public function update(Request $request, DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('update', $deliveryRound);
+
         abort_if(
             in_array($deliveryRound->status, ['completed', 'cancelled'], true),
             422,
@@ -130,6 +140,8 @@ class DeliveryRoundController extends Controller
 
     public function destroy(DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('delete', $deliveryRound);
+
         abort_if($deliveryRound->status !== 'planned', 422, 'Only planned rounds can be deleted.');
         $deliveryRound->delete();
 
@@ -138,6 +150,8 @@ class DeliveryRoundController extends Controller
 
     public function start(DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('update', $deliveryRound);
+
         abort_if($deliveryRound->status !== 'planned', 422, 'Only planned rounds can be started.');
 
         $deliveryRound->update([
@@ -150,6 +164,8 @@ class DeliveryRoundController extends Controller
 
     public function complete(DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('update', $deliveryRound);
+
         abort_if($deliveryRound->status !== 'in_progress', 422, 'Only in-progress rounds can be completed.');
 
         $deliveryRound->update([
@@ -162,6 +178,8 @@ class DeliveryRoundController extends Controller
 
     public function optimize(DeliveryRound $deliveryRound): JsonResponse
     {
+        $this->authorize('update', $deliveryRound);
+
         abort_if($deliveryRound->status !== 'planned', 422, 'Only planned rounds can be optimized.');
 
         $stops = $deliveryRound->stops()->orderBy('stop_order')->get();
@@ -175,6 +193,8 @@ class DeliveryRoundController extends Controller
 
     public function proofOfDelivery(Request $request, DeliveryRound $deliveryRound, DeliveryStop $stop): JsonResponse
     {
+        $this->authorize('update', $deliveryRound);
+
         abort_if($deliveryRound->status !== 'in_progress', 422, 'Round must be in progress to record proof of delivery.');
         abort_if($stop->delivery_round_id !== $deliveryRound->id, 404, 'Stop does not belong to this round.');
 

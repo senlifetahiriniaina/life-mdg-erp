@@ -7,9 +7,19 @@ use Modules\Inventory\Models\Carrier;
 use Modules\Inventory\Models\Shipment;
 use Modules\Inventory\Models\ShipmentEvent;
 
+function inventoryShipmentTestUser(): User
+{
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
+    $user = User::factory()->create();
+    $user->assignRole('employee');
+
+    return $user;
+}
 
 it('can list shipments', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     Shipment::factory()->count(4)->create();
 
     $this->actingAs($user, 'sanctum')
@@ -20,7 +30,7 @@ it('can list shipments', function () {
 });
 
 it('can create a shipment', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     $carrier = Carrier::factory()->dhl()->create();
 
     $response = $this->actingAs($user, 'sanctum')
@@ -52,7 +62,7 @@ it('can create a shipment', function () {
 });
 
 it('can get shipping rates', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     Carrier::factory()->dhl()->create();
     Carrier::factory()->fedex()->create();
 
@@ -81,7 +91,7 @@ it('can get shipping rates', function () {
 });
 
 it('can track a shipment', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     $shipment = Shipment::factory()->inTransit()->create();
 
     $response = $this->actingAs($user, 'sanctum')
@@ -93,7 +103,7 @@ it('can track a shipment', function () {
 });
 
 it('can update shipment status', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     $shipment = Shipment::factory()->draft()->create();
 
     $this->actingAs($user, 'sanctum')
@@ -108,7 +118,7 @@ it('can update shipment status', function () {
 });
 
 it('can manage carriers', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
 
     // Create a carrier
     $this->actingAs($user, 'sanctum')
@@ -129,7 +139,7 @@ it('can manage carriers', function () {
 });
 
 it('can filter shipments by status', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     Shipment::factory()->inTransit()->count(3)->create();
     Shipment::factory()->delivered()->count(2)->create();
 
@@ -140,7 +150,7 @@ it('can filter shipments by status', function () {
 });
 
 it('can soft delete a shipment', function () {
-    $user = User::factory()->create();
+    $user = inventoryShipmentTestUser();
     $shipment = Shipment::factory()->draft()->create();
 
     $this->actingAs($user, 'sanctum')

@@ -17,7 +17,11 @@ use Modules\Inventory\Services\LotTrackingService;
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
     $this->user = User::factory()->create();
+    $this->user->assignRole('employee');
     $this->token = $this->user->createToken('test')->plainTextToken;
     $this->warehouse = Warehouse::factory()->create();
 });
