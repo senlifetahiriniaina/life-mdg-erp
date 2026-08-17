@@ -15,51 +15,23 @@ class CarrierRateCardFactory extends Factory
     public function definition(): array
     {
         return [
-                        'carrier_id' => fake()->word(),
-            'origin_country' => fake()->word(),
-            'dest_country' => fake()->word(),
-            'service_type' => fake()->word(),
-            'weight_min_kg' => fake()->word(),
-            'weight_max_kg' => fake()->word(),
-            'base_rate' => fake()->word(),
-            'per_kg_rate' => fake()->word(),
-            'currency' => fake()->word(),
-            'transit_days_min' => fake()->word(),
-            'transit_days_max' => fake()->word(),
+            'carrier_id' => null,
+            'origin_country' => fake()->countryCode(),
+            'dest_country' => fake()->countryCode(),
+            'service_type' => fake()->randomElement(['standard', 'express', 'economy']),
+            'weight_min_kg' => 0,
+            'weight_max_kg' => fake()->randomFloat(3, 10, 100),
+            'base_rate' => fake()->randomFloat(2, 5, 50),
+            'per_kg_rate' => fake()->randomFloat(4, 0.5, 5),
+            'currency' => 'XOF',
+            'transit_days_min' => fake()->numberBetween(1, 3),
+            'transit_days_max' => fake()->numberBetween(4, 10),
             'is_active' => true,
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'notes' => fake()->text(),
         ];
     }
 
-    /**
-     * Indicate model is inactive
-     */
     public function inactive(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => ['is_active' => false]);
     }
 }

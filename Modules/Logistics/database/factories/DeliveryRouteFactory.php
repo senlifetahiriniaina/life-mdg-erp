@@ -15,49 +15,27 @@ class DeliveryRouteFactory extends Factory
     public function definition(): array
     {
         return [
-                        'company_id' => fake()->word(),
-            'reference' => fake()->bothify('??-##'),
-            'name' => fake()->word(),
-            'date' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'vehicle_id' => fake()->word(),
-            'driver_id' => fake()->word(),
-            'total_distance_km' => fake()->word(),
-            'total_duration_min' => fake()->word(),
-            'total_stops' => fake()->word(),
-            'optimized' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'company_id' => 1,
+            'reference' => fake()->bothify('RTE-####-##'),
+            'name' => fake()->city().' Delivery Run',
+            'date' => fake()->dateTimeBetween('now', '+1 week')->format('Y-m-d'),
+            'status' => 'planned',
+            'vehicle_id' => null,
+            'driver_id' => null,
+            'total_distance_km' => fake()->randomFloat(2, 5, 300),
+            'total_duration_min' => fake()->numberBetween(20, 480),
+            'total_stops' => fake()->numberBetween(1, 15),
+            'optimized' => false,
         ];
     }
 
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
+    public function inProgress(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
+        return $this->state(fn (array $attributes) => ['status' => 'in_progress']);
     }
 
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
+    public function completed(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => ['status' => 'completed']);
     }
 }
