@@ -17,7 +17,7 @@ use Modules\HR\Http\Controllers\Api\SalaryBandController;
 use Modules\HR\Http\Controllers\Api\SkillController;
 
 // Default: Simple GET throttle (1000 req/min) — overridden for specific endpoint groups
-Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
     // Employee routes - custom routes first to avoid being shadowed by apiResource
     Route::middleware('cache.api:1')->group(function () {
         Route::get('employees/by-department/{department}', [EmployeeController::class, 'byDepartment']);
@@ -138,7 +138,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->
 });
 
 // Employee Self-Service Portal (any authenticated user — no hr-manager role needed)
-Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::prefix('portal')->group(function () {
         Route::get('profile', [EmployeeSelfServiceController::class, 'me']);
         Route::get('leave-balance', [EmployeeSelfServiceController::class, 'leaveBalance']);
@@ -150,7 +150,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/hr')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/hr')->group(function () {
     Route::post('ai/assist', [\Modules\HR\Http\Controllers\Api\HRAiAssistController::class, 'assist'])
         ->name('hr.ai.assist');
 });

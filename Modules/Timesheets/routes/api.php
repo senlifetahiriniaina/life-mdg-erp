@@ -7,7 +7,7 @@ use Modules\Timesheets\Http\Controllers\Api\TimesheetAdvancedController;
 use Modules\Timesheets\Http\Controllers\Api\TimesheetEntryController;
 use Modules\Timesheets\Http\Controllers\Api\TrackingProjectController;
 
-Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'role:employee,manager,admin', 'throttle:simple_get'])->prefix('timesheets')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin', 'throttle:simple_get'])->prefix('timesheets')->group(function () {
     // Timesheet entries
     Route::get('entries/pending/approvals', [TimesheetEntryController::class, 'pendingApprovals']);
     Route::get('entries', [TimesheetEntryController::class, 'index']);
@@ -55,13 +55,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'rol
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('timesheets')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('timesheets')->group(function () {
     Route::post('ai/assist', [\Modules\Timesheets\Http\Controllers\Api\TimesheetsAiAssistController::class, 'assist'])
         ->name('timesheets.ai.assist');
 });
 
 // ── Live Timer (browser extension + in-app) ────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('timesheets')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('timesheets')->group(function () {
     Route::get('timer/current', [\Modules\Timesheets\Http\Controllers\Api\TimerController::class, 'current'])
         ->name('timesheets.timer.current');
     Route::middleware('throttle:create_post')->group(function () {
@@ -75,7 +75,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'rol
 });
 
 // ── Phase 49: advanced timesheet + project-billing endpoints (TimesheetAdvancedController) ──
-Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('timesheets')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('timesheets')->group(function () {
     Route::get('/', [TimesheetAdvancedController::class, 'index']);
     Route::post('/', [TimesheetAdvancedController::class, 'store']);
     Route::put('{id}', [TimesheetAdvancedController::class, 'update']);
@@ -89,7 +89,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'rol
     Route::get('revenue-recognition', [TimesheetAdvancedController::class, 'revenueRecognition']);
 });
 
-Route::middleware(['auth:sanctum', 'session.security', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('projects')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('projects')->group(function () {
     Route::get('{id}/billing', [TimesheetAdvancedController::class, 'billingHistory']);
     Route::post('{id}/billing/milestone', [TimesheetAdvancedController::class, 'billByMilestone']);
     Route::post('{id}/billing/percentage', [TimesheetAdvancedController::class, 'billByPercentage']);

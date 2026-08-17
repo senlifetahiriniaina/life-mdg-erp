@@ -21,7 +21,7 @@ use Modules\Workflow\Http\Controllers\Api\CodeNodeController;
 |
 */
 
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1')->group(function () {
 
     // ─── DSL & Schema Endpoints (Phase 39) ────────────────────────────────────
 
@@ -178,7 +178,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1')->group(fun
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/workflow')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/workflow')->group(function () {
     Route::post('ai/assist', [\Modules\Workflow\Http\Controllers\Api\WorkflowAiAssistController::class, 'assist'])
         ->name('workflow.ai.assist');
 });

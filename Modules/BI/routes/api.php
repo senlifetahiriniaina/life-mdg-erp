@@ -19,7 +19,7 @@ use Modules\BI\Http\Controllers\Api\QueryController;
 use Modules\BI\Http\Controllers\Api\ReportController;
 
 // Default: Simple GET throttle (1000 req/min) with module/role checks
-Route::middleware(['auth:sanctum', 'session.security', 'module:BI', 'role:manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:BI', 'role:manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Queries - reads
     Route::get('bi/queries', [QueryController::class, 'index']);
     Route::get('bi/queries/{query}', [QueryController::class, 'show']);
@@ -157,14 +157,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:BI', 'role:manage
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/bi')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/bi')->group(function () {
     Route::post('ai/assist', [\Modules\BI\Http\Controllers\Api\BIAiAssistController::class, 'assist'])
         ->name('bi.ai.assist');
 });
 
 // ── Embed / White-label Analytics ─────────────────────────────────────────
 // Authenticated routes (token management)
-Route::middleware(['auth:sanctum', 'session.security', 'module:BI', 'role:manager,admin', 'throttle:create_post'])
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:BI', 'role:manager,admin', 'throttle:create_post'])
     ->prefix('v1')
     ->group(function () {
         Route::post('bi/embed/tokens', [EmbedController::class, 'createToken'])

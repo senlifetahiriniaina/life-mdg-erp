@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Reporting\Http\Controllers\Api\ReportingController;
 // Note: all routes handled by a single controller — OHADA, NL-SQL, Dashboards, Widgets
 
-Route::middleware(['auth:sanctum', 'session.security', 'module:Reporting'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Reporting'])->prefix('v1')->group(function () {
 
     // ─── Report Definitions (CRUD) ─────────────────────────────────────────────
     Route::get('reporting/reports', [ReportingController::class, 'listReports'])
@@ -108,7 +108,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Reporting'])->pre
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/reporting')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/reporting')->group(function () {
     Route::post('ai/assist', [\Modules\Reporting\Http\Controllers\Api\ReportingAiAssistController::class, 'assist'])
         ->name('reporting.ai.assist');
 });

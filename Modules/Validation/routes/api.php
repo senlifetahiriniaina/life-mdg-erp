@@ -7,7 +7,7 @@ use Modules\Validation\Http\Controllers\Api\ApprovalRuleController;
 use Modules\Validation\Http\Controllers\Api\ApprovalWorkflowController;
 
 // Alias routes (short form) for backwards compatibility with tests
-Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
     Route::get('workflows', [ApprovalWorkflowController::class, 'index']);
     Route::get('workflows/{workflow}', [ApprovalWorkflowController::class, 'show']);
     Route::get('requests', [ApprovalRequestController::class, 'index']);
@@ -25,7 +25,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->
 });
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
     // Approval Workflows - reads
     Route::get('approval-workflows', [ApprovalWorkflowController::class, 'index']);
     Route::get('approval-workflows/{workflow}', [ApprovalWorkflowController::class, 'show']);
@@ -77,7 +77,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'throttle:simple_get'])->
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/validation')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/validation')->group(function () {
     Route::post('ai/assist', [\Modules\Validation\Http\Controllers\Api\ValidationAiAssistController::class, 'assist'])
         ->name('validation.ai.assist');
 });

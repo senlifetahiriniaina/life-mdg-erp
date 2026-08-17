@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
 // controller layer is missing. Left commented out as backlog (building 4 controllers
 // / ~24 endpoints is new feature work, not a wiring fix) rather than routed to a
 // nonexistent class.
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/ai')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/ai')->group(function () {
     // Contextual AI Assistant (AI Assisted First)
     Route::post('assist', 'Modules\AI\Http\Controllers\Api\AiAssistantController@assist');
     Route::get('assist/modules', 'Modules\AI\Http\Controllers\Api\AiAssistantController@modules');
@@ -33,7 +33,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/ai')->group(
 });
 
 // Admin AI budget management (separate prefix, same sanctum guard)
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/ai/admin')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/ai/admin')->group(function () {
     Route::get('usage',          'Modules\AI\Http\Controllers\Api\AiActionAdvisorController@adminUsage');
     Route::get('limits',         'Modules\AI\Http\Controllers\Api\AiActionAdvisorController@adminListLimits');
     Route::post('limits',        'Modules\AI\Http\Controllers\Api\AiActionAdvisorController@adminSetLimit');

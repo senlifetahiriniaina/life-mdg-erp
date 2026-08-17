@@ -1,0 +1,46 @@
+# Redis — service optionnel encapsulant le cache/session/queue/tenancy Redis
+#
+# Fichier dédié et isolé, même convention que docker-compose.deepseek.yml
+# (pas fusionné dans un compose applicatif général, qui n'existe pas encore
+# à la racine — cf. CLAUDE.md "Known gaps", seul setup/docker-compose.yml
+# existe). Lancer indépendamment :
+#
+#   docker compose -f docker-compose.redis.yml up -d
+#
+# Puis configurer .env (voir .env.example) :
+#   CACHE_STORE=redis
+#   SESSION_DRIVER=redis
+#   QUEUE_CONNECTION=redis
+#   REDIS_HOST=127.0.0.1
+#   REDIS_PORT=6379
+#
+# config/tenancy.php only enables Stancl\Tenancy\Bootstrappers\
+# RedisTenancyBootstrapper when REDIS_HOST is set — without this service (or
+# any other reachable Redis), the app and its test suite run correctly on
+# CACHE_STORE=array/SESSION_DRIVER=array/QUEUE_CONNECTION=sync instead (see
+# .env.testing), simply without Redis-backed tenant key prefixing.
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - life-mdg-erp
+
+volumes:
+  redis_data:
+
+networks:
+  life-mdg-erp:
+    driver: bridge

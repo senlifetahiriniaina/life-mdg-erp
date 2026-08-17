@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Payroll\Http\Controllers\Api\PayrollController;
 
-Route::middleware(['auth:sanctum', 'session.security', 'role:hr-manager,accountant,finance-manager,manager,admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:hr-manager,accountant,finance-manager,manager,admin'])->group(function () {
     Route::get('payslips',                [PayrollController::class, 'index']);
     Route::post('generate',               [PayrollController::class, 'generate']);
     Route::post('payslips/approve-batch', [PayrollController::class, 'approveBatch']);
@@ -13,7 +13,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:hr-manager,accounta
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::post('ai/assist', [\Modules\Payroll\Http\Controllers\Api\PayrollAiAssistController::class, 'assist'])
         ->name('payroll.ai.assist');
 });

@@ -8,7 +8,7 @@ use Modules\Analytics\Http\Controllers\PredictionController;
 use Modules\Analytics\Http\Controllers\RecommendationController;
 
 // ── Phase 41 : Moteur de prévision IA ──────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/forecasting')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/forecasting')->group(function () {
     // Modèles de prévision
     Route::get('models', [ForecastingController::class, 'indexModels']);
     Route::post('models', [ForecastingController::class, 'storeModel']);
@@ -47,7 +47,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/forecasting'
     Route::get('hr', [ForecastingController::class, 'hrForecast']);
 });
 
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/analytics')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/analytics')->group(function () {
     // Prediction Models (5 endpoints)
     Route::apiResource('predictions', PredictionController::class);
     Route::post('predictions/{predictionModel}/train', [PredictionController::class, 'train']);
@@ -75,7 +75,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/analytics')-
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/analytics')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/analytics')->group(function () {
     Route::post('ai/assist', [\Modules\Analytics\Http\Controllers\Api\AnalyticsAiAssistController::class, 'assist'])
         ->name('analytics.ai.assist');
 });

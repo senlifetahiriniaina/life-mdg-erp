@@ -3,9 +3,9 @@ name: Docker Build
 on:
   push:
     branches: [ main, "claude/**" ]
-    paths: [ 'Dockerfile', 'docker-compose.deepseek.yml', 'infra/**', 'composer.json', 'composer.lock', 'package.json', '.dockerignore', '.github/workflows/docker-build.yml' ]
+    paths: [ 'Dockerfile', 'docker-compose.deepseek.yml', 'docker-compose.redis.yml', 'infra/**', 'composer.json', 'composer.lock', 'package.json', '.dockerignore', '.github/workflows/docker-build.yml' ]
   pull_request:
-    paths: [ 'Dockerfile', 'docker-compose.deepseek.yml', 'infra/**', 'composer.json', 'composer.lock', 'package.json' ]
+    paths: [ 'Dockerfile', 'docker-compose.deepseek.yml', 'docker-compose.redis.yml', 'infra/**', 'composer.json', 'composer.lock', 'package.json' ]
   workflow_dispatch:
 
 jobs:
@@ -31,3 +31,6 @@ jobs:
         # Syntax/interpolation check only — does not pull the Ollama image or
         # the DeepSeek model (too slow/heavy to run on every push).
         run: docker compose -f docker-compose.deepseek.yml config
+      - name: Validate Redis compose file
+        # Syntax/interpolation check only — does not pull the redis image.
+        run: docker compose -f docker-compose.redis.yml config

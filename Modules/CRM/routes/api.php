@@ -32,7 +32,7 @@ Route::post('v1/crm/forms/{slug}/submit', [WebFormController::class, 'submit'])
     ->name('crm.forms.submit');
 
 // Default: Simple GET throttle (1000 req/min) — overridden for specific endpoint groups
-Route::middleware(['auth:sanctum', 'session.security', 'module:CRM', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:CRM', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Read-only endpoints with 5-minute cache (GET only)
     Route::middleware('cache.api:5')->group(function () {
         Route::apiResource('crm/contacts', ContactController::class)->only(['index', 'show'])->names('crm.contacts');
@@ -286,13 +286,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:CRM', 'throttle:s
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm')->group(function () {
     Route::post('ai/assist', [\Modules\CRM\Http\Controllers\Api\CRMAiAssistController::class, 'assist'])
         ->name('crm.ai.assist');
 });
 
 // ── Call recordings + AI summarization ──────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm')->group(function () {
     Route::get('calls/{callId}', [CallRecordingController::class, 'show'])
         ->name('crm.calls.show');
     Route::post('calls/{callId}/summarize', [CallRecordingController::class, 'summarize'])
@@ -302,7 +302,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm')->group
 });
 
 // ── Revenue intelligence (insights, trends, anomalies) ──────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm/revenue-intelligence')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm/revenue-intelligence')->group(function () {
     Route::get('insights', [RevenueIntelligenceController::class, 'getInsights'])
         ->name('crm.revenue-intelligence.insights');
     Route::post('insights/generate', [RevenueIntelligenceController::class, 'generateInsight'])
@@ -322,7 +322,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm/revenue-
 });
 
 // ── No-code workflow builder ─────────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/crm/workflows')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm/workflows')->group(function () {
     Route::get('/', [WorkflowBuilderController::class, 'index'])
         ->name('crm.workflows.index');
     Route::post('/', [WorkflowBuilderController::class, 'create'])

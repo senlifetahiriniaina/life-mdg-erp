@@ -12,7 +12,7 @@ use Modules\Achats\Http\Controllers\Api\SupplierController;
 use Modules\Achats\Http\Controllers\Api\SupplierQuoteController;
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'role:purchasing-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:purchasing-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->group(function () {
     // Purchase Orders
     Route::get('purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::get('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show']);
@@ -98,7 +98,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:purchasing-manager,
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/achats')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/achats')->group(function () {
     Route::post('ai/assist', [\Modules\Achats\Http\Controllers\Api\AchatsAiAssistController::class, 'assist'])
         ->name('achats.ai.assist');
 });

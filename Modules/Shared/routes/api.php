@@ -10,7 +10,7 @@ Route::prefix('v1/shared')->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/shared')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/shared')->group(function () {
     Route::post('ai/assist', [\Modules\Shared\Http\Controllers\Api\SharedAiAssistController::class, 'assist'])
         ->name('shared.ai.assist');
 });

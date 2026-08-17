@@ -17,7 +17,7 @@ use Modules\Logistics\Http\Controllers\Api\ShipmentController;
 use Modules\Logistics\Http\Controllers\Api\TrackingEventController;
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Shipments (core TMS)
     Route::get('logistics/shipments', [ShipmentController::class, 'index']);
     Route::get('logistics/shipments/{shipment}', [ShipmentController::class, 'show']);
@@ -140,13 +140,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'role
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/logistics')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/logistics')->group(function () {
     Route::post('ai/assist', [\Modules\Logistics\Http\Controllers\Api\LogisticsAiAssistController::class, 'assist'])
         ->name('logistics.ai.assist');
 });
 
 // ── HS Code catalogue (read-only, WCO 2022 nomenclature) ──────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Logistics', 'throttle:simple_get'])->prefix('v1')->group(function () {
     Route::get('logistics/hs-codes/search', [\Modules\Logistics\Http\Controllers\Api\HsCodeController::class, 'search'])
         ->name('logistics.hs-codes.search');
     Route::get('logistics/hs-codes/chapters', [\Modules\Logistics\Http\Controllers\Api\HsCodeController::class, 'chapters'])
@@ -156,7 +156,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'thro
 });
 
 // ── Ocean/Air Visibility Aggregator ──────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1')->group(function () {
     Route::get('logistics/shipments/{id}/visibility', [\Modules\Logistics\Http\Controllers\Api\ShipmentVisibilityController::class, 'visibility'])
         ->name('logistics.shipments.visibility');
     Route::post('logistics/shipments/{id}/refresh-tracking', [\Modules\Logistics\Http\Controllers\Api\ShipmentVisibilityController::class, 'refreshTracking'])
@@ -168,7 +168,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1')->group(fun
 // ── Phase 47 — Customs Clearance + Route Optimization + Vehicles + Carrier Integrations ──
 // NOTE: routesIndex()/routesStore() (GET/POST logistics/routes) are deliberately NOT routed
 // here — they collide with the already-active RouteController::index/store on the same path.
-Route::middleware(['auth:sanctum', 'session.security', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
     Route::get('logistics/customs', [CustomsRouteController::class, 'customsIndex']);
     Route::get('logistics/customs/document-checklist', [CustomsRouteController::class, 'customsDocumentChecklist']);
     Route::get('logistics/customs/{id}', [CustomsRouteController::class, 'customsShow']);

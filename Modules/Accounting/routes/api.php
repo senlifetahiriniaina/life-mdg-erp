@@ -47,7 +47,7 @@ Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\M
 });
 
 // Simple GET endpoints (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-manager,manager,admin', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:simple_get'])->group(function () {
     Route::get('invoices', [InvoiceController::class, 'index']);
     Route::get('invoices/summary', [InvoiceController::class, 'summary']);
     Route::get('invoices/aged-receivables', [InvoiceController::class, 'agedReceivables']);
@@ -93,7 +93,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
 });
 
 // Complex GET endpoints with calculations (400 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-manager,manager,admin', 'throttle:complex_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:complex_get'])->group(function () {
     Route::get('invoices/outstanding', [InvoiceController::class, 'outstanding']);
     Route::get('invoices/overdue', [InvoiceController::class, 'overdue']);
     Route::get('expenses/pending', [ExpenseController::class, 'pending']);
@@ -108,7 +108,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
 });
 
 // Expensive operations - reporting (10 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-manager,manager,admin', 'throttle:expensive'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:expensive'])->group(function () {
     Route::get('reports/metrics', [ReportController::class, 'financialMetrics']);
     Route::get('reports/income-statement', [ReportController::class, 'incomeStatement']);
     Route::get('reports/balance-sheet', [ReportController::class, 'balanceSheet']);
@@ -142,7 +142,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
 });
 
 // Write operations (150 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-manager,manager,admin', 'throttle:create_post'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:create_post'])->group(function () {
     Route::post('invoices', [InvoiceController::class, 'store']);
     Route::put('invoices/{invoice}', [InvoiceController::class, 'update']);
     Route::patch('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus']);
@@ -421,7 +421,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'role:accountant,finance-
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/accounting')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/accounting')->group(function () {
     Route::post('ai/assist', [\Modules\Accounting\Http\Controllers\Api\AccountingAiAssistController::class, 'assist'])
         ->name('accounting.ai.assist');
 });

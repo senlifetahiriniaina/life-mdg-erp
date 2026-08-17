@@ -10,7 +10,7 @@ use Modules\Setup\Http\Controllers\Api\SetupController;
 use Modules\Setup\Http\Controllers\Api\SetupThresholdsController;
 use Modules\Setup\Http\Controllers\Api\SetupWizardController;
 
-Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     // -----------------------------------------------------------------------
     // Setup Wizard — company onboarding (6 steps)
     // -----------------------------------------------------------------------
@@ -162,7 +162,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->group(function () {
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/setup')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/setup')->group(function () {
     Route::post('ai/assist', [\Modules\Setup\Http\Controllers\Api\SetupAiAssistController::class, 'assist'])
         ->name('setup.ai.assist');
 });

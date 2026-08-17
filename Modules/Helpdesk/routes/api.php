@@ -33,7 +33,7 @@ Route::prefix('v1')->group(function () {
 });
 
 // Self-service routes: any authenticated user (community forum, live chat agent actions)
-Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Live Chat (agent actions — any authenticated user can act as agent)
     Route::post('helpdesk/chat/sessions/{session}/assign', [LiveChatController::class, 'assignAgent']);
     Route::post('helpdesk/chat/sessions/{session}/convert-to-ticket', [LiveChatController::class, 'convertToTicket']);
@@ -54,7 +54,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throt
 });
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
 
     // Tickets
     Route::get('helpdesk/tickets', [TicketController::class, 'index'])->name('helpdesk.tickets.index');
@@ -218,7 +218,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throt
 // ── Customer Service AI (sentiment, escalation, response AI, agent performance) ──
 // Reconnects Modules\Helpdesk\Http\Controllers\Api\CustomerServiceAIController's
 // 21 existing action methods — no new controller logic added here.
-Route::middleware(['auth:sanctum', 'session.security', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Helpdesk', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Sentiment / emotion / language analysis
     Route::get('helpdesk/cs-ai/sentiment', [CustomerServiceAIController::class, 'getSentimentAnalysis']);
     Route::get('helpdesk/cs-ai/emotion', [CustomerServiceAIController::class, 'getEmotionAnalysis']);
@@ -268,7 +268,7 @@ Route::prefix('v1/helpdesk')->group(function () {
 });
 
 // Authenticated forum actions
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/helpdesk')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/helpdesk')->group(function () {
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('forums', [CommunityForumController::class, 'storeForumBoard']);
         Route::post('forums/{forum}/threads', [CommunityForumController::class, 'storeThread']);
@@ -281,7 +281,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/helpdesk')->
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/helpdesk')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/helpdesk')->group(function () {
     Route::post('ai/assist', [\Modules\Helpdesk\Http\Controllers\Api\HelpdeskAiAssistController::class, 'assist'])
         ->name('helpdesk.ai.assist');
 });

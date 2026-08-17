@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 use Modules\Sales\Http\Controllers\Api\SalesController;
 
-Route::middleware(['auth:sanctum', 'session.security', 'module:Sales'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Sales'])->prefix('v1')->group(function () {
 
     // ─── Orders ────────────────────────────────────────────────────────────────
     Route::get('sales/orders', [SalesController::class, 'indexOrders'])
@@ -50,7 +50,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Sales'])->prefix(
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/sales')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/sales')->group(function () {
     Route::post('ai/assist', [\Modules\Sales\Http\Controllers\Api\SalesAiAssistController::class, 'assist'])
         ->name('sales.ai.assist');
 });

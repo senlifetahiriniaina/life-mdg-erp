@@ -27,16 +27,34 @@ return [
      *
      * To configure their behavior, see the config keys below.
      */
-    'bootstrappers' => [
-        Stancl\Tenancy\Bootstrappers\DatabaseTenancyBootstrapper::class,
+    'bootstrappers' => array_values(array_filter([
+        // DatabaseTenancyBootstrapper is deliberately NOT enabled: this app
+        // uses a shared-DB + tenant_id scoping model (BelongsToTenant), not
+        // database-per-tenant, and there is no CreateDatabase/MigrateDatabase
+        // job pipeline wired up to provision a per-tenant database. Enabling
+        // it would redirect every query inside tenancy()->initialize() to an
+        // empty, never-migrated per-tenant connection.
         Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\FilesystemTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\QueueTenancyBootstrapper::class,
         // phpredis (ext-redis) is installed in docker/php/Dockerfile via pecl.
         // This bootstrapper prefixes all direct Redis calls with the tenant ID,
         // preventing key leakage between tenants for session / broadcast / queue data.
-        Stancl\Tenancy\Bootstrappers\RedisTenancyBootstrapper::class,
-    ],
+        //
+        // Included only when REDIS_HOST is actually configured -- the same
+        // config-driven pattern Laravel itself uses to select cache/session/
+        // queue drivers, not an environment-name check. .env.example (real
+        // deployment config) sets CACHE_STORE/SESSION_DRIVER/QUEUE_CONNECTION
+        // to redis with REDIS_HOST set; .env.testing/phpunit.xml deliberately
+        // use array/sync with no REDIS_HOST, since no Redis server is
+        // reachable in this sandbox. RedisTenancyBootstrapper::bootstrap()
+        // eagerly opens a connection with no lazy fallback, and
+        // Tenancy::initialize() aborts entirely if any bootstrapper throws --
+        // so a missing Redis server would otherwise break every tenant-scoped
+        // test, not just Redis-specific ones, even though nothing in this
+        // deployment actually routes cache/session/queue data through Redis.
+        env('REDIS_HOST') ? Stancl\Tenancy\Bootstrappers\RedisTenancyBootstrapper::class : null,
+    ])),
 
     /**
      * Database tenancy config. Used by DatabaseTenancyBootstrapper.

@@ -18,7 +18,7 @@ use Modules\Projects\Http\Controllers\Api\TimeEntryController;
 use Modules\Projects\Http\Controllers\Api\TimeTrackingController;
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'module:Projects', 'role:employee,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Projects', 'role:employee,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
     // Time Tracking & Billing — MUST be registered BEFORE apiResource('projects') to avoid
     // the static segment "time-entries" being captured by the {project} route parameter.
     // IMPORTANT: /start must come BEFORE {timeEntry} parameterized routes.
@@ -182,7 +182,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'module:Projects', 'role:
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/projects')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/projects')->group(function () {
     Route::post('ai/assist', [\Modules\Projects\Http\Controllers\Api\ProjectsAiAssistController::class, 'assist'])
         ->name('projects.ai.assist');
 });
@@ -191,7 +191,7 @@ Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/projects')->
 // (ProjectAdvancedController::index/store/show/gantt/storeTask/updateTask are
 // deliberately NOT routed here — they collide with the already-active
 // ProjectController/GanttController/TaskController on the same paths.)
-Route::middleware(['auth:sanctum', 'session.security'])->prefix('v1/projects')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/projects')->group(function () {
     // Static "portfolio/..." routes MUST be registered before "{id}/..." below,
     // otherwise {id} greedily captures "portfolio" as a project id.
     Route::get('portfolio/kpis', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'portfolioKpis'])

@@ -37,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'check-resource' => \App\Http\Middleware\CheckResourcePermission::class,
             '2fa'        => \App\Http\Middleware\EnsureTwoFactorAuthenticated::class,
             'session.security' => \App\Http\Middleware\SanctumSessionSecurity::class,
+            'tenancy.user' => \App\Http\Middleware\InitializeTenancyFromAuthenticatedUser::class,
             'abilities'  => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability'    => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
         ]);
