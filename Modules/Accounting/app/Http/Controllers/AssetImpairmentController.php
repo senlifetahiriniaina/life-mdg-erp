@@ -2,11 +2,12 @@
 
 namespace Modules\Accounting\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\AssetImpairment;
 
-class AssetImpairmentController
+class AssetImpairmentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
@@ -27,7 +28,7 @@ class AssetImpairmentController
         $this->authorize('create', AssetImpairment::class);
 
         $validated = $request->validate([
-            'fixed_asset_id' => 'required|exists:fixed_assets,id',
+            'fixed_asset_id' => 'required|exists:acc_fixed_assets,id',
             'impairment_date' => 'required|date',
             'original_cost' => 'required|numeric|min:0',
             'accumulated_depreciation_before' => 'required|numeric|min:0',
@@ -85,7 +86,7 @@ class AssetImpairmentController
         $this->authorize('record', $impairment);
 
         $validated = $request->validate([
-            'journal_entry_id' => 'required|exists:journal_entries,id',
+            'journal_entry_id' => 'required|exists:acc_journal_entries,id',
         ]);
 
         $impairment->update([

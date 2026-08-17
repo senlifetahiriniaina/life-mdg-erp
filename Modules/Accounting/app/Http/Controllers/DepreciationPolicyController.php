@@ -2,11 +2,12 @@
 
 namespace Modules\Accounting\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\DepreciationPolicy;
 
-class DepreciationPolicyController
+class DepreciationPolicyController extends Controller
 {
     public function index(Request $request): JsonResponse
     {

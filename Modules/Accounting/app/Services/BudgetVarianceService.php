@@ -263,6 +263,63 @@ class BudgetVarianceService
         ];
     }
 
+    /**
+     * Aggregates budget/actual/variance across all budgets grouped by department.
+     */
+    public function varianceByDepartment(?string $department = null): array
+    {
+        $budgets = Budget::query()
+            ->when($department, fn ($q) => $q->where('department', $department))
+            ->get();
+
+        $result = [];
+        foreach ($budgets->groupBy(fn (Budget $b) => $b->department ?: 'unassigned') as $dept => $deptBudgets) {
+            $budgeted = 0.0;
+            $actual = 0.0;
+            foreach ($deptBudgets as $budget) {
+                $v = $this->calculateVariance($budget);
+                $budgeted += $v['budget_amount'];
+                $actual += $v['actual_amount'];
+            }
+            $variance = $budgeted - $actual;
+
+            $result[] = [
+                'department' => $dept,
+                'budgeted_amount' => round($budgeted, 2),
+                'actual_amount' => round($actual, 2),
+                'variance_amount' => round($variance, 2),
+                'variance_percent' => $budgeted > 0 ? round($variance / $budgeted * 100, 2) : 0.0,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Aggregates budget-line budgeted/actual/variance across all budgets grouped by category.
+     */
+    public function varianceByCategory(): array
+    {
+        $lines = BudgetLine::query()->get();
+
+        $result = [];
+        foreach ($lines->groupBy(fn (BudgetLine $l) => $l->category ?: 'other') as $category => $categoryLines) {
+            $budgeted = (float) $categoryLines->sum(fn (BudgetLine $l) => (float) ($l->budgeted_amount ?? $l->budget_amount ?? 0));
+            $actual = (float) $categoryLines->sum(fn (BudgetLine $l) => (float) ($l->actual_amount ?? 0));
+            $variance = $actual - $budgeted;
+
+            $result[] = [
+                'category' => $category,
+                'budgeted_amount' => round($budgeted, 2),
+                'actual_amount' => round($actual, 2),
+                'variance_amount' => round($variance, 2),
+                'variance_percent' => $budgeted > 0 ? round($variance / $budgeted * 100, 2) : 0.0,
+            ];
+        }
+
+        return $result;
+    }
+
     private function getTotalActual(Budget $budget): float
     {
         return (float) $budget->budgetActuals()->sum('actual_amount');

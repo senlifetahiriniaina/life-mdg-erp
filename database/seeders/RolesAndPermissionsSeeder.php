@@ -99,6 +99,10 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.depreciation.record', 'accounting.depreciation.restore', 'accounting.depreciation.force_delete',
         'accounting.intercompany.clear', 'accounting.intercompany.restore', 'accounting.intercompany.force_delete',
         'accounting.expense.approve',
+        'accounting.asset_impairment.approve', 'accounting.asset_impairment.record',
+        'accounting.asset_impairment.restore', 'accounting.asset_impairment.force_delete',
+        'accounting.depreciation_policy.restore', 'accounting.depreciation_policy.force_delete',
+        'accounting.budget_scenario.approve',
     ];
 
     // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
@@ -170,7 +174,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier'],
-        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'revenue_recognition', 'consolidation', 'depreciation', 'intercompany'],
+        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'revenue_recognition', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario'],
         'helpdesk'         => ['ticket', 'team', 'agent-performance'],
         'bi'               => ['dashboard', 'kpi', 'report', 'bidatasource'],
         'analytics'        => ['forecast', 'anomaly'],

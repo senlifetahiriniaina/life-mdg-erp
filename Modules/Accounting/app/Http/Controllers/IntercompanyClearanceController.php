@@ -2,20 +2,23 @@
 
 namespace Modules\Accounting\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\IntercompanyClearance;
 
-class IntercompanyClearanceController
+class IntercompanyClearanceController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', IntercompanyClearance::class);
 
+        $companyId = $request->user()->company_id;
+
         $clearances = IntercompanyClearance::with(['sendingCompany', 'receivingCompany', 'sendingGlAccount', 'receivingGlAccount'])
-            ->where(function ($q) {
-                $q->where('sending_company_id', $q->user()->company_id)
-                    ->orWhere('receiving_company_id', $q->user()->company_id);
+            ->where(function ($q) use ($companyId) {
+                $q->where('sending_company_id', $companyId)
+                    ->orWhere('receiving_company_id', $companyId);
             })
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('transaction_type'), fn($q) => $q->where('transaction_type', $request->transaction_type))
@@ -38,8 +41,8 @@ class IntercompanyClearanceController
             'transaction_type' => 'required|string',
             'amount' => 'required|numeric|min:0',
             'currency' => 'required|string|size:3',
-            'sending_gl_account_id' => 'required|exists:gl_accounts,id',
-            'receiving_gl_account_id' => 'required|exists:gl_accounts,id',
+            'sending_gl_account_id' => 'required|exists:acc_gl_accounts,id',
+            'receiving_gl_account_id' => 'required|exists:acc_gl_accounts,id',
             'description' => 'nullable|string',
             'due_date' => 'nullable|date',
             'documents' => 'nullable|json',

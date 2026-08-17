@@ -40,6 +40,13 @@ use Modules\Accounting\Http\Controllers\Api\AccOpenBankingController;
 use Modules\Accounting\Http\Controllers\Api\VatRateController;
 use Modules\Accounting\Http\Controllers\Api\AccountingAIController;
 use Modules\Accounting\Http\Controllers\Api\JournalEntryApiController;
+use Modules\Accounting\Http\Controllers\AssetImpairmentController;
+use Modules\Accounting\Http\Controllers\DepreciationPolicyController;
+use Modules\Accounting\Http\Controllers\DepreciationScheduleController;
+use Modules\Accounting\Http\Controllers\IntercompanyClearanceController;
+use Modules\Accounting\Http\Controllers\Api\BudgetVarianceController;
+use Modules\Accounting\Http\Controllers\Api\CostEngineController;
+use Modules\Accounting\Http\Controllers\Api\ScenarioPlanningController;
 
 // Webhooks (no auth required, signature validation only, rate limited)
 Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\Modules\Accounting\Http\Requests\HandleOpenBankingWebhookRequest $request) {
@@ -448,4 +455,71 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::apiResource('consolidation-hierarchies', \Modules\Accounting\Http\Controllers\ConsolidationHierarchyController::class)
         ->parameters(['consolidation-hierarchies' => 'hierarchy']);
+});
+
+// ── Chantier 8.1b — previously orphaned Accounting controllers, now wired
+//    (permission-gated via each controller's own $this->authorize(), not role-gated) ──
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+    // Asset Impairment
+    Route::get('asset-impairments', [AssetImpairmentController::class, 'index']);
+    Route::post('asset-impairments', [AssetImpairmentController::class, 'store']);
+    Route::get('asset-impairments/{impairment}', [AssetImpairmentController::class, 'show']);
+    Route::put('asset-impairments/{impairment}', [AssetImpairmentController::class, 'update']);
+    Route::post('asset-impairments/{impairment}/approve', [AssetImpairmentController::class, 'approve']);
+    Route::post('asset-impairments/{impairment}/record', [AssetImpairmentController::class, 'record']);
+    Route::delete('asset-impairments/{impairment}', [AssetImpairmentController::class, 'destroy']);
+
+    // Depreciation Policies
+    Route::get('depreciation-policies', [DepreciationPolicyController::class, 'index']);
+    Route::post('depreciation-policies', [DepreciationPolicyController::class, 'store']);
+    Route::get('depreciation-policies/{policy}', [DepreciationPolicyController::class, 'show']);
+    Route::put('depreciation-policies/{policy}', [DepreciationPolicyController::class, 'update']);
+    Route::delete('depreciation-policies/{policy}', [DepreciationPolicyController::class, 'destroy']);
+
+    // Depreciation Schedules
+    Route::get('depreciation-schedules', [DepreciationScheduleController::class, 'index']);
+    Route::post('depreciation-schedules', [DepreciationScheduleController::class, 'store']);
+    Route::get('depreciation-schedules/{schedule}', [DepreciationScheduleController::class, 'show']);
+    Route::put('depreciation-schedules/{schedule}', [DepreciationScheduleController::class, 'update']);
+    Route::post('depreciation-schedules/{schedule}/record', [DepreciationScheduleController::class, 'record']);
+    Route::delete('depreciation-schedules/{schedule}', [DepreciationScheduleController::class, 'destroy']);
+
+    // Intercompany Clearances
+    Route::get('intercompany-clearances', [IntercompanyClearanceController::class, 'index']);
+    Route::post('intercompany-clearances', [IntercompanyClearanceController::class, 'store']);
+    Route::get('intercompany-clearances/{clearance}', [IntercompanyClearanceController::class, 'show']);
+    Route::put('intercompany-clearances/{clearance}', [IntercompanyClearanceController::class, 'update']);
+    Route::post('intercompany-clearances/{clearance}/clear', [IntercompanyClearanceController::class, 'clear']);
+    Route::delete('intercompany-clearances/{clearance}', [IntercompanyClearanceController::class, 'destroy']);
+
+    // Budget Variance
+    Route::get('budget-variance/analyze', [BudgetVarianceController::class, 'analyze']);
+    Route::get('budget-variance/report', [BudgetVarianceController::class, 'report']);
+    Route::get('budget-variance/by-department', [BudgetVarianceController::class, 'byDepartment']);
+    Route::get('budget-variance/by-category', [BudgetVarianceController::class, 'byCategory']);
+    Route::get('budget-variance/trending', [BudgetVarianceController::class, 'trending']);
+    Route::get('budget-variance/top', [BudgetVarianceController::class, 'topVariances']);
+
+    // Cost Engine
+    Route::get('cost-engine/summary', [CostEngineController::class, 'summary']);
+    Route::get('cost-engine/benchmarks', [CostEngineController::class, 'benchmarks']);
+    Route::get('cost-engine/anomalies', [CostEngineController::class, 'detectAnomalies']);
+    Route::get('cost-engine/bom-component/{sku}', [CostEngineController::class, 'bomComponent']);
+    Route::get('cost-engine/product/{id}', [CostEngineController::class, 'product']);
+    Route::get('cost-engine/project/{id}', [CostEngineController::class, 'project']);
+    Route::get('cost-engine/client/{id}', [CostEngineController::class, 'client']);
+    Route::get('cost-engine/list/{entityType}', [CostEngineController::class, 'list']);
+    Route::post('cost-engine/entries', [CostEngineController::class, 'storeEntry']);
+    Route::post('cost-engine/rollup', [CostEngineController::class, 'triggerRollup']);
+    Route::post('cost-engine/compare-benchmark', [CostEngineController::class, 'compareToBenchmark']);
+    Route::post('cost-engine/ai-analyze', [CostEngineController::class, 'aiAnalyze']);
+
+    // Scenario Planning
+    Route::get('scenario-planning', [ScenarioPlanningController::class, 'index']);
+    Route::post('scenario-planning', [ScenarioPlanningController::class, 'create']);
+    Route::post('scenario-planning/simulate', [ScenarioPlanningController::class, 'simulate']);
+    Route::post('scenario-planning/compare', [ScenarioPlanningController::class, 'compare']);
+    Route::post('scenario-planning/sensitivity', [ScenarioPlanningController::class, 'sensitivity']);
+    Route::post('scenario-planning/impact', [ScenarioPlanningController::class, 'impact']);
+    Route::post('scenario-planning/approve', [ScenarioPlanningController::class, 'approve']);
 });

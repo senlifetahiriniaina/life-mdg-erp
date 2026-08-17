@@ -7,6 +7,13 @@ use Modules\Accounting\Http\Controllers\Web\ConsolidationHierarchyWebController;
 use Modules\Accounting\Http\Controllers\Web\ConsolidationWebController;
 use Modules\Accounting\Http\Controllers\Web\InvoiceWebController;
 use Modules\Accounting\Http\Controllers\Web\VatDeclarationWebController;
+use Modules\Accounting\Http\Controllers\Web\AssetImpairmentWebController;
+use Modules\Accounting\Http\Controllers\Web\BudgetVarianceWebController;
+use Modules\Accounting\Http\Controllers\Web\CostEngineWebController;
+use Modules\Accounting\Http\Controllers\Web\DepreciationPolicyWebController;
+use Modules\Accounting\Http\Controllers\Web\DepreciationScheduleWebController;
+use Modules\Accounting\Http\Controllers\Web\IntercompanyClearanceWebController;
+use Modules\Accounting\Http\Controllers\Web\ScenarioPlanningWebController;
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/', function () {
@@ -36,4 +43,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('consolidation-hierarchies', [ConsolidationHierarchyWebController::class, 'index'])->name('consolidation-hierarchies.index');
 
     Route::get('ai-anomaly-detection', [AccountingWebController::class, 'aiAnomalyDetection'])->name('ai-anomaly-detection.index');
+
+    // Chantier 8.1b — previously orphaned Accounting controllers, now wired
+    Route::get('asset-impairments', [AssetImpairmentWebController::class, 'index'])->name('asset-impairments.index');
+    Route::get('budget-variance', [BudgetVarianceWebController::class, 'index'])->name('budget-variance.index');
+    Route::get('cost-engine', [CostEngineWebController::class, 'index'])->name('cost-engine.index');
+    Route::get('depreciation-policies', [DepreciationPolicyWebController::class, 'index'])->name('depreciation-policies.index');
+    Route::get('depreciation-schedules', [DepreciationScheduleWebController::class, 'index'])->name('depreciation-schedules.index');
+    Route::get('intercompany-clearances', [IntercompanyClearanceWebController::class, 'index'])->name('intercompany-clearances.index');
+    Route::get('scenario-planning', [ScenarioPlanningWebController::class, 'index'])->name('scenario-planning.index');
 });

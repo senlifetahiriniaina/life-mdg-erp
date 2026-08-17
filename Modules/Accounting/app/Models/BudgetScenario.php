@@ -18,6 +18,8 @@ use Modules\Accounting\Database\Factories\BudgetScenarioFactory;
  * @property string $expense_adjustment
  * @property string|null $description
  * @property array<string, mixed>|null $assumptions
+ * @property string $status
+ * @property Carbon|null $approved_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Budget|null $baseBudget
@@ -42,12 +44,15 @@ class BudgetScenario extends Model
         'expense_adjustment',
         'description',
         'assumptions',
+        'status',
+        'approved_at',
     ];
 
     protected $casts = [
         'revenue_adjustment' => 'decimal:4',
         'expense_adjustment' => 'decimal:4',
         'assumptions' => 'json',
+        'approved_at' => 'datetime',
     ];
 
     // ─── Relations ───────────────────────────────────────────────────────────

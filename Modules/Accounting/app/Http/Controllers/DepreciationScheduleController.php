@@ -2,12 +2,14 @@
 
 namespace Modules\Accounting\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\DepreciationSchedule;
 use Modules\Accounting\Models\DepreciationEntry;
+use Modules\Accounting\Models\FixedAsset;
 
-class DepreciationScheduleController
+class DepreciationScheduleController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
@@ -27,20 +29,20 @@ class DepreciationScheduleController
         $this->authorize('create', DepreciationSchedule::class);
 
         $validated = $request->validate([
-            'fixed_asset_id' => 'required|exists:fixed_assets,id',
+            'fixed_asset_id' => 'required|exists:acc_fixed_assets,id',
             'depreciation_method' => 'required|in:straight_line,declining_balance,units_of_production,sum_of_years,macrs,custom',
             'useful_life_years' => 'required|integer|min:1',
             'residual_value' => 'required|numeric|min:0',
             'depreciation_start_date' => 'required|date',
             'depreciation_end_date' => 'nullable|date|after:depreciation_start_date',
             'annual_depreciation_amount' => 'required|numeric|min:0',
-            'depreciation_expense_account_id' => 'required|exists:gl_accounts,id',
-            'accumulated_depreciation_account_id' => 'required|exists:gl_accounts,id',
+            'depreciation_expense_account_id' => 'required|exists:acc_gl_accounts,id',
+            'accumulated_depreciation_account_id' => 'required|exists:acc_gl_accounts,id',
             'depreciation_method_details' => 'nullable|json',
         ]);
 
         $validated['status'] = 'active';
-        $validated['book_value'] = $validated['annual_depreciation_amount'];
+        $validated['book_value'] = (float) FixedAsset::findOrFail($validated['fixed_asset_id'])->acquisition_cost;
 
         $schedule = DepreciationSchedule::create($validated);
 
@@ -75,7 +77,7 @@ class DepreciationScheduleController
 
         $validated = $request->validate([
             'period_date' => 'required|date',
-            'journal_entry_id' => 'nullable|exists:journal_entries,id',
+            'journal_entry_id' => 'nullable|exists:acc_journal_entries,id',
         ]);
 
         $entry = DepreciationEntry::create([

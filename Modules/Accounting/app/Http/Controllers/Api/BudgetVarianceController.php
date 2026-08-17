@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Accounting\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\Budget;
 use Modules\Accounting\Services\BudgetVarianceService;
@@ -12,13 +13,14 @@ use Modules\Accounting\Services\BudgetVarianceService;
 /**
  * @group Accounting
  *
- * Manage BudgetVariance resources in Accounting module.
+ * Budget variance analysis. Delegates to BudgetVarianceService's real,
+ * already-tested calculation methods.
  */
 class BudgetVarianceController extends Controller
 {
     public function __construct(private readonly BudgetVarianceService $varianceService) {}
 
-    public function analyze(Request $request)
+    public function analyze(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Budget::class);
 
@@ -27,53 +29,47 @@ class BudgetVarianceController extends Controller
             'variance_threshold' => 'nullable|numeric|min:0|max:100',
         ]);
 
-        $variance = $this->varianceService->analyzeVariance(
-            (int) $request->budget_id,
-            (float) $request->input('variance_threshold', 10)
-        );
+        $budget = Budget::findOrFail($request->integer('budget_id'));
+        $threshold = (float) $request->input('variance_threshold', 10);
 
-        return response()->json($variance);
+        $overview = $this->varianceService->calculateVariance($budget);
+        $overBudgetLines = $this->varianceService->getOverBudgetLines($budget)
+            ->filter(fn (array $line) => abs($line['variance_percent']) >= $threshold)
+            ->values();
+
+        return response()->json($overview + ['over_threshold_lines' => $overBudgetLines]);
     }
 
-    public function drilldown(Request $request)
+    public function report(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Budget::class);
 
         $request->validate([
             'budget_id' => 'required|exists:acc_budgets,id',
-            'line_id' => 'nullable|exists:acc_budget_lines,id',
-            'depth' => 'nullable|integer|min:1|max:5',
         ]);
 
-        $drilldown = $this->varianceService->drilldownVariance(
-            (int) $request->budget_id,
-            $request->input('line_id'),
-            (int) $request->input('depth', 3)
+        $budget = Budget::findOrFail($request->integer('budget_id'));
+
+        return response()->json($this->varianceService->varianceReport($budget));
+    }
+
+    public function byDepartment(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Budget::class);
+
+        return response()->json(
+            $this->varianceService->varianceByDepartment($request->input('department'))
         );
-
-        return response()->json($drilldown);
     }
 
-    public function byDepartment(Request $request)
+    public function byCategory(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Budget::class);
 
-        $departmentId = $request->input('department_id');
-        $variance = $this->varianceService->varianceByDepartment($departmentId);
-
-        return response()->json($variance);
+        return response()->json($this->varianceService->varianceByCategory());
     }
 
-    public function byCategory(Request $request)
-    {
-        $this->authorize('viewAny', Budget::class);
-
-        $variance = $this->varianceService->varianceByCategory();
-
-        return response()->json($variance);
-    }
-
-    public function trending(Request $request)
+    public function trending(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Budget::class);
 
@@ -82,26 +78,26 @@ class BudgetVarianceController extends Controller
             'months' => 'nullable|integer|min:3|max:24',
         ]);
 
-        $trend = $this->varianceService->getTrending(
-            (int) $request->budget_id,
-            (int) $request->input('months', 12)
-        );
+        $budget = Budget::findOrFail($request->integer('budget_id'));
 
-        return response()->json($trend);
+        return response()->json(
+            $this->varianceService->monthlyTrend($budget)
+        );
     }
 
-    public function explain(Request $request)
+    public function topVariances(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Budget::class);
 
         $request->validate([
-            'line_id' => 'required|exists:acc_budget_lines,id',
+            'budget_id' => 'required|exists:acc_budgets,id',
+            'limit' => 'nullable|integer|min:1|max:50',
         ]);
 
-        $explanation = $this->varianceService->explainVariance(
-            (int) $request->line_id
-        );
+        $budget = Budget::findOrFail($request->integer('budget_id'));
 
-        return response()->json($explanation);
+        return response()->json(
+            $this->varianceService->topVariances($budget, (int) $request->input('limit', 5))
+        );
     }
 }

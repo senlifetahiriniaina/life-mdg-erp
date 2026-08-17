@@ -18,6 +18,13 @@ class ScenarioPlanningController extends Controller
 {
     public function __construct(private readonly ScenarioPlanningService $scenarioService) {}
 
+    public function index(Request $request)
+    {
+        $this->authorize('viewAny', BudgetScenario::class);
+
+        return response()->json($this->scenarioService->listScenarios());
+    }
+
     public function create(Request $request)
     {
         $this->authorize('create', BudgetScenario::class);
@@ -115,6 +122,8 @@ class ScenarioPlanningController extends Controller
         $request->validate([
             'scenario_id' => 'required|exists:acc_budget_scenarios,id',
         ]);
+
+        $this->authorize('approve', BudgetScenario::find($request->scenario_id));
 
         $approved = $this->scenarioService->approveScenario(
             (int) $request->scenario_id
