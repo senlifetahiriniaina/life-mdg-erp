@@ -358,6 +358,17 @@ describe('Import Job API', function () {
 
     test('POST /api/v1/setup/import-jobs/{id}/validate performs dry-run', function () {
         $job = setupJob(['tenant_id' => $this->company->id, 'status' => 'mapped']);
+        // CRM/contacts' required target fields (see TargetSchemas::getSchema) must
+        // have a confirmed mapping before a dry-run validates cleanly.
+        foreach (['first_name', 'last_name'] as $field) {
+            FieldMapping::create([
+                'import_job_id' => $job->id,
+                'source_field'  => $field,
+                'target_field'  => $field,
+                'is_required'   => true,
+                'is_confirmed'  => true,
+            ]);
+        }
         $response = $this->postJson("/api/v1/setup/import-jobs/{$job->id}/validate");
         $response->assertStatus(200);
     });

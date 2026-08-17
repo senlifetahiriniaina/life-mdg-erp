@@ -117,6 +117,7 @@ test('import job isEditable returns false for running status', function () {
 
 test('import job is not visible to another tenant', function () {
     $user1 = actingAsUser('admin');
+    $otherTenantUser = \App\Models\User::factory()->create();
 
     $job = ImportJob::create([
         'tenant_id'     => 9999,
@@ -125,7 +126,7 @@ test('import job is not visible to another tenant', function () {
         'target_module' => 'HR',
         'target_entity' => 'employees',
         'status'        => 'pending',
-        'created_by'    => 9999,
+        'created_by'    => $otherTenantUser->id,
     ]);
 
     $response = $this->getJson('/api/v1/setup/import-jobs')
@@ -140,7 +141,10 @@ test('import job is not visible to another tenant', function () {
 test('can list available target schemas', function () {
     setupUser();
 
-    $this->getJson('/api/v1/setup/target-schemas')
+    // Route is named source-schemas (matches the real ImportDataFlow.vue caller);
+    // the underlying controller method listTargetSchemas() lists WideHalo's own
+    // target schema catalogue, the naming mismatch is between method and route.
+    $this->getJson('/api/v1/setup/source-schemas')
         ->assertOk()
         ->assertJsonStructure(['data']);
 });
@@ -149,7 +153,10 @@ test('can list available target schemas', function () {
 
 test('can retrieve a specific import job by id', function () {
     $user = setupUser();
-    $job  = createImportJob(['tenant_id' => $user->id, 'created_by' => $user->id]);
+    // SetupController::tenantId() scopes by $request->user()->company_id, not
+    // the user's own id — give the test user a real company and match it.
+    $user->forceFill(['company_id' => \App\Models\Company::factory()->create()->id])->save();
+    $job = createImportJob(['tenant_id' => $user->company_id, 'created_by' => $user->id]);
 
     $this->getJson("/api/v1/setup/import-jobs/{$job->id}")
         ->assertOk()
@@ -180,13 +187,14 @@ test('import errors are associated to the correct job', function () {
     ImportError::create([
         'import_job_id' => $job->id,
         'row_number'    => 2,
-        'row_data'      => ['email' => 'bad-email'],
+        'raw_data'      => ['email' => 'bad-email'],
+        'error_type'    => 'validation',
         'error_message' => 'Invalid email format',
         'field_name'    => 'email',
     ]);
 
-    expect($job->errors()->count())->toBe(1)
-        ->and($job->errors()->first()->field_name)->toBe('email');
+    expect($job->importErrors()->count())->toBe(1)
+        ->and($job->importErrors()->first()->field_name)->toBe('email');
 });
 
 test('field mappings link to import job', function () {
@@ -194,13 +202,12 @@ test('field mappings link to import job', function () {
     $job = createImportJob(['status' => 'mapping']);
 
     FieldMapping::create([
-        'import_job_id'   => $job->id,
-        'source_column'   => 'prenom',
-        'target_field'    => 'first_name',
-        'status'          => 'confirmed',
-        'transform_rules' => null,
+        'import_job_id' => $job->id,
+        'source_field'  => 'prenom',
+        'target_field'  => 'first_name',
+        'is_confirmed'  => true,
     ]);
 
     expect($job->fieldMappings()->count())->toBe(1)
-        ->and($job->fieldMappings()->first()->source_column)->toBe('prenom');
+        ->and($job->fieldMappings()->first()->source_field)->toBe('prenom');
 });

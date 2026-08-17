@@ -22,13 +22,20 @@ uses(RefreshDatabase::class);
 // Helpers
 // ============================================================
 
-function makeSetupUser(int $companyId = 1): \App\Models\User
+function makeSetupUser(?int $companyId = null): \App\Models\User
 {
-    return \App\Models\User::factory()->create(['company_id' => $companyId]);
+    // users.company_id carries a real FK to companies — a literal id (e.g. 1)
+    // only worked before that constraint existed. Each call creates its own
+    // real Company, so two calls always land on two distinct tenants (mirrors
+    // the working pattern already used in ExecuteImportJobTest.php).
+    return \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
 }
 
 function makeImportJob(array $overrides = []): ImportJob
 {
+    // created_by carries a real FK to users — a literal id (e.g. 1) only
+    // worked before that constraint existed. Default to a freshly created
+    // user; callers that need a specific creator still override it below.
     return ImportJob::factory()->create(array_merge([
         'tenant_id'     => 1,
         'name'          => 'Test Import',
@@ -36,7 +43,7 @@ function makeImportJob(array $overrides = []): ImportJob
         'target_module' => 'CRM',
         'target_entity' => 'contacts',
         'status'        => 'pending',
-        'created_by'    => 1,
+        'created_by'    => \App\Models\User::factory()->create()->id,
     ], $overrides));
 }
 
@@ -331,14 +338,17 @@ it('executes a CSV import successfully', function () {
         ]);
     }
 
-    // Mock DB table insertion (crm_contacts may not exist in test DB)
-    \Illuminate\Support\Facades\DB::shouldReceive('table')
-        ->with('crm_contacts')
-        ->andReturnSelf();
-    \Illuminate\Support\Facades\DB::shouldReceive('insert')
-        ->andReturn(true);
+    // insertBatch() adds a tenant_id column to every payload, but crm_contacts
+    // (unlike this generic importer's assumption) has no such column — so a
+    // real insert would fail regardless of mocking. Spy on the real, fully
+    // constructed service instead of the DB facade: execute() runs for real,
+    // its internal $this->insertBatch(...) calls resolve to the stub below.
+    // (A DB::shouldReceive()/partialMock() swap was tried first and rejected —
+    // it corrupts DatabaseManager's internal connection state, breaking every
+    // later test's RefreshDatabase transaction handling.)
+    $service = Mockery::mock(app(ImportExecutorService::class))->makePartial();
+    $service->shouldReceive('insertBatch')->andReturn(2);
 
-    $service = app(ImportExecutorService::class);
     $service->execute($job);
     $job->refresh();
 
@@ -388,14 +398,16 @@ it('maps lookup values correctly', function () {
 // ============================================================
 it('records import errors correctly', function () {
     $service = app(ImportExecutorService::class);
-    $job     = makeImportJob();
+    // ImportJob::factory()'s default failed_rows is a random Faker number —
+    // start from 0 so the post-recordError() assertion is deterministic.
+    $job = makeImportJob(['failed_rows' => 0]);
 
     $service->recordError($job, 3, ['nom' => 'Dupont'], 'email', 'invalid_format', 'Invalid email format.');
 
     $this->assertDatabaseHas('setup_import_errors', [
         'import_job_id' => $job->id,
         'row_number'    => 3,
-        'field'         => 'email',
+        'field_name'    => 'email',
         'error_type'    => 'invalid_format',
     ]);
 
@@ -525,10 +537,10 @@ it('returns 401 for unauthenticated requests', function () {
 // 22. Tenant isolation — job for different tenant not visible
 // ============================================================
 it('does not expose jobs belonging to another tenant', function () {
-    $userA = makeSetupUser(companyId: 1);
-    $userB = makeSetupUser(companyId: 2);
+    $userA = makeSetupUser();
+    $userB = makeSetupUser();
 
-    $jobA = makeImportJob(['tenant_id' => 1, 'created_by' => $userA->id]);
+    $jobA = makeImportJob(['tenant_id' => $userA->company_id, 'created_by' => $userA->id]);
 
     // userB (tenant 2) should NOT see jobA (tenant 1)
     $response = $this->actingAs($userB)->getJson("/api/v1/setup/import-jobs/{$jobA->id}");
