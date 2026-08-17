@@ -8,8 +8,8 @@ vi.mock('axios')
 vi.mock('@inertiajs/vue3', () => ({
   Head: { template: '<div><slot /></div>' },
   router: { reload: vi.fn() },
-  // useRbac (unlike useRoleAccess elsewhere) expects roles as {name}[] objects.
-  usePage: () => ({ props: { auth: { user: { roles: [{ name: 'admin' }], permissions: [] } } } }),
+  // HandleInertiaRequests shares auth.user.roles via Spatie's getRoleNames() — a plain string[].
+  usePage: () => ({ props: { auth: { user: { roles: ['admin'], permissions: [] } } } }),
 }))
 
 const stubs = {

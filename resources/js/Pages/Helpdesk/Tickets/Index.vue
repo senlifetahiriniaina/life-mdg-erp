@@ -48,7 +48,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="t in filteredTickets" :key="t.id" class="wh-dt-row">
+          <tr v-for="t in filteredTickets" :key="t.id" class="wh-dt-row" style="cursor:pointer" @click="goToTicket(t.id)">
             <td class="priority-bar-cell">
               <div class="priority-bar" :class="`priority-bar-${t.priority}`" />
             </td>
@@ -73,7 +73,7 @@
             <td style="color:var(--fg-2)">{{ t.team?.name ?? '—' }}</td>
             <td style="color:var(--fg-2);font-variant-numeric:tabular-nums">{{ formatDate(t.created_at) }}</td>
             <td>
-              <button class="wh-row-btn" title="Voir"><i class="pi pi-eye" style="font-size:13px" /></button>
+              <button class="wh-row-btn" title="Voir" @click.stop="goToTicket(t.id)"><i class="pi pi-eye" style="font-size:13px" /></button>
             </td>
           </tr>
           <tr v-if="filteredTickets.length === 0">
@@ -163,7 +163,7 @@ import { ref, computed } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import Paginator from 'primevue/paginator'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
@@ -285,6 +285,8 @@ const channelLabel = (c) => ({
 }[c] ?? c)
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
+
+const goToTicket = (id) => router.visit(`/helpdesk/tickets/${id}`)
 
 // --- Create Ticket Form ---
 

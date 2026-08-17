@@ -21,6 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        // Required for the SPA's own axios calls to /api/v1/* routes guarded by
+        // auth:sanctum: without this, Sanctum never recognizes the session cookie
+        // and falls back to token-only auth, rejecting every same-origin request
+        // with 401 "Unauthenticated." regardless of a valid web login.
+        $middleware->statefulApi();
+
         $middleware->api(append: [
             \App\Http\Middleware\CacheHeaders::class,
             \App\Http\Middleware\SecurityHeaders::class,

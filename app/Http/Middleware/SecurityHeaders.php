@@ -65,7 +65,7 @@ class SecurityHeaders
             $nonce = $request->attributes->get('csp_nonce');
             $response->headers->set('X-CSP-Nonce', $nonce);
 
-            $csp = implode('; ', [
+            $directives = [
                 "default-src 'self'",
                 "script-src 'self' 'nonce-{$nonce}' cdn.jsdelivr.net",
                 "style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net",
@@ -77,10 +77,18 @@ class SecurityHeaders
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
-                "upgrade-insecure-requests",
-            ]);
+            ];
 
-            $response->headers->set('Content-Security-Policy', $csp);
+            // Only tell the browser to auto-upgrade http:// links to https:// when this
+            // response was itself served over HTTPS (or in production, which is always
+            // TLS-terminated) — unconditionally sending it breaks plain-HTTP local/E2E
+            // environments: the browser silently rewrites the post-login redirect to
+            // https://, which nothing is listening on, and the navigation just hangs.
+            if ($request->secure() || app()->isProduction()) {
+                $directives[] = 'upgrade-insecure-requests';
+            }
+
+            $response->headers->set('Content-Security-Policy', implode('; ', $directives));
         }
 
         return $response;

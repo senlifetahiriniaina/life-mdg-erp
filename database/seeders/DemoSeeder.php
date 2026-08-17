@@ -369,7 +369,7 @@ class DemoSeeder extends Seeder
         // ── Helpdesk ───────────────────────────────────────────────────────────
 
         $sla  = SlaPolicy::firstOrCreate(['name' => 'Standard'], [
-            'response_time_hours' => 4, 'resolution_time_hours' => 24, 'is_default' => true, 'business_hours' => true,
+            'response_time_minutes' => 4 * 60, 'resolution_time_minutes' => 24 * 60, 'is_default' => true, 'business_hours' => null,
         ]);
         $team = Team::firstOrCreate(['name' => 'Support Technique'], [
             'is_active' => true, 'auto_assignment' => false,

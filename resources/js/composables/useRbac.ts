@@ -68,15 +68,11 @@ const MANAGER_ROLES: string[] = [
   'finance-manager', 'purchasing-manager', 'customer-service', 'security-admin',
 ]
 
-interface UserRole {
-  name: string
-}
-
 interface PageProps {
   [key: string]: unknown
   auth?: {
     user?: {
-      roles?: UserRole[]
+      roles?: string[]
       name?: string
       id?: number | string
     }
@@ -85,7 +81,9 @@ interface PageProps {
 
 export function useRbac(moduleName?: string) {
   const page = usePage<PageProps>()
-  const roles = computed(() => page.props.auth?.user?.roles?.map((r: UserRole) => r.name) || [])
+  // HandleInertiaRequests shares auth.user.roles via Spatie's getRoleNames(),
+  // i.e. a plain string[] ("super-admin", not { name: "super-admin" }).
+  const roles = computed(() => page.props.auth?.user?.roles || [])
 
   const isAdmin = computed(() => roles.value.some((r: string) => ['admin', 'super-admin'].includes(r)))
 

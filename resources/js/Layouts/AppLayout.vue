@@ -72,7 +72,9 @@
     </header>
     <main id="main-content" class="wh-main" tabindex="-1">
       <Transition name="fade-slide" mode="out-in">
-        <slot />
+        <div :key="page.url">
+          <slot />
+        </div>
       </Transition>
     </main>
     <AIAssistantPanel v-if="aiPanelOpen" :module="currentModule" @close="aiPanelOpen = false" />

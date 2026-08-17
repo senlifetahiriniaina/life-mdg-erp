@@ -42,6 +42,9 @@ yarn-error.log
 /tests/**/.cache/
 /tests/results/
 /tests/coverage/
+/tests/e2e/.auth/
+/playwright-report/
+/test-results/
 
 /Modules/**/node_modules/
 /Modules/**/vendor/
