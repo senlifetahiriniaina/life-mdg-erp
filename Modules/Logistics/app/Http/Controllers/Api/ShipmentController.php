@@ -119,11 +119,21 @@ class ShipmentController extends Controller
         return response()->json(['message' => 'Deleted.']);
     }
 
+    /**
+     * Chantier 8.3: this method (and dispatch/deliver/cancel below) used to
+     * set `status` directly instead of calling the injected ShipmentService,
+     * so booked_at/picked_up_at and the shipment's tracking-event trail were
+     * silently never written. dispatch() also set status to 'dispatched' —
+     * a vocabulary that belongs to the separate, unrelated LgxShipment model
+     * (see CLAUDE.md's Category B cleanup note); this module's real
+     * ShipmentFactory/TrackingEventController/TrackingEventFactory all use
+     * 'picked_up', which is what ShipmentService::dispatch() writes.
+     */
     public function book(Request $request, Shipment $shipment): JsonResponse
     {
         $this->authorize('update', $shipment);
 
-        $shipment->update(['status' => 'booked']);
+        $this->service->book($shipment);
 
         return response()->json(['data' => $shipment->fresh()]);
     }
@@ -132,7 +142,7 @@ class ShipmentController extends Controller
     {
         $this->authorize('update', $shipment);
 
-        $shipment->update(['status' => 'dispatched']);
+        $this->service->dispatch($shipment);
 
         return response()->json(['data' => $shipment->fresh()]);
     }
@@ -146,7 +156,7 @@ class ShipmentController extends Controller
             'delivered_at' => 'nullable|date',
             'notes' => 'nullable|string',
         ]);
-        $shipment->update(['status' => 'delivered', 'delivered_at' => $data['delivery_date'] ?? $data['delivered_at'] ?? now()]);
+        $this->service->deliver($shipment, $data['delivery_date'] ?? $data['delivered_at'] ?? null);
 
         return response()->json(['data' => $shipment->fresh()]);
     }
@@ -155,7 +165,7 @@ class ShipmentController extends Controller
     {
         $this->authorize('update', $shipment);
 
-        $shipment->update(['status' => 'cancelled']);
+        $this->service->cancel($shipment);
 
         return response()->json(['data' => $shipment->fresh()]);
     }
