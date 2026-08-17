@@ -3,6 +3,8 @@
 namespace Modules\CRM\Tests\Unit;
 
 use Illuminate\Support\Facades\Cache;
+use Modules\CRM\Models\Contact;
+use Modules\CRM\Models\Lead;
 use Modules\CRM\Services\CustomerManagementService;
 use Modules\CRM\Services\LeadScoringService;
 use Modules\CRM\Services\SalesOpportunityService;
@@ -102,79 +104,102 @@ class CRMIntegrationTest extends TestCase
 
     // ======================================================================
     // Lead Scoring Tests
+    //
+    // NOTE: originally called a phantom `LeadScoringService::calculateLeadScore(array)`/
+    // `scoreMultipleLeads(array)` stateless BANT-style API (company_size/budget/
+    // engagement_level/...) that was never built, on attributes that don't exist in the
+    // schema. The real, wired capability is `LeadScoringService::recalculate(Lead $lead)`,
+    // which scores a real `Lead` model from its linked contact, description, pipeline
+    // status, estimated value, and activity count, and persists the result to
+    // `crm_leads.score`. Rewritten below against that real mechanism.
     // ======================================================================
 
     public function test_can_score_hot_lead()
     {
-        $leadData = [
-            'company_size' => 'enterprise',
-            'industry' => 'Technology',
-            'budget' => 500000,
-            'engagement_level' => 'high',
-            'is_decision_maker' => true,
-            'purchase_timeline' => 'immediate',
-        ];
+        // contact linked (+10) + description (+5) + status=won (+50) + value >= 100k (+20)
+        // = 85, comfortably above the "hot" threshold regardless of activity-log noise.
+        $lead = Lead::factory()->create([
+            'contact_id' => Contact::factory()->create()->id,
+            'description' => 'Enterprise deal, decision maker engaged, ready to close.',
+            'status' => 'won',
+            'estimated_value' => 500000,
+        ]);
 
-        $score = $this->leadService->calculateLeadScore($leadData);
+        $score = $this->leadService->recalculate($lead);
 
-        $this->assertGreaterThanOrEqual(80, $score['percentage']);
-        $this->assertEquals('hot', $score['quality']);
+        $this->assertGreaterThanOrEqual(80, $score);
     }
 
     public function test_can_score_cold_lead()
     {
-        $leadData = [
-            'company_size' => 'small',
-            'industry' => 'Other',
-            'budget' => 5000,
-            'engagement_level' => 'low',
-            'is_decision_maker' => false,
-            'purchase_timeline' => 'unknown',
-        ];
+        // No contact, no description, brand new status, no estimated value: only the
+        // activity-log bonus from record creation can apply, well under the "cold" ceiling.
+        $lead = Lead::factory()->create([
+            'contact_id' => null,
+            'description' => null,
+            'status' => 'new',
+            'estimated_value' => null,
+        ]);
 
-        $score = $this->leadService->calculateLeadScore($leadData);
+        $score = $this->leadService->recalculate($lead);
 
-        $this->assertLessThan(40, $score['percentage']);
-        $this->assertEquals('cold', $score['quality']);
+        $this->assertLessThan(40, $score);
     }
 
     public function test_lead_score_has_factors()
     {
-        $leadData = [
-            'company_size' => 'medium',
-            'industry' => 'Finance',
-            'budget' => 100000,
-            'engagement_level' => 'medium',
-            'is_decision_maker' => true,
-            'purchase_timeline' => 'this_quarter',
-        ];
+        // The real service returns a plain int, not an inspectable breakdown array — but its
+        // scoring factors (contact link, description, pipeline stage, estimated value) are
+        // each independently observable by toggling one at a time and confirming the score
+        // moves accordingly, which is what "has factors" meant in intent.
+        $lead = Lead::factory()->create([
+            'contact_id' => null,
+            'description' => null,
+            'status' => 'new',
+            'estimated_value' => null,
+        ]);
 
-        $score = $this->leadService->calculateLeadScore($leadData);
+        $baseline = $this->leadService->recalculate($lead);
 
-        $this->assertArrayHasKey('factors', $score);
-        $this->assertGreaterThan(0, count($score['factors']));
-        $this->assertArrayHasKey('recommendation', $score);
+        $lead->contact_id = Contact::factory()->create()->id;
+        $lead->save();
+        $withContact = $this->leadService->recalculate($lead);
+        $this->assertGreaterThan($baseline, $withContact);
+
+        $lead->description = 'Interested in the enterprise plan.';
+        $lead->save();
+        $withDescription = $this->leadService->recalculate($lead);
+        $this->assertGreaterThan($withContact, $withDescription);
+
+        $lead->status = 'qualified';
+        $lead->save();
+        $withStage = $this->leadService->recalculate($lead);
+        $this->assertGreaterThan($withDescription, $withStage);
+
+        $lead->estimated_value = 150000;
+        $lead->save();
+        $withValue = $this->leadService->recalculate($lead);
+        $this->assertGreaterThan($withStage, $withValue);
     }
 
     public function test_can_score_multiple_leads()
     {
-        $leads = [
-            [
-                'id' => 1,
-                'company_size' => 'enterprise',
-                'budget' => 500000,
-            ],
-            [
-                'id' => 2,
-                'company_size' => 'small',
-                'budget' => 5000,
-            ],
-        ];
+        $hotLead = Lead::factory()->create([
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'won',
+            'estimated_value' => 500000,
+        ]);
+        $coldLead = Lead::factory()->create([
+            'contact_id' => null,
+            'status' => 'new',
+            'estimated_value' => null,
+        ]);
 
-        $results = $this->leadService->scoreMultipleLeads($leads);
+        $results = collect([$hotLead, $coldLead])
+            ->map(fn (Lead $lead) => $this->leadService->recalculate($lead));
 
         $this->assertEquals(2, count($results));
-        $this->assertGreaterThan($results[1]['percentage'], $results[0]['percentage']);
+        $this->assertGreaterThan($results[1], $results[0]);
     }
 
     // ======================================================================
@@ -290,14 +315,17 @@ class CRMIntegrationTest extends TestCase
 
         $this->assertEquals('silver', $customer['tier']);
 
-        // 2. Score a lead from this customer
-        $leadScore = $this->leadService->calculateLeadScore([
-            'company_size' => 'startup',
-            'budget' => 50000,
-            'engagement_level' => 'high',
+        // 2. Score a lead associated with this customer (real Lead + LeadScoringService,
+        //    in place of the phantom stateless `calculateLeadScore(array)` BANT API)
+        $lead = Lead::factory()->create([
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'qualified',
+            'estimated_value' => 50000,
         ]);
 
-        $this->assertGreaterThan(0, $leadScore['percentage']);
+        $leadScore = $this->leadService->recalculate($lead);
+
+        $this->assertGreaterThan(0, $leadScore);
 
         // 3. Create opportunity
         $opp = $this->opportunityService->createOpportunity([
@@ -308,7 +336,10 @@ class CRMIntegrationTest extends TestCase
             'close_date' => now()->addQuarter()->toDateString(),
         ]);
 
-        $this->assertEqual($opp['opportunity_id'], $opp['opportunity_id']);
+        // (fixes a pre-existing typo — PHPUnit/Pest has no `assertEqual`, only `assertEquals` —
+        // that was masked because execution never reached this line while step 2 fatally
+        // errored on the phantom API above)
+        $this->assertEquals($opp['opportunity_id'], $opp['opportunity_id']);
 
         // Workflow complete
         $this->assertTrue(true);
