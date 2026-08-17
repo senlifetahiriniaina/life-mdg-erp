@@ -29,6 +29,13 @@ class GraphQLSchemaBuilderService
 
         Cache::put("graphql:schema:{$schemaId}", $schema, now()->addDays(365));
 
+        // Maintain an explicit index of schema ids instead of Cache::getRedis()->keys()
+        // (listSchemas() used to do this) -- key-globbing is Redis-specific and throws
+        // on every other cache driver (array, file, etc).
+        $index = Cache::get('graphql:schema:index', []);
+        $index[] = $schemaId;
+        Cache::put('graphql:schema:index', array_values(array_unique($index)), now()->addDays(365));
+
         return [
             'schema_id' => $schemaId,
             'model' => $modelName,
@@ -212,11 +219,11 @@ class GraphQLSchemaBuilderService
      */
     public function listSchemas(): array
     {
-        $keys = Cache::getRedis()->keys('graphql:schema:*');
+        $ids = Cache::get('graphql:schema:index', []);
         $schemas = [];
 
-        foreach ($keys as $key) {
-            $schema = Cache::get($key);
+        foreach ($ids as $schemaId) {
+            $schema = Cache::get("graphql:schema:{$schemaId}");
             if ($schema) {
                 $schemas[] = [
                     'schema_id' => $schema['id'],

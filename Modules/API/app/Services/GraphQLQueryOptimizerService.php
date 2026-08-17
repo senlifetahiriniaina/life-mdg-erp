@@ -67,8 +67,10 @@ class GraphQLQueryOptimizerService
                 // Each field adds 1 to complexity
                 $baseComplexity += 1;
 
-                // Multiplier for arrays
-                if ($selection['type'] === 'array') {
+                // Multiplier for arrays. Bug fix: not every selection carries a 'type' key
+                // (e.g. a plain scalar field selection is just ['name' => 'id']) --
+                // accessing $selection['type'] directly threw on undefined array key.
+                if (($selection['type'] ?? null) === 'array') {
                     $baseComplexity *= 10;
                 }
 
@@ -110,7 +112,9 @@ class GraphQLQueryOptimizerService
 
         if (isset($query['selections'])) {
             foreach ($query['selections'] as $selection) {
-                if ($selection['type'] === 'array' || ($selection['multiplicity'] ?? false)) {
+                // Same undefined-array-key bug as calculateComplexity() above -- not every
+                // selection carries a 'type' key.
+                if (($selection['type'] ?? null) === 'array' || ($selection['multiplicity'] ?? false)) {
                     $batches[] = [
                         'field' => $selection['name'],
                         'batch_size' => 100,
@@ -178,12 +182,18 @@ class GraphQLQueryOptimizerService
 
         if ($depth > self::MAX_QUERY_DEPTH) {
             $valid = false;
-            $errors[] = "Query depth {$depth} exceeds maximum {$this->MAX_QUERY_DEPTH}";
+            // Bug fix: `$this->MAX_QUERY_DEPTH` referenced a nonexistent instance property
+            // (this is a class constant, only accessible via self::) -- PHP also doesn't
+            // support `self::CONST` interpolation inside a string, so the constant is
+            // extracted to a local variable first.
+            $maxDepth = self::MAX_QUERY_DEPTH;
+            $errors[] = "Query depth {$depth} exceeds maximum {$maxDepth}";
         }
 
         if ($complexity > self::MAX_QUERY_COMPLEXITY) {
             $valid = false;
-            $errors[] = "Query complexity {$complexity} exceeds maximum {$this->MAX_QUERY_COMPLEXITY}";
+            $maxComplexity = self::MAX_QUERY_COMPLEXITY;
+            $errors[] = "Query complexity {$complexity} exceeds maximum {$maxComplexity}";
         }
 
         return [

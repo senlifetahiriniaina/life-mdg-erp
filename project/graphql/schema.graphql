@@ -1,0 +1,77 @@
+"""
+Minimal real Lighthouse GraphQL schema. Replaces the previous "GraphQL v2"
+stack in Modules/API (GraphQLSchemaBuilderService/GraphQLQueryOptimizerService/
+GraphQLSubscriptionManagerService), which never built or served a real schema
+-- it stored hand-rolled arrays in Cache and, for subscriptions, wrote raw
+keys straight into Redis, with no HTTP layer reachable by any client. This
+file is the single real GraphQL surface, per API First / a single source of
+truth per capability.
+
+Scope: CRM Contact/Account only, matching the one real, pre-existing test
+contract (tests/Feature/GraphQL/ContactQueryTest.php) -- extend with more
+types/modules only when a real consumer needs them, not speculatively.
+"""
+
+type Query {
+    "Paginated list of CRM contacts (relay-style connection)."
+    contacts: [Contact!]! @paginate(type: CONNECTION, model: "Modules\\CRM\\Models\\Contact")
+
+    "A single CRM contact by id."
+    contact(id: ID! @eq): Contact @find(model: "Modules\\CRM\\Models\\Contact")
+}
+
+type Mutation {
+    createContact(input: CreateContactInput!): Contact!
+        @guard(with: ["sanctum"])
+        @field(resolver: "Modules\\CRM\\GraphQL\\Mutations\\CreateContact")
+
+    updateContact(id: ID!, input: UpdateContactInput!): Contact!
+        @guard(with: ["sanctum"])
+        @field(resolver: "Modules\\CRM\\GraphQL\\Mutations\\UpdateContact")
+
+    deleteContact(id: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "Modules\\CRM\\GraphQL\\Mutations\\DeleteContact")
+}
+
+type Contact {
+    id: ID!
+    firstName: String! @rename(attribute: "first_name")
+    lastName: String! @rename(attribute: "last_name")
+    email: String!
+    phone: String
+    jobTitle: String @rename(attribute: "job_title")
+    status: ContactStatus
+    account: Account @belongsTo
+}
+
+type Account {
+    id: ID!
+    name: String!
+}
+
+enum ContactStatus {
+    ACTIVE @enum(value: "active")
+    INACTIVE @enum(value: "inactive")
+    PROSPECT @enum(value: "prospect")
+}
+
+input CreateContactInput {
+    firstName: String!
+    lastName: String!
+    email: String!
+    phone: String
+    jobTitle: String
+    status: ContactStatus
+    accountId: ID
+}
+
+input UpdateContactInput {
+    firstName: String
+    lastName: String
+    email: String
+    phone: String
+    jobTitle: String
+    status: ContactStatus
+    accountId: ID
+}
