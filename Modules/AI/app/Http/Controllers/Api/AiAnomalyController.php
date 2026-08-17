@@ -49,9 +49,9 @@ class AiAnomalyController extends Controller
      * DELETE /api/v1/ai/anomalies/{id}
      * Dismiss an anomaly.
      */
-    public function dismiss(string $id): JsonResponse
+    public function dismiss(Request $request, string $id): JsonResponse
     {
-        $this->service->dismissAnomaly($id);
+        $this->service->dismissAnomaly($id, $this->resolveTenantId($request));
 
         return response()->json(['message' => 'Anomaly dismissed.']);
     }

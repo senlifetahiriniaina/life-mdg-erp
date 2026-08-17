@@ -246,11 +246,20 @@ class AiAnomalyDetectionService
 
     /**
      * Mark an anomaly as dismissed (will be excluded from active list).
+     *
+     * Also busts the per-tenant `getActiveAnomalies()` aggregate cache (when
+     * $tenantId is known) — otherwise a dismissed anomaly kept reappearing in
+     * the active list for up to CACHE_TTL seconds after being dismissed, since
+     * only the per-anomaly dismissed flag was ever being written.
      */
-    public function dismissAnomaly(string $anomalyId): void
+    public function dismissAnomaly(string $anomalyId, ?int $tenantId = null): void
     {
         $key = self::DISMISSED_PREFIX . $anomalyId;
         Cache::put($key, true, now()->addDays(7));
+
+        if ($tenantId !== null) {
+            Cache::forget(self::CACHE_PREFIX . 'all:' . $tenantId);
+        }
     }
 
     // -------------------------------------------------------------------------

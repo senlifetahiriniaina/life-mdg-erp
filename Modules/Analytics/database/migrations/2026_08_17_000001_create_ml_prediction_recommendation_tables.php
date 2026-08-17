@@ -235,87 +235,12 @@ return new class extends Migration {
             });
         }
 
-        if (Schema::hasTable('anomaly_detection_models')) {
-            if (Schema::hasColumn('anomaly_detection_models', 'tenant_id')) {
-                Schema::table('anomaly_detection_models', function (Blueprint $table) {
-                    $table->string('tenant_id', 36)->nullable()->change();
-                });
-            }
-            if (Schema::hasColumn('anomaly_detection_models', 'module')) {
-                // Same reasoning: NOT NULL with no default, not in the model's real
-                // $fillable at all.
-                Schema::table('anomaly_detection_models', function (Blueprint $table) {
-                    $table->string('module', 64)->nullable()->change();
-                });
-            }
-            if (Schema::hasColumn('anomaly_detection_models', 'metric_key')) {
-                // Same reasoning: NOT NULL with no default, not in the model's real
-                // $fillable at all.
-                Schema::table('anomaly_detection_models', function (Blueprint $table) {
-                    $table->string('metric_key', 128)->nullable()->change();
-                });
-            }
-
-            Schema::table('anomaly_detection_models', function (Blueprint $table) {
-                foreach ([
-                    'company_id' => fn (Blueprint $t) => $t->unsignedBigInteger('company_id')->nullable()->index(),
-                    'model_name' => fn (Blueprint $t) => $t->string('model_name', 128)->nullable(),
-                    'anomaly_type' => fn (Blueprint $t) => $t->string('anomaly_type', 64)->nullable(),
-                    'status' => fn (Blueprint $t) => $t->string('status', 16)->default('active'),
-                    'description' => fn (Blueprint $t) => $t->text('description')->nullable(),
-                    'configuration' => fn (Blueprint $t) => $t->json('configuration')->nullable(),
-                    'anomaly_threshold' => fn (Blueprint $t) => $t->decimal('anomaly_threshold', 8, 4)->nullable(),
-                    'detection_count' => fn (Blueprint $t) => $t->unsignedInteger('detection_count')->default(0),
-                    'true_positive_count' => fn (Blueprint $t) => $t->unsignedInteger('true_positive_count')->default(0),
-                    'precision' => fn (Blueprint $t) => $t->decimal('precision', 5, 4)->nullable(),
-                    'last_retrained_at' => fn (Blueprint $t) => $t->timestamp('last_retrained_at')->nullable(),
-                    'created_by' => fn (Blueprint $t) => $t->unsignedBigInteger('created_by')->nullable(),
-                    // Model uses SoftDeletes but the original migration never added the column.
-                    'deleted_at' => fn (Blueprint $t) => $t->softDeletes(),
-                ] as $column => $adder) {
-                    if (! Schema::hasColumn('anomaly_detection_models', $column)) {
-                        $adder($table);
-                    }
-                }
-            });
-        }
-
-        if (Schema::hasTable('detected_anomalies')) {
-            // `metric_value`/`expected_value`/`deviation_score` are NOT NULL with no
-            // default, but the model's real $fillable uses `anomaly_score` instead and
-            // never sets any of the three — every insert was failing on them.
-            foreach ([
-                'metric_value' => [18, 4],
-                'expected_value' => [18, 4],
-                'deviation_score' => [8, 4],
-            ] as $legacyDecimal => [$precision, $scale]) {
-                if (Schema::hasColumn('detected_anomalies', $legacyDecimal)) {
-                    Schema::table('detected_anomalies', function (Blueprint $table) use ($legacyDecimal, $precision, $scale) {
-                        $table->decimal($legacyDecimal, $precision, $scale)->nullable()->change();
-                    });
-                }
-            }
-
-            Schema::table('detected_anomalies', function (Blueprint $table) {
-                foreach ([
-                    'company_id' => fn (Blueprint $t) => $t->unsignedBigInteger('company_id')->nullable()->index(),
-                    'anomalous_entity_type' => fn (Blueprint $t) => $t->string('anomalous_entity_type')->nullable(),
-                    'anomalous_entity_id' => fn (Blueprint $t) => $t->unsignedBigInteger('anomalous_entity_id')->nullable(),
-                    'anomaly_score' => fn (Blueprint $t) => $t->decimal('anomaly_score', 8, 4)->nullable(),
-                    'description' => fn (Blueprint $t) => $t->text('description')->nullable(),
-                    'detected_features' => fn (Blueprint $t) => $t->json('detected_features')->nullable(),
-                    'baseline_metrics' => fn (Blueprint $t) => $t->json('baseline_metrics')->nullable(),
-                    'resolution_notes' => fn (Blueprint $t) => $t->text('resolution_notes')->nullable(),
-                    'resolved_at' => fn (Blueprint $t) => $t->timestamp('resolved_at')->nullable(),
-                    // Model uses SoftDeletes but the original migration never added the column.
-                    'deleted_at' => fn (Blueprint $t) => $t->softDeletes(),
-                ] as $column => $adder) {
-                    if (! Schema::hasColumn('detected_anomalies', $column)) {
-                        $adder($table);
-                    }
-                }
-            });
-        }
+        // NOTE: the `anomaly_detection_models`/`detected_anomalies` patch blocks that
+        // used to live here were removed along with those two tables — Analytics' own
+        // anomaly-detection registry was an orphaned duplicate of the AI module's real,
+        // routed anomaly detection (Modules\AI\Services\AiAnomalyDetectionService /
+        // AiAnomalyController). See the migrations that created those tables (deleted)
+        // and Modules/Analytics/routes/api.php for the full removal note.
 
         if (Schema::hasTable('ml_model_versions')) {
             if (! Schema::hasColumn('ml_model_versions', 'updated_at')) {

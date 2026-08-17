@@ -8,11 +8,14 @@ use Modules\AI\Services\AutomatedInsightsService;
 use Modules\AI\Services\NaturalLanguageProcessingService;
 use Modules\AI\Services\PredictiveAnalyticsService;
 use Modules\AI\Services\RecommendationEngineService;
+use Modules\AI\Providers\RouteServiceProvider;
 
 class AIServiceProvider extends ServiceProvider
 {
     public function register()
     {
+        $this->app->register(RouteServiceProvider::class);
+
         // Register AI Services
         $this->app->singleton(PredictiveAnalyticsService::class);
         $this->app->singleton(RecommendationEngineService::class);
@@ -32,7 +35,6 @@ class AIServiceProvider extends ServiceProvider
 
     public function boot()
     {
-        // Load module routes
-        $this->loadRoutesFrom(__DIR__ . '/../../routes/api.php');
+        //
     }
 }

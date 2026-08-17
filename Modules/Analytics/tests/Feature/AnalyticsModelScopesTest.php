@@ -5,8 +5,6 @@ declare(strict_types=1);
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Modules\Analytics\Models\AnomalyDetectionModel;
-use Modules\Analytics\Models\DetectedAnomaly;
 use Modules\Analytics\Models\MLModel;
 use Modules\Analytics\Models\MLModelVersion;
 use Modules\Analytics\Models\PredictionModel;
@@ -132,82 +130,13 @@ it('prediction model training accuracy is stored as decimal', function () {
         ->and((float) $model->training_accuracy)->toBeGreaterThan(0.0);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AnomalyDetectionModel — attributes & HasMany anomalies
-// ─────────────────────────────────────────────────────────────────────────────
-
-it('creates anomaly detection model with required fields', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create([
-        'model_name' => 'Transaction Monitor',
-        'anomaly_type' => 'transaction',
-        'algorithm' => 'isolation_forest',
-        'anomaly_threshold' => 0.75,
-    ]);
-
-    expect($adm->model_name)->toBe('Transaction Monitor')
-        ->and($adm->anomaly_type)->toBe('transaction')
-        ->and($adm->algorithm)->toBe('isolation_forest');
-});
-
-it('anomaly detection model has many detected anomalies', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create();
-    DetectedAnomaly::factory()->for($adm)->for($company)->count(4)->create();
-
-    expect($adm->anomalies)->toHaveCount(4);
-});
-
-it('anomaly detection model threshold is stored as decimal', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create([
-        'anomaly_threshold' => 0.6500,
-    ]);
-
-    expect((float) $adm->anomaly_threshold)->toBeFloat()
-        ->and((float) $adm->anomaly_threshold)->toBeGreaterThan(0.0)
-        ->and((float) $adm->anomaly_threshold)->toBeLessThanOrEqual(1.0);
-});
-
-it('soft-deletes anomaly detection model', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create();
-    $id = $adm->id;
-
-    $adm->delete();
-
-    expect(AnomalyDetectionModel::find($id))->toBeNull()
-        ->and(AnomalyDetectionModel::withTrashed()->find($id))->not->toBeNull();
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DetectedAnomaly — attributes & relationships
-// ─────────────────────────────────────────────────────────────────────────────
-
-it('detected anomaly has a valid severity level', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create();
-    $anomaly = DetectedAnomaly::factory()->for($adm)->for($company)->create();
-
-    expect($anomaly->severity)->toBeIn(['low', 'medium', 'high', 'critical']);
-});
-
-it('detected anomaly score is between 0 and 1', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create();
-    $anomaly = DetectedAnomaly::factory()->for($adm)->for($company)->create();
-
-    expect($anomaly->anomaly_score)->toBeGreaterThanOrEqual(0)
-        ->and($anomaly->anomaly_score)->toBeLessThanOrEqual(1);
-});
-
-it('detected anomaly belongs to anomaly detection model', function () {
-    $company = Company::factory()->create();
-    $adm = AnomalyDetectionModel::factory()->for($company)->create();
-    $anomaly = DetectedAnomaly::factory()->for($adm)->for($company)->create();
-
-    expect($anomaly->anomalyDetectionModel->id)->toBe($adm->id);
-});
+// NOTE: AnomalyDetectionModel/DetectedAnomaly model-scope tests that used to live
+// here were removed along with those models — Analytics' own anomaly-detection
+// registry was an orphaned duplicate (zero real callers besides its own tests) of
+// the AI module's real, routed anomaly detection. See
+// Modules/AI/tests/Feature/AiAnomalyDetectionTest.php for the equivalent coverage
+// against the real implementation, and Modules/Analytics/routes/api.php for the
+// full removal note.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RecommendationModel — attributes
@@ -302,17 +231,6 @@ it('ml models are isolated per company', function () {
 
     expect($companyAModels)->toHaveCount(3)
         ->and($companyBModels)->toHaveCount(2);
-});
-
-it('anomaly detection models are isolated per company', function () {
-    $companyA = Company::factory()->create();
-    $companyB = Company::factory()->create();
-
-    AnomalyDetectionModel::factory()->for($companyA)->count(2)->create();
-    AnomalyDetectionModel::factory()->for($companyB)->count(4)->create();
-
-    expect(AnomalyDetectionModel::where('company_id', $companyA->id)->count())->toBe(2)
-        ->and(AnomalyDetectionModel::where('company_id', $companyB->id)->count())->toBe(4);
 });
 
 it('prediction models are isolated per company', function () {

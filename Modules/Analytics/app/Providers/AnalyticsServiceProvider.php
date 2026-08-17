@@ -7,15 +7,11 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Analytics\Console\Commands\ForecastCommand;
 use Modules\Analytics\Jobs\RunForecastingJob;
 use Modules\Analytics\Models\ABTestRun;
-use Modules\Analytics\Models\AnomalyDetectionModel;
-use Modules\Analytics\Models\DetectedAnomaly;
 use Modules\Analytics\Models\MLModel;
 use Modules\Analytics\Models\PredictionModel;
 use Modules\Analytics\Models\Recommendation;
 use Modules\Analytics\Models\RecommendationModel;
 use Modules\Analytics\Policies\ABTestRunPolicy;
-use Modules\Analytics\Policies\AnomalyDetectionModelPolicy;
-use Modules\Analytics\Policies\DetectedAnomalyPolicy;
 use Modules\Analytics\Policies\MLModelPolicy;
 use Modules\Analytics\Policies\PredictionModelPolicy;
 use Modules\Analytics\Policies\RecommendationModelPolicy;
@@ -76,8 +72,6 @@ class AnalyticsServiceProvider extends ServiceProvider
             PredictionModel::class => PredictionModelPolicy::class,
             RecommendationModel::class => RecommendationModelPolicy::class,
             Recommendation::class => RecommendationPolicy::class,
-            AnomalyDetectionModel::class => AnomalyDetectionModelPolicy::class,
-            DetectedAnomaly::class => DetectedAnomalyPolicy::class,
             MLModel::class => MLModelPolicy::class,
             ABTestRun::class => ABTestRunPolicy::class,
         ];

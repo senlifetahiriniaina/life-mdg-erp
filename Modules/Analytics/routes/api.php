@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\Analytics\Http\Controllers\AnomalyDetectionController;
 use Modules\Analytics\Http\Controllers\Api\ForecastingController;
 use Modules\Analytics\Http\Controllers\MLModelController;
 use Modules\Analytics\Http\Controllers\PredictionController;
@@ -59,12 +58,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     Route::post('recommendations/{recommendation}/act', [RecommendationController::class, 'act']);
     Route::post('recommendations/{recommendation}/dismiss', [RecommendationController::class, 'dismiss']);
 
-    // Anomaly Detection (6 endpoints)
-    Route::apiResource('anomalies', AnomalyDetectionController::class, ['as' => 'anomaly']);
-    Route::get('anomalies/{anomalyDetectionModel}/anomalies', [AnomalyDetectionController::class, 'anomalies']);
-    Route::post('anomalies/{anomalyDetectionModel}/anomalies/{anomaly}/investigate', [AnomalyDetectionController::class, 'investigate']);
-    Route::post('anomalies/{anomalyDetectionModel}/anomalies/{anomaly}/resolve', [AnomalyDetectionController::class, 'resolve']);
-    Route::post('anomalies/{anomalyDetectionModel}/anomalies/{anomaly}/dismiss', [AnomalyDetectionController::class, 'dismiss']);
+    // NOTE: Analytics' own anomaly-detection model registry (isolation_forest/LOF/
+    // Mahalanobis config CRUD + detected-anomaly triage) was removed as an orphaned
+    // duplicate — zero real callers (no frontend page, no other module) besides its
+    // own tests, and its schema never matched the model's $fillable (NOT NULL `name`
+    // column nobody wrote to). The ERP's real, working, routed anomaly detection is
+    // Modules\AI\Http\Controllers\Api\AiAnomalyController (POST/GET/DELETE
+    // /api/v1/ai/anomalies*, backed by AiAnomalyDetectionService, which actually
+    // checks Inventory/Accounting/HR for real anomalies). Use that instead.
 
     // ML Models (7 endpoints)
     Route::apiResource('ml-models', MLModelController::class, ['as' => 'ml_model']);
