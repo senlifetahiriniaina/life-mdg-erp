@@ -34,6 +34,8 @@ class ProductResource extends JsonResource
             'image' => $this->image,
             'is_active' => $this->is_active,
             'is_low_stock' => $this->isLowStock(),
+            'ecommerce_synced_at' => $this->ecommerce_synced_at,
+            'ecommerce_sync_pending' => $this->ecommerce_sync_pending,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

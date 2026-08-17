@@ -21,6 +21,14 @@ it('can sync a single product to ecommerce', function () {
         ->postJson("/api/v1/inventory/sync/ecommerce/product/{$product->id}")
         ->assertOk()
         ->assertJsonStructure(['message', 'ecommerce_synced_at']);
+
+    // Chantier 6: ecommerce_synced_at/ecommerce_sync_pending were never migrated
+    // onto inventory_products and never in Product::$fillable, so this update
+    // silently no-op'd — the sync always reported success while never actually
+    // persisting anything. Assert the DB really was updated, not just the response shape.
+    $product->refresh();
+    expect($product->ecommerce_synced_at)->not->toBeNull();
+    expect($product->ecommerce_sync_pending)->toBeFalse();
 });
 
 it('can queue a full sync to ecommerce', function () {

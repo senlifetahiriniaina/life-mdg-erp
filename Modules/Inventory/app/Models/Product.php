@@ -40,6 +40,8 @@ class Product extends Model
         'image',
         'is_active',
         'attributes',
+        'ecommerce_synced_at',
+        'ecommerce_sync_pending',
     ];
 
     protected $casts = [
@@ -50,6 +52,8 @@ class Product extends Model
         'track_lot' => 'boolean',
         'is_active' => 'boolean',
         'attributes' => 'json',
+        'ecommerce_synced_at' => 'datetime',
+        'ecommerce_sync_pending' => 'boolean',
     ];
 
     protected static function newFactory()

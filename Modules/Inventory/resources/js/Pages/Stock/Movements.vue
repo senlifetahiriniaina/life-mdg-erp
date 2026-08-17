@@ -115,14 +115,9 @@
               </span>
             </template>
           </Column>
-          <Column field="unit_cost" header="Unit Cost">
+          <Column field="reason" header="Reason">
             <template #body="{ data }">
-              {{ data.unit_cost != null ? formatCurrency(data.unit_cost) : '—' }}
-            </template>
-          </Column>
-          <Column field="reference" header="Reference">
-            <template #body="{ data }">
-              {{ data.reference ?? '—' }}
+              {{ data.reason ?? '—' }}
             </template>
           </Column>
           <template #empty>
@@ -219,29 +214,12 @@
             <small v-if="movementErrors.quantity" class="text-red-500">{{ movementErrors.quantity }}</small>
           </div>
 
-          <div class="flex flex-col gap-1">
-            <label class="text-sm font-medium text-surface-700 dark:text-surface-200">Unit Cost</label>
-            <InputNumber
-              v-model="movementForm.unit_cost"
-              :min-fraction-digits="2"
-              :max-fraction-digits="2"
-              class="w-full"
-            />
-          </div>
-
-          <div class="flex flex-col gap-1">
-            <label class="text-sm font-medium text-surface-700 dark:text-surface-200">Reference</label>
-            <InputText
-              v-model="movementForm.reference"
-              placeholder="e.g. PO-0001"
-            />
-          </div>
-
           <div class="flex flex-col gap-1 md:col-span-2">
-            <label class="text-sm font-medium text-surface-700 dark:text-surface-200">Notes</label>
+            <label class="text-sm font-medium text-surface-700 dark:text-surface-200">Reason</label>
             <Textarea
-              v-model="movementForm.notes"
+              v-model="movementForm.reason"
               rows="2"
+              placeholder="e.g. Cycle count adjustment, PO-0001 receipt…"
               class="w-full"
             />
           </div>
@@ -268,12 +246,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
+import axios from 'axios'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
-import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import DatePicker from 'primevue/datepicker'
@@ -297,9 +275,9 @@ interface Movement {
   id: number
   type: string
   quantity: number
-  unit_cost: number | null
-  reference: string | null
-  notes: string | null
+  reason: string | null
+  reference_type: string | null
+  reference_id: number | null
   product: Product | null
   warehouse: Warehouse | null
   created_at: string
@@ -339,9 +317,7 @@ const movementForm = reactive({
   warehouse_id: null as number | null,
   type: 'in',
   quantity: null as number | null,
-  unit_cost: null as number | null,
-  reference: '',
-  notes: '',
+  reason: '',
 })
 
 const movementErrors = reactive<Record<string, string>>({})
@@ -371,10 +347,6 @@ const formatDate = (iso: string): string => {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-}
-
 const formatDateParam = (date: Date | null): string | null => {
   if (!date) return null
   return date.toISOString().split('T')[0]
@@ -394,32 +366,23 @@ const fetchMovements = async (page = 1) => {
     if (from) params.set('from', from)
     if (to) params.set('to', to)
 
-    const response = await fetch(`/api/v1/inventory/movements?${params}`, {
-      headers: { Accept: 'application/json' },
-    })
-    const data = await response.json()
+    const { data } = await axios.get(`/api/v1/inventory/stock-movements?${params}`)
     movements.value = data.data
-    pagination.current_page = data.current_page
-    pagination.total = data.total
-    pagination.last_page = data.last_page
+    pagination.current_page = data.meta?.current_page ?? 1
+    pagination.total = data.meta?.total ?? data.data.length
+    pagination.last_page = data.meta?.last_page ?? 1
   } finally {
     loading.value = false
   }
 }
 
 const fetchProducts = async () => {
-  const response = await fetch('/api/v1/inventory/products?per_page=200', {
-    headers: { Accept: 'application/json' },
-  })
-  const data = await response.json()
+  const { data } = await axios.get('/api/v1/inventory/products?per_page=200')
   products.value = data.data ?? []
 }
 
 const fetchWarehouses = async () => {
-  const response = await fetch('/api/v1/inventory/warehouses?per_page=100', {
-    headers: { Accept: 'application/json' },
-  })
-  const data = await response.json()
+  const { data } = await axios.get('/api/v1/inventory/warehouses?per_page=100')
   warehouses.value = data.data ?? []
 }
 
@@ -441,9 +404,7 @@ const openNewMovementModal = () => {
   movementForm.warehouse_id = null
   movementForm.type = 'in'
   movementForm.quantity = null
-  movementForm.unit_cost = null
-  movementForm.reference = ''
-  movementForm.notes = ''
+  movementForm.reason = ''
   Object.keys(movementErrors).forEach(k => delete movementErrors[k])
   showModal.value = true
 }
@@ -453,33 +414,20 @@ const submitMovement = async () => {
   Object.keys(movementErrors).forEach(k => delete movementErrors[k])
 
   try {
-    const response = await fetch('/api/v1/inventory/movements', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        product_id: movementForm.product_id,
-        warehouse_id: movementForm.warehouse_id,
-        type: movementForm.type,
-        quantity: movementForm.quantity,
-        unit_cost: movementForm.unit_cost,
-        reference: movementForm.reference || null,
-        notes: movementForm.notes || null,
-      }),
+    await axios.post('/api/v1/inventory/stock-movements', {
+      product_id: movementForm.product_id,
+      warehouse_id: movementForm.warehouse_id,
+      type: movementForm.type,
+      quantity: movementForm.quantity,
+      reason: movementForm.reason || null,
     })
-
-    if (!response.ok) {
-      const data = await response.json()
-      if (data.errors) {
-        Object.assign(movementErrors, data.errors)
-      }
-      return
-    }
 
     showModal.value = false
     fetchMovements(pagination.current_page)
+  } catch (e) {
+    if (e.response?.data?.errors) {
+      Object.assign(movementErrors, e.response.data.errors)
+    }
   } finally {
     submittingMovement.value = false
   }

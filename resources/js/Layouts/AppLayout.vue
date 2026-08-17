@@ -115,6 +115,8 @@ const currentModule = computed(() => {
   if (url.includes('/bi')) return 'BI'
   if (url.includes('/helpdesk')) return 'Helpdesk'
   if (url.includes('/projects')) return 'Projects'
+  if (url.includes('/analytics')) return 'Analytics'
+  if (url.includes('/security')) return 'Security'
   return 'WideHalo'
 })
 const { isDark } = useTheme()
@@ -148,6 +150,7 @@ const allNavGroups: NavGroup[] = [
   { label: 'Pilotage', items: [
     { key: 'dashboard', module: 'Core', href: '/dashboard', icon: 'pi pi-th-large' },
     { key: 'bi', module: 'BI', href: '/bi', icon: 'pi pi-chart-bar' },
+    { key: 'analytics', module: 'Analytics', href: '/analytics', icon: 'pi pi-sparkles' },
     { key: 'import', module: 'Core', href: '/import', icon: 'pi pi-upload' },
   ]},
   { label: 'Ventes & clients', items: [
@@ -180,9 +183,9 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   'warehouse-operator': ['Inventory', 'Logistics'],
   'sales-manager': ['CRM', 'Sales', 'Accounting', 'BI'],
   'project-manager': ['Projects', 'HR'],
-  'finance-manager': ['Accounting', 'BI'],
+  'finance-manager': ['Accounting', 'BI', 'Analytics'],
   'customer-service': ['Helpdesk', 'CRM'],
-  'inventory-analyst': ['Inventory', 'BI'],
+  'inventory-analyst': ['Inventory', 'BI', 'Analytics'],
   'payroll-officer': ['Payroll', 'HR'],
 }
 
@@ -205,6 +208,7 @@ const adminNavGroup: NavGroup = { label: 'Administration', adminOnly: true, item
   { key: 'admin_audit', module: 'AuditLog', href: '/audit/logs', icon: 'pi pi-list' },
   { key: 'admin_exchanges', module: 'Core', href: '/admin/exchanges', icon: 'pi pi-arrow-right-arrow-left' },
   { key: 'admin_sandboxes', module: 'Core', href: '/admin/sandboxes', icon: 'pi pi-box' },
+  { key: 'security', module: 'Security', href: '/security', icon: 'pi pi-lock' },
 ]}
 
 const enabledNavGroups = computed<NavGroup[]>(() => {

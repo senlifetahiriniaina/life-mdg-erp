@@ -147,6 +147,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 
 const product = ref(null)
 const stockHistory = ref([])
@@ -171,20 +172,10 @@ const formatDate = (date) => {
   })
 }
 
-const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]')?.content || ''}`,
-  'Content-Type': 'application/json'
-})
-
 const loadProduct = async () => {
   try {
-    const response = await fetch(`/api/v1/inventory/products/${productId.value}`, {
-      headers: getAuthHeaders()
-    })
-    if (response.ok) {
-      const data = await response.json()
-      product.value = data.data
-    }
+    const { data } = await axios.get(`/api/v1/inventory/products/${productId.value}`)
+    product.value = data.data
   } catch (error) {
     console.error('Failed to load product:', error)
   }
@@ -192,13 +183,8 @@ const loadProduct = async () => {
 
 const loadStockHistory = async () => {
   try {
-    const response = await fetch(`/api/v1/inventory/products/${productId.value}/history?limit=20`, {
-      headers: getAuthHeaders()
-    })
-    if (response.ok) {
-      const data = await response.json()
-      stockHistory.value = data.data || []
-    }
+    const { data } = await axios.get(`/api/v1/inventory/products/${productId.value}/history`, { params: { limit: 20 } })
+    stockHistory.value = data.data || []
   } catch (error) {
     console.error('Failed to load stock history:', error)
   }

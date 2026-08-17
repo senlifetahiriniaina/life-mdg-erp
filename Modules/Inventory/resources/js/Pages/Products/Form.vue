@@ -142,6 +142,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const categories = ref([])
@@ -167,20 +168,10 @@ const marginPercent = computed(() => {
   return ((formData.value.selling_price - formData.value.cost_price) / formData.value.cost_price * 100).toFixed(2)
 })
 
-const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]')?.content || ''}`,
-  'Content-Type': 'application/json'
-})
-
 const loadCategories = async () => {
   try {
-    const response = await fetch('/api/v1/inventory/categories?per_page=100', {
-      headers: getAuthHeaders()
-    })
-    if (response.ok) {
-      const data = await response.json()
-      categories.value = data.data || []
-    }
+    const { data } = await axios.get('/api/v1/inventory/categories', { params: { per_page: 100 } })
+    categories.value = data.data || []
   } catch (error) {
     console.error('Failed to load categories:', error)
   }
@@ -188,39 +179,27 @@ const loadCategories = async () => {
 
 const loadProduct = async () => {
   try {
-    const response = await fetch(`/api/v1/inventory/products/${routeId.value}`, {
-      headers: getAuthHeaders()
-    })
-    if (response.ok) {
-      const data = await response.json()
-      formData.value = data.data
-    }
+    const { data } = await axios.get(`/api/v1/inventory/products/${routeId.value}`)
+    formData.value = data.data
   } catch (error) {
     console.error('Failed to load product:', error)
   }
 }
 
 const handleSubmit = async () => {
-  const method = isEdit.value ? 'PATCH' : 'POST'
   const url = isEdit.value
     ? `/api/v1/inventory/products/${routeId.value}`
     : '/api/v1/inventory/products'
 
   try {
-    const response = await fetch(url, {
-      method,
-      headers: getAuthHeaders(),
-      body: JSON.stringify(formData.value)
-    })
-
-    if (response.ok) {
-      window.location.href = '/inventory/products'
+    if (isEdit.value) {
+      await axios.patch(url, formData.value)
     } else {
-      const data = await response.json()
-      errors.value = data.errors || {}
+      await axios.post(url, formData.value)
     }
+    window.location.href = '/inventory/products'
   } catch (error) {
-    console.error('Failed to save product:', error)
+    errors.value = error.response?.data?.errors || {}
   }
 }
 

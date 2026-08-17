@@ -1,140 +1,157 @@
 <template>
+  <AppLayout>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Prévision de Demande (IA — ForesightAI)</h1>
-        <p class="text-surface-500 text-sm mt-1">Anticipez les ruptures et optimisez vos réapprovisionnements</p>
+        <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Prévision de Demande (IA)</h1>
+        <p class="text-surface-500 text-sm mt-1">Générez et consultez les prévisions de demande par produit</p>
       </div>
-      <Button label="Générer les prévisions" icon="pi pi-refresh" :loading="generating" @click="generateForecast" />
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Card v-for="s in stats" :key="s.label"><template #content>
-        <div class="text-2xl font-bold" :class="s.color">{{ s.value }}</div>
-        <div class="text-sm text-surface-500 mt-1">{{ s.label }}</div>
-      </template></Card>
-    </div>
-
-    <Card class="border-l-4 border-orange-400">
-      <template #header><div class="px-4 pt-4 flex items-center justify-between">
-        <span class="font-semibold text-orange-700">⚠️ Alertes de réapprovisionnement ({{ reorderAlerts.length }})</span>
-        <Button label="Générer les bons de commande" icon="pi pi-shopping-cart" size="small" severity="warning" />
-      </div></template>
+    <Card>
+      <template #header><div class="px-4 pt-4 font-semibold">Générer une prévision</div></template>
       <template #content>
-        <DataTable :value="reorderAlerts" size="small" stripedRows>
-          <Column field="product" header="Produit" />
-          <Column field="currentStock" header="Stock actuel" />
-          <Column field="reorderPoint" header="Point de réappro." />
-          <Column field="shortage" header="Manque estimé" />
-          <Column field="supplier" header="Fournisseur" />
-          <Column header="Action">
-            <template #body><Button label="Créer BC" size="small" severity="warning" /></template>
-          </Column>
-        </DataTable>
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="generateForecast">
+          <div class="flex flex-col gap-1">
+            <label class="text-sm text-surface-600">Produit</label>
+            <Select
+              v-model="form.product_id"
+              :options="products"
+              option-label="name"
+              option-value="id"
+              filter
+              placeholder="Sélectionner un produit"
+              class="w-64"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-sm text-surface-600">Méthode</label>
+            <Select
+              v-model="form.method"
+              :options="methodOptions"
+              option-label="label"
+              option-value="value"
+              class="w-56"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-sm text-surface-600">Horizon (mois)</label>
+            <InputNumber v-model="form.months" :min="1" :max="24" class="w-28" />
+          </div>
+          <Button type="submit" label="Générer" icon="pi pi-refresh" :loading="generating" :disabled="!form.product_id" />
+        </form>
+        <p v-if="generateError" class="text-red-600 text-sm mt-2">{{ generateError }}</p>
+        <p v-if="generateResult" class="text-green-700 text-sm mt-2">{{ generateResult }}</p>
       </template>
     </Card>
 
     <Card>
-      <template #header><div class="px-4 pt-4 font-semibold">Prévisions par produit</div></template>
+      <template #header><div class="px-4 pt-4 font-semibold">Prévisions existantes</div></template>
       <template #content>
-        <DataTable :value="forecasts" stripedRows responsiveLayout="scroll" selectionMode="single" v-model:selection="selectedProduct" @row-select="showDrawer = true">
-          <Column field="product" header="Produit" />
-          <Column field="currentStock" header="Stock actuel" />
-          <Column field="reorderPoint" header="Pt. réappro." />
-          <Column field="forecast30" header="Demande 30j" />
-          <Column field="forecast90" header="Demande 90j" />
-          <Column field="trend" header="Tendance">
-            <template #body="{ data }"><span :class="trendClass(data.trend)">{{ data.trend }}</span></template>
+        <DataTable :value="forecasts" :loading="loading" stripedRows responsiveLayout="scroll">
+          <Column header="Produit">
+            <template #body="{ data }">{{ data.product?.name ?? '—' }}</template>
           </Column>
+          <Column field="period_start" header="Début période" />
+          <Column field="period_end" header="Fin période" />
+          <Column field="forecasted_qty" header="Demande prévue" />
+          <Column field="actual_qty" header="Demande réelle">
+            <template #body="{ data }">{{ data.actual_qty ?? '—' }}</template>
+          </Column>
+          <Column field="method" header="Méthode" />
           <Column field="confidence" header="Fiabilité %">
-            <template #body="{ data }"><ProgressBar :value="data.confidence" :style="{ height: '8px' }" /></template>
+            <template #body="{ data }">
+              <ProgressBar v-if="data.confidence != null" :value="data.confidence" :style="{ height: '8px' }" />
+              <span v-else>—</span>
+            </template>
           </Column>
+          <Column field="status" header="Statut">
+            <template #body="{ data }"><Tag :value="data.status" /></template>
+          </Column>
+          <template #empty>
+            <div class="text-center py-8 text-surface-400">Aucune prévision générée pour le moment.</div>
+          </template>
         </DataTable>
       </template>
     </Card>
 
-    <Drawer v-model:visible="showDrawer" position="right" :style="{ width: '500px' }" :header="selectedProduct?.product + ' — Prévisions 12 semaines'">
-      <div v-if="selectedProduct">
-        <DataTable :value="weeklyForecast" size="small" stripedRows>
-          <Column field="week" header="Semaine" />
-          <Column field="demand" header="Demande prévue" />
-          <Column field="stock" header="Stock projeté">
-            <template #body="{ data }"><span :class="data.stock < 0 ? 'text-red-500 font-bold' : ''">{{ data.stock }}</span></template>
-          </Column>
-          <Column field="alert" header="">
-            <template #body="{ data }"><Tag v-if="data.stock < 0" value="Rupture" severity="danger" size="small" /></template>
-          </Column>
-        </DataTable>
-      </div>
-    </Drawer>
-
     <AIAssistantPanel v-if="guidance" :guidance="guidance" />
   </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed} from 'vue'
-import { usePage } from '@inertiajs/vue3'
+import { ref, reactive, onMounted } from 'vue'
+import axios from 'axios'
+import AppLayout from '@/Layouts/AppLayout.vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
-import Drawer from 'primevue/drawer'
+import Select from 'primevue/select'
+import InputNumber from 'primevue/inputnumber'
 import ProgressBar from 'primevue/progressbar'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 
-const page = usePage()
-const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
-const canManage = computed(() => isElevated.value || hasAnyRole(['inventory-analyst']))
-const canCreate = computed(() => canManage.value)
-const canEdit = computed(() => canManage.value)
-const canDelete = computed(() => isAdmin.value)
-
-
 const { guidance } = useAiAssistant('Inventory', 'low_stock_alert')
+
+const products = ref([])
+const forecasts = ref([])
+const loading = ref(false)
 const generating = ref(false)
-const showDrawer = ref(false)
-const selectedProduct = ref(null)
+const generateError = ref(null)
+const generateResult = ref(null)
 
-const stats = [
-  { label: 'Produits analysés', value: '342', color: 'text-blue-600' },
-  { label: 'Ruptures évitées ce mois', value: '18', color: 'text-green-600' },
-  { label: 'Précision prévisions', value: '87%', color: 'text-purple-600' },
-  { label: 'Valeur réappros suggérés', value: '8.4M XOF', color: 'text-orange-600' },
+const methodOptions = [
+  { label: 'Moyenne mobile', value: 'moving_average' },
+  { label: 'Lissage exponentiel', value: 'exponential_smoothing' },
+  { label: 'Saisonnier', value: 'seasonal' },
 ]
 
-const reorderAlerts = ref([
-  { product: 'Écran LCD 24"', currentStock: 12, reorderPoint: 50, shortage: 38, supplier: 'Tech Import SA' },
-  { product: 'Câble HDMI 2m', currentStock: 8, reorderPoint: 100, shortage: 92, supplier: 'ElectroDistrib' },
-  { product: 'Clavier sans fil', currentStock: 3, reorderPoint: 30, shortage: 27, supplier: 'Tech Import SA' },
-])
+const form = reactive({
+  product_id: null,
+  method: 'moving_average',
+  months: 3,
+})
 
-const forecasts = ref([
-  { product: 'Écran LCD 24"', currentStock: 12, reorderPoint: 50, forecast30: 45, forecast90: 132, trend: '↑ Hausse', confidence: 89 },
-  { product: 'Câble HDMI 2m', currentStock: 8, reorderPoint: 100, forecast30: 95, forecast90: 280, trend: '↗ Légère hausse', confidence: 76 },
-  { product: 'Laptop Pro 15"', currentStock: 24, reorderPoint: 20, forecast30: 18, forecast90: 52, trend: '→ Stable', confidence: 91 },
-  { product: 'Souris optique', currentStock: 67, reorderPoint: 40, forecast30: 30, forecast90: 88, trend: '↘ Légère baisse', confidence: 82 },
-  { product: 'Clavier sans fil', currentStock: 3, reorderPoint: 30, forecast30: 28, forecast90: 84, trend: '↑ Hausse', confidence: 85 },
-  { product: 'Imprimante laser', currentStock: 15, reorderPoint: 10, forecast30: 8, forecast90: 22, trend: '↓ Baisse', confidence: 78 },
-  { product: 'Serveur rack 2U', currentStock: 5, reorderPoint: 3, forecast30: 2, forecast90: 7, trend: '→ Stable', confidence: 94 },
-  { product: 'Switch 24 ports', currentStock: 9, reorderPoint: 5, forecast30: 4, forecast90: 11, trend: '→ Stable', confidence: 88 },
-  { product: 'UPS 1000VA', currentStock: 22, reorderPoint: 15, forecast30: 12, forecast90: 35, trend: '↗ Légère hausse', confidence: 80 },
-  { product: 'Câble réseau Cat6 (100m)', currentStock: 45, reorderPoint: 20, forecast30: 15, forecast90: 44, trend: '↘ Légère baisse', confidence: 83 },
-])
+const loadProducts = async () => {
+  const { data } = await axios.get('/api/v1/inventory/products', { params: { per_page: 100 } })
+  products.value = data.data ?? []
+}
 
-const weeklyForecast = [
-  { week: 'S22', demand: 8, stock: 4 }, { week: 'S23', demand: 9, stock: -5 },
-  { week: 'S24', demand: 11, stock: -16 }, { week: 'S25', demand: 7, stock: -23 },
-  { week: 'S26', demand: 10, stock: -33 }, { week: 'S27', demand: 12, stock: -45 },
-]
-
-const trendClass = (t) => t.includes('Hausse') ? 'text-green-600' : t.includes('baisse') || t.includes('Baisse') ? 'text-red-500' : 'text-surface-500'
+const loadForecasts = async () => {
+  loading.value = true
+  try {
+    const { data } = await axios.get('/api/v1/inventory/demand-forecasts')
+    forecasts.value = data.data ?? []
+  } finally {
+    loading.value = false
+  }
+}
 
 const generateForecast = async () => {
   generating.value = true
-  await new Promise(r => setTimeout(r, 1500))
-  generating.value = false
+  generateError.value = null
+  generateResult.value = null
+  try {
+    const { data } = await axios.post('/api/v1/inventory/demand-forecasts/generate', {
+      product_id: form.product_id,
+      method: form.method,
+      months: form.months,
+    })
+    generateResult.value = `${data.count} prévision(s) générée(s).`
+    await loadForecasts()
+  } catch (e) {
+    generateError.value = e.response?.data?.message ?? 'Impossible de générer la prévision.'
+  } finally {
+    generating.value = false
+  }
 }
+
+onMounted(() => {
+  loadProducts()
+  loadForecasts()
+})
 </script>

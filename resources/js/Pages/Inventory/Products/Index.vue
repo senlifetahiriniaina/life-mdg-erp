@@ -20,6 +20,13 @@
       </div>
     </div>
 
+    <div style="display:flex;gap:16px;margin-bottom:16px;font-size:12px">
+      <Link href="/inventory/stock/movements" class="wh-link">Mouvements de stock</Link>
+      <Link href="/inventory/reorder-automation" class="wh-link">Réapprovisionnement</Link>
+      <Link href="/inventory/demand-forecast" class="wh-link">Prévision de demande</Link>
+      <Link href="/inventory/marketplace-sync" class="wh-link">Synchronisation e-commerce</Link>
+    </div>
+
     <!-- Filters -->
     <div class="wh-panel" style="margin-bottom:16px;overflow:visible">
       <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
@@ -83,7 +90,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Head, router } from '@inertiajs/vue3'
+import { Head, Link, router } from '@inertiajs/vue3'
 import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
 import AppLayout from '@/Layouts/AppLayout.vue'
@@ -175,6 +182,8 @@ const onSearch = () => { if (searchTimer) clearTimeout(searchTimer); searchTimer
 </script>
 
 <style scoped>
+.wh-link { color:var(--fg-link); text-decoration:none; }
+.wh-link:hover { text-decoration:underline; text-underline-offset:2px; }
 .page-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:24px; gap:16px; }
 .wh-page-title { margin:0; font-family:var(--font-display); font-size:28px; font-weight:600; letter-spacing:-0.022em; color:var(--fg-1); }
 .wh-page-subtitle { margin:4px 0 0; font-size:14px; color:var(--fg-2); }
