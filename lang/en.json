@@ -25,6 +25,8 @@
     "admin_backups": "Backups",
     "admin_users": "Users & Roles",
     "admin_audit": "Audit Logs",
+    "admin_exchanges": "Tenant Exchanges",
+    "admin_sandboxes": "Sandboxes",
     "main_navigation": "Main navigation",
     "toggle_sidebar": "Toggle sidebar",
     "configurator": "CPQ Configurator",

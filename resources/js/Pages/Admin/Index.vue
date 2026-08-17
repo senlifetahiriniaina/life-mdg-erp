@@ -112,6 +112,18 @@ const tiles = [
     description: 'Plans, abonnements et factures',
     href: '/admin/audit',
   },
+  {
+    icon: '📦',
+    title: 'Sandboxes',
+    description: 'Clones de tenant jetables pour tester en isolation',
+    href: '/admin/sandboxes',
+  },
+  {
+    icon: '🔄',
+    title: 'Échanges inter-tenant',
+    description: 'Partage de données entre tenants avec validation bilatérale',
+    href: '/admin/exchanges',
+  },
 ]
 
 const formatDate = (iso) => {

@@ -51,5 +51,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/backups', [AdminWebController::class, 'backups'])->name('admin.backups');
         Route::get('/users', [AdminWebController::class, 'users'])->name('admin.users');
         Route::get('/audit', [AdminWebController::class, 'audit'])->name('admin.audit');
+        Route::get('/exchanges', [AdminWebController::class, 'exchanges'])->name('admin.exchanges');
+        Route::get('/sandboxes', [AdminWebController::class, 'sandboxes'])->name('admin.sandboxes');
     });
 });

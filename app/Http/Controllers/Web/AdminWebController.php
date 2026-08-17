@@ -86,4 +86,23 @@ class AdminWebController extends Controller
             'logs' => AuditLog::with('user:id,name,email')->latest()->paginate(50),
         ]);
     }
+
+    /**
+     * Had no route at all until now — TenantExchanges/Index.vue existed
+     * with a full UI (self-fetches via axios, no server props needed) but
+     * nothing in routes/web.php ever pointed to it.
+     */
+    public function exchanges(): Response
+    {
+        $this->authorizeAdmin();
+
+        return Inertia::render('Admin/TenantExchanges/Index');
+    }
+
+    public function sandboxes(): Response
+    {
+        $this->authorizeAdmin();
+
+        return Inertia::render('Admin/Sandboxes/Index');
+    }
 }

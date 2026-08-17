@@ -25,6 +25,8 @@
     "admin_backups": "Sauvegardes",
     "admin_users": "Utilisateurs & Rôles",
     "admin_audit": "Logs d'audit",
+    "admin_exchanges": "Échanges inter-tenant",
+    "admin_sandboxes": "Sandboxes",
     "main_navigation": "Navigation principale",
     "toggle_sidebar": "Afficher/masquer le menu",
     "configurator": "Configurateur CPQ",

@@ -204,6 +204,7 @@ const adminNavGroup: NavGroup = { label: 'Administration', adminOnly: true, item
   { key: 'admin_users', module: 'Core', href: '/admin/users', icon: 'pi pi-users' },
   { key: 'admin_audit', module: 'AuditLog', href: '/audit/logs', icon: 'pi pi-list' },
   { key: 'admin_exchanges', module: 'Core', href: '/admin/exchanges', icon: 'pi pi-arrow-right-arrow-left' },
+  { key: 'admin_sandboxes', module: 'Core', href: '/admin/sandboxes', icon: 'pi pi-box' },
 ]}
 
 const enabledNavGroups = computed<NavGroup[]>(() => {
