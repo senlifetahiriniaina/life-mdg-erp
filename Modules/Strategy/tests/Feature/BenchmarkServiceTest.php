@@ -19,156 +19,165 @@ class BenchmarkServiceTest extends TestCase
     /** @test */
     public function it_retrieves_benchmark_for_industry_and_country()
     {
-        $benchmark = $this->service->getBenchmark(
-            industry: 'Manufacturing',
-            country: 'SN',
+        $benchmark = $this->service->getForRatio(
             ratioKey: 'current_ratio',
-            year: 2026
+            tenantId: 'default',
+            country: 'SN',
+            industry: 'Manufacturing'
         );
 
         $this->assertIsArray($benchmark);
-        if (!empty($benchmark)) {
-            $this->assertArrayHasKey('p25', $benchmark);
-            $this->assertArrayHasKey('p50', $benchmark);
-            $this->assertArrayHasKey('p75', $benchmark);
-        }
+        $this->assertArrayHasKey('p25', $benchmark);
+        $this->assertArrayHasKey('median', $benchmark);
+        $this->assertArrayHasKey('p75', $benchmark);
+        $this->assertArrayHasKey('source', $benchmark);
     }
 
     /** @test */
     public function it_returns_global_defaults_when_country_not_found()
     {
-        $benchmark = $this->service->getBenchmark(
-            industry: 'Manufacturing',
-            country: 'XX',
+        // No DB row exists for country 'XX'/industry 'Manufacturing', and it
+        // doesn't match the 'WW'/'general' fallback row either, so getForRatio()
+        // falls through to the built-in DEFAULTS table for 'current_ratio'.
+        $benchmark = $this->service->getForRatio(
             ratioKey: 'current_ratio',
-            year: 2026
+            tenantId: 'default',
+            country: 'XX',
+            industry: 'Manufacturing'
         );
 
         $this->assertIsArray($benchmark);
+        $this->assertEquals(1.1, $benchmark['p25']);
+        $this->assertEquals(1.5, $benchmark['median']);
+        $this->assertEquals(2.2, $benchmark['p75']);
+        $this->assertEquals('WideHalo Global Benchmark 2026', $benchmark['source']);
     }
 
     /** @test */
     public function it_computes_percentile_rank()
     {
-        $rank = $this->service->computePercentileRank(
+        $rank = $this->service->percentileRank(
             value: 1.75,
-            p25: 1.5,
-            p50: 1.75,
-            p75: 2.0
+            benchmarkData: ['p25' => 1.5, 'p75' => 2.0],
+            direction: 'up'
         );
 
-        $this->assertIsFloat($rank);
-        $this->assertGreaterThanOrEqual(0, $rank);
-        $this->assertLessThanOrEqual(100, $rank);
+        $this->assertIsInt($rank);
+        $this->assertGreaterThanOrEqual(25, $rank);
+        $this->assertLessThanOrEqual(75, $rank);
     }
 
     /** @test */
-    public function it_correctly_ranks_value_at_percentile_50()
+    public function it_correctly_ranks_value_at_midpoint()
     {
-        $rank = $this->service->computePercentileRank(
+        $rank = $this->service->percentileRank(
             value: 1.75,
-            p25: 1.5,
-            p50: 1.75,
-            p75: 2.0
+            benchmarkData: ['p25' => 1.5, 'p75' => 2.0],
+            direction: 'up'
         );
 
-        $this->assertGreaterThanOrEqual(40, $rank);
-        $this->assertLessThanOrEqual(60, $rank);
+        // (1.75 - 1.5) / (2.0 - 1.5) * 50 + 25 = 50
+        $this->assertEquals(50, $rank);
     }
 
     /** @test */
-    public function it_correctly_ranks_value_below_p25()
+    public function it_clips_value_at_or_below_p25_to_rank_25()
     {
-        $rank = $this->service->computePercentileRank(
+        $rank = $this->service->percentileRank(
             value: 1.0,
-            p25: 1.5,
-            p50: 1.75,
-            p75: 2.0
+            benchmarkData: ['p25' => 1.5, 'p75' => 2.0],
+            direction: 'up'
         );
 
-        $this->assertLessThan(25, $rank);
+        $this->assertEquals(25, $rank);
     }
 
     /** @test */
-    public function it_correctly_ranks_value_above_p75()
+    public function it_clips_value_at_or_above_p75_to_rank_75()
     {
-        $rank = $this->service->computePercentileRank(
+        $rank = $this->service->percentileRank(
             value: 2.5,
-            p25: 1.5,
-            p50: 1.75,
-            p75: 2.0
+            benchmarkData: ['p25' => 1.5, 'p75' => 2.0],
+            direction: 'up'
         );
 
-        $this->assertGreaterThan(75, $rank);
+        $this->assertEquals(75, $rank);
     }
 
     /** @test */
-    public function it_retrieves_all_benchmarks_for_module()
+    public function it_inverts_percentile_rank_for_down_direction_metrics()
     {
-        $benchmarks = $this->service->getAllForModule(
-            module: 'Accounting',
-            country: 'SN',
-            year: 2026
+        // For "down" metrics (lower is better), a high value ranks low.
+        $rankAtHighValue = $this->service->percentileRank(
+            value: 2.5,
+            benchmarkData: ['p25' => 1.5, 'p75' => 2.0],
+            direction: 'down'
         );
+        $rankAtLowValue = $this->service->percentileRank(
+            value: 1.0,
+            benchmarkData: ['p25' => 1.5, 'p75' => 2.0],
+            direction: 'down'
+        );
+
+        $this->assertEquals(25, $rankAtHighValue);
+        $this->assertEquals(75, $rankAtLowValue);
+    }
+
+    /** @test */
+    public function it_returns_null_percentile_rank_when_benchmark_bounds_missing()
+    {
+        $rank = $this->service->percentileRank(
+            value: 1.75,
+            benchmarkData: ['p25' => null, 'p75' => null],
+            direction: 'up'
+        );
+
+        $this->assertNull($rank);
+    }
+
+    /** @test */
+    public function it_lists_all_benchmarks()
+    {
+        $benchmarks = $this->service->listAll(country: 'SN', year: 2026);
 
         $this->assertIsArray($benchmarks);
+        // No DB rows are seeded for SN/2026 in this test's DB, so listAll()
+        // falls back to the built-in defaults exposed as structured rows.
+        $this->assertNotEmpty($benchmarks);
     }
 
     /** @test */
-    public function it_stores_custom_benchmark()
+    public function it_stores_and_retrieves_a_custom_benchmark()
     {
-        $benchmark = $this->service->store(
-            tenantId: 1,
-            industry: 'Technology',
-            country: 'CI',
-            ratioKey: 'net_profit_margin',
-            year: 2026,
-            p25: 5,
-            p50: 12,
-            p75: 20
-        );
+        // BenchmarkService has no store() method of its own — custom
+        // benchmarks are written directly against the IndustryBenchmark
+        // model (this is how the row would land in strategy_industry_benchmarks
+        // in real usage), then read back through getForRatio().
+        $benchmark = IndustryBenchmark::create([
+            'ratio_name' => 'net_profit_margin',
+            'industry'   => 'Technology',
+            'country'    => 'CI',
+            'p25'        => 5,
+            'median'     => 12,
+            'p75'        => 20,
+            'year'       => 2026,
+            'source'     => 'Custom',
+        ]);
 
         $this->assertNotNull($benchmark);
         $this->assertEquals('Technology', $benchmark->industry);
         $this->assertEquals('CI', $benchmark->country);
-        $this->assertEquals(12, $benchmark->p50);
-    }
+        $this->assertEquals(12, $benchmark->median);
 
-    /** @test */
-    public function it_computes_benchmark_gap()
-    {
-        $gap = $this->service->computeGap(
-            actualValue: 1.5,
-            benchmarkP50: 1.75,
-            direction: 'up'
+        $retrieved = $this->service->getForRatio(
+            ratioKey: 'net_profit_margin',
+            tenantId: 'default',
+            country: 'CI',
+            industry: 'Technology'
         );
 
-        $this->assertIsFloat($gap);
-        $this->assertLessThan(0, $gap);
-    }
-
-    /** @test */
-    public function it_computes_positive_gap_when_above_benchmark()
-    {
-        $gap = $this->service->computeGap(
-            actualValue: 2.0,
-            benchmarkP50: 1.75,
-            direction: 'up'
-        );
-
-        $this->assertGreaterThan(0, $gap);
-    }
-
-    /** @test */
-    public function it_handles_zero_benchmark_value()
-    {
-        $gap = $this->service->computeGap(
-            actualValue: 1.5,
-            benchmarkP50: 0,
-            direction: 'up'
-        );
-
-        $this->assertIsFloat($gap);
+        $this->assertEquals(12.0, $retrieved['median']);
+        $this->assertEquals('Custom', $retrieved['source']);
     }
 
     /** @test */
@@ -177,14 +186,15 @@ class BenchmarkServiceTest extends TestCase
         $countries = ['SN', 'CI', 'CM', 'KE', 'GH', 'NG', 'MG'];
 
         foreach ($countries as $country) {
-            $benchmark = $this->service->getBenchmark(
-                industry: 'Manufacturing',
-                country: $country,
+            $benchmark = $this->service->getForRatio(
                 ratioKey: 'current_ratio',
-                year: 2026
+                tenantId: 'default',
+                country: $country,
+                industry: 'Manufacturing'
             );
 
             $this->assertIsArray($benchmark);
+            $this->assertArrayHasKey('p25', $benchmark);
         }
     }
 }
