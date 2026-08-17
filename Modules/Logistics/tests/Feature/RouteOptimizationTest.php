@@ -2,131 +2,85 @@
 
 declare(strict_types=1);
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Modules\Logistics\Models\DeliveryRound;
-use Modules\Logistics\Models\DeliveryStop;
-use Modules\Logistics\Models\Location;
-use Modules\Logistics\Models\Shipment;
+use App\Models\User;
 use Modules\Logistics\Services\RouteOptimizationService;
+use Spatie\Permission\Models\Role;
 
-uses(RefreshDatabase::class);
-
-describe('Route Optimization', function () {
+/**
+ * Originally written against an invented `DeliveryRound`-based
+ * RouteOptimizationService contract — `optimizeRoute($deliveryRoundModel)`,
+ * `getOptimizationComparison()`, `clearCache()`, `getSuggestedAlternatives()` —
+ * none of which exist. The real `RouteOptimizationService::optimizeRoute()`
+ * takes an `int $routeId` against `DeliveryRoute`/`RouteStop`
+ * (`lgx_delivery_routes`/`lgx_route_stops`), routed as
+ * `PUT logistics/routes/{id}/optimize` via `CustomsRouteController`.
+ *
+ * Investigation found route optimization genuinely has TWO implementations,
+ * but only one of them is actually reachable end-to-end today:
+ *
+ *  - `RouteOptimizationService` (nearest-neighbour on DeliveryRoute/RouteStop):
+ *    its pure Haversine helper `calculateDistance()` has no DB dependency and
+ *    is real, working code — exercised directly below. Its DB-backed methods
+ *    (`optimizeRoute()`, `getRouteKpis()`, `suggestVehicle()`, ...) currently
+ *    have NO backing migration for `lgx_delivery_routes`/`lgx_route_stops`
+ *    (confirmed via `Schema::hasTable()` — both return false), so calling
+ *    them 500s despite the controller/route existing. This is a genuine,
+ *    pre-existing product gap, not something this test-only fix introduces
+ *    or is scoped to repair (would require a new migration = new business
+ *    logic), so those methods are intentionally NOT exercised here.
+ *  - `RouteOptimizerService` (full VRP solver, 2-opt + time windows, routed
+ *    as `POST logistics/routes/optimize`) IS fully functional — it operates
+ *    on request arrays with no DB dependency — and already has exhaustive
+ *    unit + HTTP coverage in `VrpRouteOptimizerTest`. One smoke test against
+ *    the real endpoint is kept here so "route optimization" stays covered
+ *    under this filename too, without duplicating that file's edge cases.
+ */
+describe('RouteOptimizationService::calculateDistance (Haversine)', function () {
     beforeEach(function () {
         $this->service = new RouteOptimizationService();
-        $this->round = DeliveryRound::factory()->create();
     });
 
-    test('optimize delivery route with multiple stops', function () {
-        $locations = Location::factory()->count(3)->create([
-            'latitude' => 40.7128,
-            'longitude' => -74.0060,
-        ]);
+    test('calculates a realistic long-haul distance', function () {
+        // NYC -> LA, great-circle distance is ~3936 km
+        $distance = $this->service->calculateDistance(40.7128, -74.0060, 34.0522, -118.2437);
 
-        foreach ($locations as $index => $location) {
-            $shipment = Shipment::factory()->create();
-            DeliveryStop::factory()->create([
-                'delivery_round_id' => $this->round->id,
-                'shipment_id' => $shipment->id,
-                'location_id' => $location->id,
-                'sequence' => $index + 1,
-            ]);
-        }
-
-        $result = $this->service->optimizeRoute($this->round);
-
-        expect($result)->toHaveKeys(['total_distance_km', 'estimated_time_minutes', 'stops']);
-        expect($result['stops'])->not->toBeEmpty();
+        expect($distance)->toBeGreaterThan(3800.0)->toBeLessThan(4100.0);
     });
 
-    test('route optimization returns from cache', function () {
-        $result1 = $this->service->optimizeRoute($this->round);
-        $result2 = $this->service->optimizeRoute($this->round);
+    test('distance between identical points is zero', function () {
+        $distance = $this->service->calculateDistance(18.8792, 47.5079, 18.8792, 47.5079);
 
-        expect($result1)->toBe($result2);
+        expect($distance)->toBe(0.0);
     });
 
-    test('get optimization comparison', function () {
-        Location::factory()->count(3)->create();
-        DeliveryStop::factory()->count(3)->create([
-            'delivery_round_id' => $this->round->id,
-        ]);
+    test('distance is symmetric', function () {
+        $ab = $this->service->calculateDistance(14.6937, -17.4441, 14.7910, -16.9260);
+        $ba = $this->service->calculateDistance(14.7910, -16.9260, 14.6937, -17.4441);
 
-        $comparison = $this->service->getOptimizationComparison($this->round);
+        expect($ab)->toBe($ba);
+    });
+});
 
-        expect($comparison)->toHaveKeys(['current', 'optimized', 'improvement']);
-        expect($comparison['improvement'])->toHaveKeys(['distance_saved_km', 'time_saved_minutes', 'distance_percent']);
+describe('Route Optimization — real routed VRP endpoint', function () {
+    beforeEach(function () {
+        $this->user = User::factory()->create();
+        Role::firstOrCreate(['name' => 'logistics-manager', 'guard_name' => 'web']);
+        $this->user->assignRole('logistics-manager');
     });
 
-    test('clear route optimization cache', function () {
-        $this->service->optimizeRoute($this->round);
-        $this->service->clearCache($this->round->id);
+    test('optimize delivery route with multiple stops via POST /routes/optimize', function () {
+        $stops = [
+            ['id' => 's1', 'lat' => 40.7128, 'lng' => -74.0060],
+            ['id' => 's2', 'lat' => 40.7580, 'lng' => -73.9855],
+            ['id' => 's3', 'lat' => 40.7489, 'lng' => -73.9680],
+        ];
+        $vehicles = [['id' => 'v1', 'capacity' => 500, 'start_lat' => 40.7128, 'start_lng' => -74.0060]];
 
-        // Cache should be cleared - next call would recalculate
-        expect(cache("route_optimization:{$this->round->id}"))->toBeNull();
-    });
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/v1/logistics/routes/optimize', compact('stops', 'vehicles'));
 
-    test('suggest alternative routes', function () {
-        DeliveryStop::factory()->count(3)->create([
-            'delivery_round_id' => $this->round->id,
-        ]);
-
-        $alternatives = $this->service->getSuggestedAlternatives($this->round, 3);
-
-        expect($alternatives)->toHaveCount(3);
-    });
-
-    test('handle single stop route', function () {
-        $location = Location::factory()->create();
-        $shipment = Shipment::factory()->create();
-        DeliveryStop::factory()->create([
-            'delivery_round_id' => $this->round->id,
-            'shipment_id' => $shipment->id,
-            'location_id' => $location->id,
-        ]);
-
-        $result = $this->service->optimizeRoute($this->round);
-
-        expect($result)->toHaveKeys(['total_distance_km', 'estimated_time_minutes', 'stops']);
-    });
-
-    test('handle no stops route', function () {
-        $result = $this->service->optimizeRoute($this->round);
-
-        expect($result['stops'])->toBeEmpty();
-    });
-
-    test('calculate route metrics correctly', function () {
-        $location1 = Location::factory()->create([
-            'latitude' => 40.7128,
-            'longitude' => -74.0060,
-        ]);
-
-        $location2 = Location::factory()->create([
-            'latitude' => 40.7580,
-            'longitude' => -73.9855,
-        ]);
-
-        $shipment1 = Shipment::factory()->create();
-        $shipment2 = Shipment::factory()->create();
-
-        DeliveryStop::factory()->create([
-            'delivery_round_id' => $this->round->id,
-            'shipment_id' => $shipment1->id,
-            'location_id' => $location1->id,
-            'sequence' => 1,
-        ]);
-
-        DeliveryStop::factory()->create([
-            'delivery_round_id' => $this->round->id,
-            'shipment_id' => $shipment2->id,
-            'location_id' => $location2->id,
-            'sequence' => 2,
-        ]);
-
-        $result = $this->service->optimizeRoute($this->round);
-
-        expect($result['total_distance_km'])->toBeGreaterThan(0);
-        expect($result['estimated_time_minutes'])->toBeGreaterThan(0);
+        $response->assertStatus(200)->assertJsonPath('status', 'completed');
+        expect($response->json('result.routes.0.stops'))->toHaveCount(3);
+        expect($response->json('result.total_distance_km'))->toBeGreaterThan(0.0);
     });
 });
