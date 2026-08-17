@@ -18,7 +18,7 @@ class ComplianceControlPolicy
             return false;
         }
 
-        return $user->company_id === $complianceControl->company_id;
+        return (string) $user->company_id === (string) $complianceControl->company_id;
     }
 
     public function create(User $user): bool
@@ -32,7 +32,7 @@ class ComplianceControlPolicy
             return false;
         }
 
-        return $user->company_id === $complianceControl->company_id;
+        return (string) $user->company_id === (string) $complianceControl->company_id;
     }
 
     public function verify(User $user, ComplianceControl $complianceControl): bool
@@ -41,7 +41,7 @@ class ComplianceControlPolicy
             return false;
         }
 
-        return $user->company_id === $complianceControl->company_id;
+        return (string) $user->company_id === (string) $complianceControl->company_id;
     }
 
     public function delete(User $user, ComplianceControl $complianceControl): bool
@@ -50,6 +50,6 @@ class ComplianceControlPolicy
             return false;
         }
 
-        return $user->company_id === $complianceControl->company_id;
+        return (string) $user->company_id === (string) $complianceControl->company_id;
     }
 }

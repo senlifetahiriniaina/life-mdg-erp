@@ -25,7 +25,7 @@ class CspViolationPolicy
     public function view(User $user, CspViolation $violation): bool
     {
         // Only admins and security roles can view violations
-        return $user->hasRole(['admin', 'security_manager', 'compliance_officer']);
+        return $user->hasRole(['admin', 'security-admin']);
     }
 
     /**
@@ -36,7 +36,7 @@ class CspViolationPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole(['admin', 'security_manager', 'compliance_officer']);
+        return $user->hasRole(['admin', 'security-admin']);
     }
 
     /**
@@ -49,7 +49,7 @@ class CspViolationPolicy
     public function update(User $user, CspViolation $violation): bool
     {
         // Only admins and security team can resolve violations
-        return $user->hasRole(['admin', 'security_manager']);
+        return $user->hasRole(['admin', 'security-admin']);
     }
 
     /**

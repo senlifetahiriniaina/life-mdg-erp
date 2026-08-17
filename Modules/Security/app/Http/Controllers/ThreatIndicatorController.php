@@ -25,9 +25,11 @@ class ThreatIndicatorController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ThreatIndicator::class);
+
         $threats = ThreatIndicator::query()
             ->when($request->filled('type'), fn ($q) => $q->where('indicator_type', $request->type))
-            ->when($request->filled('severity'), fn ($q) => $q->where('severity', $request->severity))
+            ->when($request->filled('severity'), fn ($q) => $q->where('threat_level', $request->severity))
             ->when($request->has('is_whitelisted'), fn ($q) => $q->where('is_whitelisted', filter_var($request->is_whitelisted, FILTER_VALIDATE_BOOLEAN)))
             ->latest()
             ->paginate($request->integer('per_page', 20));
@@ -40,6 +42,8 @@ class ThreatIndicatorController extends Controller
      */
     public function show(ThreatIndicator $threat): JsonResponse
     {
+        $this->authorize('view', $threat);
+
         return response()->json(['data' => $threat]);
     }
 
@@ -48,6 +52,8 @@ class ThreatIndicatorController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', ThreatIndicator::class);
+
         $validated = $request->validate([
             'indicator_type' => 'required|in:ip,domain,hash,url,email',
             'indicator_value'=> 'required|string|max:500',
@@ -57,7 +63,11 @@ class ThreatIndicatorController extends Controller
             'expires_at'     => 'nullable|date',
         ]);
 
-        $threat = ThreatIndicator::create($validated);
+        $threat = ThreatIndicator::create([
+            'detected_at' => now(),
+            ...collect($validated)->except('severity')->all(),
+            'threat_level' => $validated['severity'],
+        ]);
 
         return response()->json(['data' => $threat, 'message' => 'Threat indicator created'], 201);
     }
@@ -67,12 +77,19 @@ class ThreatIndicatorController extends Controller
      */
     public function update(Request $request, ThreatIndicator $threat): JsonResponse
     {
+        $this->authorize('update', $threat);
+
         $validated = $request->validate([
             'severity'    => 'sometimes|in:low,medium,high,critical',
             'description' => 'nullable|string',
             'source'      => 'nullable|string|max:255',
             'expires_at'  => 'nullable|date',
         ]);
+
+        if (array_key_exists('severity', $validated)) {
+            $validated['threat_level'] = $validated['severity'];
+            unset($validated['severity']);
+        }
 
         $threat->update($validated);
 
@@ -84,6 +101,8 @@ class ThreatIndicatorController extends Controller
      */
     public function destroy(ThreatIndicator $threat): JsonResponse
     {
+        $this->authorize('delete', $threat);
+
         $threat->delete();
 
         return response()->json(['message' => 'Threat indicator deleted']);
@@ -94,10 +113,12 @@ class ThreatIndicatorController extends Controller
      */
     public function severitySummary(): JsonResponse
     {
+        $this->authorize('viewAny', ThreatIndicator::class);
+
         $summary = ThreatIndicator::query()
-            ->selectRaw('severity, COUNT(*) as count')
-            ->groupBy('severity')
-            ->pluck('count', 'severity');
+            ->selectRaw('threat_level, COUNT(*) as count')
+            ->groupBy('threat_level')
+            ->pluck('count', 'threat_level');
 
         return response()->json(['data' => $summary]);
     }

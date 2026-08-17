@@ -30,6 +30,8 @@ class CustomFieldController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', CustomField::class);
+
         $query = CustomField::query()->orderBy('sort_order');
 
         if ($request->filled('entity_type')) {
@@ -50,6 +52,8 @@ class CustomFieldController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', CustomField::class);
+
         $validated = $request->validate([
             'entity_type' => ['required', 'string', 'max:100'],
             'field_key' => ['required', 'string', 'max:100', 'alpha_dash'],
@@ -78,6 +82,8 @@ class CustomFieldController extends Controller
      */
     public function show(CustomField $field): JsonResponse
     {
+        $this->authorize('view', $field);
+
         return response()->json($field);
     }
 
@@ -88,6 +94,8 @@ class CustomFieldController extends Controller
      */
     public function update(Request $request, CustomField $field): JsonResponse
     {
+        $this->authorize('update', $field);
+
         $validated = $request->validate([
             'field_label' => ['sometimes', 'string', 'max:255'],
             'field_type' => ['sometimes', 'string', 'in:text,textarea,number,decimal,boolean,date,datetime,select,multi_select,url,email,phone'],
@@ -114,6 +122,8 @@ class CustomFieldController extends Controller
      */
     public function destroy(CustomField $field): JsonResponse
     {
+        $this->authorize('delete', $field);
+
         $field->delete();
 
         return response()->json(['message' => 'Custom field deleted.']);

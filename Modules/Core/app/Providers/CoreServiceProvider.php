@@ -3,7 +3,15 @@
 namespace Modules\Core\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Core\Models\ApprovalInstance;
+use Modules\Core\Models\ApprovalWorkflow;
+use Modules\Core\Models\CspViolation;
+use Modules\Core\Models\CustomField;
+use Modules\Core\Policies\ApprovalWorkflowPolicy;
+use Modules\Core\Policies\CspViolationPolicy;
+use Modules\Core\Policies\CustomFieldPolicy;
 use Modules\Core\Services\DDoSDetectionService;
 use Modules\Core\Services\RateLimitService;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -29,9 +37,26 @@ class CoreServiceProvider extends ServiceProvider
         $this->registerConfig();
         $this->registerSecretsConfig();
         $this->registerViews();
+        $this->registerPolicies();
 
         // Don't load migrations in testing environment - TestCase handles them
 $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * Chantier 8.3 found ApprovalWorkflowPolicy/CustomFieldPolicy fully written
+     * and already called via $this->authorize() in ApprovalController/
+     * CustomFieldController, but neither was ever registered with Laravel's
+     * Gate — no auto-discovery for Modules-namespaced policies, and no
+     * Gate::policy() call existed anywhere. Every authorize() call against
+     * these two was silently un-gated until this was added.
+     */
+    private function registerPolicies(): void
+    {
+        Gate::policy(ApprovalWorkflow::class, ApprovalWorkflowPolicy::class);
+        Gate::policy(ApprovalInstance::class, ApprovalWorkflowPolicy::class);
+        Gate::policy(CustomField::class, CustomFieldPolicy::class);
+        Gate::policy(CspViolation::class, CspViolationPolicy::class);
     }
 
     /**

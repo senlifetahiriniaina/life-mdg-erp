@@ -22,6 +22,11 @@ class ThreatIndicatorPolicy
         return $user->hasPermissionTo('security.threat.create');
     }
 
+    public function update(User $user, ThreatIndicator $threatIndicator): bool
+    {
+        return $user->hasPermissionTo('security.threat.update');
+    }
+
     public function whitelist(User $user, ThreatIndicator $threatIndicator): bool
     {
         if (!$user->hasPermissionTo('security.threat.update')) {

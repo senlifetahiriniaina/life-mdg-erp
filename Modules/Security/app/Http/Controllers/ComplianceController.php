@@ -26,6 +26,8 @@ class ComplianceController extends Controller
 
     public function storeControl(Request $request): JsonResponse
     {
+        $this->authorize('create', ComplianceControl::class);
+
         $validated = $request->validate([
             'framework' => 'required|in:SOX,HIPAA,PCI-DSS,GDPR',
             'control_id' => 'required|string',
@@ -174,6 +176,8 @@ class ComplianceController extends Controller
 
     public function indexViolations(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ComplianceViolation::class);
+
         $status = $request->input('status');
 
         $violations = ComplianceViolation::where('company_id', auth()->user()->company_id)
@@ -186,15 +190,15 @@ class ComplianceController extends Controller
 
     public function showViolation(ComplianceViolation $violation): JsonResponse
     {
-        if ($violation->company_id !== auth()->user()->company_id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        $this->authorize('view', $violation);
 
         return response()->json($violation);
     }
 
     public function updateViolation(Request $request, ComplianceViolation $violation): JsonResponse
     {
+        $this->authorize('update', $violation);
+
         $validated = $request->validate([
             'violation_status' => 'in:open,remediated,waived,closed',
             'remediation_notes' => 'string',

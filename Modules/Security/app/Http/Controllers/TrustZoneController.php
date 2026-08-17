@@ -19,12 +19,14 @@ class TrustZoneController extends Controller
     /**
      * List all trust zones.
      *
-     * @queryParam level string Filter by trust level (high|medium|low|untrusted). Example: high
+     * @queryParam type string Filter by zone type. Example: internal
      */
     public function index(Request $request): JsonResponse
     {
-        $zones = TrustZone::query()
-            ->when($request->filled('level'), fn ($q) => $q->where('trust_level', $request->level))
+        $this->authorize('viewAny', TrustZone::class);
+
+        $zones = TrustZone::where('company_id', auth()->user()->company_id)
+            ->when($request->filled('type'), fn ($q) => $q->where('zone_type', $request->type))
             ->latest()
             ->paginate($request->integer('per_page', 20));
 
@@ -36,6 +38,8 @@ class TrustZoneController extends Controller
      */
     public function show(TrustZone $trustZone): JsonResponse
     {
+        $this->authorize('view', $trustZone);
+
         return response()->json(['data' => $trustZone]);
     }
 
@@ -44,16 +48,23 @@ class TrustZoneController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', TrustZone::class);
+
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'trust_level' => 'required|in:high,medium,low,untrusted',
-            'description' => 'nullable|string',
-            'ip_ranges'   => 'sometimes|array',
-            'ip_ranges.*' => 'string',
-            'policies'    => 'sometimes|array',
+            'zone_name'                => 'required|string|max:128',
+            'zone_type'                => 'nullable|string|max:32',
+            'description'              => 'nullable|string',
+            'cidr_blocks'              => 'sometimes|array',
+            'cidr_blocks.*'            => 'string',
+            'device_policies'          => 'sometimes|array',
+            'authentication_policies'  => 'sometimes|array',
+            'trust_score_minimum'      => 'nullable|integer|min:0|max:100',
         ]);
 
-        $zone = TrustZone::create($validated);
+        $zone = TrustZone::create([
+            'company_id' => auth()->user()->company_id,
+            ...$validated,
+        ]);
 
         return response()->json(['data' => $zone, 'message' => 'Trust zone created'], 201);
     }
@@ -63,13 +74,17 @@ class TrustZoneController extends Controller
      */
     public function update(Request $request, TrustZone $trustZone): JsonResponse
     {
+        $this->authorize('update', $trustZone);
+
         $validated = $request->validate([
-            'name'        => 'sometimes|string|max:255',
-            'trust_level' => 'sometimes|in:high,medium,low,untrusted',
-            'description' => 'nullable|string',
-            'ip_ranges'   => 'sometimes|array',
-            'ip_ranges.*' => 'string',
-            'policies'    => 'sometimes|array',
+            'zone_name'                => 'sometimes|string|max:128',
+            'zone_type'                => 'nullable|string|max:32',
+            'description'              => 'nullable|string',
+            'cidr_blocks'              => 'sometimes|array',
+            'cidr_blocks.*'            => 'string',
+            'device_policies'          => 'sometimes|array',
+            'authentication_policies'  => 'sometimes|array',
+            'trust_score_minimum'      => 'nullable|integer|min:0|max:100',
         ]);
 
         $trustZone->update($validated);
@@ -82,6 +97,8 @@ class TrustZoneController extends Controller
      */
     public function destroy(TrustZone $trustZone): JsonResponse
     {
+        $this->authorize('delete', $trustZone);
+
         $trustZone->delete();
 
         return response()->json(['message' => 'Trust zone deleted']);
@@ -92,15 +109,17 @@ class TrustZoneController extends Controller
      */
     public function assignResource(Request $request, TrustZone $trustZone): JsonResponse
     {
+        $this->authorize('update', $trustZone);
+
         $validated = $request->validate([
             'resource_type'  => 'required|in:ip,service,user_group',
             'resource_value' => 'required|string|max:255',
         ]);
 
-        $resources = $trustZone->resources ?? [];
+        $resources = $trustZone->assigned_resources ?? [];
         $resources[] = $validated;
 
-        $trustZone->update(['resources' => $resources]);
+        $trustZone->update(['assigned_resources' => $resources]);
 
         return response()->json(['data' => $trustZone, 'message' => 'Resource assigned to trust zone']);
     }

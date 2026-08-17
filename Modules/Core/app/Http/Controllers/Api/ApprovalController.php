@@ -32,6 +32,8 @@ class ApprovalController extends Controller
      */
     public function indexWorkflows(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ApprovalWorkflow::class);
+
         $query = ApprovalWorkflow::query()->orderBy('module')->orderBy('name');
 
         if ($request->filled('module')) {
@@ -56,6 +58,8 @@ class ApprovalController extends Controller
      */
     public function storeWorkflow(Request $request): JsonResponse
     {
+        $this->authorize('create', ApprovalWorkflow::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:150',
             'description' => 'nullable|string',
@@ -84,6 +88,8 @@ class ApprovalController extends Controller
      */
     public function showWorkflow(ApprovalWorkflow $approvalWorkflow): JsonResponse
     {
+        $this->authorize('view', $approvalWorkflow);
+
         return response()->json($approvalWorkflow->load('createdBy'));
     }
 
@@ -94,6 +100,8 @@ class ApprovalController extends Controller
      */
     public function updateWorkflow(Request $request, ApprovalWorkflow $approvalWorkflow): JsonResponse
     {
+        $this->authorize('update', $approvalWorkflow);
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:150',
             'description' => 'nullable|string',
@@ -120,6 +128,8 @@ class ApprovalController extends Controller
      */
     public function destroyWorkflow(ApprovalWorkflow $approvalWorkflow): JsonResponse
     {
+        $this->authorize('delete', $approvalWorkflow);
+
         $approvalWorkflow->delete();
 
         return response()->json(null, 204);
@@ -134,6 +144,8 @@ class ApprovalController extends Controller
      */
     public function getInstance(string $subjectType, int $subjectId): JsonResponse
     {
+        $this->authorize('viewAny', ApprovalWorkflow::class);
+
         $instance = ApprovalInstance::where('subject_type', $subjectType)
             ->where('subject_id', $subjectId)
             ->with(['workflow', 'decisions.approver', 'initiatedBy'])
@@ -154,6 +166,8 @@ class ApprovalController extends Controller
      */
     public function decide(Request $request, ApprovalInstance $approvalInstance): JsonResponse
     {
+        $this->authorize('approve', $approvalInstance);
+
         $validated = $request->validate([
             'decision' => 'required|string|in:approved,rejected,escalated',
             'comment' => 'nullable|string',
@@ -183,6 +197,8 @@ class ApprovalController extends Controller
      */
     public function cancel(Request $request, ApprovalInstance $approvalInstance): JsonResponse
     {
+        $this->authorize('update', $approvalInstance);
+
         $this->service->cancelApproval($approvalInstance, $request->user());
 
         return response()->json($approvalInstance->fresh());
@@ -197,6 +213,8 @@ class ApprovalController extends Controller
      */
     public function pending(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ApprovalWorkflow::class);
+
         $user = $request->user();
         $userRoles = $user->roles()->pluck('id')->toArray();
 

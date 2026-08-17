@@ -18,7 +18,7 @@ class ComplianceAuditPolicy
             return false;
         }
 
-        return $user->company_id === $complianceAudit->company_id;
+        return (string) $user->company_id === (string) $complianceAudit->company_id;
     }
 
     public function create(User $user): bool
@@ -32,7 +32,7 @@ class ComplianceAuditPolicy
             return false;
         }
 
-        return $user->company_id === $complianceAudit->company_id && $complianceAudit->audit_status === 'in_progress';
+        return (string) $user->company_id === (string) $complianceAudit->company_id && $complianceAudit->audit_status === 'in_progress';
     }
 
     public function complete(User $user, ComplianceAudit $complianceAudit): bool
@@ -41,7 +41,7 @@ class ComplianceAuditPolicy
             return false;
         }
 
-        return $user->company_id === $complianceAudit->company_id && $complianceAudit->audit_status === 'in_progress';
+        return (string) $user->company_id === (string) $complianceAudit->company_id && $complianceAudit->audit_status === 'in_progress';
     }
 
     public function delete(User $user, ComplianceAudit $complianceAudit): bool
@@ -50,6 +50,6 @@ class ComplianceAuditPolicy
             return false;
         }
 
-        return $user->company_id === $complianceAudit->company_id;
+        return (string) $user->company_id === (string) $complianceAudit->company_id;
     }
 }

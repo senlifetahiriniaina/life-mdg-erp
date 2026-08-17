@@ -294,4 +294,57 @@ Route::prefix('v1')->group(function () {
             Route::post('{id}/reset', [\Modules\Core\Http\Controllers\Api\SandboxController::class, 'reset']);
         });
     });
+
+    // Chantier 8.3 — SuperadminController (Phase 40's multi-tenant portal) and
+    // SmartDefaultsController were both fully written, matching their own
+    // docblocked routes exactly, but neither was ever registered anywhere.
+    // ─── Superadmin — Multi-Tenant Portal (super-admin only) ───────────────────
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:super-admin', 'throttle:simple_get'])->prefix('superadmin')->group(function () {
+        Route::get('tenants', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'index']);
+        Route::get('tenants/{id}', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'show']);
+        Route::get('tenants/{id}/export', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'exportData']);
+        Route::get('stats', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'stats']);
+        Route::get('audit-log', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'auditLog']);
+
+        Route::middleware('throttle:create_post')->group(function () {
+            Route::post('tenants', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'store']);
+            Route::put('tenants/{id}', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'update']);
+            Route::post('tenants/{id}/suspend', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'suspend']);
+            Route::post('tenants/{id}/reactivate', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'reactivate']);
+            Route::post('tenants/{id}/upgrade-plan', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'upgradePlan']);
+            Route::delete('tenants/{id}', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'destroy']);
+        });
+    });
+
+    // ─── Onboarding (tenant-scoped, not superadmin — SuperadminController's
+    // own "ONBOARDING ROUTES (tenant-scoped, not superadmin)" section) ────────
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('onboarding')->group(function () {
+        Route::get('status', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'onboardingStatus']);
+        Route::middleware('throttle:create_post')->group(function () {
+            Route::post('step/{n}', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'onboardingStep']);
+            Route::post('skip', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'onboardingSkip']);
+        });
+    });
+
+    // ─── Smart Defaults — Simplicity First (per-country/industry form
+    // pre-fill; open to any authenticated tenant user) ──────────────────────
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('core')->group(function () {
+        Route::get('smart-defaults', [\Modules\Core\Http\Controllers\Api\SuperadminController::class, 'smartDefaultsEndpoint']);
+        Route::get('defaults', [\Modules\Core\Http\Controllers\Api\SmartDefaultsController::class, 'show']);
+        Route::get('defaults/countries', [\Modules\Core\Http\Controllers\Api\SmartDefaultsController::class, 'countries']);
+        Route::middleware('throttle:create_post')->put('simple-mode', [\Modules\Core\Http\Controllers\Api\SmartDefaultsController::class, 'setSimpleMode']);
+    });
+
+    // ─── CSP Violation Reporting ────────────────────────────────────────────
+    // Public/unauthenticated (browsers send these with no session context) --
+    // reuses the 'webhook' limiter (IP-keyed) rather than inventing a new one.
+    Route::post('core/csp/report', [\Modules\Core\Http\Controllers\Api\CspViolationController::class, 'report'])
+        ->middleware('throttle:webhook');
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('core/csp')->group(function () {
+        Route::get('violations', [\Modules\Core\Http\Controllers\Api\CspViolationController::class, 'index']);
+        Route::get('violations/{violation}', [\Modules\Core\Http\Controllers\Api\CspViolationController::class, 'show']);
+        Route::get('stats', [\Modules\Core\Http\Controllers\Api\CspViolationController::class, 'stats']);
+        Route::post('violations/{violation}/resolve', [\Modules\Core\Http\Controllers\Api\CspViolationController::class, 'resolve'])
+            ->middleware('throttle:create_post');
+    });
 });

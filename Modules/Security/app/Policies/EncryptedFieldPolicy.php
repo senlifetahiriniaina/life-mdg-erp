@@ -23,7 +23,7 @@ class EncryptedFieldPolicy
             return false;
         }
 
-        return $user->company_id === $encryptedField->company_id;
+        return (string) $user->company_id === (string) $encryptedField->company_id;
     }
 
     public function create(User $user): bool
@@ -37,7 +37,7 @@ class EncryptedFieldPolicy
             return false;
         }
 
-        return $user->company_id === $encryptedField->company_id;
+        return (string) $user->company_id === (string) $encryptedField->company_id;
     }
 
     public function delete(User $user, EncryptedField $encryptedField): bool
@@ -46,6 +46,6 @@ class EncryptedFieldPolicy
             return false;
         }
 
-        return $user->company_id === $encryptedField->company_id;
+        return (string) $user->company_id === (string) $encryptedField->company_id;
     }
 }

@@ -202,13 +202,15 @@ class RolesAndPermissionsSeeder extends Seeder
     ];
 
     // Modules\Security\Policies\{SecurityIncident,ComplianceAudit,ComplianceControl,
-    // EncryptionKey,ThreatIndicator}Policy check security.{resource}.{view,create,update,
-    // delete} -- the generic ACTIONS list already produces those (plus an unused
-    // .view-any) once 'security' is added to MODULES below, so no extra const is
-    // needed for the standard verbs. EncryptionKeyPolicy::rotate() checks the one
-    // non-standard verb, security.encryption.rotate.
+    // ComplianceViolation,EncryptionKey,ThreatIndicator,TrustZone,ServiceIdentity}Policy
+    // check security.{resource}.{view,create,update,delete} -- the generic ACTIONS list
+    // already produces those (plus an unused .view-any) once 'security' is added to
+    // MODULES below, so no extra const is needed for the standard verbs.
+    // EncryptionKeyPolicy::rotate()/ServiceIdentityPolicy::rotate() check the one
+    // non-standard verb each, security.{encryption,identity}.rotate.
     private const SECURITY_EXTRA_PERMISSIONS = [
         'security.encryption.rotate',
+        'security.identity.rotate',
     ];
 
     // Modules\Payroll\Http\Controllers\Api\PayrollController checks
@@ -229,9 +231,23 @@ class RolesAndPermissionsSeeder extends Seeder
         'auditlog.logs.export',
     ];
 
+    // Chantier 8.3 (Core): ApprovalWorkflowPolicy/CustomFieldPolicy check
+    // core.{approvalworkflow,customfield}.{view-any,view,create,update,delete,
+    // approve,export,archive} -- 'core' isn't in MODULES at all (unlike
+    // security/payroll/auditlog above, which only needed one or two extra
+    // non-standard verbs), so every verb needs to be listed here explicitly.
+    private const CORE_EXTRA_PERMISSIONS = [
+        'core.approvalworkflow.view-any', 'core.approvalworkflow.view', 'core.approvalworkflow.create',
+        'core.approvalworkflow.update', 'core.approvalworkflow.delete', 'core.approvalworkflow.approve',
+        'core.approvalworkflow.export', 'core.approvalworkflow.archive',
+        'core.customfield.view-any', 'core.customfield.view', 'core.customfield.create',
+        'core.customfield.update', 'core.customfield.delete', 'core.customfield.approve',
+        'core.customfield.export', 'core.customfield.archive',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
-        'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat'],
+        'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat', 'identity', 'zone'],
         'sales'            => ['order', 'line', 'quotation'],
         'hr'               => ['employee', 'department', 'job-position', 'leave', 'leave-type'],
         'payroll'          => ['payslip', 'run', 'tax-config'],
@@ -307,6 +323,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::BI_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::CORE_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

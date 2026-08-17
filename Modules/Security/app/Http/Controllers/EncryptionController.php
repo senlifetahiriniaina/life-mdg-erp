@@ -126,6 +126,8 @@ class EncryptionController extends Controller
 
     public function storeEncryptedField(Request $request): JsonResponse
     {
+        $this->authorize('create', EncryptedField::class);
+
         $validated = $request->validate([
             'table_name' => 'required|string',
             'column_name' => 'required|string',

@@ -1,8 +1,5 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Modules\Core\Http\Controllers\CoreController;
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -12,8 +9,8 @@ use Modules\Core\Http\Controllers\CoreController;
 | routes are loaded by the RouteServiceProvider within a group which
 | contains the "web" middleware group. Now create something great!
 |
+| Chantier 8.3 removed the dead CoreController scaffold resource route
+| (zero real functionality, blade views that didn't even fully exist) --
+| this file is intentionally empty now.
+|
 */
-
-Route::group([], function () {
-    Route::resource('core', CoreController::class)->names('core');
-});

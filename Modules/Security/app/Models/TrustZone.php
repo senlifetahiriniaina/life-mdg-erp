@@ -31,6 +31,7 @@ class TrustZone extends Model
         'device_policies',
         'authentication_policies',
         'trust_score_minimum',
+        'assigned_resources',
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class TrustZone extends Model
         'device_policies' => 'array',
         'authentication_policies' => 'array',
         'trust_score_minimum' => 'integer',
+        'assigned_resources' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

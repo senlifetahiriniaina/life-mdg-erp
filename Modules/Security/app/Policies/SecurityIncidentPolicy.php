@@ -18,7 +18,7 @@ class SecurityIncidentPolicy
             return false;
         }
 
-        return $user->company_id === $securityIncident->company_id;
+        return (string) $user->company_id === (string) $securityIncident->company_id;
     }
 
     public function create(User $user): bool
@@ -32,7 +32,7 @@ class SecurityIncidentPolicy
             return false;
         }
 
-        return $user->company_id === $securityIncident->company_id;
+        return (string) $user->company_id === (string) $securityIncident->company_id;
     }
 
     public function investigate(User $user, SecurityIncident $securityIncident): bool
@@ -41,7 +41,7 @@ class SecurityIncidentPolicy
             return false;
         }
 
-        return $user->company_id === $securityIncident->company_id && $securityIncident->incident_status === 'open';
+        return (string) $user->company_id === (string) $securityIncident->company_id && $securityIncident->incident_status === 'open';
     }
 
     public function resolve(User $user, SecurityIncident $securityIncident): bool
@@ -50,7 +50,7 @@ class SecurityIncidentPolicy
             return false;
         }
 
-        return $user->company_id === $securityIncident->company_id && $securityIncident->incident_status === 'investigating';
+        return (string) $user->company_id === (string) $securityIncident->company_id && $securityIncident->incident_status === 'investigating';
     }
 
     public function delete(User $user, SecurityIncident $securityIncident): bool
@@ -59,6 +59,6 @@ class SecurityIncidentPolicy
             return false;
         }
 
-        return $user->company_id === $securityIncident->company_id && $securityIncident->incident_status === 'resolved';
+        return (string) $user->company_id === (string) $securityIncident->company_id && $securityIncident->incident_status === 'resolved';
     }
 }

@@ -6,7 +6,6 @@ use Modules\Security\Http\Controllers\EncryptionController;
 use Modules\Security\Http\Controllers\IncidentController;
 use Modules\Security\Http\Controllers\ThreatIndicatorController;
 use Modules\Security\Http\Controllers\AuthenticationEventController;
-use Modules\Security\Http\Controllers\ComplianceControlController;
 use Modules\Security\Http\Controllers\TrustZoneController;
 use Modules\Security\Http\Controllers\ServiceIdentityController;
 use Modules\Security\Http\Controllers\RateLimitController;
@@ -73,22 +72,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     });
 
     // ─── Authentication Events ────────────────────────────────────────────────
-    Route::prefix('auth-events')->group(function () {
+    // AuthenticationEvent has no company_id column at all (cross-tenant by
+    // design — it's a security audit trail), so this is gated by role instead
+    // of a Policy, same reasoning as the rate-limits group below.
+    Route::prefix('auth-events')->middleware('role:security-admin,admin,super-admin')->group(function () {
         Route::get('/',                   [AuthenticationEventController::class, 'index']);
         Route::get('/summary',            [AuthenticationEventController::class, 'summary']);
         Route::get('/suspicious',         [AuthenticationEventController::class, 'suspiciousActivity']);
         Route::get('/{authenticationEvent}', [AuthenticationEventController::class, 'show']);
-    });
-
-    // ─── Compliance Controls (dedicated controller) ───────────────────────────
-    Route::prefix('compliance-controls')->group(function () {
-        Route::get('/',                            [ComplianceControlController::class, 'index']);
-        Route::post('/',                           [ComplianceControlController::class, 'store']);
-        Route::get('/framework-summary',           [ComplianceControlController::class, 'frameworkSummary']);
-        Route::get('/{complianceControl}',         [ComplianceControlController::class, 'show']);
-        Route::put('/{complianceControl}',         [ComplianceControlController::class, 'update']);
-        Route::delete('/{complianceControl}',      [ComplianceControlController::class, 'destroy']);
-        Route::post('/{complianceControl}/verify', [ComplianceControlController::class, 'verify']);
     });
 
     // ─── Trust Zones ─────────────────────────────────────────────────────────
@@ -113,7 +104,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     });
 
     // ─── Rate Limits ──────────────────────────────────────────────────────────
-    Route::prefix('rate-limits')->group(function () {
+    // No Eloquent model backs rate-limit state (it lives in Cache), so there's
+    // nothing for a Policy to attach to — gated by role instead, same pattern
+    // as Territory in Chantier 8.2 (CRM).
+    Route::prefix('rate-limits')->middleware('role:security-admin,admin,super-admin')->group(function () {
         Route::get('/status',      [RateLimitController::class, 'status']);
         Route::post('/reset',      [RateLimitController::class, 'reset']);
         Route::get('/blocked-ips', [RateLimitController::class, 'blockedIps']);

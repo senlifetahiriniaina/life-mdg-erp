@@ -18,7 +18,7 @@ class EncryptionKeyPolicy
             return false;
         }
 
-        return $user->company_id === $encryptionKey->company_id;
+        return (string) $user->company_id === (string) $encryptionKey->company_id;
     }
 
     public function create(User $user): bool
@@ -32,7 +32,7 @@ class EncryptionKeyPolicy
             return false;
         }
 
-        return $user->company_id === $encryptionKey->company_id;
+        return (string) $user->company_id === (string) $encryptionKey->company_id;
     }
 
     public function rotate(User $user, EncryptionKey $encryptionKey): bool
@@ -41,7 +41,7 @@ class EncryptionKeyPolicy
             return false;
         }
 
-        return $user->company_id === $encryptionKey->company_id && $encryptionKey->key_status === 'active';
+        return (string) $user->company_id === (string) $encryptionKey->company_id && $encryptionKey->key_status === 'active';
     }
 
     public function revoke(User $user, EncryptionKey $encryptionKey): bool
@@ -50,7 +50,7 @@ class EncryptionKeyPolicy
             return false;
         }
 
-        return $user->company_id === $encryptionKey->company_id && $encryptionKey->key_status !== 'revoked';
+        return (string) $user->company_id === (string) $encryptionKey->company_id && $encryptionKey->key_status !== 'revoked';
     }
 
     public function delete(User $user, EncryptionKey $encryptionKey): bool
@@ -59,6 +59,6 @@ class EncryptionKeyPolicy
             return false;
         }
 
-        return $user->company_id === $encryptionKey->company_id && $encryptionKey->key_status === 'revoked';
+        return (string) $user->company_id === (string) $encryptionKey->company_id && $encryptionKey->key_status === 'revoked';
     }
 }
