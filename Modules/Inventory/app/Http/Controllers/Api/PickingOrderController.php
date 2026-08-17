@@ -172,4 +172,26 @@ class PickingOrderController extends Controller
 
         return response()->json($line->load(['product', 'location.warehouse:id,name']));
     }
+
+    /**
+     * Get the next unassigned pending picking order for the current picker.
+     */
+    public function next(Request $request): JsonResponse
+    {
+        $order = PickingOrder::with(['warehouse:id,name'])
+            ->withCount('lines')
+            ->where('status', 'pending')
+            ->whereNull('assigned_to')
+            ->when($request->input('warehouse_id'), fn ($q, $v) => $q->where('warehouse_id', $v))
+            ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
+            ->orderBy('priority')
+            ->oldest()
+            ->first();
+
+        if (! $order) {
+            return response()->json(['message' => 'No pending picking orders.'], 200);
+        }
+
+        return response()->json($order);
+    }
 }

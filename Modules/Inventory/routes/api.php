@@ -80,9 +80,6 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::post('demand-forecasts/generate', [DemandForecastController::class, 'generate']);
         Route::post('demand-forecasts/reconcile', [DemandForecastController::class, 'reconcile']);
     });
-    Route::middleware('throttle:complex_get')->group(function () {
-        Route::get('demand-forecasts/expiring', [DemandForecastController::class, 'expiring']);
-    });
 
     // Transfer Order specific routes
     Route::middleware('throttle:complex_get')->group(function () {
@@ -110,7 +107,6 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::get('picking/{pickingOrder}/next-pick', [PickingOrderController::class, 'nextPick']);
     });
     Route::middleware('throttle:create_post')->group(function () {
-        Route::post('picking-orders/{picking}/record', [PickingOrderController::class, 'record']);
         Route::post('picking-orders/{picking}/assign', [PickingOrderController::class, 'assign']);
         Route::post('picking-orders/{picking}/lines/{pickingLine}/pick', [PickingOrderController::class, 'pickLine']);
         Route::post('picking-orders/{picking}/complete', [PickingOrderController::class, 'complete']);
@@ -118,15 +114,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
 
     // Cycle Count specific routes
     Route::middleware('throttle:create_post')->group(function () {
-        Route::post('cycle-counts/{cycleCount}/record', [CycleCountController::class, 'record']);
         Route::post('cycle-counts/{cycleCount}/validate', [CycleCountController::class, 'validate']);
         Route::post('cycle-counts/{cycleCount}/lines/{cycleCountLine}/count', [CycleCountController::class, 'countLine']);
     });
 
     // Barcode routes
-    Route::middleware('throttle:create_post')->group(function () {
-        Route::post('barcodes/lookup', [BarcodeController::class, 'lookup']);
-    });
     Route::get('barcode/product/{barcode}', [BarcodeController::class, 'lookupProduct']);
     Route::get('barcode/location/{barcode}', [BarcodeController::class, 'lookupLocation']);
 
@@ -159,11 +151,6 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::post('carriers', [ShipmentController::class, 'storeCarrier']);
     });
 
-    // Seasonal Factor specific routes
-    Route::middleware('throttle:create_post')->group(function () {
-        Route::post('seasonal-factors/upsert', [SeasonalFactorController::class, 'upsert']);
-    });
-
     // RMA specific routes
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('rmas/{rma}/approve', [RmaController::class, 'approve']);
@@ -184,14 +171,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::apiResource('categories', CategoryController::class)->only(['index', 'show'])->names('api.categories');
         Route::apiResource('warehouses', WarehouseController::class)->only(['index', 'show'])->names('api.warehouses');
         Route::apiResource('suppliers', SupplierController::class)->only(['index', 'show']);
-        Route::apiResource('barcodes', BarcodeController::class)->only(['index', 'show']);
     });
     Route::middleware('throttle:create_post')->group(function () {
         Route::apiResource('products', ProductController::class)->only(['store', 'update', 'destroy'])->names('api.products');
         Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy'])->names('api.categories');
         Route::apiResource('warehouses', WarehouseController::class)->only(['store', 'update', 'destroy'])->names('api.warehouses');
         Route::apiResource('suppliers', SupplierController::class)->only(['store', 'update', 'destroy']);
-        Route::apiResource('barcodes', BarcodeController::class)->only(['store', 'update', 'destroy']);
     });
 
     // Operational resources (shorter TTL: 5 minutes — these change frequently)
