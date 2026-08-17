@@ -90,6 +90,11 @@ export default defineConfig({
             '@modules': resolve(__dirname, 'Modules'),
         },
     },
+    test: {
+        environment: 'jsdom',
+        globals: true,
+        include: ['resources/js/**/*.spec.js', 'Modules/*/resources/js/**/*.spec.js'],
+    },
     build: {
         rollupOptions: {
             external: ['vue-router', 'chart.js', 'chart.js/auto'],

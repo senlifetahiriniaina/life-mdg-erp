@@ -1,7 +1,12 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Accounting\Http\Controllers\Web\AccountingWebController;
+use Modules\Accounting\Http\Controllers\Web\BankReconciliationWebController;
+use Modules\Accounting\Http\Controllers\Web\ConsolidationHierarchyWebController;
+use Modules\Accounting\Http\Controllers\Web\ConsolidationWebController;
 use Modules\Accounting\Http\Controllers\Web\InvoiceWebController;
+use Modules\Accounting\Http\Controllers\Web\VatDeclarationWebController;
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/', function () {
@@ -9,6 +14,26 @@ Route::middleware(['auth'])->group(function () {
     })->name('dashboard');
 
     Route::get('invoices', [InvoiceWebController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/create', [InvoiceWebController::class, 'create'])->name('invoices.create');
     Route::get('invoices/approvals', [InvoiceWebController::class, 'approvalQueue'])->name('invoices.approvals.index');
     Route::get('invoices/{invoice}/approval', [InvoiceWebController::class, 'showApproval'])->name('invoices.approval.show');
+    Route::get('invoices/{invoice}/edit', [InvoiceWebController::class, 'edit'])->name('invoices.edit');
+    Route::get('invoices/{invoice}', [InvoiceWebController::class, 'show'])->name('invoices.show');
+
+    Route::get('chart-of-accounts', [AccountingWebController::class, 'chartOfAccounts'])->name('chart-of-accounts.index');
+    Route::get('expenses', [AccountingWebController::class, 'expenses'])->name('expenses.index');
+
+    Route::get('bank-reconciliation', [BankReconciliationWebController::class, 'index'])->name('bank-reconciliation.index');
+    Route::get('bank-reconciliation/{account}', [BankReconciliationWebController::class, 'reconcile'])->name('bank-reconciliation.reconcile');
+
+    Route::get('vat-declarations', [VatDeclarationWebController::class, 'index'])->name('vat-declarations.index');
+    Route::get('vat-declarations/{vatDeclaration}', [VatDeclarationWebController::class, 'show'])->name('vat-declarations.show');
+
+    Route::get('consolidations', [ConsolidationWebController::class, 'index'])->name('consolidations.index');
+    Route::get('consolidations/create', [ConsolidationWebController::class, 'create'])->name('consolidations.create');
+    Route::get('consolidations/{company}', [ConsolidationWebController::class, 'show'])->name('consolidations.show');
+
+    Route::get('consolidation-hierarchies', [ConsolidationHierarchyWebController::class, 'index'])->name('consolidation-hierarchies.index');
+
+    Route::get('ai-anomaly-detection', [AccountingWebController::class, 'aiAnomalyDetection'])->name('ai-anomaly-detection.index');
 });

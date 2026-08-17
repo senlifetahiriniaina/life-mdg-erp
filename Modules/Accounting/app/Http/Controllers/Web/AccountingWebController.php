@@ -115,7 +115,7 @@ class AccountingWebController extends Controller
         ];
 
         return Inertia::render('Accounting/Expenses/Index', [
-            'reports' => $reports,
+            'expenses' => $reports,
             'stats' => $stats,
             'filters' => $request->only(['status']),
         ]);
@@ -151,5 +151,10 @@ class AccountingWebController extends Controller
         return Inertia::render('Accounting/Lettrage', [
             'filters' => $request->only(['account_id', 'date_from', 'date_to']),
         ]);
+    }
+
+    public function aiAnomalyDetection(): Response
+    {
+        return Inertia::render('Accounting/AIAnomalyDetection/Index');
     }
 }

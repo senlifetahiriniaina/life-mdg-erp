@@ -12,7 +12,7 @@
         <button class="btn btn-secondary" @click="downloadExcel" :disabled="exporting">
           <i :class="['pi', exporting ? 'pi-spin pi-spinner' : 'pi-file-excel']" style="font-size:13px" /> Export Excel
         </button>
-        <button class="btn btn-primary"><i class="pi pi-plus" style="font-size:13px" /> Nouvelle facture</button>
+        <button class="btn btn-primary" @click="router.get('/accounting/invoices/create')"><i class="pi pi-plus" style="font-size:13px" /> Nouvelle facture</button>
       </div>
     </div>
 
@@ -49,7 +49,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="inv in filteredInvoices" :key="inv.id" class="wh-dt-row">
+          <tr v-for="inv in filteredInvoices" :key="inv.id" class="wh-dt-row" @click="router.get(`/accounting/invoices/${inv.id}`)">
             <td><span style="font-family:var(--font-mono);font-size:12px;color:var(--fg-3)">{{ inv.number }}</span></td>
             <td style="font-weight:500;color:var(--fg-1)">{{ inv.partner_name }}</td>
             <td style="color:var(--fg-2)">{{ formatDate(inv.invoice_date) }}</td>
@@ -60,8 +60,8 @@
                 <span class="wh-badge-dot" />{{ statusLabel(inv.status) }}
               </span>
             </td>
-            <td style="display:flex;gap:4px">
-              <button class="wh-row-btn" title="Voir"><i class="pi pi-eye" style="font-size:13px" /></button>
+            <td style="display:flex;gap:4px" @click.stop>
+              <button class="wh-row-btn" title="Voir" @click="router.get(`/accounting/invoices/${inv.id}`)"><i class="pi pi-eye" style="font-size:13px" /></button>
               <a :href="`/api/v1/accounting/invoices/${inv.id}/pdf`" target="_blank" class="wh-row-btn" title="Télécharger PDF">
                 <i class="pi pi-file-pdf" style="font-size:13px;color:#e53e3e" />
               </a>
@@ -86,7 +86,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import Paginator from 'primevue/paginator'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'

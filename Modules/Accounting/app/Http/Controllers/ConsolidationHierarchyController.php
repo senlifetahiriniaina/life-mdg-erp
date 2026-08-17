@@ -33,7 +33,10 @@ class ConsolidationHierarchyController extends Controller
             'description' => 'nullable|string',
             'type' => 'required|in:holding,subsidiary,branch,division',
             'parent_company_id' => 'nullable|exists:companies,id',
-            'company_id' => 'required|exists:companies,id',
+            // Not required from the client: always overwritten below with the
+            // authenticated user's own company_id, so the client never needs
+            // to know or send it.
+            'company_id' => 'sometimes|exists:companies,id',
             'ownership_percentage' => 'required|numeric|between:0,100',
             'effective_date' => 'required|date',
             'end_date' => 'nullable|date|after:effective_date',

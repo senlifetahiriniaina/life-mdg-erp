@@ -66,6 +66,42 @@ class InvoiceWebController extends Controller
     }
 
     /**
+     * Had no route at all until now — Invoices/Show.vue existed with a full
+     * UI but nothing in routes/web.php ever pointed to it. The model has no
+     * `customer` relation (only flat customer_id/customer_name columns), so
+     * synthesize the shape the page expects from those columns.
+     */
+    public function show(Invoice $invoice): Response
+    {
+        $invoice->load(['lineItems', 'payments']);
+
+        return Inertia::render('Accounting/Invoices/Show', [
+            'invoice' => array_merge($invoice->toArray(), [
+                'customer' => [
+                    'id' => $invoice->customer_id,
+                    'name' => $invoice->customer_name ?: $invoice->partner_name,
+                ],
+            ]),
+        ]);
+    }
+
+    /**
+     * Had no route at all until now — Invoices/Form.vue existed with a full
+     * UI (create + edit) but nothing in routes/web.php ever pointed to it.
+     */
+    public function create(): Response
+    {
+        return Inertia::render('Accounting/Invoices/Form');
+    }
+
+    public function edit(Invoice $invoice): Response
+    {
+        return Inertia::render('Accounting/Invoices/Form', [
+            'invoice' => $invoice,
+        ]);
+    }
+
+    /**
      * Had no route at all until now — InvoiceApproval/Show.vue existed with
      * a full UI but nothing in routes/web.php ever pointed to it.
      */

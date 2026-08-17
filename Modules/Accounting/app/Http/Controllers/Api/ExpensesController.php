@@ -158,16 +158,21 @@ class ExpensesController extends Controller
     public function createReport(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'employee_id'  => 'required|integer',
             'title'        => 'nullable|string|max:255',
-            'period_start' => 'required|date',
-            'period_end'   => 'required|date|after_or_equal:period_start',
+            'period_start' => 'nullable|date',
+            'period_end'   => 'nullable|date|after_or_equal:period_start',
         ]);
 
-        $report = ExpenseReport::create(array_merge($validated, [
-            'title'  => $validated['title'] ?? 'Note de frais '.$validated['period_start'],
-            'status' => 'draft',
-        ]));
+        $periodStart = $validated['period_start'] ?? now()->startOfMonth()->format('Y-m-d');
+        $periodEnd = $validated['period_end'] ?? now()->endOfMonth()->format('Y-m-d');
+
+        $report = ExpenseReport::create([
+            'employee_id'  => $request->user()->id,
+            'title'        => $validated['title'] ?? 'Note de frais '.$periodStart,
+            'period_start' => $periodStart,
+            'period_end'   => $periodEnd,
+            'status'       => 'draft',
+        ]);
 
         return response()->json($report, 201);
     }

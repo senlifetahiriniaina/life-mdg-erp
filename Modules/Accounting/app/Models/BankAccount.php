@@ -81,6 +81,12 @@ class BankAccount extends Model
         return $this->belongsTo(GLAccount::class, 'gl_account_id');
     }
 
+    /** @return HasMany<OpenBankingConnection, self> */
+    public function openBankingConnections(): HasMany
+    {
+        return $this->hasMany(OpenBankingConnection::class, 'bank_account_id');
+    }
+
     // ─── Business Methods ────────────────────────────────────────────────────
 
     public function isActive(): bool

@@ -17,7 +17,7 @@
         </Column>
         <Column header="Montant total">
           <template #body="{ data }">
-            <span class="font-semibold">{{ Number(data.total).toFixed(2) }} €</span>
+            <span class="font-semibold">{{ Number(data.total_amount).toFixed(2) }} €</span>
           </template>
         </Column>
         <Column header="Soumis le">
@@ -152,7 +152,7 @@
           </div>
 
           <div class="flex justify-between items-center border-t pt-4">
-            <span class="font-bold text-lg">Total : {{ Number(selectedReport.total).toFixed(2) }} €</span>
+            <span class="font-bold text-lg">Total : {{ Number(selectedReport.total_amount).toFixed(2) }} €</span>
             <Button
               v-if="selectedReport.status === 'draft'"
               label="Soumettre"
@@ -187,7 +187,7 @@ interface ExpenseReport {
   id: number
   title: string
   status: string
-  total: string
+  total_amount: string
   submitted_at: string | null
   lines?: ExpenseLine[]
 }
@@ -212,7 +212,7 @@ function statusSeverity(status: string): string {
 async function loadReports() {
   loading.value = true
   try {
-    const res = await axios.get('/api/v1/accounting/expenses')
+    const res = await axios.get('/api/v1/accounting/expense-reports')
     reports.value = res.data.data ?? res.data
   } finally {
     loading.value = false
@@ -220,15 +220,15 @@ async function loadReports() {
 }
 
 async function createReport() {
-  await axios.post('/api/v1/accounting/expenses', createForm.value)
+  await axios.post('/api/v1/accounting/expense-reports', createForm.value)
   showCreateDialog.value = false
   createForm.value = { title: '' }
   await loadReports()
 }
 
 async function openDetail(report: ExpenseReport) {
-  const res = await axios.get(`/api/v1/accounting/expenses/${report.id}`)
-  selectedReport.value = res.data
+  const res = await axios.get(`/api/v1/accounting/expense-reports/${report.id}`)
+  selectedReport.value = res.data.data ?? res.data
   showDetailDialog.value = true
 }
 
@@ -253,8 +253,8 @@ async function submitReport(id: number) {
 
 async function refreshDetail() {
   if (!selectedReport.value) return
-  const res = await axios.get(`/api/v1/accounting/expenses/${selectedReport.value.id}`)
-  selectedReport.value = res.data
+  const res = await axios.get(`/api/v1/accounting/expense-reports/${selectedReport.value.id}`)
+  selectedReport.value = res.data.data ?? res.data
 }
 
 async function aiCategorize() {

@@ -87,9 +87,20 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::get('expenses/category/{category}', [ExpensesController::class, 'byCategory']);
     Route::get('expenses/analytics', [ExpensesController::class, 'analytics']);
     Route::get('expenses/{expense}', [ExpensesController::class, 'show']);
+    Route::get('expense-reports/{report}/analytics', [ExpensesController::class, 'reportAnalytics']);
+});
+
+// Self-service expense reports ("Mes notes de frais") — any authenticated
+// employee manages their own reports here, not just accountant/finance-manager/
+// manager/admin. Approval/reimbursement stay role-gated further below.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::get('expense-reports', [ExpensesController::class, 'listReports']);
     Route::get('expense-reports/{report}', [ExpensesController::class, 'showReport']);
-    Route::get('expense-reports/{report}/analytics', [ExpensesController::class, 'reportAnalytics']);
+    Route::post('expense-reports', [ExpensesController::class, 'createReport']);
+    Route::post('expenses/{report}/lines', [ExpenseReportController::class, 'addLine']);
+    Route::post('expenses/{report}/mileage', [ExpenseReportController::class, 'addMileage']);
+    Route::post('expenses/{report}/submit', [ExpenseReportController::class, 'submit']);
+    Route::post('smart-categorize', [SmartCategorizationController::class, 'categorize']);
 });
 
 // Complex GET endpoints with calculations (400 req/min)
@@ -277,7 +288,6 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::delete('expenses/{expense}', [ExpensesController::class, 'destroy']);
     Route::post('expenses/{expense}/approve', [ExpensesController::class, 'approve']);
     Route::post('expenses/{expense}/reject', [ExpensesController::class, 'reject']);
-    Route::post('expense-reports', [ExpensesController::class, 'createReport']);
     Route::post('expense-reports/{report}/add', [ExpensesController::class, 'addToReport']);
     Route::post('expense-reports/{report}/submit', [ExpensesController::class, 'submitReport']);
     Route::post('expense-reports/{report}/approve', [ExpensesController::class, 'approveReport']);
@@ -348,15 +358,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::post('exchange-rates/fetch', [ExchangeRateController::class, 'fetch']);
     Route::apiResource('exchange-rates', ExchangeRateController::class);
 
-    // Smart Categorization
-    Route::post('smart-categorize', [SmartCategorizationController::class, 'categorize']);
-
     // Expense Reports
     Route::get('expense-report-items', [ExpenseReportController::class, 'index']);
     Route::post('expense-report-items', [ExpenseReportController::class, 'store']);
-    Route::post('expenses/{report}/lines', [ExpenseReportController::class, 'addLine']);
-    Route::post('expenses/{report}/mileage', [ExpenseReportController::class, 'addMileage']);
-    Route::post('expenses/{report}/submit', [ExpenseReportController::class, 'submit']);
 
     // Treasury Planning
     Route::get('treasury-planning/projection', [TreasuryPlanningController::class, 'projection']);
