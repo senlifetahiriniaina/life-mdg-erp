@@ -158,6 +158,7 @@ const allNavGroups: NavGroup[] = [
   { label: 'Opérations', items: [
     { key: 'inventory', module: 'Inventory', href: '/inventory/products', icon: 'pi pi-box' },
     { key: 'projects', module: 'Projects', href: '/projects', icon: 'pi pi-briefcase' },
+    { key: 'validation', module: 'Validation', href: '/approval-requests', icon: 'pi pi-check-square' },
   ]},
   { label: 'Finance & RH', items: [
     { key: 'hr', module: 'HR', href: '/hr/employees', icon: 'pi pi-id-card' },

@@ -18,7 +18,11 @@ class ApprovalWorkflowController extends Controller
 
     public function index(Request $request)
     {
-        $workflows = ApprovalWorkflow::where('is_active', true)
+        // Not hard-filtered to is_active=true: the workflow management screen
+        // needs to list inactive workflows too, otherwise deactivating one
+        // makes it permanently invisible/unreactivatable.
+        $workflows = ApprovalWorkflow::query()
+            ->when($request->filled('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             ->when($request->query('module_name'), fn ($q, $module) => $q->where('module_name', $module))
             ->with('rules')
             ->paginate(15);

@@ -1,9 +1,10 @@
 <template>
+  <AppLayout>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Workflow Builder</h1>
-        <p class="mt-2 text-surface-600 dark:text-surface-400">Design approval workflows visually</p>
+        <p class="mt-2 text-surface-600 dark:text-surface-400">Design approval workflows: an ordered list of rules, each with a trigger condition and an approval mode</p>
       </div>
       <Link href="/workflows" class="text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:text-surface-50">
         ← Back to Workflows
@@ -13,7 +14,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
       <!-- Sidebar -->
       <div class="lg:col-span-1">
-        <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6 space-y-6">
+        <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6 space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Workflow Details</h3>
             <div class="space-y-4">
@@ -38,81 +39,38 @@
               <div>
                 <label for="module" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Module</label>
                 <select id="module"
-                  v-model="workflow.module"
+                  v-model="workflow.module_name"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm focus:ring-blue-500"
                 >
-                  <option value="Achats">Purchase Orders</option>
-                  <option value="Accounting">Invoices</option>
-                  <option value="HR">HR Requests</option>
+                  <option value="Achats">Achats</option>
+                  <option value="Accounting">Accounting</option>
+                  <option value="HR">HR</option>
+                  <option value="Inventory">Inventory</option>
                 </select>
               </div>
+              <label v-if="isEditing" class="flex items-center gap-2 text-sm text-surface-700 dark:text-surface-300">
+                <input v-model="workflow.is_active" type="checkbox" />
+                Active
+              </label>
             </div>
           </div>
 
           <div class="border-t border-gray-200 dark:border-surface-700 pt-6">
-            <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Add Steps</h3>
-            <div class="space-y-2">
-              <button
-                @click="addStep('sequential')"
-                class="w-full px-3 py-2 bg-primary-50 dark:bg-primary-900/20 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium text-left"
-              >
-                + Sequential Step
-              </button>
-              <button
-                @click="addStep('parallel')"
-                class="w-full px-3 py-2 bg-violet-50 dark:bg-violet-900/20 text-purple-700 rounded-lg hover:bg-purple-100 text-sm font-medium text-left"
-              >
-                + Parallel Step
-              </button>
-              <button
-                @click="addStep('conditional')"
-                class="w-full px-3 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-medium text-left"
-              >
-                + Conditional Step
-              </button>
-            </div>
+            <button
+              @click="openRuleBuilder()"
+              class="w-full px-3 py-2 bg-primary-50 dark:bg-primary-900/20 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium text-left"
+            >
+              + Add Rule
+            </button>
           </div>
 
           <div class="border-t border-gray-200 dark:border-surface-700 pt-6">
-            <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Rules</h3>
-            <div class="space-y-2">
-              <button
-                @click="showRuleBuilder = true"
-                class="w-full px-3 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium text-left"
-              >
-                + Add Rule
-              </button>
-              <div v-if="workflow.rules.length > 0" class="mt-3 space-y-2">
-                <div
-                  v-for="(rule, idx) in workflow.rules"
-                  :key="idx"
-                  class="p-2 bg-gray-50 dark:bg-surface-800 dark:bg-surface-800 rounded border border-gray-200 dark:border-surface-700 text-sm"
-                >
-                  <p class="font-medium text-surface-900 dark:text-surface-50">{{ rule.name }}</p>
-                  <p class="text-surface-600 dark:text-surface-400 text-xs">{{ rule.condition }}</p>
-                  <button
-                    @click="removeRule(idx)"
-                    class="text-red-700 dark:text-red-300 hover:text-red-800 text-xs mt-1"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="border-t border-gray-200 dark:border-surface-700 pt-6 flex gap-2">
             <button
               @click="saveWorkflow"
-              class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              :disabled="saving"
+              class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
             >
-              Save
-            </button>
-            <button
-              @click="testWorkflow"
-              class="flex-1 px-4 py-2 bg-gray-200 text-surface-700 dark:text-surface-300 rounded-lg hover:bg-gray-300 text-sm font-medium"
-            >
-              Test
+              {{ saving ? 'Saving...' : 'Save' }}
             </button>
           </div>
         </div>
@@ -120,113 +78,29 @@
 
       <!-- Main Canvas -->
       <div class="lg:col-span-3">
-        <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6" style="min-height: 600px">
-          <div class="bg-gray-50 dark:bg-surface-800 dark:bg-surface-800 rounded-lg p-8" style="min-height: 550px">
-            <!-- Workflow Visualization -->
-            <div v-if="workflow.steps.length === 0" class="flex items-center justify-center h-full">
-              <div class="text-center text-surface-500 dark:text-surface-400">
-                <p class="text-lg font-medium mb-2">No steps added yet</p>
-                <p class="text-sm">Click "Add Steps" to create your workflow</p>
-              </div>
+        <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6" style="min-height: 400px">
+          <div v-if="workflow.rules.length === 0" class="flex items-center justify-center" style="min-height: 350px">
+            <div class="text-center text-surface-500 dark:text-surface-400">
+              <p class="text-lg font-medium mb-2">No rules added yet</p>
+              <p class="text-sm">Click "Add Rule" to define when and how this workflow approves</p>
             </div>
+          </div>
 
-            <div v-else class="space-y-4">
-              <!-- Steps Visualization -->
-              <div v-for="(step, idx) in workflow.steps" :key="idx" class="flex items-center gap-4">
-                <div
-                  :class="[
-                    'flex-1 p-4 rounded-lg border-2 cursor-pointer transition',
-                    step.type === 'sequential' ? 'border-blue-300 bg-primary-50 dark:bg-primary-900/20' :
-                    step.type === 'parallel' ? 'border-purple-300 bg-violet-50 dark:bg-violet-900/20' :
-                    'border-amber-300 bg-amber-50'
-                  ]"
-                  @click="selectedStep = idx"
-                 role="button" tabindex="0" @keydown.enter.prevent="selectedStep = idx">
-                  <div class="flex items-start justify-between">
-                    <div>
-                      <p class="font-semibold text-surface-900 dark:text-surface-50">Step {{ idx + 1 }}: {{ step.type }}</p>
-                      <input
-                        v-model="step.name"
-                        type="text"
-                        placeholder="Step name"
-                        class="mt-1 w-full px-2 py-1 border border-gray-300 dark:border-surface-600 rounded text-sm"
-                      />
-                      <p class="text-sm text-surface-600 dark:text-surface-400 mt-2">
-                        Approvers: {{ step.approvers.length }}
-                      </p>
-                    </div>
-                    <button aria-label="Fermer"
-                      @click.stop="removeStep(idx)"
-                      class="text-red-700 dark:text-red-300 hover:text-red-800"
-                    >✕
-  </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step Editor -->
-            <div v-if="selectedStep !== null" class="mt-8 border-t border-gray-300 dark:border-surface-600 pt-6">
-              <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">
-                Configure Step {{ selectedStep + 1 }}
-              </h3>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div v-else class="space-y-4">
+            <div v-for="(rule, idx) in workflow.rules" :key="rule.id ?? `new-${idx}`" class="p-4 rounded-lg border-2 border-blue-200">
+              <div class="flex items-start justify-between">
                 <div>
-                  <label for="approval-timeout-days" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
-                    Approval Timeout (days)
-                  </label>
-                  <input id="approval-timeout-days"
-                    v-model.number="workflow.steps[selectedStep].timeout_days"
-                    type="number"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-                  />
+                  <p class="font-semibold text-surface-900 dark:text-surface-50">
+                    Rule {{ idx + 1 }}: {{ rule.condition_type }} {{ rule.condition_operator }} {{ rule.condition_value }}
+                  </p>
+                  <p class="text-sm text-surface-600 dark:text-surface-400 mt-1">
+                    {{ rule.approval_mode }} · {{ rule.required_approvers_count }} approver(s) required
+                    <span v-if="rule.hierarchy_id"> · via {{ hierarchyName(rule.hierarchy_id) }}</span>
+                  </p>
                 </div>
-                <div>
-                  <label for="required-approvals" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
-                    Required Approvals
-                  </label>
-                  <input id="required-approvals"
-                    v-model.number="workflow.steps[selectedStep].required_approvers"
-                    type="number"
-                    min="1"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-
-              <div class="mt-4">
-                <label for="add-approvers" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                  Add Approvers
-                </label>
                 <div class="flex gap-2">
-                  <input id="add-approvers"
-                    v-model="newApprover"
-                    type="text"
-                    placeholder="Select or type approver..."
-                    class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-                  />
-                  <button
-                    @click="addApprover"
-                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div class="mt-3 space-y-2">
-                  <div
-                    v-for="(approver, idx) in workflow.steps[selectedStep].approvers"
-                    :key="idx"
-                    class="p-2 bg-gray-100 dark:bg-surface-700 rounded flex items-center justify-between"
-                  >
-                    <span class="text-sm">{{ approver }}</span>
-                    <button
-                      @click="removeApprover(idx)"
-                      class="text-red-700 dark:text-red-300 hover:text-red-800 text-xs"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <button @click="openRuleBuilder(idx)" class="text-primary-700 dark:text-primary-300 hover:underline text-sm">Edit</button>
+                  <button @click="removeRule(idx)" class="text-red-700 dark:text-red-300 hover:underline text-sm">Remove</button>
                 </div>
               </div>
             </div>
@@ -237,62 +111,63 @@
 
     <!-- Rule Builder Modal -->
     <div v-if="showRuleBuilder" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-        <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50 mb-4">Add Workflow Rule</h2>
+      <div class="bg-white dark:bg-surface-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-50 mb-4">
+          {{ editingRuleIndex === null ? 'Add Rule' : 'Edit Rule' }}
+        </h2>
         <div class="space-y-4 mb-6">
           <div>
-            <label for="rule-name" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Rule Name</label>
-            <input id="rule-name"
-              v-model="newRule.name"
-              type="text"
-              placeholder="e.g., High Value POs"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-            />
-          </div>
-          <div>
-            <label for="condition" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Condition</label>
-            <select id="condition"
-              v-model="newRule.type"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-            >
-              <option value="">Select condition type</option>
-              <option value="amount">By Amount</option>
-              <option value="role">By Role</option>
-              <option value="date">By Date</option>
-              <option value="custom">Custom Expression</option>
+            <label for="condition-type" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Condition type</label>
+            <select id="condition-type" v-model="ruleForm.condition_type" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm">
+              <option value="amount">Amount</option>
+              <option value="category">Category</option>
+              <option value="department">Department</option>
+              <option value="custom_field">Custom field</option>
             </select>
           </div>
-          <div v-if="newRule.type === 'amount'">
-            <label for="amount-threshold" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Amount Threshold</label>
-            <input id="amount-threshold"
-              v-model.number="newRule.value"
-              type="number"
-              placeholder="e.g., 50000"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-            />
+          <div v-if="ruleForm.condition_type === 'custom_field'">
+            <label for="condition-field" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Field name</label>
+            <input id="condition-field" v-model="ruleForm.condition_field" type="text" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="condition-operator" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Operator</label>
+              <select id="condition-operator" v-model="ruleForm.condition_operator" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm">
+                <option v-for="op in ['>', '<', '>=', '<=', '==', '!=']" :key="op" :value="op">{{ op }}</option>
+              </select>
+            </div>
+            <div>
+              <label for="condition-value" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Value</label>
+              <input id="condition-value" v-model="ruleForm.condition_value" type="text" placeholder="e.g., 50000" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="approval-mode" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Approval mode</label>
+              <select id="approval-mode" v-model="ruleForm.approval_mode" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm">
+                <option value="sequential">Sequential</option>
+                <option value="parallel">Parallel</option>
+              </select>
+            </div>
+            <div>
+              <label for="required-approvals" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Required approvals</label>
+              <input id="required-approvals" v-model.number="ruleForm.required_approvers_count" type="number" min="1" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm" />
+            </div>
           </div>
           <div>
-            <label for="description-2" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Description</label>
-            <textarea id="description-2"
-              v-model="newRule.condition"
-              rows="2"
-              placeholder="Describe this rule..."
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm"
-            ></textarea>
+            <label for="hierarchy" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">Approver hierarchy (optional)</label>
+            <select id="hierarchy" v-model="ruleForm.hierarchy_id" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-600 rounded-lg text-sm">
+              <option :value="null">— None —</option>
+              <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name }}</option>
+            </select>
           </div>
         </div>
         <div class="flex gap-2 justify-end">
-          <button
-            @click="showRuleBuilder = false"
-            class="px-4 py-2 border border-gray-300 dark:border-surface-600 text-surface-700 dark:text-surface-300 rounded-lg hover:bg-gray-50 dark:bg-surface-800 dark:bg-surface-800"
-          >
+          <button @click="showRuleBuilder = false" class="px-4 py-2 border border-gray-300 dark:border-surface-600 text-surface-700 dark:text-surface-300 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-800">
             Cancel
           </button>
-          <button
-            @click="addRuleToWorkflow"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Add Rule
+          <button @click="confirmRule" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            {{ editingRuleIndex === null ? 'Add Rule' : 'Update Rule' }}
           </button>
         </div>
       </div>
@@ -302,84 +177,93 @@
       {{ message }}
     </p>
   </div>
+  </AppLayout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
+import axios from 'axios'
+import AppLayout from '@/Layouts/AppLayout.vue'
 import { useRouteId } from '@/composables/useRouteId'
+
 const routeId = useRouteId()
 const isEditing = ref(!!routeId.value)
+const saving = ref(false)
 
 const workflow = ref({
   name: '',
   description: '',
-  module: 'Achats',
-  steps: [],
-  rules: []
+  module_name: 'Achats',
+  is_active: true,
+  rules: [],
 })
 
-const selectedStep = ref(null)
-const newApprover = ref('')
+const hierarchies = ref([])
 const showRuleBuilder = ref(false)
+const editingRuleIndex = ref(null)
 const message = ref('')
 const messageType = ref('success')
 
-const newRule = ref({
-  name: '',
-  type: '',
-  value: null,
-  condition: ''
+const emptyRuleForm = () => ({
+  condition_type: 'amount',
+  condition_field: null,
+  condition_operator: '>',
+  condition_value: '',
+  approval_mode: 'sequential',
+  required_approvers_count: 1,
+  hierarchy_id: null,
 })
 
-const addStep = (type) => {
-  workflow.value.steps.push({
-    name: `${type.charAt(0).toUpperCase() + type.slice(1)} Step ${workflow.value.steps.length + 1}`,
-    type,
-    approvers: [],
-    timeout_days: 5,
-    required_approvers: 1
-  })
+const ruleForm = ref(emptyRuleForm())
+
+const hierarchyName = (id) => hierarchies.value.find(h => h.id === id)?.name ?? `#${id}`
+
+const openRuleBuilder = (idx = null) => {
+  editingRuleIndex.value = idx
+  ruleForm.value = idx === null ? emptyRuleForm() : { ...workflow.value.rules[idx] }
+  showRuleBuilder.value = true
 }
 
-const removeStep = (idx) => {
-  workflow.value.steps.splice(idx, 1)
-  if (selectedStep.value === idx) {
-    selectedStep.value = null
+const confirmRule = () => {
+  if (editingRuleIndex.value === null) {
+    workflow.value.rules.push({ ...ruleForm.value })
+  } else {
+    workflow.value.rules[editingRuleIndex.value] = { ...workflow.value.rules[editingRuleIndex.value], ...ruleForm.value }
   }
+  showRuleBuilder.value = false
 }
 
-const addApprover = () => {
-  if (newApprover.value && selectedStep.value !== null) {
-    workflow.value.steps[selectedStep.value].approvers.push(newApprover.value)
-    newApprover.value = ''
+const removeRule = async (idx) => {
+  const rule = workflow.value.rules[idx]
+  if (rule.id && isEditing.value) {
+    try {
+      await axios.delete(`/api/v1/validation/approval-workflows/${routeId.value}/rules/${rule.id}`)
+    } catch (error) {
+      console.error('Failed to delete rule:', error)
+      return
+    }
   }
-}
-
-const removeApprover = (idx) => {
-  if (selectedStep.value !== null) {
-    workflow.value.steps[selectedStep.value].approvers.splice(idx, 1)
-  }
-}
-
-const addRuleToWorkflow = () => {
-  if (newRule.value.name && newRule.value.condition) {
-    workflow.value.rules.push({
-      name: newRule.value.name,
-      type: newRule.value.type,
-      value: newRule.value.value,
-      condition: newRule.value.condition
-    })
-    showRuleBuilder.value = false
-    newRule.value = { name: '', type: '', value: null, condition: '' }
-    message.value = 'Rule added successfully!'
-    messageType.value = 'success'
-    setTimeout(() => { message.value = '' }, 3000)
-  }
-}
-
-const removeRule = (idx) => {
   workflow.value.rules.splice(idx, 1)
+}
+
+const loadHierarchies = async () => {
+  try {
+    const { data } = await axios.get('/api/v1/validation/approval-hierarchies')
+    hierarchies.value = data.data ?? data
+  } catch {
+    hierarchies.value = []
+  }
+}
+
+const loadWorkflow = async () => {
+  if (!isEditing.value) return
+  try {
+    const { data } = await axios.get(`/api/v1/validation/approval-workflows/${routeId.value}`)
+    workflow.value = { ...data, rules: data.rules ?? [] }
+  } catch (error) {
+    console.error('Failed to load workflow:', error)
+  }
 }
 
 const saveWorkflow = async () => {
@@ -389,42 +273,58 @@ const saveWorkflow = async () => {
     return
   }
 
-  if (workflow.value.steps.length === 0) {
-    message.value = 'Please add at least one step'
-    messageType.value = 'error'
-    return
-  }
-
-  message.value = 'Workflow saved successfully!'
-  messageType.value = 'success'
-  setTimeout(() => { message.value = '' }, 3000)
-}
-
-const testWorkflow = () => {
-  message.value = 'Workflow validation passed! Ready to deploy.'
-  messageType.value = 'success'
-  setTimeout(() => { message.value = '' }, 3000)
-}
-
-const loadWorkflow = async () => {
-  if (isEditing.value) {
-    try {
-      const response = await fetch(`/api/v1/validation/workflows/${routeId.value}`, {
-        headers: {
-          'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-        }
+  saving.value = true
+  try {
+    let workflowId = routeId.value
+    if (isEditing.value) {
+      await axios.put(`/api/v1/validation/approval-workflows/${workflowId}`, {
+        name: workflow.value.name,
+        description: workflow.value.description,
+        is_active: workflow.value.is_active,
       })
-      if (response.ok) {
-        const data = await response.json()
-        workflow.value = data
-      }
-    } catch (error) {
-      console.error('Failed to load workflow:', error)
+    } else {
+      const { data } = await axios.post('/api/v1/validation/approval-workflows', {
+        name: workflow.value.name,
+        description: workflow.value.description,
+        module_name: workflow.value.module_name,
+      })
+      workflowId = data.id
     }
+
+    for (const rule of workflow.value.rules) {
+      const payload = {
+        condition_type: rule.condition_type,
+        condition_operator: rule.condition_operator,
+        condition_value: rule.condition_value,
+        condition_field: rule.condition_field,
+        required_approvers_count: rule.required_approvers_count,
+        approval_mode: rule.approval_mode,
+        hierarchy_id: rule.hierarchy_id,
+      }
+      if (rule.id) {
+        await axios.put(`/api/v1/validation/approval-workflows/${workflowId}/rules/${rule.id}`, payload)
+      } else {
+        await axios.post(`/api/v1/validation/approval-workflows/${workflowId}/rules`, payload)
+      }
+    }
+
+    message.value = 'Workflow saved successfully!'
+    messageType.value = 'success'
+    if (!isEditing.value) {
+      router.visit(`/workflows/${workflowId}/builder`)
+    } else {
+      await loadWorkflow()
+    }
+  } catch (error) {
+    message.value = error.response?.data?.message ?? 'Failed to save workflow'
+    messageType.value = 'error'
+  } finally {
+    saving.value = false
   }
 }
 
 onMounted(() => {
+  loadHierarchies()
   loadWorkflow()
 })
 </script>

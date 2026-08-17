@@ -1,4 +1,5 @@
 <template>
+  <AppLayout>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
@@ -49,10 +50,10 @@
           </tr>
           <tr v-for="workflow in workflows" :key="workflow.id" class="border-b border-gray-200 dark:border-surface-700 hover:bg-gray-50 dark:bg-surface-800 dark:bg-surface-800">
             <td class="px-6 py-4 text-sm font-medium text-surface-900 dark:text-surface-50">{{ workflow.name }}</td>
-            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ workflow.module }}</td>
+            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ workflow.module_name }}</td>
             <td class="px-6 py-4 text-sm">
               <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {{ workflow.steps_count }}
+                {{ workflow.rules?.length ?? 0 }}
               </span>
             </td>
             <td class="px-6 py-4 text-sm">
@@ -71,7 +72,7 @@
                 Edit
               </Link>
               <button
-                @click="toggleWorkflow(workflow.id, workflow.is_active)"
+                @click="toggleWorkflow(workflow)"
                 :class="workflow.is_active ? 'text-yellow-700 dark:text-yellow-300' : 'text-green-700 dark:text-green-300'"
                 class="hover:underline"
               >
@@ -117,16 +118,19 @@
       </div>
     </div>
   </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
+import AppLayout from '@/Layouts/AppLayout.vue'
 
 const workflows = ref([])
 const loading = ref(false)
 const selectedModule = ref('All')
-const modules = ref(['All', 'Purchase Orders', 'Invoices', 'HR Requests'])
+const modules = ref(['All', 'Accounting', 'Achats', 'HR', 'Inventory'])
 
 const formatDate = (date) => {
   return new Date(date).toLocaleDateString('en-US', {
@@ -139,16 +143,9 @@ const formatDate = (date) => {
 const loadWorkflows = async () => {
   loading.value = true
   try {
-    const params = selectedModule.value !== 'All' ? `?module=${selectedModule.value}` : ''
-    const response = await fetch(`/api/v1/validation/workflows${params}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      workflows.value = data.data || []
-    }
+    const params = selectedModule.value !== 'All' ? { module_name: selectedModule.value } : {}
+    const { data } = await axios.get('/api/v1/validation/approval-workflows', { params })
+    workflows.value = data.data ?? data
   } catch (error) {
     console.error('Failed to load workflows:', error)
   } finally {
@@ -156,19 +153,14 @@ const loadWorkflows = async () => {
   }
 }
 
-const toggleWorkflow = async (id, currentStatus) => {
+const toggleWorkflow = async (workflow) => {
   try {
-    const response = await fetch(`/api/v1/validation/workflows/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ is_active: !currentStatus })
+    await axios.put(`/api/v1/validation/approval-workflows/${workflow.id}`, {
+      name: workflow.name,
+      description: workflow.description,
+      is_active: !workflow.is_active,
     })
-    if (response.ok) {
-      loadWorkflows()
-    }
+    await loadWorkflows()
   } catch (error) {
     console.error('Failed to toggle workflow:', error)
   }
@@ -178,15 +170,8 @@ const deleteWorkflow = async (id) => {
   if (!confirm('Are you sure you want to delete this workflow?')) return
 
   try {
-    const response = await fetch(`/api/v1/validation/workflows/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      loadWorkflows()
-    }
+    await axios.delete(`/api/v1/validation/approval-workflows/${id}`)
+    await loadWorkflows()
   } catch (error) {
     console.error('Failed to delete workflow:', error)
   }
@@ -199,4 +184,6 @@ const createFromTemplate = (template) => {
 onMounted(() => {
   loadWorkflows()
 })
+
+watch(selectedModule, loadWorkflows)
 </script>

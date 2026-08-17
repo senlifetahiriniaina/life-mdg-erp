@@ -25,10 +25,14 @@ class ApprovalRequestController extends Controller
 
     public function index(Request $request)
     {
-        $query = ApprovalRequest::with(['workflow', 'requester', 'approver']);
+        $query = ApprovalRequest::with(['workflow', 'requester', 'approver', 'approvable']);
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->filled('module')) {
+            $query->whereHas('workflow', fn ($q) => $q->where('module_name', $request->module));
         }
 
         if ($request->has('for_user')) {
@@ -36,7 +40,15 @@ class ApprovalRequestController extends Controller
             $query->where('requested_by', $userId);
         }
 
-        $requests = $query->paginate(15);
+        $requests = $query->paginate(15)->withQueryString();
+
+        $user = $request->user();
+        $requests->getCollection()->transform(function (ApprovalRequest $r) use ($user) {
+            $r->awaiting_my_action = $r->status === 'pending'
+                && ($user->id === $r->approver_id || $user->hasAnyRole(['admin', 'manager']));
+
+            return $r;
+        });
 
         return $requests;
     }

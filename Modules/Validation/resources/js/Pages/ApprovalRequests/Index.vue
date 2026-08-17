@@ -1,4 +1,5 @@
 <template>
+  <AppLayout>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
@@ -7,23 +8,19 @@
       </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <!-- Summary Cards (computed from the current page's results) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
-        <div class="text-sm font-medium text-surface-600 dark:text-surface-400">Total Pending</div>
-        <div class="mt-2 text-3xl font-bold text-surface-900 dark:text-surface-50">{{ stats.total }}</div>
+        <div class="text-sm font-medium text-surface-600 dark:text-surface-400">On this page</div>
+        <div class="mt-2 text-3xl font-bold text-surface-900 dark:text-surface-50">{{ pagination?.total ?? approvals.length }}</div>
       </div>
       <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
         <div class="text-sm font-medium text-surface-600 dark:text-surface-400">Awaiting Your Decision</div>
-        <div class="mt-2 text-3xl font-bold text-primary-700 dark:text-primary-300">{{ stats.awaiting_my_action }}</div>
-      </div>
-      <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
-        <div class="text-sm font-medium text-surface-600 dark:text-surface-400">Overdue</div>
-        <div class="mt-2 text-3xl font-bold text-red-700 dark:text-red-300">{{ stats.overdue }}</div>
+        <div class="mt-2 text-3xl font-bold text-primary-700 dark:text-primary-300">{{ awaitingMyActionCount }}</div>
       </div>
       <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
         <div class="text-sm font-medium text-surface-600 dark:text-surface-400">Approved</div>
-        <div class="mt-2 text-3xl font-bold text-green-700 dark:text-green-300">{{ stats.approved }}</div>
+        <div class="mt-2 text-3xl font-bold text-green-700 dark:text-green-300">{{ approvedCount }}</div>
       </div>
     </div>
 
@@ -72,23 +69,23 @@
             <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Request</th>
             <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Module</th>
             <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Requester</th>
-            <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Amount</th>
+            <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Progress</th>
             <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Status</th>
             <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Submitted</th>
             <th scope="col" class="px-6 py-3 text-left text-sm font-semibold text-surface-700 dark:text-surface-300">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!loading && approvals.length === 0" class="border-b border-gray-200 dark:border-surface-700">
+          <tr v-if="!loading && filteredApprovals.length === 0" class="border-b border-gray-200 dark:border-surface-700">
             <td colspan="7" class="px-6 py-8 text-center text-surface-500 dark:text-surface-400">
               No pending approvals.
             </td>
           </tr>
-          <tr v-for="approval in approvals" :key="approval.id" class="border-b border-gray-200 dark:border-surface-700 hover:bg-gray-50 dark:bg-surface-800 dark:bg-surface-800">
-            <td class="px-6 py-4 text-sm font-mono font-medium text-surface-900 dark:text-surface-50">{{ approval.request_number }}</td>
-            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ approval.module }}</td>
-            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ approval.requester_name }}</td>
-            <td class="px-6 py-4 text-sm font-medium text-surface-900 dark:text-surface-50">{{ approval.amount || 'N/A' }}</td>
+          <tr v-for="approval in filteredApprovals" :key="approval.id" class="border-b border-gray-200 dark:border-surface-700 hover:bg-gray-50 dark:bg-surface-800 dark:bg-surface-800">
+            <td class="px-6 py-4 text-sm font-mono font-medium text-surface-900 dark:text-surface-50">{{ approval.approvable_type }} #{{ approval.approvable_id }}</td>
+            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ approval.workflow?.module_name }}</td>
+            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ approval.requester?.name }}</td>
+            <td class="px-6 py-4 text-sm font-medium text-surface-900 dark:text-surface-50">Level {{ approval.current_level }}/{{ approval.total_levels }}</td>
             <td class="px-6 py-4 text-sm">
               <span
                 :class="[
@@ -101,7 +98,7 @@
             </td>
             <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ formatDate(approval.created_at) }}</td>
             <td class="px-6 py-4 text-sm space-x-2">
-              <Link :href="`/approvals/${approval.id}`" class="text-primary-700 dark:text-primary-300 hover:underline">
+              <Link :href="`/approval-requests/${approval.id}`" class="text-primary-700 dark:text-primary-300 hover:underline">
                 Review
               </Link>
               <button
@@ -147,23 +144,20 @@
       </div>
     </div>
   </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
+import AppLayout from '@/Layouts/AppLayout.vue'
 
 const approvals = ref([])
 const loading = ref(false)
 const pagination = ref(null)
 const search = ref('')
 const currentPage = ref(1)
-const stats = ref({
-  total: 0,
-  awaiting_my_action: 0,
-  overdue: 0,
-  approved: 0
-})
 const filters = ref({
   status: '',
   module: ''
@@ -175,6 +169,20 @@ const statusClasses = {
   rejected: 'bg-red-100 text-red-800',
   delegated: 'bg-blue-100 text-blue-800'
 }
+
+// The backend doesn't support free-text search, so it's applied client-side
+// over the currently loaded page rather than left as a decorative no-op input.
+const filteredApprovals = computed(() => {
+  if (!search.value) return approvals.value
+  const q = search.value.toLowerCase()
+  return approvals.value.filter(a =>
+    `${a.approvable_type} ${a.approvable_id}`.toLowerCase().includes(q) ||
+    (a.requester?.name ?? '').toLowerCase().includes(q)
+  )
+})
+
+const awaitingMyActionCount = computed(() => approvals.value.filter(a => a.awaiting_my_action).length)
+const approvedCount = computed(() => approvals.value.filter(a => a.status === 'approved').length)
 
 const formatStatus = (status) => {
   return status.charAt(0).toUpperCase() + status.slice(1)
@@ -191,27 +199,15 @@ const formatDate = (date) => {
 const loadApprovals = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({
-      page: currentPage.value,
-      per_page: 15,
-      search: search.value,
+    const { data } = await axios.get('/api/v1/validation/approval-requests', {
+      params: {
+        page: currentPage.value,
+        status: filters.value.status || undefined,
+        module: filters.value.module || undefined,
+      },
     })
-    if (filters.status) {
-      params.append('status', filters.status)
-    }
-    if (filters.module) {
-      params.append('module', filters.module)
-    }
-
-    const response = await fetch(`/api/v1/validation/approval-requests?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const data = await response.json()
     approvals.value = data.data
-    pagination.value = data.meta
-    stats.value = data.stats || stats.value
+    pagination.value = { from: data.from, to: data.to, total: data.total, current_page: data.current_page, last_page: data.last_page }
   } catch (error) {
     console.error('Failed to load approvals:', error)
   } finally {
@@ -223,19 +219,8 @@ const approveRequest = async (id) => {
   if (!confirm('Approve this request?')) return
 
   try {
-    const response = await fetch(`/api/v1/validation/approval-requests/${id}/approve`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        comments: ''
-      })
-    })
-    if (response.ok) {
-      loadApprovals()
-    }
+    await axios.post(`/api/v1/validation/approval-requests/${id}/approve`, { comments: '' })
+    await loadApprovals()
   } catch (error) {
     console.error('Failed to approve request:', error)
   }
@@ -246,19 +231,8 @@ const rejectRequest = async (id) => {
   if (!reason) return
 
   try {
-    const response = await fetch(`/api/v1/validation/approval-requests/${id}/reject`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        reason: reason
-      })
-    })
-    if (response.ok) {
-      loadApprovals()
-    }
+    await axios.post(`/api/v1/validation/approval-requests/${id}/reject`, { reason })
+    await loadApprovals()
   } catch (error) {
     console.error('Failed to reject request:', error)
   }
