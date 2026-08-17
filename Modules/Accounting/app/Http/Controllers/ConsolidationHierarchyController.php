@@ -2,11 +2,12 @@
 
 namespace Modules\Accounting\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Accounting\Models\ConsolidationHierarchy;
 
-class ConsolidationHierarchyController
+class ConsolidationHierarchyController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
@@ -14,13 +15,13 @@ class ConsolidationHierarchyController
 
         $hierarchies = ConsolidationHierarchy::with(['company', 'parentCompany', 'periods'])
             ->where('company_id', $request->user()->company_id)
-            ->when($request->filled('search'), fn($q) => $q->where('name', 'like', '%' . $request->search . '%'))
-            ->when($request->filled('type'), fn($q) => $q->where('type', $request->type))
-            ->when($request->filled('is_active'), fn($q) => $q->where('is_active', $request->boolean('is_active')))
+            ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->search.'%'))
+            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
+            ->when($request->filled('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 15));
 
-        return response()->json($hierarchies);
+        return response()->json(['data' => $hierarchies->items()]);
     }
 
     public function store(Request $request): JsonResponse
@@ -42,14 +43,14 @@ class ConsolidationHierarchyController
         $validated['company_id'] = $request->user()->company_id;
         $hierarchy = ConsolidationHierarchy::create($validated);
 
-        return response()->json($hierarchy, 201);
+        return response()->json(['data' => $hierarchy], 201);
     }
 
     public function show(ConsolidationHierarchy $hierarchy): JsonResponse
     {
         $this->authorize('view', $hierarchy);
 
-        return response()->json($hierarchy->load(['company', 'parentCompany', 'periods', 'eliminations']));
+        return response()->json(['data' => $hierarchy->load(['company', 'parentCompany', 'periods', 'eliminations'])]);
     }
 
     public function update(Request $request, ConsolidationHierarchy $hierarchy): JsonResponse
@@ -69,7 +70,7 @@ class ConsolidationHierarchyController
 
         $hierarchy->update($validated);
 
-        return response()->json($hierarchy);
+        return response()->json(['data' => $hierarchy]);
     }
 
     public function destroy(ConsolidationHierarchy $hierarchy): JsonResponse

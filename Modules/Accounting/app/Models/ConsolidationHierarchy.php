@@ -27,6 +27,7 @@ class ConsolidationHierarchy extends Model
         'end_date',
         'is_active',
         'metadata',
+        'status',
     ];
 
     protected $casts = [

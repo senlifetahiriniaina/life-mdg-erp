@@ -7,6 +7,9 @@ namespace Modules\Accounting\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Modules\Accounting\Models\Company;
+use Modules\Accounting\Models\ConsolidationGroup;
+use Modules\Accounting\Models\ConsolidationGroupEntry;
+use Modules\Accounting\Models\ConsolidationMember;
 use Modules\Accounting\Models\ConsolidationReport;
 use Modules\Accounting\Models\IntercompanyTransaction;
 
@@ -79,23 +82,32 @@ class ConsolidationService
         $totalRevenue -= $eliminationsTotal;
         $totalExpenses -= $eliminationsTotal;
 
+        // acc_consolidation_reports only has consolidation_group_id/report_type/
+        // reporting_currency/consolidated_data/intercompany_eliminations/
+        // exchange_differences/total_adjustments/status/auditor_notes/created_by/
+        // finalized_at -- this Company-tree-based path predates that real schema and
+        // has no ConsolidationGroup of its own, so the computed figures are folded
+        // into consolidated_data rather than written to nonexistent columns.
         $report = ConsolidationReport::create([
-            'parent_company_id' => $parent->id,
-            'report_date' => Carbon::now()->toDateString(),
-            'period_start' => $periodStart->toDateString(),
-            'period_end' => $periodEnd->toDateString(),
             'report_type' => 'full',
             'status' => 'draft',
-            'included_companies' => $companyIds,
-            'total_revenue' => round($totalRevenue, 2),
-            'total_expenses' => round($totalExpenses, 2),
-            'net_income' => round($totalRevenue - $totalExpenses, 2),
-            'total_assets' => round($totalAssets, 2),
-            'total_liabilities' => round($totalLiabilities, 2),
-            'minority_interest' => round($minorityInterest, 2),
-            'eliminations_total' => round($eliminationsTotal, 2),
-            'report_data' => $reportData,
-            'generated_at' => Carbon::now(),
+            'total_adjustments' => round($eliminationsTotal, 2),
+            'consolidated_data' => [
+                'parent_company_id' => $parent->id,
+                'report_date' => Carbon::now()->toDateString(),
+                'period_start' => $periodStart->toDateString(),
+                'period_end' => $periodEnd->toDateString(),
+                'included_companies' => $companyIds,
+                'total_revenue' => round($totalRevenue, 2),
+                'total_expenses' => round($totalExpenses, 2),
+                'net_income' => round($totalRevenue - $totalExpenses, 2),
+                'total_assets' => round($totalAssets, 2),
+                'total_liabilities' => round($totalLiabilities, 2),
+                'minority_interest' => round($minorityInterest, 2),
+                'companies' => $reportData,
+            ],
+            'intercompany_eliminations' => ['total' => round($eliminationsTotal, 2)],
+            'finalized_at' => null,
         ]);
 
         return $report;
@@ -125,15 +137,36 @@ class ConsolidationService
     }
 
     /**
-     * Add intercompany transaction record.
+     * Add intercompany transaction record. Accepts either the legacy
+     * Company-tree-based signature (from/to companies) or the
+     * ConsolidationGroup-based one used by the group workflow below --
+     * kept as one method (rather than two similarly-named ones) so callers
+     * never have to guess which name to use.
+     *
+     * @param  Company|ConsolidationGroup  $fromOrGroup
+     * @param  Company|array<string, mixed>  $toOrData
      */
     public function recordIntercompanyTransaction(
-        Company $from,
-        Company $to,
-        float $amount,
+        $fromOrGroup,
+        $toOrData,
+        float $amount = 0,
         string $description = '',
         ?Carbon $date = null
     ): IntercompanyTransaction {
+        if ($fromOrGroup instanceof ConsolidationGroup) {
+            /** @var array<string, mixed> $data */
+            $data = $toOrData;
+
+            return IntercompanyTransaction::create([
+                ...$data,
+                'consolidation_group_id' => $fromOrGroup->id,
+                'is_eliminated' => false,
+            ]);
+        }
+
+        $from = $fromOrGroup;
+        $to = $toOrData;
+
         return IntercompanyTransaction::create([
             'from_company_id' => $from->id,
             'to_company_id' => $to->id,
@@ -142,6 +175,70 @@ class ConsolidationService
             'currency' => $from->currency,
             'description' => $description,
             'is_eliminated' => false,
+        ]);
+    }
+
+    /**
+     * Create a new consolidation group.
+     */
+    public function createConsolidationGroup(array $data): ConsolidationGroup
+    {
+        return ConsolidationGroup::create([
+            ...$data,
+            'status' => $data['status'] ?? 'draft',
+        ]);
+    }
+
+    /**
+     * Add a subsidiary/associate member to a consolidation group.
+     */
+    public function addMember(ConsolidationGroup $group, array $data): ConsolidationMember
+    {
+        return $group->members()->create($data);
+    }
+
+    /**
+     * Mark all pending intercompany transactions of a consolidation group as
+     * eliminated, writing one elimination entry per transaction eliminated.
+     */
+    public function eliminateIntercompanyTransactions(ConsolidationGroup $group): int
+    {
+        $pending = $group->intercompanyTransactions()->where('is_eliminated', false)->get();
+
+        foreach ($pending as $txn) {
+            $txn->eliminate();
+
+            ConsolidationGroupEntry::create([
+                'consolidation_group_id' => $group->id,
+                'entry_type' => 'intercompany_elimination',
+                'related_transaction_id' => $txn->id,
+                'amount' => $txn->amount,
+            ]);
+        }
+
+        return $pending->count();
+    }
+
+    /**
+     * Generate a consolidated report for a group. The financial aggregation
+     * itself stays minimal (ownership shares per member) -- real GL-driven
+     * consolidation numbers are a separate, larger effort tracked outside
+     * this task's scope.
+     */
+    public function generateConsolidatedReport(ConsolidationGroup $group, string $reportType): ConsolidationReport
+    {
+        $consolidatedData = $group->members->keyBy('subsidiary_company_id')
+            ->map(fn (ConsolidationMember $member) => [
+                'ownership_percentage' => (float) $member->ownership_percentage,
+                'relationship_type' => $member->relationship_type,
+            ])
+            ->toArray();
+
+        return ConsolidationReport::create([
+            'consolidation_group_id' => $group->id,
+            'report_type' => $reportType,
+            'status' => 'draft',
+            'consolidated_data' => $consolidatedData,
         ]);
     }
 
@@ -307,9 +404,11 @@ class ConsolidationService
     }
 
     /**
-     * Eliminates intercompany transactions from consolidated income statement.
+     * Eliminates intercompany transactions from a consolidated income statement.
+     * Distinct from eliminateIntercompanyTransactions(ConsolidationGroup) above --
+     * this one works on plain arrays and has no group/model of its own.
      */
-    public function eliminateIntercompanyTransactions(array $incomeStatement, array $transactions): array
+    public function eliminateIntercompanyFromIncomeStatement(array $incomeStatement, array $transactions): array
     {
         foreach ($transactions as $txn) {
             $amount = (float) ($txn['amount'] ?? 0);

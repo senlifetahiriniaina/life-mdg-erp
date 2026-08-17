@@ -425,3 +425,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     Route::post('ai/assist', [\Modules\Accounting\Http\Controllers\Api\AccountingAiAssistController::class, 'assist'])
         ->name('accounting.ai.assist');
 });
+
+// ── Multi-entity consolidation hierarchies (permission-gated, not role-gated) ──
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+    Route::apiResource('consolidation-hierarchies', \Modules\Accounting\Http\Controllers\ConsolidationHierarchyController::class)
+        ->parameters(['consolidation-hierarchies' => 'hierarchy']);
+});

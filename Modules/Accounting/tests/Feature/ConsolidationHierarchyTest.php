@@ -32,7 +32,7 @@ class ConsolidationHierarchyTest extends TestCase
             ->create();
 
         $response = $this->actingAs($this->user)
-            ->getJson('/api/accounting/consolidation-hierarchies');
+            ->getJson('/api/v1/accounting/consolidation-hierarchies');
 
         $response->assertOk()
             ->assertJsonCount(3, 'data');
@@ -43,7 +43,7 @@ class ConsolidationHierarchyTest extends TestCase
         $parentCompany = Company::factory()->create();
 
         $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/consolidation-hierarchies', [
+            ->postJson('/api/v1/accounting/consolidation-hierarchies', [
                 'name' => 'Test Hierarchy',
                 'type' => 'holding',
                 'parent_company_id' => $parentCompany->id,
@@ -66,7 +66,7 @@ class ConsolidationHierarchyTest extends TestCase
             ->create();
 
         $response = $this->actingAs($this->user)
-            ->getJson("/api/accounting/consolidation-hierarchies/{$hierarchy->id}");
+            ->getJson("/api/v1/accounting/consolidation-hierarchies/{$hierarchy->id}");
 
         $response->assertOk()
             ->assertJsonPath('data.name', $hierarchy->name);
@@ -79,7 +79,7 @@ class ConsolidationHierarchyTest extends TestCase
             ->create(['status' => 'draft']);
 
         $response = $this->actingAs($this->user)
-            ->putJson("/api/accounting/consolidation-hierarchies/{$hierarchy->id}", [
+            ->putJson("/api/v1/accounting/consolidation-hierarchies/{$hierarchy->id}", [
                 'name' => 'Updated Name',
                 'ownership_percentage' => 85.00,
             ]);
@@ -97,7 +97,7 @@ class ConsolidationHierarchyTest extends TestCase
             ->create();
 
         $response = $this->actingAs($this->user)
-            ->getJson("/api/accounting/consolidation-hierarchies/{$hierarchy->id}");
+            ->getJson("/api/v1/accounting/consolidation-hierarchies/{$hierarchy->id}");
 
         $response->assertForbidden();
     }

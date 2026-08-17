@@ -12,25 +12,20 @@ use Modules\Accounting\Database\Factories\ConsolidationReportFactory;
 
 /**
  * @property int $id
- * @property int $parent_company_id
- * @property Carbon $report_date
- * @property Carbon $period_start
- * @property Carbon $period_end
+ * @property int $consolidation_group_id
  * @property string $report_type
+ * @property string $reporting_currency
+ * @property array<string, mixed>|null $consolidated_data
+ * @property array<string, mixed>|null $intercompany_eliminations
+ * @property array<string, mixed>|null $exchange_differences
+ * @property string $total_adjustments
  * @property string $status
- * @property array<int, mixed>|null $included_companies
- * @property string $total_revenue
- * @property string $total_expenses
- * @property string $net_income
- * @property string $total_assets
- * @property string $total_liabilities
- * @property string $minority_interest
- * @property string $eliminations_total
- * @property array<string, mixed>|null $report_data
- * @property Carbon|null $generated_at
+ * @property string|null $auditor_notes
+ * @property int|null $created_by
+ * @property Carbon|null $finalized_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read Company $parentCompany
+ * @property-read ConsolidationGroup $group
  */
 class ConsolidationReport extends Model
 {
@@ -44,65 +39,29 @@ class ConsolidationReport extends Model
     }
 
     protected $fillable = [
-        'parent_company_id',
-        'report_date',
-        'period_start',
-        'period_end',
+        'consolidation_group_id',
         'report_type',
+        'reporting_currency',
+        'consolidated_data',
+        'intercompany_eliminations',
+        'exchange_differences',
+        'total_adjustments',
         'status',
-        'included_companies',
-        'total_revenue',
-        'total_expenses',
-        'net_income',
-        'total_assets',
-        'total_liabilities',
-        'minority_interest',
-        'eliminations_total',
-        'report_data',
-        'generated_at',
+        'auditor_notes',
+        'created_by',
+        'finalized_at',
     ];
 
     protected $casts = [
-        'report_date' => 'date',
-        'period_start' => 'date',
-        'period_end' => 'date',
-        'total_revenue' => 'decimal:2',
-        'total_expenses' => 'decimal:2',
-        'net_income' => 'decimal:2',
-        'total_assets' => 'decimal:2',
-        'total_liabilities' => 'decimal:2',
-        'minority_interest' => 'decimal:2',
-        'eliminations_total' => 'decimal:2',
-        'included_companies' => 'json',
-        'report_data' => 'json',
-        'generated_at' => 'datetime',
+        'total_adjustments' => 'decimal:4',
+        'consolidated_data' => 'json',
+        'intercompany_eliminations' => 'json',
+        'exchange_differences' => 'json',
+        'finalized_at' => 'datetime',
     ];
 
-    public function parentCompany(): BelongsTo
+    public function group(): BelongsTo
     {
-        return $this->belongsTo(Company::class, 'parent_company_id');
-    }
-
-    public function netIncomeMargin(): float
-    {
-        if ((float) $this->total_revenue == 0) {
-            return 0.0;
-        }
-
-        return (float) $this->net_income / (float) $this->total_revenue * 100;
-    }
-
-    public function debtToAssetRatio(): float
-    {
-        if ((float) $this->total_assets == 0) {
-            return 0.0;
-        }
-
-        return (float) $this->total_liabilities / (float) $this->total_assets;
-    }
-
-    public function consolidatedEquity(): float
-    {
-        return (float) $this->total_assets - (float) $this->total_liabilities - (float) $this->minority_interest;
+        return $this->belongsTo(ConsolidationGroup::class, 'consolidation_group_id');
     }
 }
