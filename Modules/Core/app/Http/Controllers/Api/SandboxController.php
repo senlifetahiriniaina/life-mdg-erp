@@ -35,11 +35,11 @@ class SandboxController extends Controller
     {
         $validated = $request->validate([
             'name'      => ['required', 'string', 'max:255'],
-            'tenant_id' => ['required', 'integer', 'exists:tenants,id'],
+            'tenant_id' => ['required', 'string', 'exists:tenants,id'],
         ]);
 
         $sandbox = $this->sandboxService->cloneTenant(
-            (int) $validated['tenant_id'],
+            $validated['tenant_id'],
             $validated['name'],
         );
 
@@ -57,9 +57,9 @@ class SandboxController extends Controller
     public function index(Request $request): JsonResponse
     {
         // Resolve parent tenant from request param or authenticated user context
-        $parentTenantId = (int) $request->query(
+        $parentTenantId = (string) $request->query(
             'parent_tenant_id',
-            $request->user()?->tenant_id ?? 0,
+            $request->user()?->tenant_id ?? '',
         );
 
         $sandboxes = $this->sandboxService->listByParent($parentTenantId);

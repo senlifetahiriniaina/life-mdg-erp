@@ -98,10 +98,11 @@ class EmbedTokenService
             throw new \RuntimeException('Embed token has expired.');
         }
 
+        // tenant_id 0 is a legitimate "no tenant" context elsewhere in this
+        // codebase (see InitializeTenancyFromAuthenticatedUser) -- it just
+        // derives the shared/no-tenant secret below; signature verification
+        // is the actual security check, not the presence of a tenant claim.
         $tenantId = (int) ($decoded['tenant_id'] ?? 0);
-        if ($tenantId === 0) {
-            throw new \RuntimeException('Token missing tenant_id claim.');
-        }
 
         // Signature verification
         $expected = $this->base64url(

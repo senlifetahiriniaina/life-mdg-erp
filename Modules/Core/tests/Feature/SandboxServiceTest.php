@@ -74,7 +74,7 @@ class SandboxServiceTest extends TestCase
     public function test_can_clone_tenant_creates_sandbox_record(): void
     {
         $parent  = $this->makeParentTenant();
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'My Sandbox');
+        $sandbox = $this->service->cloneTenant($parent->id, 'My Sandbox');
 
         $this->assertInstanceOf(Sandbox::class, $sandbox);
         $this->assertDatabaseHas('sandboxes', [
@@ -88,7 +88,7 @@ class SandboxServiceTest extends TestCase
     public function test_cloned_tenant_is_marked_as_sandbox(): void
     {
         $parent  = $this->makeParentTenant();
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'Test Sandbox');
+        $sandbox = $this->service->cloneTenant($parent->id, 'Test Sandbox');
 
         $sandboxTenant = Tenant::find($sandbox->tenant_id);
 
@@ -108,7 +108,7 @@ class SandboxServiceTest extends TestCase
             'industry'     => 'manufacturing',
         ]);
 
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'CM Sandbox');
+        $sandbox = $this->service->cloneTenant($parent->id, 'CM Sandbox');
 
         $sandboxTenant = Tenant::find($sandbox->tenant_id);
 
@@ -122,7 +122,7 @@ class SandboxServiceTest extends TestCase
     public function test_cloned_tenant_has_no_real_data(): void
     {
         $parent  = $this->makeParentTenant();
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'Empty Sandbox');
+        $sandbox = $this->service->cloneTenant($parent->id, 'Empty Sandbox');
 
         $sandboxTenant = Tenant::find($sandbox->tenant_id);
 
@@ -135,7 +135,7 @@ class SandboxServiceTest extends TestCase
     public function test_sandbox_has_30_day_expiry(): void
     {
         $parent  = $this->makeParentTenant();
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'Expiry Test');
+        $sandbox = $this->service->cloneTenant($parent->id, 'Expiry Test');
 
         $this->assertNotNull($sandbox->expires_at);
         // expires_at should be approximately 30 days from now (within 1 min)
@@ -151,7 +151,7 @@ class SandboxServiceTest extends TestCase
     public function test_can_delete_sandbox(): void
     {
         $parent  = $this->makeParentTenant();
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'To Delete');
+        $sandbox = $this->service->cloneTenant($parent->id, 'To Delete');
 
         $result = $this->service->deleteSandbox($sandbox->id);
 
@@ -167,7 +167,7 @@ class SandboxServiceTest extends TestCase
     public function test_can_reset_sandbox_extends_expiry(): void
     {
         $parent  = $this->makeParentTenant();
-        $sandbox = $this->service->cloneTenant((int) $parent->id, 'To Reset');
+        $sandbox = $this->service->cloneTenant($parent->id, 'To Reset');
 
         // Simulate an almost-expired sandbox
         $sandbox->update([
@@ -193,11 +193,11 @@ class SandboxServiceTest extends TestCase
         $parent = $this->makeParentTenant();
 
         // Sandbox 1: already expired
-        $s1 = $this->service->cloneTenant((int) $parent->id, 'Expired Sandbox');
+        $s1 = $this->service->cloneTenant($parent->id, 'Expired Sandbox');
         $s1->update(['expires_at' => now()->subDay()]);
 
         // Sandbox 2: still active
-        $s2 = $this->service->cloneTenant((int) $parent->id, 'Active Sandbox');
+        $s2 = $this->service->cloneTenant($parent->id, 'Active Sandbox');
         $s2->update(['expires_at' => now()->addDay()]);
 
         $count = $this->service->expireOverdue();
@@ -211,11 +211,11 @@ class SandboxServiceTest extends TestCase
     {
         $parent = $this->makeParentTenant();
 
-        $active  = $this->service->cloneTenant((int) $parent->id, 'Active');
-        $expired = $this->service->cloneTenant((int) $parent->id, 'Expired');
+        $active  = $this->service->cloneTenant($parent->id, 'Active');
+        $expired = $this->service->cloneTenant($parent->id, 'Expired');
         $expired->update(['expires_at' => now()->subDay(), 'status' => Sandbox::STATUS_EXPIRED]);
 
-        $results = $this->service->listByParent((int) $parent->id);
+        $results = $this->service->listByParent($parent->id);
 
         $this->assertCount(1, $results);
         $this->assertSame($active->id, $results->first()->id);

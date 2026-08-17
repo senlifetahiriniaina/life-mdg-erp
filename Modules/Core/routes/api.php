@@ -284,4 +284,14 @@ Route::prefix('v1')->group(function () {
         Route::get('subscribe', [RealtimeController::class, 'subscribe']);
         Route::get('health', [RealtimeController::class, 'health']);
     });
+
+    // ─── Tenant Sandbox Environments (super-admin only) ────────────────────────
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:super-admin', 'throttle:simple_get'])->prefix('core/sandboxes')->group(function () {
+        Route::get('/', [\Modules\Core\Http\Controllers\Api\SandboxController::class, 'index']);
+        Route::middleware('throttle:create_post')->group(function () {
+            Route::post('/', [\Modules\Core\Http\Controllers\Api\SandboxController::class, 'store']);
+            Route::delete('{id}', [\Modules\Core\Http\Controllers\Api\SandboxController::class, 'destroy']);
+            Route::post('{id}/reset', [\Modules\Core\Http\Controllers\Api\SandboxController::class, 'reset']);
+        });
+    });
 });

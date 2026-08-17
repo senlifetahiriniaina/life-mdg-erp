@@ -111,8 +111,9 @@ class EdiService
                         'buyer_sku'    => null,
                         'description'  => null,
                     ];
-                    // Parse qualifier-value pairs
-                    $i = 5;
+                    // Parse qualifier-value pairs -- element 5 is the (often
+                    // blank) basis-of-price-code, qualifier/value pairs start at 6.
+                    $i = 6;
                     while (isset($els[$i], $els[$i + 1])) {
                         $qual  = $els[$i];
                         $value = $els[$i + 1];

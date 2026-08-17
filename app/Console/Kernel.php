@@ -24,6 +24,9 @@ class Kernel extends ConsoleKernel
                 \Illuminate\Support\Facades\Log::info('Materialized views refreshed successfully');
             });
 
+        // Expire overdue tenant sandbox environments daily
+        $schedule->command('core:expire-sandboxes')->daily();
+
         // Daily database backup to S3 at 02:00 UTC
         $schedule->command('backup:database --s3')
             ->dailyAt('02:00')

@@ -14,7 +14,10 @@ class APIVersioningService
      */
     public function getVersionInfo(string $version = null): array
     {
-        $version = $version ?? self::LATEST_VERSION;
+        // $versionInfo below is keyed 'v1.0.0'/'v2.0.0'/... but LATEST_VERSION
+        // itself is unprefixed ('2.0.0') -- other code/tests assert that
+        // constant's raw value, so prefix only at lookup time here.
+        $version = $version ?? ('v'.self::LATEST_VERSION);
 
         $versionInfo = [
             'v1.0.0' => [
@@ -230,9 +233,10 @@ class APIVersioningService
         $compatible = true;
         $warnings = [];
 
-        // Simple semantic versioning check
-        [$clientMajor] = explode('.', $clientVersion);
-        [$apiMajor] = explode('.', $apiVersion);
+        // Simple semantic versioning check -- normalize an optional leading
+        // 'v' first so '2.0.0' vs 'v2.0.0' compare equal on major version.
+        [$clientMajor] = explode('.', ltrim($clientVersion, 'v'));
+        [$apiMajor] = explode('.', ltrim($apiVersion, 'v'));
 
         if ($clientMajor !== $apiMajor) {
             $compatible = false;

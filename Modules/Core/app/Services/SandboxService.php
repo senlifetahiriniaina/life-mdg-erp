@@ -36,7 +36,7 @@ class SandboxService
      *
      * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
      */
-    public function cloneTenant(int $tenantId, string $sandboxName): Sandbox
+    public function cloneTenant(string $tenantId, string $sandboxName): Sandbox
     {
         /** @var Tenant $parent */
         $parent = Tenant::findOrFail($tenantId);
@@ -48,7 +48,11 @@ class SandboxService
         // Create a new Tenant record for the sandbox.
         // We do NOT call TenantManagerService::provision() to avoid copying
         // real data; the sandbox tenant gets an empty schema via provision().
+        // Tenant's primary key is a non-incrementing string (see Tenant::$keyType)
+        // with no auto-generation of its own -- only `uuid` is auto-assigned in
+        // Tenant::booted() -- so id must be supplied explicitly here.
         $sandboxTenant = Tenant::create([
+            'id'           => Str::limit($slug, 60, ''),
             'slug'         => $slug,
             'name'         => $sandboxName . ' [SANDBOX]',
             'company_name' => ($parent->company_name ?? $parent->name) . ' [SANDBOX]',
@@ -87,7 +91,7 @@ class SandboxService
     /**
      * Return all active sandboxes whose parent is $parentTenantId.
      */
-    public function listByParent(int $parentTenantId): Collection
+    public function listByParent(string $parentTenantId): Collection
     {
         return Sandbox::active()
             ->where('parent_tenant_id', $parentTenantId)
@@ -104,7 +108,7 @@ class SandboxService
      *
      * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
      */
-    public function linkToParent(int $sandboxTenantId, int $parentTenantId): Sandbox
+    public function linkToParent(string $sandboxTenantId, string $parentTenantId): Sandbox
     {
         /** @var Sandbox $sandbox */
         $sandbox = Sandbox::where('tenant_id', $sandboxTenantId)->firstOrFail();

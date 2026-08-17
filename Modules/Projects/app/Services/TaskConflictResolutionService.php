@@ -37,7 +37,7 @@ class TaskConflictResolutionService
         cache()->put("task_lock_{$taskId}", [
             'user_id' => $userId,
             'locked_at' => now(),
-        ], minutes: 5);
+        ], now()->addMinutes(5));
 
         return $task;
     }
