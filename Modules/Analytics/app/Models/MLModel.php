@@ -40,7 +40,7 @@ class MLModel extends Model
 
     protected $casts = [
         'hyperparameters' => 'array',
-        'production_accuracy' => 'decimal:4',
+        'production_accuracy' => 'float',
         'avg_inference_time_ms' => 'decimal:2',
         'deployed_at' => 'datetime',
         'last_retrained_at' => 'datetime',

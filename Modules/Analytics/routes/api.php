@@ -48,13 +48,17 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/analytics')->group(function () {
     // Prediction Models (5 endpoints)
-    Route::apiResource('predictions', PredictionController::class);
+    Route::apiResource('predictions', PredictionController::class)
+        ->parameters(['predictions' => 'prediction_model']);
     Route::post('predictions/{predictionModel}/train', [PredictionController::class, 'train']);
     Route::get('predictions/{predictionModel}/results', [PredictionController::class, 'results']);
 
     // Recommendations (6 endpoints)
-    Route::apiResource('recommendations', RecommendationController::class);
+    // NOTE: for-user must be registered before the apiResource's GET
+    // recommendations/{recommendation} — otherwise the wildcard route
+    // greedily matches "for-user" as a model id and 404s on binding failure.
     Route::get('recommendations/for-user', [RecommendationController::class, 'forUser']);
+    Route::apiResource('recommendations', RecommendationController::class);
     Route::post('recommendations/{recommendation}/act', [RecommendationController::class, 'act']);
     Route::post('recommendations/{recommendation}/dismiss', [RecommendationController::class, 'dismiss']);
 

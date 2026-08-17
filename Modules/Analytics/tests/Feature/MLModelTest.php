@@ -21,7 +21,7 @@ class MLModelTest extends TestCase
         $this->company = Company::factory()->create();
         $this->user = User::factory()->for($this->company)->create();
 
-        $permissions = ['analytics.ml_model.view', 'analytics.ml_model.create', 'analytics.ml_model.deploy', 'analytics.ml_model.rollback'];
+        $permissions = ['analytics.ml_model.view', 'analytics.ml_model.create', 'analytics.ml_model.update', 'analytics.ml_model.delete', 'analytics.ml_model.deploy', 'analytics.ml_model.rollback'];
         foreach ($permissions as $perm) {
             Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);

@@ -10,18 +10,18 @@ use Modules\Analytics\Models\RecommendationModel;
 
 class RecommendationController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth:api');
-    }
-
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Recommendation::class);
+
         $query = Recommendation::where('company_id', auth()->user()->company_id)
             ->with(['recommendationModel', 'recipient', 'recommended']);
 
         if ($request->filled('type')) {
-            $query->where('recommendation_type', $request->input('type'));
+            // `recommendation_type` lives on RecommendationModel, not on Recommendation itself.
+            $query->whereHas('recommendationModel', function ($q) use ($request) {
+                $q->where('recommendation_type', $request->input('type'));
+            });
         }
 
         if ($request->filled('status')) {
@@ -80,12 +80,15 @@ class RecommendationController extends Controller
             ->orderByDesc('relevance_score');
 
         if ($request->filled('type')) {
-            $query->where('recommendation_type', $validated['type']);
+            // `recommendation_type` lives on RecommendationModel, not on Recommendation itself.
+            $query->whereHas('recommendationModel', function ($q) use ($validated) {
+                $q->where('recommendation_type', $validated['type']);
+            });
         }
 
         $recommendations = $query->limit($validated['limit'] ?? 10)->get();
 
-        return response()->json($recommendations);
+        return response()->json(['data' => $recommendations]);
     }
 
     public function act(Request $request, Recommendation $recommendation): JsonResponse

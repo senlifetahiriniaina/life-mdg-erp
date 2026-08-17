@@ -58,6 +58,7 @@ class MLModelVersion extends Model
 
     public function metrics(): HasMany
     {
-        return $this->hasMany(ModelMetric::class);
+        // Same MLModelVersion -> m_l_model_version_id default-FK-guess gotcha as mlModel() above.
+        return $this->hasMany(ModelMetric::class, 'ml_model_version_id');
     }
 }

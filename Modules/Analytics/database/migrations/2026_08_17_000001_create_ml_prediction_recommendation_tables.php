@@ -207,6 +207,13 @@ return new class extends Migration {
                     $table->string('module', 64)->nullable()->change();
                 });
             }
+            if (Schema::hasColumn('ml_models', 'name')) {
+                // Same reasoning: legacy NOT NULL column from the table's original
+                // schema, superseded by `model_name` in the real $fillable.
+                Schema::table('ml_models', function (Blueprint $table) {
+                    $table->string('name', 128)->nullable()->change();
+                });
+            }
 
             Schema::table('ml_models', function (Blueprint $table) {
                 foreach ([

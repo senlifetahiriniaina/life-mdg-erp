@@ -34,7 +34,15 @@ class PredictionController extends Controller
 
         $models = $query->paginate($request->input('per_page', 15));
 
-        return response()->json($models);
+        return response()->json([
+            'data' => $models->items(),
+            'meta' => [
+                'total' => $models->total(),
+                'per_page' => $models->perPage(),
+                'current_page' => $models->currentPage(),
+                'last_page' => $models->lastPage(),
+            ],
+        ]);
     }
 
     public function store(Request $request): JsonResponse

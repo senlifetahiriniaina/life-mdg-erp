@@ -23,6 +23,7 @@ class PredictionModelTest extends TestCase
             'analytics.prediction.view',
             'analytics.prediction.create',
             'analytics.prediction.update',
+            'analytics.prediction.delete',
             'analytics.prediction.train',
         ];
 

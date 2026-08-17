@@ -36,7 +36,7 @@ class Recommendation extends Model
     ];
 
     protected $casts = [
-        'relevance_score' => 'decimal:4',
+        'relevance_score' => 'float',
         'metadata' => 'array',
         'viewed_at' => 'datetime',
         'clicked_at' => 'datetime',
