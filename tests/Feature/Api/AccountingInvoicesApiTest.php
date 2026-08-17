@@ -110,9 +110,9 @@ test('create calculates totals from lines', function () {
         ])
         ->assertCreated();
 
-    expect((float) $response->json('subtotal'))->toBe(400.0)
-        ->and((float) $response->json('tax_amount'))->toBe(20.0)
-        ->and((float) $response->json('total'))->toBe(420.0);
+    expect((float) $response->json('data.subtotal'))->toBe(400.0)
+        ->and((float) $response->json('data.tax_amount'))->toBe(20.0)
+        ->and((float) $response->json('data.total'))->toBe(420.0);
 });
 
 test('create requires type journal_id number invoice_date and lines', function () {

@@ -230,17 +230,20 @@ describe('MinioService', function () {
     });
 
     test('MinioService has upload method', function () {
+        // MinioService's real API is purpose-specific (Deepnest/Blender render
+        // pipeline, documented out of scope in CLAUDE.md) rather than a
+        // generic upload()/store() — assert against its actual methods.
         $service = app(\Modules\Integration\Services\MinioService::class);
-        expect(method_exists($service, 'upload') || method_exists($service, 'store'))->toBeTrue();
+        expect(
+            method_exists($service, 'uploadRender') ||
+            method_exists($service, 'uploadModel') ||
+            method_exists($service, 'uploadNestingFile')
+        )->toBeTrue();
     });
 
     test('MinioService has url generation method', function () {
         $service = app(\Modules\Integration\Services\MinioService::class);
-        expect(
-            method_exists($service, 'url') ||
-            method_exists($service, 'getUrl') ||
-            method_exists($service, 'temporaryUrl')
-        )->toBeTrue();
+        expect(method_exists($service, 'getSignedUrl'))->toBeTrue();
     });
 });
 

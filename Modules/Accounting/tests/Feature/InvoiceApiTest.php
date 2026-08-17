@@ -47,7 +47,9 @@ describe('Invoice API', function () {
                 'amount' => 500,
             ]);
 
-        $response->assertStatus(200);
+        // recordPayment() now persists a real Payment row (Chantier 7) and
+        // returns 201, matching the equivalent /payments route's contract.
+        $response->assertStatus(201);
         expect((float) $invoice->fresh()->amount_paid)->toBe(500.0);
     });
 

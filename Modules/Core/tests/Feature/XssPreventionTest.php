@@ -336,7 +336,11 @@ class XssPreventionTest extends TestCase
         $payloads = [
             '<SCRIPT>alert(1)</SCRIPT>',
             '<Script>alert(1)</Script>',
-            '<onclick>alert(1)</onclick>',
+            // <onclick>alert(1)</onclick> (event-handler NAME used as a tag,
+            // no on...= attribute) is not real exploit syntax — browsers never
+            // execute it, so it isn't a detection gap. A real event-handler
+            // attribute is the case-insensitive vector actually worth testing.
+            '<div ONCLICK="alert(1)">x</div>',
         ];
 
         foreach ($payloads as $payload) {

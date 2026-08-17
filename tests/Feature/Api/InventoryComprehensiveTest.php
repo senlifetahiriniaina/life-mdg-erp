@@ -172,7 +172,7 @@ test('created product belongs to tenant', function () {
             'selling_price' => 100,
         ])
         ->assertCreated();
-    $product = Product::find($response->json('id'));
+    $product = Product::find($response->json('data.id'));
     expect($product->tenant_id)->toBe($user->tenant_id);
 });
 

@@ -179,7 +179,7 @@ test('created invoice defaults to draft status', function () {
             'total'        => 1000,
         ])
         ->assertCreated();
-    expect($response->json('status'))->toBe('draft');
+    expect($response->json('data.status'))->toBe('draft');
 });
 
 // ── Show ──────────────────────────────────────────────────────────────────────

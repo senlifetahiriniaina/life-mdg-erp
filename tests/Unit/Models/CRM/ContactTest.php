@@ -56,14 +56,23 @@ class ContactTest extends TestCase
 
     public function test_contact_email_must_be_unique(): void
     {
-        Contact::factory()->create(['email' => 'john@example.com']);
+        // Uniqueness is scoped per tenant (crm_contacts_tenant_id_email_unique) —
+        // two NULL tenant_ids never collide in SQL, so both contacts need the
+        // same real tenant_id to exercise the constraint. tenant_id isn't
+        // mass-assignable (auto-stamped by BelongsToTenant from tenancy
+        // context), so set it directly on each model instead.
+        $contact1 = Contact::factory()->create(['email' => 'john@example.com']);
+        $contact1->tenant_id = 'test-tenant';
+        $contact1->save();
 
         $this->expectException(\Exception::class);
-        Contact::create([
+        $contact2 = new Contact([
             'first_name' => 'Jane',
             'last_name' => 'Doe',
             'email' => 'john@example.com',
         ]);
+        $contact2->tenant_id = 'test-tenant';
+        $contact2->save();
     }
 
     public function test_contact_can_retrieve_full_name(): void

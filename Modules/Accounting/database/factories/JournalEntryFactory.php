@@ -25,7 +25,6 @@ class JournalEntryFactory extends Factory
             'currency' => 'USD',
             'exchange_rate' => 1.0,
             'source_type' => 'App\Models\User',
-            'source_id' => User::factory(),
         ];
     }
 
