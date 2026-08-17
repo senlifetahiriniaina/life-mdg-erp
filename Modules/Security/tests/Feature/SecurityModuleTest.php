@@ -18,7 +18,7 @@ use Modules\Core\Services\CsrfTokenGenerator;
 use Modules\Core\Services\CsrfTokenService;
 use Modules\Core\Services\OutputEncodingService;
 use Modules\Core\Services\RateLimitService;
-use Modules\Core\Services\SecurityHeadersService;
+use App\Http\Middleware\SecurityHeaders;
 use Modules\Core\Services\SessionSecurityService;
 use Modules\Core\Services\XssPreventionService;
 use Tests\TestCase;
@@ -210,18 +210,24 @@ class SecurityModuleTest extends TestCase
     }
 
     // ─── Security Headers ─────────────────────────────────────────────────────
+    // (App\Http\Middleware\SecurityHeaders is the real, live, globally-registered
+    // CSP/security-headers middleware -- see bootstrap/app.php. These tests used
+    // to target Modules\Core\Services\SecurityHeadersService, a duplicate CSP
+    // engine that was never wired into any middleware, controller, or route --
+    // it has been deleted as dead code.)
 
     /** @test */
-    public function test_security_headers_service_resolves_from_container(): void
+    public function test_security_headers_middleware_resolves_from_container(): void
     {
-        $this->assertInstanceOf(SecurityHeadersService::class, app(SecurityHeadersService::class));
+        $this->assertInstanceOf(SecurityHeaders::class, app(SecurityHeaders::class));
     }
 
     /** @test */
     public function test_security_headers_csp_contains_default_src(): void
     {
-        $service = app(SecurityHeadersService::class);
-        $csp     = $service->generateCspHeader();
+        $response = $this->get('/login');
+
+        $csp = $response->headers->get('Content-Security-Policy');
 
         $this->assertStringContainsString('default-src', $csp);
     }
@@ -235,13 +241,15 @@ class SecurityModuleTest extends TestCase
     }
 
     /** @test */
-    public function test_security_headers_nonce_is_validated(): void
+    public function test_security_headers_nonce_is_present_and_matches_csp(): void
     {
-        $service = app(SecurityHeadersService::class);
-        $nonce   = base64_encode(random_bytes(16));
+        $response = $this->get('/login');
 
-        $this->assertTrue($service->validateNonce($nonce));
-        $this->assertFalse($service->validateNonce('')); // empty nonce invalid
+        $nonce = $response->headers->get('X-CSP-Nonce');
+        $this->assertNotEmpty($nonce);
+
+        $csp = $response->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString("nonce-{$nonce}", $csp);
     }
 
     // ─── Session Security Settings ────────────────────────────────────────────

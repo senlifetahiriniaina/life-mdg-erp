@@ -2,98 +2,84 @@
 
 declare(strict_types=1);
 
-use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
-use Modules\Core\Services\NonceManager;
-use Modules\Core\Services\SecurityHeadersService;
+/*
+ * These tests exercise App\Http\Middleware\SecurityHeaders -- the real, live,
+ * globally-registered CSP/security-headers middleware (see bootstrap/app.php,
+ * registered on both the `web` and `api` middleware groups).
+ *
+ * This file previously targeted Modules\Core\Services\SecurityHeadersService and
+ * Modules\Core\Services\NonceManager, a duplicate config-driven CSP/nonce engine
+ * that was never wired into any middleware, controller, or route -- grepping the
+ * whole tree (app/, Modules/, bootstrap/, routes/) for real callers turned up
+ * nothing but this test file, two other test files, and the config files that
+ * fed it. Both classes have been deleted as dead code, along with config/csp.php
+ * (which existed only to configure them, including a per-module CSP override for
+ * an `Ecommerce` module that life-mdg-erp does not ship -- see CLAUDE.md's
+ * 27-module scope table).
+ *
+ * Tests below assert the equivalent behaviour against the real middleware. A few
+ * of the original tests had no real counterpart to rewrite against and were
+ * dropped instead: the real middleware always enforces (no report-only mode),
+ * applies one flat CSP to the whole app (no per-module policy), and generates a
+ * single random_bytes(16) nonce per request with nothing stored/consumed/expired
+ * server-side (no nonce store/validate/consume/expire lifecycle).
+ */
 
-uses(RefreshDatabase::class, WithFaker::class);
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 describe('Security Headers', function () {
     describe('CSP Header Generation', function () {
         test('csp_header_is_present_in_non_api_responses', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertStatus(200);
-
-            // Check for CSP header (either report or enforce)
-            $hasCsp = $response->headers->has('Content-Security-Policy')
-                || $response->headers->has('Content-Security-Policy-Report-Only');
-
-            expect($hasCsp)->toBeTrue();
+            $response->assertHeader('Content-Security-Policy');
         });
 
         test('csp_header_not_present_in_api_responses', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
+            $response = $this->getJson('/api/health');
 
-            $response = $this->get('/api/v1/auth/me');
-
-            // API responses should not have CSP header
             $response->assertHeaderMissing('Content-Security-Policy');
-            $response->assertHeaderMissing('Content-Security-Policy-Report-Only');
         });
 
         test('csp_header_contains_nonce', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
+            $response = $this->get('/login');
 
-            $response = $this->get('/dashboard');
-
-            $csp = $response->headers->get('Content-Security-Policy') ??
-                $response->headers->get('Content-Security-Policy-Report-Only');
+            $csp = $response->headers->get('Content-Security-Policy');
 
             expect($csp)->toContain('nonce-');
         });
 
         test('nonce_is_unique_per_request', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
+            $response1 = $this->get('/login');
+            $response2 = $this->get('/login');
 
-            $response1 = $this->get('/dashboard');
-            $response2 = $this->get('/dashboard');
+            $nonce1 = extractNonce($response1->headers->get('Content-Security-Policy'));
+            $nonce2 = extractNonce($response2->headers->get('Content-Security-Policy'));
 
-            $csp1 = $response1->headers->get('Content-Security-Policy') ??
-                $response1->headers->get('Content-Security-Policy-Report-Only');
-            $csp2 = $response2->headers->get('Content-Security-Policy') ??
-                $response2->headers->get('Content-Security-Policy-Report-Only');
-
-            // Extract nonces
-            $nonce1 = extractNonce($csp1);
-            $nonce2 = extractNonce($csp2);
-
+            expect($nonce1)->not->toBeNull();
+            expect($nonce2)->not->toBeNull();
             expect($nonce1)->not->toEqual($nonce2);
         });
     });
 
     describe('XSS Protection', function () {
         test('x_xss_protection_header_present', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('X-XSS-Protection', '1; mode=block');
         });
 
         test('frame_options_prevent_clickjacking', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('X-Frame-Options', 'SAMEORIGIN');
         });
 
         test('content_type_options_prevent_mime_sniffing', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('X-Content-Type-Options', 'nosniff');
         });
@@ -101,110 +87,58 @@ describe('Security Headers', function () {
 
     describe('HSTS Enforcement', function () {
         test('hsts_header_present_in_production', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            // In production environment
             $this->app['env'] = 'production';
 
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
-            // Should have HSTS or similar header
-            $hasHsts = $response->headers->has('Strict-Transport-Security')
-                || $response->headers->has('X-Frame-Options');
-
-            expect($hasHsts)->toBeTrue();
+            $response->assertHeader('Strict-Transport-Security');
         });
     });
 
     describe('Nonce Management', function () {
         test('nonce_is_accessible_via_header', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
+            $response = $this->get('/login');
 
-            $response = $this->get('/dashboard');
-
-            // Nonce should be accessible via response header
             $nonce = $response->headers->get('X-CSP-Nonce');
 
             expect($nonce)->not->toBeNull();
             expect(strlen($nonce))->toBeGreaterThanOrEqual(8);
         });
 
-        test('nonce_validation_works', function () {
-            $service = app(SecurityHeadersService::class);
+        test('nonce_header_matches_nonce_embedded_in_csp', function () {
+            // The real middleware generates a single nonce per request and reuses
+            // it both in the X-CSP-Nonce response header and inside the CSP's
+            // script-src directive -- there is no separate store/validate/consume
+            // lifecycle (that concept only existed in the deleted, never-wired
+            // NonceManager).
+            $response = $this->get('/login');
 
-            $nonce = 'valid_nonce_here';
+            $nonce = $response->headers->get('X-CSP-Nonce');
+            $csp = $response->headers->get('Content-Security-Policy');
 
-            expect($service->validateNonce($nonce))->toBeTrue();
-            expect($service->validateNonce(''))->toBeFalse();
-            expect($service->validateNonce('abc'))->toBeFalse(); // Too short
+            expect($csp)->toContain("nonce-{$nonce}");
         });
 
-        test('nonce_manager_generates_valid_nonces', function () {
-            $manager = app(NonceManager::class);
+        test('nonce_is_valid_base64', function () {
+            // App\Http\Middleware\SecurityHeaders generates the nonce via
+            // base64_encode(random_bytes(16)), unpadded stripping is NOT applied.
+            $response = $this->get('/login');
 
-            $nonce = $manager->generate();
+            $nonce = $response->headers->get('X-CSP-Nonce');
 
-            expect($nonce)->not->toBeEmpty();
-            expect($manager->isValidFormat($nonce))->toBeTrue();
-        });
-
-        test('nonce_manager_stores_and_validates', function () {
-            $manager = app(NonceManager::class);
-
-            $nonce = $manager->generateAndStore();
-
-            expect($manager->validate($nonce))->toBeTrue();
-            expect($manager->exists($nonce))->toBeTrue();
-        });
-
-        test('nonce_can_be_consumed', function () {
-            $manager = app(NonceManager::class);
-
-            $nonce = $manager->generateAndStore();
-
-            expect($manager->exists($nonce))->toBeTrue();
-
-            $manager->consume($nonce);
-
-            // After consumption, nonce should not validate again
-            expect($manager->validate($nonce))->toBeFalse();
-        });
-
-        test('nonce_expires_after_configured_time', function () {
-            $manager = app(NonceManager::class);
-
-            $nonce = $manager->generateAndStore(
-                requestId: 'test-' . uniqid(),
-                lifetime: 1  // 1 second
-            );
-
-            expect($manager->validate($nonce))->toBeTrue();
-
-            // Wait for expiration
-            sleep(2);
-
-            // Nonce should be expired (validation depends on cache implementation)
-            // This test assumes TTL is respected by cache
+            expect((bool) preg_match('/^[a-zA-Z0-9+\/]+=*$/', $nonce))->toBeTrue();
         });
     });
 
     describe('Permission Policy', function () {
         test('permissions_policy_header_present', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('Permissions-Policy');
         });
 
         test('permissions_policy_disables_sensitive_apis', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $policy = $response->headers->get('Permissions-Policy');
 
@@ -217,19 +151,13 @@ describe('Security Headers', function () {
 
     describe('Referrer Policy', function () {
         test('referrer_policy_header_present', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('Referrer-Policy');
         });
 
         test('referrer_policy_is_strict_origin', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $policy = $response->headers->get('Referrer-Policy');
 
@@ -239,10 +167,10 @@ describe('Security Headers', function () {
 
     describe('Cache Control', function () {
         test('api_responses_not_cacheable', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/api/v1/auth/me');
+            // Set by the separate, real App\Http\Middleware\CacheHeaders (also
+            // globally registered) -- /api/health is on its user-specific
+            // no-store allowlist.
+            $response = $this->getJson('/api/health');
 
             $cacheControl = $response->headers->get('Cache-Control');
 
@@ -266,61 +194,27 @@ describe('Security Headers', function () {
 
     describe('Cross-Origin Policies', function () {
         test('cross_origin_opener_policy_header_present', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('Cross-Origin-Opener-Policy');
         });
 
         test('cross_origin_resource_policy_header_present', function () {
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
+            $response = $this->get('/login');
 
             $response->assertHeader('Cross-Origin-Resource-Policy');
         });
     });
 
-    describe('Module-Specific Policies', function () {
-        test('accounting_module_has_custom_csp', function () {
-            $service = app(SecurityHeadersService::class);
+    describe('Enforcing Mode Only', function () {
+        test('csp_header_is_always_enforcing_never_report_only', function () {
+            // The real middleware has no report-only mode (config('csp.report_only')
+            // no longer exists -- it only ever fed the deleted, never-wired
+            // SecurityHeadersService). It always sets the enforcing header.
+            $response = $this->get('/login');
 
-            $policy = $service->getModuleCspPolicy('Accounting');
-
-            expect($policy)->toBeArray();
-            expect(isset($policy['connect-src']))->toBeTrue();
-        });
-
-        test('ecommerce_module_includes_payment_gateways', function () {
-            $service = app(SecurityHeadersService::class);
-
-            $policy = $service->getModuleCspPolicy('Ecommerce');
-
-            // Should have payment gateway domains
-            $connectSrc = $policy['connect-src'] ?? '';
-
-            expect($connectSrc)->toContain('stripe');
-        });
-    });
-
-    describe('Report Mode', function () {
-        test('report_only_mode_can_be_enabled', function () {
-            config(['csp.report_only' => true]);
-
-            $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-
-            $response = $this->get('/dashboard');
-
-            // In report-only mode, should use Report-Only header
-            $hasReportOnly = $response->headers->has('Content-Security-Policy-Report-Only');
-
-            if (config('csp.report_only')) {
-                expect($hasReportOnly)->toBeTrue();
-            }
+            $response->assertHeaderMissing('Content-Security-Policy-Report-Only');
+            $response->assertHeader('Content-Security-Policy');
         });
     });
 });
@@ -328,7 +222,7 @@ describe('Security Headers', function () {
 // Helper function to extract nonce from CSP header
 function extractNonce(string $csp): ?string
 {
-    if (preg_match('/nonce-([a-zA-Z0-9_\-]+)/', $csp, $matches)) {
+    if (preg_match('/nonce-([a-zA-Z0-9+\/=]+)/', $csp, $matches)) {
         return $matches[1];
     }
 

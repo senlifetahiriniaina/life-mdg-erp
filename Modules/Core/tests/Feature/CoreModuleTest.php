@@ -13,7 +13,7 @@ use Modules\Core\Services\ModuleManager;
 use Modules\Core\Services\TenantRegistrationService;
 use Modules\Core\Services\TenantProvisioningService;
 use Modules\Core\Services\CsrfTokenGenerator;
-use Modules\Core\Services\SecurityHeadersService;
+use App\Http\Middleware\SecurityHeaders;
 use Modules\Core\Services\XssPreventionService;
 use Modules\Core\Services\OutputEncodingService;
 use Modules\Core\Services\HtmlPurifierService;
@@ -438,22 +438,28 @@ class CoreModuleTest extends TestCase
         $this->assertFalse($generator->verify('tampered-token', $hash));
     }
 
-    // ─── SecurityHeadersService ────────────────────────────────────────────────
+    // ─── App\Http\Middleware\SecurityHeaders ───────────────────────────────────
+    // (the real, live, globally-registered CSP/security-headers middleware --
+    // see bootstrap/app.php. Modules\Core\Services\SecurityHeadersService, which
+    // these two tests used to target, was a duplicate CSP engine that was never
+    // wired into any middleware, controller, or route -- it has been deleted as
+    // dead code.)
 
     /** @test */
-    public function test_security_headers_service_resolves_from_container(): void
+    public function test_security_headers_middleware_resolves_from_container(): void
     {
-        $this->assertInstanceOf(SecurityHeadersService::class, app(SecurityHeadersService::class));
+        $this->assertInstanceOf(SecurityHeaders::class, app(SecurityHeaders::class));
     }
 
     /** @test */
-    public function test_security_headers_service_generates_csp_header(): void
+    public function test_security_headers_middleware_generates_csp_header(): void
     {
-        $service = app(SecurityHeadersService::class);
-        $csp     = $service->generateCspHeader();
+        $response = $this->get('/login');
+
+        $csp = $response->headers->get('Content-Security-Policy');
 
         $this->assertIsString($csp);
-        $this->assertStringContainsString("default-src", $csp);
+        $this->assertStringContainsString('default-src', $csp);
     }
 
     // ─── XssPreventionService ─────────────────────────────────────────────────
