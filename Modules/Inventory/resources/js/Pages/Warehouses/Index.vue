@@ -282,9 +282,9 @@ const fetchWarehouses = async (page = 1) => {
     })
     const data = await response.json()
     warehouses.value = data.data
-    pagination.current_page = data.current_page
-    pagination.total = data.total
-    pagination.last_page = data.last_page
+    pagination.current_page = data.meta?.current_page ?? 1
+    pagination.total = data.meta?.total ?? data.data.length
+    pagination.last_page = data.meta?.last_page ?? 1
   } finally {
     loading.value = false
   }

@@ -17,7 +17,6 @@ class UpdateCategoryRequest extends FormRequest
             'name' => 'nullable|string|unique:inventory_categories,name,'.$this->category->id,
             'slug' => 'nullable|string|unique:inventory_categories,slug,'.$this->category->id,
             'description' => 'nullable|string',
-            'status' => 'nullable|in:active,inactive',
         ];
     }
 }

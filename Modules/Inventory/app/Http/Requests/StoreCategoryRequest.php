@@ -17,7 +17,6 @@ class StoreCategoryRequest extends FormRequest
             'name' => 'required|string|unique:inventory_categories,name',
             'slug' => 'nullable|string|unique:inventory_categories,slug',
             'description' => 'nullable|string',
-            'status' => 'nullable|in:active,inactive',
         ];
     }
 }

@@ -66,4 +66,47 @@ class InventoryScreensWebTest extends TestCase
             $this->get($url)->assertRedirect();
         }
     }
+
+    /**
+     * Chantier 8.3: /categories and /warehouses 500'd on every visit —
+     * their Web controllers rendered Categories/Form.vue, Categories/Show.vue,
+     * Warehouses/Form.vue, Warehouses/Show.vue, none of which existed anywhere
+     * in the repo. Both are now self-contained list+modal-CRUD pages (same
+     * pattern as the real Warehouses/Index.vue was already using) with the
+     * dead create/show/edit web actions trimmed away.
+     */
+    public function test_categories_page_renders()
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/inventory/categories');
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page->component('Inventory/Categories/Index', false));
+    }
+
+    public function test_warehouses_page_renders()
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/inventory/warehouses');
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page->component('Inventory/Warehouses/Index', false));
+    }
+
+    /**
+     * stock-adjustments was a fully redundant scaffold (Index/Form/Show.vue
+     * never existed) — deleted rather than built, since Stock/Movements.vue
+     * already covers manual adjustments via POST stock-movements with
+     * type=adjustment.
+     */
+    public function test_stock_adjustments_route_no_longer_exists()
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/inventory/stock-adjustments');
+
+        $response->assertNotFound();
+    }
 }
