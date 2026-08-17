@@ -233,7 +233,7 @@ class ABCAnalysisService
     {
         return Product::query()
             ->when($warehouseId, fn ($q) => $q->whereHas('stock', fn ($sq) => $sq->where('warehouse_id', $warehouseId)))
-            ->with(['stock', 'movements'])
+            ->with(['stock', 'stockMovements'])
             ->get();
     }
 
@@ -267,7 +267,7 @@ class ABCAnalysisService
 
     private function calculateTurnoverRate($product): float
     {
-        $costOfGoodsSold = $product->movements
+        $costOfGoodsSold = $product->stockMovements
             ->where('type', 'out')
             ->sum(fn ($m) => $m->quantity * ($product->cost_price ?? 0));
 

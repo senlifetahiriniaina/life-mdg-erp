@@ -3,6 +3,9 @@
 namespace Modules\Inventory\Tests\Unit;
 
 use Illuminate\Support\Facades\Cache;
+use Modules\Inventory\Models\Product;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\InventoryService;
 use Modules\Inventory\Services\StockManagementService;
 use Tests\TestCase;
 
@@ -119,15 +122,29 @@ class InventoryServicesTest extends TestCase
         $this->assertEquals('out_of_stock', $levels[3]['status']);
     }
 
+    // NOTE: StockManagementService is an in-memory Cache stub; every other
+    // test in this file exercises it directly and that's fine, but its
+    // getLowStockAlerts() specifically is hardcoded to query an empty
+    // in-memory `$products = []` array, so it can never return alerts. Low
+    // stock alerting is a real, DB-backed capability elsewhere
+    // (`Product::scopeLowStock()` / `InventoryService::getLowStockProducts()`,
+    // routed at GET /api/v1/inventory/products/low-stock and already covered
+    // by the green `ProductApiTest` "can get low stock products" test) — this
+    // test now exercises that real implementation instead.
     public function test_can_get_low_stock_alerts()
     {
-        $this->stockService->addStock(1, 5);
-        $this->stockService->addStock(2, 0);
-        $this->stockService->addStock(3, 50);
+        $warehouse = Warehouse::factory()->create();
+        $lowProduct = Product::factory()->create(['reorder_point' => 10]);
+        $okProduct = Product::factory()->create(['reorder_point' => 10]);
 
-        $alerts = $this->stockService->getLowStockAlerts(10);
+        $lowProduct->stock()->create(['warehouse_id' => $warehouse->id, 'quantity' => 5]);
+        $okProduct->stock()->create(['warehouse_id' => $warehouse->id, 'quantity' => 50]);
 
-        $this->assertGreaterThan(0, $alerts['total_alerts']);
+        $alerts = app(InventoryService::class)->getLowStockProducts();
+
+        $this->assertGreaterThan(0, $alerts->count());
+        $this->assertTrue($alerts->contains('id', $lowProduct->id));
+        $this->assertFalse($alerts->contains('id', $okProduct->id));
     }
 
     public function test_reserved_stock_reduces_availability()
