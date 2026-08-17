@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use Modules\Accounting\Http\Requests\StoreInvoiceRequest;
 use Modules\Accounting\Http\Resources\InvoiceResource;
 use Modules\Accounting\Models\Invoice;
+use Modules\Accounting\Models\Payment;
 use Modules\Accounting\Services\AccountingService;
 
 /**
@@ -258,6 +259,17 @@ class InvoiceController extends Controller
             'paid_at' => $newPaid >= (float) $invoice->total ? now() : null,
         ]);
 
-        return (new InvoiceResource($invoice->fresh()))->response()->setStatusCode(200);
+        Payment::create([
+            'invoice_id' => $invoice->id,
+            'payment_date' => $validated['payment_date'] ?? now()->toDateString(),
+            'amount' => $validated['amount'],
+            'currency' => $invoice->currency ?? 'XOF',
+            'payment_method' => $validated['method'] ?? null,
+            'reference' => $validated['reference'] ?? null,
+            'status' => 'completed',
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return (new InvoiceResource($invoice->fresh()))->response()->setStatusCode(201);
     }
 }

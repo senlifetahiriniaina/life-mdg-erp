@@ -43,7 +43,7 @@ class AuditService
             'user_name'    => $userName,
             'user_role'    => $userRole,
             'action'       => $action,
-            'module'       => $module,
+            'module'       => $module ?? ($subject !== null ? $this->inferModule($subject) : null),
             'event_type'   => $eventType ?? $action,
             'description'  => $description,
             'subject_type' => $subjectType,

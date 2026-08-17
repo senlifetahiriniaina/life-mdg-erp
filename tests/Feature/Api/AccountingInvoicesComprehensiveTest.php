@@ -239,6 +239,12 @@ test('can record payment on invoice', function () {
         ])
         ->assertCreated();
     expect($invoice->fresh()->paid_amount)->toBe(500);
+    $this->assertDatabaseHas('acc_invoice_payments', [
+        'invoice_id' => $invoice->id,
+        'amount' => 500,
+        'payment_method' => 'bank_transfer',
+        'reference' => 'TRF-001',
+    ]);
 });
 
 test('can record partial payments', function () {
