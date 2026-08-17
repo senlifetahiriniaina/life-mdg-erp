@@ -67,16 +67,23 @@ createInertiaApp({
             '../../Modules/*/resources/js/Pages/**/*.vue',
         ]);
 
+        const parts = name.split('/');
+        const last = parts[parts.length - 1];
+
         // Standard resolution
         const key = `./Pages/${name}.vue`;
+        const nestedKey = `./Pages/${name}/${last}.vue`;
         if (pages[key]) return resolvePageComponent(key, pages);
+        if (pages[nestedKey]) return resolvePageComponent(nestedKey, pages);
 
         // Module-prefixed resolution: "CRM/Contacts/Index"
-        const parts = name.split('/');
         if (parts.length >= 2) {
             const [module, ...rest] = parts;
-            const moduleKey = `../../Modules/${module}/resources/js/Pages/${rest.join('/')}.vue`;
-            if (pages[moduleKey]) return pages[moduleKey]();
+            const restJoined = rest.join('/');
+            const moduleKey = `../../Modules/${module}/resources/js/Pages/${restJoined}.vue`;
+            const nestedModuleKey = `../../Modules/${module}/resources/js/Pages/${restJoined}/${last}.vue`;
+            if (pages[moduleKey]) return resolvePageComponent(moduleKey, pages);
+            if (pages[nestedModuleKey]) return resolvePageComponent(nestedModuleKey, pages);
         }
 
         return resolvePageComponent(key, pages);
