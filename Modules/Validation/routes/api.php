@@ -5,6 +5,13 @@ use Modules\Validation\Http\Controllers\Api\ApprovalHierarchyController;
 use Modules\Validation\Http\Controllers\Api\ApprovalRequestController;
 use Modules\Validation\Http\Controllers\Api\ApprovalRuleController;
 use Modules\Validation\Http\Controllers\Api\ApprovalWorkflowController;
+use Modules\Validation\Http\Controllers\Api\ValidationRuleController;
+
+// Generic data-validation rule engine's "validate this payload" endpoint --
+// distinct from the /validation-rules CRUD, which lives at api/v1/validation-rules
+// (see Modules/Validation/routes/validation-rules.php).
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])
+    ->post('validate', [ValidationRuleController::class, 'validateData']);
 
 // Alias routes (short form) for backwards compatibility with tests
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {

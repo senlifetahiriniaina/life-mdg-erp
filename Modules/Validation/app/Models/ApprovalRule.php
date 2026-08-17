@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Modules\Validation\Support\ConditionEvaluator;
 
 /**
  * @property int $id
@@ -79,19 +80,11 @@ class ApprovalRule extends Model
         $amount = (float) (data_get($approvable, 'total') ?? data_get($approvable, 'amount') ?? 0);
         $threshold = (float) $this->condition_value;
 
-        return match ($this->condition_operator) {
-            '>' => $amount > $threshold,
-            '<' => $amount < $threshold,
-            '>=' => $amount >= $threshold,
-            '<=' => $amount <= $threshold,
-            '==' => $amount == $threshold,
-            '!=' => $amount != $threshold,
-            default => true,
-        };
+        return ConditionEvaluator::compare($this->condition_operator, $amount, $threshold);
     }
 
     protected function evaluateEquals($actual): bool
     {
-        return (string) $actual === (string) $this->condition_value;
+        return ConditionEvaluator::compare('==', $actual, $this->condition_value);
     }
 }

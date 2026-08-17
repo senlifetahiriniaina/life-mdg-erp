@@ -302,6 +302,8 @@ class ValidationRuleEngineTest extends TestCase
 
     public function test_api_create_rule(): void
     {
+        $this->actingAsUser('admin');
+
         $response = $this->postJson('/api/v1/validation-rules', [
             'name' => 'Email Required',
             'field' => 'email',
@@ -314,6 +316,8 @@ class ValidationRuleEngineTest extends TestCase
 
     public function test_api_list_rules_paginated(): void
     {
+        $this->actingAsUser('admin');
+
         ValidationRule::factory()->count(30)->create();
 
         $response = $this->getJson('/api/v1/validation-rules?page=1&per_page=15');
@@ -324,6 +328,8 @@ class ValidationRuleEngineTest extends TestCase
 
     public function test_api_update_rule(): void
     {
+        $this->actingAsUser('admin');
+
         $rule = ValidationRule::factory()->create();
 
         $response = $this->putJson("/api/v1/validation-rules/{$rule->id}", [
@@ -336,6 +342,8 @@ class ValidationRuleEngineTest extends TestCase
 
     public function test_api_delete_rule(): void
     {
+        $this->actingAsUser('admin');
+
         $rule = ValidationRule::factory()->create();
 
         $response = $this->deleteJson("/api/v1/validation-rules/{$rule->id}");
@@ -346,6 +354,8 @@ class ValidationRuleEngineTest extends TestCase
 
     public function test_api_validate_data_endpoint(): void
     {
+        $this->actingAsUser('admin');
+
         ValidationRule::factory()->create(['type' => 'email', 'field' => 'email']);
 
         $response = $this->postJson('/api/v1/validation/validate', [
