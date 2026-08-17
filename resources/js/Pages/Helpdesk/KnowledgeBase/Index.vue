@@ -79,6 +79,22 @@
         </div>
       </div>
     </div>
+    <div v-if="showCategoryModal" class="wh-modal-backdrop" @click.self="showCategoryModal = false">
+      <div class="wh-modal" style="max-width:420px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <h2 style="font-size:16px;font-weight:700">Nouvelle catégorie</h2>
+          <button class="btn btn-secondary" @click="showCategoryModal = false"><i class="pi pi-times" style="font-size:12px" /></button>
+        </div>
+        <form @submit.prevent="saveCategory" style="display:flex;flex-direction:column;gap:12px">
+          <div><label class="form-label">Nom *</label><input v-model="categoryForm.name" class="wh-input" style="width:100%" required /></div>
+          <div><label class="form-label">Icône (classe PrimeIcons, optionnel)</label><input v-model="categoryForm.icon" class="wh-input" style="width:100%" placeholder="pi-folder" /></div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:8px;border-top:1px solid var(--border-subtle)">
+            <button type="button" class="btn btn-secondary" @click="showCategoryModal = false">Annuler</button>
+            <button type="submit" class="btn btn-primary" :disabled="savingCategory"><i v-if="savingCategory" class="pi pi-spin pi-spinner" style="font-size:12px" /> Créer</button>
+          </div>
+        </form>
+      </div>
+    </div>
     <div v-if="showCreateModal" class="wh-modal-backdrop" @click.self="showCreateModal = false">
       <div class="wh-modal" style="max-width:640px;max-height:85vh;overflow-y:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -172,15 +188,11 @@ async function load() {
   } finally { loading.value = false }
 }
 
-async function loadCategories() { const { data } = await axios.get('/api/v1/helpdesk/kb/categories'); categories.value = data }
+async function loadCategories() { const { data } = await axios.get('/api/v1/helpdesk/kb/categories'); categories.value = data.data ?? data }
 async function openArticle(article: Article) { const { data } = await axios.get(`/api/v1/helpdesk/kb/articles/${article.id}`); articleModal.value = data }
 async function sendFeedback(article: Article, helpful: boolean) { const { data } = await axios.post(`/api/v1/helpdesk/kb/articles/${article.id}/feedback`, { helpful }); article.helpful_count = data.helpful_count; article.not_helpful_count = data.not_helpful_count }
 function goPage(p: number) { filters.page = p; load() }
 
-// showCategoryModal was referenced in the template (the "Catégorie" button)
-// but never declared anywhere in this script — a dead button, not just a
-// type gap; clicking it would warn "property was accessed during render
-// but is not defined" and do nothing.
 const showCategoryModal = ref(false)
 const showCreateModal = ref(false)
 const editingArticle = ref<Article | null>(null)
@@ -193,9 +205,23 @@ async function saveArticle() {
   savingArticle.value = true
   try {
     const payload = { ...articleForm.value }
-    if (editingArticle.value) { await axios.put(`/api/v1/helpdesk/kb/portal/articles/${editingArticle.value.id}`, payload) } else { await axios.post('/api/v1/helpdesk/kb/portal/articles', payload) }
+    if (editingArticle.value) { await axios.put(`/api/v1/helpdesk/kb/articles/${editingArticle.value.id}`, payload) } else { await axios.post('/api/v1/helpdesk/kb/articles', payload) }
     showCreateModal.value = false; await load()
   } finally { savingArticle.value = false }
+}
+
+const categoryForm = ref({ name: '', icon: '' })
+const savingCategory = ref(false)
+
+async function saveCategory() {
+  if (!categoryForm.value.name.trim()) return
+  savingCategory.value = true
+  try {
+    await axios.post('/api/v1/helpdesk/kb/categories', categoryForm.value)
+    showCategoryModal.value = false
+    categoryForm.value = { name: '', icon: '' }
+    await loadCategories()
+  } finally { savingCategory.value = false }
 }
 
 function statusClass(s: string) { return ({ published: 'badge-green', draft: 'badge-gray', archived: 'badge-orange' } as Record<string, string>)[s] || 'badge-gray' }

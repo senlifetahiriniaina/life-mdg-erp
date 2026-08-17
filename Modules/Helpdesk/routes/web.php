@@ -31,8 +31,18 @@ Route::middleware(['auth', 'module:Helpdesk'])->group(function () {
 
     // Community forum
     Route::get('/helpdesk/forum', fn () => Inertia::render('Helpdesk/Forum/Index'))->name('helpdesk.forum.index');
-    Route::get('/helpdesk/forum/{post}', fn ($post) => Inertia::render('Helpdesk/Forum/Show', ['postId' => $post]))->name('helpdesk.forum.show');
+    Route::get('/helpdesk/forum/{post}', fn ($post) => Inertia::render('Helpdesk/Forum/Show', ['id' => $post]))->name('helpdesk.forum.show');
 
     // CSAT surveys
     Route::get('/helpdesk/csat', fn () => Inertia::render('Helpdesk/CSAT/Index'))->name('helpdesk.csat.index');
+
+    // AI response-template management (not ticket-scoped — response-suggestions is
+    // ticket-scoped and tested from this page against a chosen ticket)
+    Route::get('/helpdesk/ai-bot', fn () => Inertia::render('Helpdesk/AIBot/Index'))->name('helpdesk.ai-bot.index');
+
+    // Manager view: agent metrics/trends + team benchmarking (cs-ai). Coaching
+    // recommendations / SMART goals / skill-proficiency scoring are intentionally
+    // NOT wired here — CLAUDE.md's "Known gaps" documents agent talent management
+    // as excluded from Life MDG's scope (360°-review territory).
+    Route::get('/helpdesk/quality-assurance', fn () => Inertia::render('Helpdesk/QualityAssurance/Index'))->name('helpdesk.quality-assurance.index');
 });

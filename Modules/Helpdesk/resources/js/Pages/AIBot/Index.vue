@@ -1,147 +1,165 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex items-center justify-between">
+  <AppLayout>
+    <Head title="Helpdesk · Modèles de réponse IA" />
+    <div class="page-head">
       <div>
-        <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Chatbot IA & Réponses Automatiques</h1>
-        <p class="text-surface-500 text-sm mt-1">Configurez votre assistant virtuel et suivez ses performances</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <span class="text-sm text-surface-500">Bot actif</span>
-        <ToggleSwitch v-model="botEnabled" />
+        <h1 class="wh-page-title">Modèles de réponse IA</h1>
+        <p class="wh-page-subtitle">{{ pagination.total ?? 0 }} modèle{{ pagination.total !== 1 ? 's' : '' }}</p>
       </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Card v-for="s in stats" :key="s.label"><template #content>
-        <div class="text-2xl font-bold" :class="s.color">{{ s.value }}</div>
-        <div class="text-sm text-surface-500 mt-1">{{ s.label }}</div>
-      </template></Card>
+    <!-- Filters -->
+    <div class="wh-panel" style="padding:12px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <input v-model="filters.category" placeholder="Catégorie…" class="wh-input" style="width:160px" @input="debounceLoad" />
+      <select v-model="filters.language" class="wh-input" style="width:140px" @change="load">
+        <option value="">Toutes langues</option>
+        <option value="fr">Français</option>
+        <option value="en">Anglais</option>
+        <option value="pt">Portugais</option>
+        <option value="es">Espagnol</option>
+      </select>
+      <select v-model="filters.tone" class="wh-input" style="width:150px" @change="load">
+        <option value="">Tous les tons</option>
+        <option value="formal">Formel</option>
+        <option value="friendly">Amical</option>
+        <option value="empathetic">Empathique</option>
+        <option value="technical">Technique</option>
+      </select>
+      <select v-model="filters.status" class="wh-input" style="width:140px" @change="load">
+        <option value="active">Actifs</option>
+        <option value="archived">Archivés</option>
+        <option value="">Tous statuts</option>
+      </select>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card>
-        <template #header><div class="px-4 pt-4 font-semibold">Configuration du chatbot</div></template>
-        <template #content>
-          <div class="space-y-4">
-            <div><label class="text-sm font-medium">Message de bienvenue</label>
-              <Textarea v-model="botConfig.welcome" rows="2" class="w-full mt-1" /></div>
-            <div><label class="text-sm font-medium">Message de repli (si bot incertain)</label>
-              <Textarea v-model="botConfig.fallback" rows="2" class="w-full mt-1" /></div>
-            <div><label class="text-sm font-medium">Seuil de confiance pour escalade (%)</label>
-              <Slider v-model="botConfig.threshold" :min="40" :max="90" class="mt-3" />
-              <div class="text-right text-sm text-surface-500 mt-1">{{ botConfig.threshold }}% — En dessous: transfert à un agent humain</div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium">Sources de la base de connaissances</label>
-              <div v-for="kb in kbSources" :key="kb.name" class="flex items-center justify-between py-2 border-b border-surface-100">
-                <div class="text-sm">{{ kb.name }}<span class="text-surface-400 ml-2">({{ kb.articles }} articles)</span></div>
-                <ToggleSwitch v-model="kb.active" />
-              </div>
-            </div>
-            <Button label="Sauvegarder la configuration" icon="pi pi-save" class="w-full" />
-          </div>
-        </template>
-      </Card>
-
-      <Card>
-        <template #header><div class="px-4 pt-4 font-semibold">Performance (7 derniers jours)</div></template>
-        <template #content>
-          <DataTable :value="dailyPerf" size="small" stripedRows>
-            <Column field="date" header="Date" />
-            <Column field="conversations" header="Conversations" />
-            <Column field="resolved" header="Résolues bot" />
-            <Column field="deflection" header="Déviation %"><template #body="{ data }"><span :class="data.deflection >= 60 ? 'text-green-600 font-semibold' : 'text-orange-500'">{{ data.deflection }}%</span></template></Column>
-            <Column field="csat" header="CSAT" />
-          </DataTable>
-        </template>
-      </Card>
+    <!-- Templates list -->
+    <div class="wh-panel">
+      <table class="wh-dt">
+        <thead>
+          <tr>
+            <th>Titre</th>
+            <th>Catégorie</th>
+            <th>Langue</th>
+            <th>Ton</th>
+            <th>Utilisations</th>
+            <th>Satisfaction moy.</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in templates" :key="t.id" class="wh-dt-row">
+            <td style="font-weight:500;color:var(--fg-1)">{{ t.title }}</td>
+            <td>{{ t.category }}</td>
+            <td>{{ t.language }}</td>
+            <td>{{ t.tone }}</td>
+            <td>{{ t.usage_count ?? 0 }}</td>
+            <td>{{ t.avg_satisfaction_rating ? `${t.avg_satisfaction_rating}/5` : '—' }}</td>
+            <td><span :class="['badge', t.status === 'active' ? 'badge-green' : 'badge-gray']">{{ t.status }}</span></td>
+          </tr>
+          <tr v-if="!loading && !templates.length">
+            <td colspan="7" style="text-align:center;padding:32px 18px;color:var(--fg-3)">Aucun modèle trouvé.</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <Card>
-      <template #header><div class="px-4 pt-4 font-semibold">Conversations récentes</div></template>
-      <template #content>
-        <DataTable :value="conversations" stripedRows selectionMode="single" v-model:selection="selectedConv" @row-select="showConvDialog = true">
-          <Column field="client" header="Client" />
-          <Column field="topic" header="Sujet détecté" />
-          <Column field="confidence" header="Confiance %"><template #body="{ data }"><span :class="data.confidence >= 70 ? 'text-green-600' : 'text-orange-500'">{{ data.confidence }}%</span></template></Column>
-          <Column field="resolved" header="Résolu bot"><template #body="{ data }"><Tag :value="data.resolved ? 'Oui' : 'Non'" :severity="data.resolved ? 'success' : 'warn'" size="small" /></template></Column>
-          <Column field="escalated" header="Escaladé"><template #body="{ data }"><Tag v-if="data.escalated" value="Oui" severity="danger" size="small" /><span v-else class="text-surface-400 text-sm">—</span></template></Column>
-          <Column field="duration" header="Durée" />
-        </DataTable>
-      </template>
-    </Card>
-
-    <Dialog v-model:visible="showConvDialog" :header="'Conversation — ' + selectedConv?.client" :style="{ width: '500px' }" modal>
-      <div v-if="selectedConv" class="space-y-3">
-        <div v-for="msg in selectedConv.messages || []" :key="msg.text" class="flex" :class="msg.from === 'bot' ? 'justify-start' : 'justify-end'">
-          <div class="max-w-xs px-3 py-2 rounded-lg text-sm" :class="msg.from === 'bot' ? 'bg-blue-50 text-blue-800' : 'bg-surface-100'">
-            <div class="text-xs text-surface-400 mb-1">{{ msg.from === 'bot' ? '🤖 Bot' : '👤 Client' }}</div>
-            {{ msg.text }}
-          </div>
-        </div>
-        <div v-if="selectedConv.escalated" class="p-2 bg-orange-50 border border-orange-200 rounded text-sm text-orange-700">
-          🔄 Escaladé à l'agent {{ selectedConv.agent }} à {{ selectedConv.escalatedAt }}
+    <!-- Test on a ticket -->
+    <div class="wh-panel" style="margin-top:24px;padding:18px">
+      <h3 style="font-size:14px;font-weight:600;color:var(--fg-1);margin:0 0 12px">Tester les suggestions IA sur un ticket</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <input v-model.number="testTicketId" type="number" placeholder="ID du ticket" class="wh-input" style="width:160px" />
+        <button class="btn btn-primary" :disabled="!testTicketId || testing" @click="testSuggestions">
+          <i v-if="testing" class="pi pi-spin pi-spinner" style="font-size:12px" /> Obtenir des suggestions
+        </button>
+      </div>
+      <p v-if="testError" style="color:var(--danger-fg,#dc2626);font-size:13px">{{ testError }}</p>
+      <div v-if="suggestions.length" style="display:flex;flex-direction:column;gap:8px">
+        <div v-for="s in suggestions" :key="s.id" class="suggestion-card">
+          <p style="font-size:13px;color:var(--fg-1);margin:0 0 6px">{{ s.response }}</p>
+          <p style="font-size:11px;color:var(--fg-3);margin:0">{{ s.reason }} · pertinence {{ Math.round((s.relevance ?? 0) * 100) }}% · confiance {{ Math.round((s.confidence ?? 0) * 100) }}%</p>
         </div>
       </div>
-    </Dialog>
-  </div>
+      <p v-else-if="testedOnce && !testing" style="color:var(--fg-3);font-size:13px">Aucune suggestion disponible pour ce ticket.</p>
+    </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed} from 'vue'
-import { usePage } from '@inertiajs/vue3'
-import Card from 'primevue/card'
-import Button from 'primevue/button'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
-import Tag from 'primevue/tag'
-import Dialog from 'primevue/dialog'
-import Textarea from 'primevue/textarea'
-import Slider from 'primevue/slider'
-import ToggleSwitch from 'primevue/toggleswitch'
+import { ref, reactive, onMounted } from 'vue'
+import { Head } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
+import axios from 'axios'
 
-const page = usePage()
-const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
-const canManage = computed(() => isElevated.value || hasAnyRole(['customer-service']))
-const canCreate = computed(() => canManage.value)
-const canEdit = computed(() => canManage.value)
-const canDelete = computed(() => isAdmin.value)
+const loading = ref(false)
+const templates = ref([])
+const pagination = ref({})
+const filters = reactive({ category: '', language: '', tone: '', status: 'active' })
 
+let debounceTimer = null
+function debounceLoad() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(load, 350)
+}
 
-const botEnabled = ref(true)
-const showConvDialog = ref(false)
-const selectedConv = ref(null)
+async function load() {
+  loading.value = true
+  try {
+    const params = {}
+    if (filters.category) params.category = filters.category
+    if (filters.language) params.language = filters.language
+    if (filters.tone) params.tone = filters.tone
+    if (filters.status) params.status = filters.status
+    const { data } = await axios.get('/api/v1/helpdesk/cs-ai/response-templates', { params })
+    templates.value = data.data ?? []
+    pagination.value = data.meta ?? {}
+  } finally {
+    loading.value = false
+  }
+}
 
-const botConfig = ref({ welcome: 'Bonjour ! Je suis l\'assistant WideHalo. Comment puis-je vous aider ?', fallback: 'Je ne suis pas sûr de comprendre. Je vous mets en relation avec un agent.', threshold: 65 })
+const testTicketId = ref(null)
+const testing = ref(false)
+const testedOnce = ref(false)
+const testError = ref('')
+const suggestions = ref([])
 
-const stats = [
-  { label: 'Tickets auto-résolus', value: '68%', color: 'text-green-600' },
-  { label: 'Conversations bot (7j)', value: '247', color: 'text-blue-600' },
-  { label: 'Taux de déviation', value: '61%', color: 'text-purple-600' },
-  { label: 'Score CSAT bot', value: '4.2/5', color: 'text-orange-600' },
-]
+async function testSuggestions() {
+  if (!testTicketId.value) return
+  testing.value = true
+  testError.value = ''
+  testedOnce.value = true
+  try {
+    const { data } = await axios.get('/api/v1/helpdesk/cs-ai/response-suggestions', {
+      params: { ticket_id: testTicketId.value },
+    })
+    suggestions.value = data.suggestions ?? []
+  } catch (err) {
+    testError.value = err.response?.data?.message || 'Échec de la récupération des suggestions.'
+    suggestions.value = []
+  } finally {
+    testing.value = false
+  }
+}
 
-const kbSources = ref([
-  { name: 'Guide utilisateur WideHalo', articles: 142, active: true },
-  { name: 'FAQ Facturation', articles: 34, active: true },
-  { name: 'Procédures de retour', articles: 18, active: true },
-])
-
-const dailyPerf = [
-  { date: '18 mai', conversations: 32, resolved: 21, deflection: 66, csat: '4.3/5' },
-  { date: '19 mai', conversations: 28, resolved: 17, deflection: 61, csat: '4.1/5' },
-  { date: '20 mai', conversations: 35, resolved: 25, deflection: 71, csat: '4.5/5' },
-  { date: '21 mai', conversations: 41, resolved: 24, deflection: 59, csat: '3.9/5' },
-  { date: '22 mai', conversations: 29, resolved: 18, deflection: 62, csat: '4.2/5' },
-  { date: '23 mai', conversations: 38, resolved: 23, deflection: 61, csat: '4.0/5' },
-  { date: '24 mai', conversations: 44, resolved: 31, deflection: 70, csat: '4.4/5' },
-]
-
-const conversations = ref([
-  { client: 'Amadou Diallo', topic: 'Statut de livraison', confidence: 92, resolved: true, escalated: false, duration: '1m 20s', messages: [{ from: 'client', text: 'Où en est ma commande #4521?' }, { from: 'bot', text: 'Votre commande #4521 est en transit. Livraison estimée le 26 mai.' }, { from: 'client', text: 'Merci !' }] },
-  { client: 'Fatou Mbaye', topic: 'Remboursement', confidence: 58, resolved: false, escalated: true, agent: 'Sophie M.', escalatedAt: '14:32', duration: '4m 15s', messages: [{ from: 'client', text: 'Je veux un remboursement pour ma commande.' }, { from: 'bot', text: 'Je vais vous transférer à un agent spécialisé.' }] },
-  { client: 'Kofi Asante', topic: 'Réinitialisation mot de passe', confidence: 95, resolved: true, escalated: false, duration: '0m 45s' },
-  { client: 'Moussa Traoré', topic: 'Changement d\'adresse', confidence: 88, resolved: true, escalated: false, duration: '2m 10s' },
-  { client: 'Awa Koné', topic: 'Produit défectueux', confidence: 45, resolved: false, escalated: true, agent: 'Jean P.', escalatedAt: '11:05', duration: '6m 30s' },
-])
+onMounted(load)
 </script>
+
+<style scoped>
+.page-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; gap:16px; flex-wrap:wrap; }
+.wh-page-title { margin:0; font-size:22px; font-weight:700; color:var(--fg-1); }
+.wh-page-subtitle { margin:3px 0 0; font-size:13px; color:var(--fg-3); }
+.wh-panel { background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:var(--r-lg); overflow:hidden; }
+.wh-input { padding:7px 10px; border-radius:var(--r-md); border:1px solid var(--border-subtle); background:var(--bg-canvas); color:var(--fg-1); font-size:14px; outline:none; }
+.wh-dt { width:100%; border-collapse:collapse; font-size:14px; }
+.wh-dt thead th { text-align:left; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--fg-3); font-weight:600; padding:10px 18px; border-bottom:1px solid var(--border-subtle); background:var(--bg-sunken); }
+.wh-dt-row td { padding:12px 18px; border-bottom:1px solid var(--border-subtle); vertical-align:middle; }
+.wh-dt-row:last-child td { border-bottom:0; }
+.wh-dt-row:hover { background:var(--bg-sunken); }
+.badge { padding:2px 7px; border-radius:4px; font-size:11px; }
+.badge-green { background:var(--green-50,#f0fdf4); color:var(--green-600,#16a34a); }
+.badge-gray { background:var(--slate-100,#f1f5f9); color:var(--slate-600,#475569); }
+.btn { font-weight:500; font-size:13px; padding:8px 14px; border-radius:var(--r-md); border:1px solid transparent; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.btn-primary { background:var(--halo-500); color:#fff; }
+.btn-primary:disabled { opacity:.6; cursor:not-allowed; }
+.suggestion-card { background:var(--bg-sunken); border-radius:var(--r-md); padding:10px 12px; }
+</style>

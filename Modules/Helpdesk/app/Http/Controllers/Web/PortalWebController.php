@@ -19,9 +19,9 @@ class PortalWebController extends Controller
         $categories = $this->kbService->getPublicCategories();
 
         $featuredArticles = KbPortalArticle::where('status', 'published')
-            ->orderByDesc('views_count')
+            ->orderByDesc('view_count')
             ->limit(6)
-            ->get(['id', 'title', 'slug', 'excerpt', 'category_id', 'views_count']);
+            ->get(['id', 'title', 'slug', 'excerpt', 'category_id', 'view_count']);
 
         return Inertia::render('Helpdesk/Portal/Index', [
             'categories' => $categories,

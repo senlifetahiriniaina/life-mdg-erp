@@ -68,7 +68,7 @@
             <div class="article-excerpt" v-if="article.excerpt">{{ article.excerpt }}</div>
           </div>
           <div class="article-views">
-            <i class="pi pi-eye" style="font-size:11px" /> {{ article.views_count }}
+            <i class="pi pi-eye" style="font-size:11px" /> {{ article.view_count }}
           </div>
         </a>
       </div>
@@ -91,7 +91,7 @@
       <div v-if="currentArticle">
         <div class="article-meta-row">
           <span class="article-category-badge">{{ currentArticle.category?.name }}</span>
-          <span class="article-views"><i class="pi pi-eye" style="font-size:11px" /> {{ currentArticle.views_count }}</span>
+          <span class="article-views"><i class="pi pi-eye" style="font-size:11px" /> {{ currentArticle.view_count }}</span>
         </div>
         <div class="article-content">{{ currentArticle.content }}</div>
         <div class="article-feedback">

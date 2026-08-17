@@ -82,4 +82,18 @@ class KbPortalController extends Controller
 
         return response()->noContent();
     }
+
+    /**
+     * Record whether a portal visitor found the article helpful.
+     */
+    public function markHelpful(Request $request, KbPortalArticle $kbPortalArticle): JsonResponse
+    {
+        $validated = $request->validate([
+            'helpful' => 'required|boolean',
+        ]);
+
+        $kbPortalArticle->increment($validated['helpful'] ? 'helpful_count' : 'not_helpful_count');
+
+        return response()->json($kbPortalArticle->fresh());
+    }
 }

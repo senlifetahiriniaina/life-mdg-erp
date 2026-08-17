@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Helpdesk\Http\Controllers\Api\AgentPerformanceController;
 use Modules\Helpdesk\Http\Controllers\Api\AnswerBotController;
+use Modules\Helpdesk\Http\Controllers\Api\ChatController;
 use Modules\Helpdesk\Http\Controllers\Api\CsatController;
 use Modules\Helpdesk\Http\Controllers\Api\EscalationController;
 use Modules\Helpdesk\Http\Controllers\Api\ForumController;
@@ -27,6 +28,7 @@ Route::prefix('v1')->group(function () {
     // Public KB Portal (no auth to browse published articles)
     Route::get('helpdesk/kb/portal/articles', [KbPortalController::class, 'index']);
     Route::get('helpdesk/kb/portal/articles/{kbPortalArticle}', [KbPortalController::class, 'show']);
+    Route::post('helpdesk/kb/portal/articles/{kbPortalArticle}/helpful', [KbPortalController::class, 'markHelpful']);
     // Answer Bot — public self-service widget (stricter rate limit for unauthenticated callers)
     Route::post('helpdesk/bot/ask', [AnswerBotController::class, 'ask'])->middleware('throttle:20,1');
     Route::post('helpdesk/bot/deflect', [AnswerBotController::class, 'deflect'])->middleware('throttle:20,1');
@@ -37,6 +39,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     // Live Chat (agent actions — any authenticated user can act as agent)
     Route::post('helpdesk/chat/sessions/{session}/assign', [LiveChatController::class, 'assignAgent']);
     Route::post('helpdesk/chat/sessions/{session}/convert-to-ticket', [LiveChatController::class, 'convertToTicket']);
+    // ChatController is a superset of LiveChatController with queue/poll/close support
+    // that Chat/Index.vue already calls — those 3 methods were never routed at all.
+    Route::get('helpdesk/chat/queue', [ChatController::class, 'queue']);
+    Route::get('helpdesk/chat/sessions/{session}/messages', [ChatController::class, 'getMessages']);
+    Route::post('helpdesk/chat/sessions/{session}/close', [ChatController::class, 'closeSession']);
 
     // Community Forum (open to all authenticated users)
     Route::get('helpdesk/forum/posts', [ForumController::class, 'index'])->name('helpdesk.forum.index');

@@ -40,10 +40,14 @@ class KbPortalArticle extends Model
         'content',
         'status',
         'view_count',
+        'helpful_count',
+        'not_helpful_count',
     ];
 
     protected $casts = [
         'view_count' => 'integer',
+        'helpful_count' => 'integer',
+        'not_helpful_count' => 'integer',
     ];
 
     protected static function boot(): void
