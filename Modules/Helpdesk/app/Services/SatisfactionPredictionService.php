@@ -466,7 +466,8 @@ class SatisfactionPredictionService extends PersonalizationFramework
      */
     private function calculateFirstContactResolution(Ticket $ticket): float
     {
-        $messageCount = $ticket->messages()->count();
+        // Ticket has no `messages()` relation (only `comments()` — see Ticket::comments()).
+        $messageCount = $ticket->comments()->count();
 
         if ($messageCount <= 2) {
             return 0.95; // High likelihood
@@ -524,8 +525,8 @@ class SatisfactionPredictionService extends PersonalizationFramework
             default => 0.5,
         };
 
-        // Adjust based on response quality
-        $responseCount = $ticket->responses()->count();
+        // Adjust based on response quality (Ticket has no `responses()` relation — see Ticket::comments()).
+        $responseCount = $ticket->comments()->count();
         if ($responseCount > 5) {
             $baseScore += 0.1; // Bonus for thorough communication
         }

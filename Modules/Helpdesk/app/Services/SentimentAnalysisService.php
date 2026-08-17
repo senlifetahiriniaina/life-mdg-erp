@@ -112,7 +112,10 @@ class SentimentAnalysisService
         }
 
         $total = $positiveScore + $negativeScore;
-        if ($total === 0) {
+        // $positiveScore/$negativeScore are promoted to float as soon as any word scores,
+        // so `$total === 0` (strict int comparison) never matches a genuinely-zero float
+        // total and falls through to a division by zero — compare loosely instead.
+        if ($total == 0) {
             return 50;
         }
 
