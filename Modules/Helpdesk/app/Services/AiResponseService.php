@@ -145,8 +145,12 @@ class AiResponseService
             $response = str_replace('[COMPANY_NAME]', $ticket->company->name, $response);
         }
 
-        // Replace issue-specific details
-        $response = str_replace('[ISSUE_TYPE]', $ticket->category, $response);
+        // Replace issue-specific details. Bug fix: `category` is nullable (most tickets never
+        // set it — it's a real hd_tickets column but was never added to Ticket::$fillable) and
+        // str_replace()'s $replace param is `array|string` (not nullable) — passing null threw
+        // `TypeError: str_replace(): Argument #2 ($replace) must be of type array|string, null
+        // given` for the very common case of a ticket without a category.
+        $response = str_replace('[ISSUE_TYPE]', (string) $ticket->category, $response);
         $response = str_replace('[TICKET_ID]', (string) $ticket->id, $response);
 
         // Add personalized greeting based on sentiment
@@ -205,7 +209,13 @@ class AiResponseService
      */
     public function trackResponsePerformance(Ticket $ticket): array
     {
-        $responses = $ticket->responses()->get();
+        // Bug fix: Ticket has no `responses()` relation, only `comments()` (see
+        // Modules\Helpdesk\Models\Ticket) — this threw `Error: Call to undefined method` for
+        // every caller. Same bug class fixed at PredictiveEscalationService::calculateIssueComplexity()
+        // and (pre-existing) SatisfactionPredictionService. Note `TicketComment` has no
+        // `satisfaction_score`/`led_to_resolution` columns, so the loop below degrades to
+        // zeroed-out metrics rather than throwing — real behavior, not part of this fix.
+        $responses = $ticket->comments()->get();
 
         $metrics = [
             'total_responses' => $responses->count(),

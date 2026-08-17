@@ -405,7 +405,11 @@ class PredictiveEscalationService
         }
 
         // Check message count (more messages = more discussion = complexity)
-        $messageCount = $ticket->messages()->count();
+        // Bug fix: Ticket has no `messages()` relation, only `comments()` (see
+        // Modules\Helpdesk\Models\Ticket) — this threw `Error: Call to undefined method` for
+        // every caller. Same bug class as the ones already fixed in
+        // SatisfactionPredictionService (see ServiceTests.php's NOTE on that describe block).
+        $messageCount = $ticket->comments()->count();
         $complexity += min(($messageCount / 20) * 0.4, 0.4);
 
         return min($complexity, 1.0);

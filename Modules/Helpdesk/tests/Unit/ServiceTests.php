@@ -172,6 +172,31 @@ describe('SentimentAnalysisService', function () {
     });
 });
 
+// NOTE: This block was originally written against a phantom `PredictiveEscalationService::predict()`
+// contract that was never built (undefined method — see git history / PredictiveEscalationTest.php,
+// which targeted a matching but equally phantom `POST /api/v1/helpdesk/escalation/predict` HTTP
+// endpoint — plus `/escalation/batch-predict` and `/escalation/accuracy-metrics`, 38 tests total —
+// and has been removed for the same reason: zero real route or migration ever backed it). The REAL,
+// live escalation-prediction surface is `POST /api/v1/helpdesk/ai/predict-escalation` →
+// `HelpdeskAIController::predictEscalation()` → `HelpdeskAIService::predictEscalation()` → Core
+// `AIService` (LLM-backed, graceful fallback) — an entirely different, already-routed component; see
+// the new `Modules/Helpdesk/tests/Feature/HelpdeskAiEscalationResponseTest.php` for its coverage.
+// `PredictiveEscalationService` below IS separately real, substantial, on-the-fly heuristic-scoring
+// production code (used nowhere else, same profile as SatisfactionPredictionService) — this block now
+// exercises its actual public methods: `predictEscalationNeed()`, `predictSlaBreach()`,
+// `recommendEscalationActions()`, `trackPredictionAccuracy()`.
+//
+// Two real column-shape corrections along the way: (1) `hd_tickets` has no `metadata` or
+// `escalation_level` column (see the docblock on migration
+// 2026_06_19_000021_add_source_polymorphic_to_hd_tickets.php — customer_id/contact_id/metadata-style
+// columns were deliberately never wired to relations, superseded by source_type/source_id), so the
+// old "recently escalated" test's `metadata => ['escalated_at' => ...]` fixture was inert; (2)
+// `predictEscalationNeed()`'s `predicted_escalation_level` values are `L1`/`L2`/`L3`/`MANAGEMENT`
+// (see `ESCALATION_LEVELS` const), not the old test's lowercase `level1`/`management` guesses. A real,
+// latent bug was also found and fixed while doing this: `calculateIssueComplexity()` called the
+// undefined `Ticket::messages()` relation (only `comments()` exists) — same bug class as the
+// `SatisfactionPredictionService` fix in the sibling block above, fixed at
+// `PredictiveEscalationService.php` in `calculateIssueComplexity()`.
 describe('PredictiveEscalationService', function () {
     test('predicts escalation need', function () {
         $service = app(PredictiveEscalationService::class);
@@ -180,32 +205,56 @@ describe('PredictiveEscalationService', function () {
             'status' => 'open',
         ]);
 
-        $result = $service->predict($ticket);
+        $result = $service->predictEscalationNeed($ticket);
 
-        expect($result['needs_escalation'])->toBeBoolean();
-        expect($result['escalation_score'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(1);
+        // toBeBool(): the original `toBeBoolean()` call here (and at `will_breach` below) was
+        // itself phantom (not a real Pest expectation) — masked until now by the `predict()`
+        // undefined-method error firing first on every run.
+        expect($result['should_escalate'])->toBeBool();
+        expect($result['urgency_score'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(1);
     });
 
-    test('escalation score increases with age', function () {
+    test('escalation score increases with SLA time elapsed', function () {
+        // Real "age" signal is `calculateWaitTimeScore()`: hours-elapsed-vs-SLA-window, not raw
+        // calendar age — with no `sla_due_at` set (the common case; no default SlaPolicy is seeded
+        // in this test suite) every ticket gets the same flat 0.3 default regardless of age, so the
+        // comparison needs an explicit SLA window to be meaningful.
         $service = app(PredictiveEscalationService::class);
-        $newTicket = Ticket::factory()->create(['created_at' => now()->subHours(1)]);
-        $oldTicket = Ticket::factory()->create(['created_at' => now()->subDays(3)]);
+        $newTicket = Ticket::factory()->create([
+            'created_at' => now()->subHours(1),
+            'sla_due_at' => now()->addHours(23), // 24h window, ~4% elapsed
+            'description' => 'Standard ticket contents.',
+        ]);
+        $oldTicket = Ticket::factory()->create([
+            'created_at' => now()->subHours(20),
+            'sla_due_at' => now()->addHours(4), // 24h window, ~83% elapsed
+            'description' => 'Standard ticket contents.',
+        ]);
 
-        $newResult = $service->predict($newTicket);
-        $oldResult = $service->predict($oldTicket);
+        $newResult = $service->predictEscalationNeed($newTicket);
+        $oldResult = $service->predictEscalationNeed($oldTicket);
 
-        expect($oldResult['escalation_score'])->toBeGreaterThan($newResult['escalation_score']);
+        expect($oldResult['urgency_score'])->toBeGreaterThan($newResult['urgency_score']);
     });
 
     test('escalation score increases with priority', function () {
+        // Real priority effect lives only in `calculateIssueComplexity()`, and only bumps for
+        // `critical`/`high` (not `urgent` — a real, narrow behavior, not a phantom gap) so the
+        // comparison must use `critical` vs `low` to be deterministic.
         $service = app(PredictiveEscalationService::class);
-        $lowPriority = Ticket::factory()->create(['priority' => 'low']);
-        $urgentPriority = Ticket::factory()->create(['priority' => 'urgent']);
+        $lowPriority = Ticket::factory()->create([
+            'priority' => 'low',
+            'description' => 'Standard ticket contents.',
+        ]);
+        $criticalPriority = Ticket::factory()->create([
+            'priority' => 'critical',
+            'description' => 'Standard ticket contents.',
+        ]);
 
-        $lowResult = $service->predict($lowPriority);
-        $urgentResult = $service->predict($urgentPriority);
+        $lowResult = $service->predictEscalationNeed($lowPriority);
+        $criticalResult = $service->predictEscalationNeed($criticalPriority);
 
-        expect($urgentResult['escalation_score'])->toBeGreaterThan($lowResult['escalation_score']);
+        expect($criticalResult['urgency_score'])->toBeGreaterThan($lowResult['urgency_score']);
     });
 
     test('predicts sla breach', function () {
@@ -215,9 +264,9 @@ describe('PredictiveEscalationService', function () {
             'status' => 'open',
         ]);
 
-        $result = $service->predict($ticket);
+        $result = $service->predictSlaBreach($ticket);
 
-        expect($result['sla_breach_predicted'])->toBeBoolean();
+        expect($result['will_breach'])->toBeBool();
     });
 
     test('identifies escalation level', function () {
@@ -227,9 +276,9 @@ describe('PredictiveEscalationService', function () {
             'status' => 'open',
         ]);
 
-        $result = $service->predict($ticket);
+        $result = $service->predictEscalationNeed($ticket);
 
-        expect($result['escalation_level'])->toBeIn([null, 'level1', 'level2', 'level3', 'management']);
+        expect($result['predicted_escalation_level'])->toBeIn(['L1', 'L2', 'L3', 'MANAGEMENT']);
     });
 
     test('provides escalation reasons', function () {
@@ -239,32 +288,63 @@ describe('PredictiveEscalationService', function () {
             'created_at' => now()->subDays(2),
         ]);
 
-        $result = $service->predict($ticket);
+        $result = $service->recommendEscalationActions($ticket);
 
-        expect($result['escalation_reasons'])->toBeArray();
+        expect($result)->toBeArray();
     });
 
     test('provides confidence score', function () {
         $service = app(PredictiveEscalationService::class);
         $ticket = Ticket::factory()->create();
 
-        $result = $service->predict($ticket);
+        $result = $service->predictEscalationNeed($ticket);
 
         expect($result['confidence'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(1);
     });
 
-    test('handles recently escalated tickets', function () {
+    test('tracks prediction accuracy across multiple tickets', function () {
+        // NOTE: retargeted from "handles recently escalated tickets", which relied on a phantom
+        // `metadata => ['escalated_at' => ...]` ticket attribute (no such column — see block NOTE
+        // above) and a phantom `already_escalated` result key that predictEscalationNeed() never
+        // returns. `trackPredictionAccuracy()` is real, un-covered-elsewhere production code that
+        // exercises the same "does this service behave sanely across a batch of tickets" intent.
         $service = app(PredictiveEscalationService::class);
-        $ticket = Ticket::factory()->create([
-            'metadata' => ['escalated_at' => now()->subMinutes(5)],
-        ]);
+        $tickets = Ticket::factory()->count(3)->create();
 
-        $result = $service->predict($ticket);
+        $result = $service->trackPredictionAccuracy($tickets->pluck('id')->toArray());
 
-        expect($result['already_escalated'])->toBeBoolean();
+        expect($result['total_predictions'])->toBe(3);
+        expect($result['accuracy_rate'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(100);
+        expect($result['predictions'])->toHaveCount(3);
     });
 });
 
+// NOTE: This block was originally written against a phantom `AiResponseService::suggest()`/
+// `variants()` contract that was never built (undefined methods — see git history /
+// AiResponseTest.php, which targeted a matching but equally phantom
+// `POST /api/v1/helpdesk/ai-response/suggest` + `/ai-response/variants` HTTP contract, 37 tests
+// total, and has been removed for the same reason: zero real route or migration ever backed it).
+// The REAL, live AI-drafted-reply surface is `POST /api/v1/helpdesk/ai/suggest-response` →
+// `HelpdeskAIController::suggestResponse()` → `HelpdeskAIService::suggestResponse()` → Core
+// `AIService` (LLM-backed, graceful fallback) — an entirely different, already-routed component; see
+// the new `Modules/Helpdesk/tests/Feature/HelpdeskAiEscalationResponseTest.php` for its coverage.
+// `AiResponseService` below IS separately real, substantial, template/heuristic-based production
+// code — this block now exercises its actual public methods: `generateResponseSuggestions()`
+// (template + knowledge-base + sentiment-aware suggestions, already relevance-ranked),
+// `generateVariationsOfTemplate()`, `personalizeResponse()`, `generateMultiLanguageResponses()`.
+//
+// `personalizeResponse()`'s `[CUSTOMER_NAME]`/`[COMPANY_NAME]` placeholder branches read
+// `$ticket->customer`/`$ticket->company`, relations that were deliberately never defined on Ticket
+// — see the docblock on migration 2026_06_19_000021_add_source_polymorphic_to_hd_tickets.php:
+// "contact_id/customer_id/source_ref columns... had no matching relation on the Ticket model",
+// intentionally superseded by the polymorphic source_type/source_id pattern used by
+// `HelpdeskLinkable`. Those two branches are permanently-dead by design (degrade to a no-op, never
+// throw) — not a bug, so the "personalizes response" test below exercises the placeholders that DO
+// resolve instead. A real, latent bug was also found and fixed while doing this:
+// `trackResponsePerformance()` called the undefined `Ticket::responses()` relation (only
+// `comments()` exists) — same bug class as `PredictiveEscalationService`/`SatisfactionPredictionService`
+// above, fixed at `AiResponseService.php`; not separately covered here since it wasn't part of this
+// describe block's original intent.
 describe('AiResponseService', function () {
     test('generates response suggestion', function () {
         $service = app(AiResponseService::class);
@@ -273,94 +353,106 @@ describe('AiResponseService', function () {
             'description' => 'I cannot access my account',
         ]);
 
-        $result = $service->suggest($ticket);
+        $result = $service->generateResponseSuggestions($ticket);
 
-        expect($result['response_text'])->toBeString();
-        expect(strlen($result['response_text']))->toBeGreaterThan(10);
+        expect($result)->not->toBeEmpty();
+        expect($result[0]['content'])->toBeString();
+        expect(strlen($result[0]['content']))->toBeGreaterThan(10);
     });
 
     test('generates contextual response', function () {
+        // Real contextual behavior is sentiment-driven (not topic-keyword-driven): a
+        // negative-sentiment ticket pulls in `generateContextualSuggestions()`'s
+        // `sentiment => 'negative'` entry alongside the fixed templates.
         $service = app(AiResponseService::class);
         $ticket = Ticket::factory()->create([
-            'subject' => 'Billing issue',
-            'description' => 'Why was I charged twice?',
+            'subject' => 'Terrible experience',
+            'description' => 'This is unacceptable and awful, I am furious about this billing charge',
         ]);
 
-        $result = $service->suggest($ticket);
+        $result = $service->generateResponseSuggestions($ticket);
 
-        $text = strtolower($result['response_text']);
-        expect($text)->toContain('bill') | expect($text)->toContain('charge');
+        expect(array_column($result, 'sentiment'))->toContain('negative');
     });
 
-    test('respects tone parameter', function () {
+    test('personalizes response tone based on sentiment', function () {
+        // NOTE: retargeted — the real service has no `tone` parameter (formal/friendly);
+        // `personalizeResponse()`'s real, closest-equivalent behavior is prepending a
+        // sentiment-driven greeting (negative/positive/neutral/mixed) ahead of the response body.
+        $service = app(AiResponseService::class);
+        $negativeTicket = Ticket::factory()->create(['description' => 'This is terrible and awful.']);
+        $positiveTicket = Ticket::factory()->create(['description' => 'This is great and wonderful.']);
+
+        $negativeResponse = $service->personalizeResponse('Base response.', $negativeTicket);
+        $positiveResponse = $service->personalizeResponse('Base response.', $positiveTicket);
+
+        expect($negativeResponse)->not->toBe($positiveResponse);
+        expect($negativeResponse)->toContain('understand your concern');
+        expect($positiveResponse)->toContain('positive feedback');
+    });
+
+    test('generates response variations from a template', function () {
+        $service = app(AiResponseService::class);
+
+        $result = $service->generateVariationsOfTemplate('{{greeting}}, we will help with your issue. {{closing}}', 3);
+
+        expect($result)->toHaveCount(3);
+    });
+
+    test('variations are distinct', function () {
+        $service = app(AiResponseService::class);
+
+        $result = $service->generateVariationsOfTemplate('{{greeting}}, thanks for reaching out!', 3);
+
+        expect(count(array_unique($result)))->toBe(3);
+    });
+
+    test('suggestions are ranked by relevance score', function () {
         $service = app(AiResponseService::class);
         $ticket = Ticket::factory()->create();
 
-        $formalResult = $service->suggest($ticket, ['tone' => 'formal']);
-        $friendlyResult = $service->suggest($ticket, ['tone' => 'friendly']);
+        $result = $service->generateResponseSuggestions($ticket);
+        $scores = array_column($result, 'relevance_score');
 
-        expect($formalResult['tone'])->toBe('formal');
-        expect($friendlyResult['tone'])->toBe('friendly');
+        expect($scores[0])->toBeGreaterThanOrEqual($scores[1] ?? 0);
     });
 
-    test('generates variants', function () {
+    test('personalizes response with ticket-specific placeholders', function () {
+        $service = app(AiResponseService::class);
+        $ticket = Ticket::factory()->create();
+        // 'category' is a real hd_tickets column but not in Ticket::$fillable — set directly.
+        $ticket->category = 'billing';
+        $ticket->save();
+
+        $result = $service->personalizeResponse('Regarding [ISSUE_TYPE] ticket #[TICKET_ID].', $ticket);
+
+        expect($result)->toContain('billing');
+        expect($result)->toContain((string) $ticket->id);
+    });
+
+    test('relevance scores are bounded between 0 and 1', function () {
+        // NOTE: retargeted from "provides confidence score #2" — AiResponseService has no
+        // `confidence` concept anywhere (unlike PredictiveEscalationService); its real bounded
+        // quality signal is `relevance_score` from `rankSuggestionsByRelevance()`.
         $service = app(AiResponseService::class);
         $ticket = Ticket::factory()->create();
 
-        $result = $service->variants($ticket, 3);
+        $result = $service->generateResponseSuggestions($ticket);
 
-        expect($result['variants'])->toHaveCount(3);
-    });
-
-    test('variants are distinct', function () {
-        $service = app(AiResponseService::class);
-        $ticket = Ticket::factory()->create();
-
-        $result = $service->variants($ticket, 3);
-
-        $texts = array_map(fn($v) => $v['text'], $result['variants']);
-        expect(count(array_unique($texts)))->toBe(3);
-    });
-
-    test('variants are ranked by score', function () {
-        $service = app(AiResponseService::class);
-        $ticket = Ticket::factory()->create();
-
-        $result = $service->variants($ticket, 3);
-
-        $scores = array_map(fn($v) => $v['score'], $result['variants']);
-        expect($scores[0])->toBeGreaterThanOrEqual($scores[1]);
-    });
-
-    test('personalizes response', function () {
-        $service = app(AiResponseService::class);
-        $ticket = Ticket::factory()->create([
-            'metadata' => ['customer_name' => 'John Doe'],
-        ]);
-
-        $result = $service->suggest($ticket, ['personalize' => true]);
-
-        expect($result['response_text'])->toContain('John');
-    });
-
-    test('provides confidence score #2', function () {
-        $service = app(AiResponseService::class);
-        $ticket = Ticket::factory()->create();
-
-        $result = $service->suggest($ticket);
-
-        expect($result['confidence'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(1);
+        foreach ($result as $suggestion) {
+            expect($suggestion['relevance_score'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(1);
+        }
     });
 
     test('generates multi-language responses', function () {
         $service = app(AiResponseService::class);
         $ticket = Ticket::factory()->create();
 
-        $enResult = $service->suggest($ticket, ['language' => 'en']);
-        $esResult = $service->suggest($ticket, ['language' => 'es']);
+        $result = $service->generateMultiLanguageResponses($ticket, ['en', 'es']);
 
-        expect($enResult['language'])->toBe('en');
-        expect($esResult['language'])->toBe('es');
+        expect($result)->toHaveKeys(['en', 'es']);
+        expect($result['en'][0]['language'])->toBe('en');
+        expect($result['es'][0]['language'])->toBe('es');
     });
 });
 
