@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,7 +32,17 @@ class NewPasswordController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {
-                $user->forceFill(['password' => Hash::make($request->password), 'remember_token' => Str::random(60)])->save();
+                // OWASP password-reuse prevention: reject any of the user's last N
+                // password hashes (config('auth.password_history_limit'), default 5).
+                if ($user->wasPasswordUsedBefore($request->password)) {
+                    throw ValidationException::withMessages([
+                        'password' => __('This password has been used recently. Please choose a different one.'),
+                    ]);
+                }
+
+                $hashed = Hash::make($request->password);
+                $user->forceFill(['password' => $hashed, 'remember_token' => Str::random(60)])->save();
+                $user->recordPasswordHistory($hashed);
                 event(new PasswordReset($user));
             }
         );

@@ -29,7 +29,19 @@ class ProfileController extends Controller
             'current_password' => 'required|current_password',
             'password'         => 'required|min:8|confirmed',
         ]);
-        $request->user()->update(['password' => Hash::make($request->password)]);
+
+        // OWASP password-reuse prevention: reject any of the user's last N
+        // password hashes (config('auth.password_history_limit'), default 5).
+        if ($request->user()->wasPasswordUsedBefore($request->password)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'password' => __('This password has been used recently. Please choose a different one.'),
+            ]);
+        }
+
+        $hashed = Hash::make($request->password);
+        $request->user()->update(['password' => $hashed]);
+        $request->user()->recordPasswordHistory($hashed);
+
         return back()->with('success', 'Password changed.');
     }
 }

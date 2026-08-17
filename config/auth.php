@@ -112,4 +112,18 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Password History Limit
+    |--------------------------------------------------------------------------
+    |
+    | OWASP password-reuse prevention (App\Traits\HasPasswordHistory, used by
+    | App\Http\Controllers\Auth\NewPasswordController and
+    | App\Http\Controllers\Web\ProfileController): how many of a user's most
+    | recent password hashes are checked -- and retained -- to reject reuse.
+    |
+    */
+
+    'password_history_limit' => env('AUTH_PASSWORD_HISTORY_LIMIT', 5),
+
 ];
