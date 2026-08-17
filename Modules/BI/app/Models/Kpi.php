@@ -17,14 +17,23 @@ class Kpi extends Model
 
     protected $fillable = [
         'name',
+        'code',
+        'description',
+        'category',
+        'formula',
         'metric',
         'source_module',
         'current_value',
         'target_value',
         'threshold_warning',
         'threshold_critical',
+        'value',
+        'target',
         'unit',
+        'period',
+        'module',
         'trend',
+        'is_active',
         'last_calculated_at',
     ];
 
@@ -33,6 +42,9 @@ class Kpi extends Model
         'target_value' => 'decimal:4',
         'threshold_warning' => 'decimal:4',
         'threshold_critical' => 'decimal:4',
+        'value' => 'decimal:4',
+        'target' => 'decimal:4',
+        'is_active' => 'boolean',
         'last_calculated_at' => 'datetime',
     ];
 

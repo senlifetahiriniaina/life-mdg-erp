@@ -344,7 +344,13 @@ async function reloadKpis() {
 
 async function createKpi() {
   try {
-    const res = await axios.post('/api/v1/bi/kpis', createForm)
+    const res = await axios.post('/api/v1/bi/kpis', {
+      name: createForm.name,
+      category: createForm.category,
+      unit: createForm.unit,
+      target: createForm.target,
+      threshold_warning: createForm.threshold,
+    })
     if (res.data?.data) localKpis.value.push(res.data.data)
     showCreateDialog.value = false
     Object.assign(createForm, { name: '', category: 'general', format: 'raw', unit: '', target: null, threshold: null })

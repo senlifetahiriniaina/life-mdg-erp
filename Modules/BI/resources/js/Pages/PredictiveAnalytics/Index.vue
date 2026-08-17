@@ -1,107 +1,150 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Analyses Prédictives — IA</h1>
-        <p class="text-surface-500 text-sm mt-1">Prévisions de CA, churn, demande et comportements clients basés sur le machine learning</p>
-      </div>
-      <div class="flex gap-2">
-        <Select v-model="horizon" :options="['30 jours', '90 jours', '6 mois', '12 mois']" size="small" class="w-36" />
-        <Button label="Rafraîchir les modèles" icon="pi pi-refresh" :loading="refreshing" @click="refresh" v-if="canManage" />
-      </div>
-    </div>
+  <AppLayout>
+    <Head title="BI · Analyses Prédictives" />
 
-    <TabView>
-      <TabPanel header="Prévision CA">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <Card v-for="s in revenueStats" :key="s.label"><template #content>
-            <div class="text-xl font-bold" :class="s.color">{{ s.value }}</div>
-            <div class="text-xs text-surface-500 mt-1">{{ s.label }}</div>
-          </template></Card>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Analyses Prédictives — IA</h1>
+          <p class="text-surface-500 text-sm mt-1">Prévisions de chiffre d'affaires, modèles de machine learning et anomalies détectées</p>
         </div>
-        <Card>
-          <template #content>
-            <div class="space-y-3">
-              <div v-for="month in revenueForecasts" :key="month.period" class="flex items-center gap-3">
-                <span class="text-sm w-20">{{ month.period }}</span>
-                <div class="flex-1 relative">
-                  <ProgressBar :value="Math.round(month.forecast / maxForecast * 100)" :style="{ height: '24px' }" />
-                  <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-white">{{ month.forecast }}M</span>
-                </div>
-                <span class="text-xs w-24 text-right" :class="month.trend > 0 ? 'text-green-600' : 'text-red-500'">{{ month.trend > 0 ? '+' : '' }}{{ month.trend }}% vs N-1</span>
-                <Tag :value="month.confidence" severity="secondary" size="small" />
-              </div>
-            </div>
-          </template>
-        </Card>
-      </TabPanel>
+        <div class="flex gap-2">
+          <Select v-model="horizonMonths" :options="horizonOptions" option-label="label" option-value="value" size="small" class="w-36" @change="loadRevenueTrend" />
+          <Button label="Rafraîchir" icon="pi pi-refresh" :loading="loading" @click="loadAll" />
+        </div>
+      </div>
 
-      <TabPanel header="Prédiction Churn">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <template #header><div class="px-4 pt-4 font-semibold">Clients à risque de désabonnement</div></template>
-            <template #content>
-              <DataTable :value="churnRisks" stripedRows>
-                <Column field="client" header="Client" />
-                <Column field="churnProba" header="Risque churn">
-                  <template #body="{ data }">
-                    <div class="flex items-center gap-2">
-                      <ProgressBar :value="data.churnProba" :style="{ height: '8px', width: '80px' }" />
-                      <span :class="data.churnProba >= 75 ? 'text-red-600 font-bold' : data.churnProba >= 50 ? 'text-orange-500' : 'text-green-600'">{{ data.churnProba }}%</span>
-                    </div>
-                  </template>
-                </Column>
-                <Column field="lastOrder" header="Dernier achat" />
-                <Column field="signal" header="Signal principal" />
-                <Column header="">
-                  <template #body><Button label="Contacter" size="small" text /></template>
-                </Column>
-              </DataTable>
-            </template>
-          </Card>
+      <TabView>
+        <TabPanel header="Prévision CA">
+          <div v-if="revenueTrend" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <Card><template #content>
+              <div class="text-xl font-bold text-blue-600">{{ nextForecastValue }} XOF</div>
+              <div class="text-xs text-surface-500 mt-1">Prochain mois prévu</div>
+            </template></Card>
+            <Card><template #content>
+              <div class="text-xl font-bold" :class="trendColor">{{ revenueTrend.trend ?? '—' }}</div>
+              <div class="text-xs text-surface-500 mt-1">Tendance</div>
+            </template></Card>
+            <Card><template #content>
+              <div class="text-xl font-bold text-surface-600">{{ revenueTrend.months?.length ?? 0 }}</div>
+              <div class="text-xs text-surface-500 mt-1">Mois analysés</div>
+            </template></Card>
+            <Card><template #content>
+              <div class="text-xl font-bold text-purple-600">{{ revenueTrend.forecast?.length ?? 0 }}</div>
+              <div class="text-xs text-surface-500 mt-1">Mois projetés</div>
+            </template></Card>
+          </div>
 
-          <Card>
-            <template #header><div class="px-4 pt-4 font-semibold">LTV Prédite — Top clients</div></template>
+          <Card v-if="revenueTrend">
             <template #content>
               <div class="space-y-3">
-                <div v-for="client in ltvPredictions" :key="client.name" class="flex items-center justify-between p-2 border-b border-surface-100 last:border-0">
-                  <div>
-                    <div class="font-medium text-sm">{{ client.name }}</div>
-                    <div class="text-xs text-surface-400">{{ client.segment }}</div>
+                <div v-for="month in revenueTrend.months" :key="month.month" class="flex items-center gap-3">
+                  <span class="text-sm w-20">{{ month.month }}</span>
+                  <div class="flex-1 relative">
+                    <ProgressBar :value="progressPercent(month.revenue)" :style="{ height: '24px' }" />
+                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-white">{{ formatXof(month.revenue) }}</span>
                   </div>
-                  <div class="text-right">
-                    <div class="font-bold text-blue-600">{{ client.ltv }} M XOF</div>
-                    <div class="text-xs text-surface-400">LTV 24 mois · conf. {{ client.conf }}</div>
+                  <span class="text-xs w-24 text-right" :class="month.growth_rate > 0 ? 'text-green-600' : month.growth_rate < 0 ? 'text-red-500' : 'text-surface-400'">
+                    {{ month.growth_rate > 0 ? '+' : '' }}{{ (month.growth_rate * 100).toFixed(1) }}%
+                  </span>
+                </div>
+                <div v-for="month in revenueTrend.forecast" :key="`f-${month.month}`" class="flex items-center gap-3 opacity-60">
+                  <span class="text-sm w-20">{{ month.month }}</span>
+                  <div class="flex-1 relative">
+                    <ProgressBar :value="progressPercent(month.forecast_value)" :style="{ height: '24px' }" />
+                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-white">{{ formatXof(month.forecast_value) }}</span>
                   </div>
+                  <Tag value="Projeté" severity="secondary" size="small" />
                 </div>
               </div>
             </template>
           </Card>
-        </div>
-      </TabPanel>
+          <div v-else-if="!loading" class="text-center py-12 text-surface-400">Aucune donnée de revenu disponible.</div>
+        </TabPanel>
 
-      <TabPanel header="Modèles ML">
-        <DataTable :value="models" stripedRows>
-          <Column field="name" header="Modèle" />
-          <Column field="type" header="Type" />
-          <Column field="target" header="Variable cible" />
-          <Column field="accuracy" header="Précision">
-            <template #body="{ data }"><Tag :value="data.accuracy" :severity="parseFloat(data.accuracy) >= 90 ? 'success' : parseFloat(data.accuracy) >= 80 ? 'warn' : 'danger'" size="small" /></template>
-          </Column>
-          <Column field="trainingDate" header="Dernier entraînement" />
-          <Column field="dataPoints" header="Données d'entraînement" />
-          <Column header="">
-            <template #body><Button label="Réentraîner" size="small" text /></template>
-          </Column>
-        </DataTable>
-      </TabPanel>
-    </TabView>
-  </div>
+        <TabPanel header="Anomalies détectées">
+          <Card>
+            <template #header><div class="px-4 pt-4 font-semibold">Anomalies sur les métriques suivies</div></template>
+            <template #content>
+              <DataTable :value="anomalies" stripedRows :loading="loading">
+                <Column field="entity_type" header="Entité" />
+                <Column field="metric_name" header="Métrique" />
+                <Column field="anomaly_date" header="Date" />
+                <Column header="Écart">
+                  <template #body="{ data }">
+                    <span :class="Math.abs(data.deviation_percent) >= 30 ? 'text-red-600 font-bold' : 'text-orange-500'">
+                      {{ data.deviation_percent > 0 ? '+' : '' }}{{ data.deviation_percent }}%
+                    </span>
+                  </template>
+                </Column>
+                <Column field="severity" header="Sévérité">
+                  <template #body="{ data }">
+                    <Tag :value="data.severity" :severity="severityTag(data.severity)" size="small" />
+                  </template>
+                </Column>
+                <Column field="status" header="Statut" />
+                <Column header="">
+                  <template #body="{ data }">
+                    <Button
+                      v-if="data.status === 'new'"
+                      label="Acquitter"
+                      size="small"
+                      text
+                      :loading="acknowledgingId === data.id"
+                      @click="acknowledge(data)"
+                    />
+                  </template>
+                </Column>
+              </DataTable>
+              <p v-if="!loading && !anomalies.length" class="text-center text-surface-400 py-6">Aucune anomalie détectée.</p>
+            </template>
+          </Card>
+        </TabPanel>
+
+        <TabPanel header="Modèles ML">
+          <DataTable :value="models" stripedRows :loading="loading">
+            <Column field="name" header="Modèle" />
+            <Column field="model_type" header="Type" />
+            <Column field="entity_type" header="Entité cible" />
+            <Column header="Précision">
+              <template #body="{ data }">
+                <Tag
+                  v-if="data.accuracy_score !== null"
+                  :value="`${(data.accuracy_score * 100).toFixed(0)}%`"
+                  :severity="data.accuracy_score >= 0.9 ? 'success' : data.accuracy_score >= 0.8 ? 'warn' : 'danger'"
+                  size="small"
+                />
+                <span v-else class="text-surface-400">—</span>
+              </template>
+            </Column>
+            <Column header="Dernier entraînement">
+              <template #body="{ data }">{{ data.last_trained_at ? formatDate(data.last_trained_at) : 'Jamais' }}</template>
+            </Column>
+            <Column field="forecast_horizon_days" header="Horizon (j)" />
+            <Column header="">
+              <template #body="{ data }">
+                <Button
+                  label="Générer les prévisions"
+                  size="small"
+                  text
+                  :loading="generatingId === data.id"
+                  v-if="canManage"
+                  @click="generateForecasts(data)"
+                />
+              </template>
+            </Column>
+          </DataTable>
+          <p v-if="!loading && !models.length" class="text-center text-surface-400 py-6">Aucun modèle prédictif configuré.</p>
+        </TabPanel>
+      </TabView>
+    </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { usePage } from '@inertiajs/vue3'
+import { ref, computed, onMounted } from 'vue'
+import { Head } from '@inertiajs/vue3'
+import axios from 'axios'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
@@ -111,51 +154,108 @@ import ProgressBar from 'primevue/progressbar'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import Select from 'primevue/select'
+import AppLayout from '@/Layouts/AppLayout.vue'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
-const page = usePage()
 const { isElevated } = useRoleAccess()
 const canManage = computed(() => isElevated.value)
 
-const horizon = ref('90 jours')
-const refreshing = ref(false)
-const refresh = async () => { refreshing.value = true; await new Promise(r => setTimeout(r, 2000)); refreshing.value = false }
+const loading = ref(false)
+const models = ref([])
+const anomalies = ref([])
+const revenueTrend = ref(null)
+const acknowledgingId = ref(null)
+const generatingId = ref(null)
 
-const revenueStats = [
-  { label: 'Prévision Juin 2026', value: '310M XOF', color: 'text-blue-600' },
-  { label: 'Intervalle confiance', value: '±8%', color: 'text-surface-600' },
-  { label: 'Précision modèle', value: '91%', color: 'text-green-600' },
-  { label: 'vs Budget', value: '+4%', color: 'text-purple-600' },
+const horizonOptions = [
+  { label: '3 mois', value: 3 },
+  { label: '6 mois', value: 6 },
+  { label: '12 mois', value: 12 },
+  { label: '24 mois', value: 24 },
 ]
+const horizonMonths = ref(12)
 
-const revenueForecasts = [
-  { period: 'Juin 2026', forecast: 310, trend: 9, confidence: '91%' },
-  { period: 'Juil. 2026', forecast: 295, trend: 5, confidence: '87%' },
-  { period: 'Août 2026', forecast: 280, trend: 2, confidence: '82%' },
-  { period: 'Sep. 2026', forecast: 340, trend: 15, confidence: '78%' },
-  { period: 'Oct. 2026', forecast: 360, trend: 18, confidence: '74%' },
-  { period: 'Nov. 2026', forecast: 420, trend: 22, confidence: '69%' },
-]
+async function loadModels() {
+  const { data } = await axios.get('/api/v1/bi/predictive-models')
+  models.value = data?.data ?? []
+}
 
-const maxForecast = computed(() => Math.max(...revenueForecasts.map(m => m.forecast)))
+async function loadAnomalies() {
+  const { data } = await axios.get('/api/v1/bi/anomalies')
+  anomalies.value = data?.data ?? []
+}
 
-const churnRisks = ref([
-  { client: 'Vodafone Ghana', churnProba: 82, lastOrder: 'il y a 45j', signal: 'Inactivité + tickets ouverts' },
-  { client: 'BCEAO', churnProba: 71, lastOrder: 'il y a 38j', signal: 'Renouvellement contrat expiré' },
-  { client: 'Orange CI', churnProba: 45, lastOrder: 'il y a 22j', signal: 'Baisse volumes -30%' },
-  { client: 'Ecobank Sénégal', churnProba: 18, lastOrder: 'il y a 8j', signal: '—' },
-])
+async function loadRevenueTrend() {
+  const { data } = await axios.get('/api/v1/bi/analytics/revenue-trend', { params: { months: horizonMonths.value } })
+  revenueTrend.value = data
+}
 
-const ltvPredictions = [
-  { name: 'Groupe Sonatel', segment: 'Grand compte', ltv: '245', conf: '88%' },
-  { name: 'Ecobank Sénégal', segment: 'Grand compte', ltv: '198', conf: '85%' },
-  { name: 'MTN Cameroun', segment: 'Grand compte', ltv: '174', conf: '82%' },
-  { name: 'Orange CI', segment: 'Grand compte', ltv: '156', conf: '79%' },
-]
+async function loadAll() {
+  loading.value = true
+  try {
+    await Promise.all([loadModels(), loadAnomalies(), loadRevenueTrend()])
+  } finally {
+    loading.value = false
+  }
+}
 
-const models = ref([
-  { name: 'Prévision CA', type: 'Time Series (LSTM)', target: 'Chiffre d\'affaires mensuel', accuracy: '91%', trainingDate: '1 mai 2026', dataPoints: '36 mois' },
-  { name: 'Prédiction churn', type: 'Gradient Boosting', target: 'Probabilité désabonnement', accuracy: '87%', trainingDate: '15 mai 2026', dataPoints: '12 400 clients' },
-  { name: 'LTV client', type: 'Régression XGBoost', target: 'Valeur vie client 24 mois', accuracy: '84%', trainingDate: '10 mai 2026', dataPoints: '8 200 clients' },
-  { name: 'Prévision demande', type: 'Prophet (Facebook)', target: 'Quantité vendue par SKU', accuracy: '89%', trainingDate: '20 mai 2026', dataPoints: '284 SKUs × 24 mois' },
-])
+onMounted(loadAll)
+
+const maxRevenue = computed(() => {
+  const values = [
+    ...(revenueTrend.value?.months ?? []).map(m => m.revenue),
+    ...(revenueTrend.value?.forecast ?? []).map(m => m.forecast_value),
+  ]
+  return values.length ? Math.max(...values) : 1
+})
+
+function progressPercent(value) {
+  return maxRevenue.value > 0 ? Math.round((value / maxRevenue.value) * 100) : 0
+}
+
+const nextForecastValue = computed(() => {
+  const first = revenueTrend.value?.forecast?.[0]
+  return first ? formatXof(first.forecast_value) : '—'
+})
+
+const trendColor = computed(() => {
+  const t = revenueTrend.value?.trend
+  if (t === 'up' || t === 'increasing') return 'text-green-600'
+  if (t === 'down' || t === 'decreasing') return 'text-red-500'
+  return 'text-surface-600'
+})
+
+function formatXof(value) {
+  if (value === null || value === undefined) return '—'
+  return new Intl.NumberFormat('fr-FR').format(Math.round(value))
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
+}
+
+function severityTag(severity) {
+  return { low: 'info', medium: 'secondary', high: 'warn', critical: 'danger' }[severity] ?? 'secondary'
+}
+
+async function acknowledge(anomaly) {
+  acknowledgingId.value = anomaly.id
+  try {
+    await axios.post(`/api/v1/bi/anomalies/${anomaly.id}/acknowledge`)
+    anomaly.status = 'acknowledged'
+  } finally {
+    acknowledgingId.value = null
+  }
+}
+
+async function generateForecasts(model) {
+  generatingId.value = model.id
+  try {
+    await axios.post(`/api/v1/bi/predictive-models/${model.id}/generate`, {
+      days: model.forecast_horizon_days || 30,
+    })
+  } finally {
+    generatingId.value = null
+  }
+}
 </script>

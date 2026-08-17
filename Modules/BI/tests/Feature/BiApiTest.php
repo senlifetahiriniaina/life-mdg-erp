@@ -29,7 +29,7 @@ test('authenticated user can create a KPI', function () {
             'source_module' => 'Accounting',
         ])
         ->assertStatus(201)
-        ->assertJsonPath('name', 'Monthly Revenue');
+        ->assertJsonPath('data.name', 'Monthly Revenue');
 });
 
 test('unauthenticated user cannot access BI', function () {

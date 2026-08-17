@@ -143,12 +143,16 @@ defineProps({
 })
 
 const navItems = [
-  { href: '/bi/analytics',    icon: 'pi pi-chart-line', title: 'Analytics',         sub: 'Revenus, tickets, leads',   bg: 'var(--halo-50)',    color: 'var(--halo-600)' },
-  { href: '/bi/kpis',         icon: 'pi pi-gauge',      title: 'KPIs',              sub: 'Indicateurs & objectifs',   bg: '#f0fdf4',           color: '#16a34a' },
-  { href: '/bi/reports',      icon: 'pi pi-file-pdf',   title: 'Rapports',          sub: 'Planifiés & exports',       bg: '#fff7ed',           color: '#c2410c' },
-  { href: '/bi/alerts',       icon: 'pi pi-bell',       title: 'Alertes',           sub: 'Seuils & notifications',    bg: '#fefce8',           color: '#a16207' },
-  { href: '/bi/data-sources', icon: 'pi pi-database',   title: 'Sources de données',sub: 'Connexions externes',       bg: '#f0f9ff',           color: '#0369a1' },
-  { href: '/bi/sql-editor',   icon: 'pi pi-code',       title: 'Éditeur SQL',       sub: 'Requêtes personnalisées',   bg: '#faf5ff',           color: '#7c3aed' },
+  { href: '/bi/analytics',            icon: 'pi pi-chart-line',   title: 'Analytics',              sub: 'Revenus, tickets, leads',        bg: 'var(--halo-50)',    color: 'var(--halo-600)' },
+  { href: '/bi/kpis',                 icon: 'pi pi-gauge',        title: 'KPIs',                   sub: 'Indicateurs & objectifs',        bg: '#f0fdf4',           color: '#16a34a' },
+  { href: '/bi/reports',              icon: 'pi pi-file-pdf',     title: 'Rapports',               sub: 'Planifiés & exports',            bg: '#fff7ed',           color: '#c2410c' },
+  { href: '/bi/alerts',               icon: 'pi pi-bell',         title: 'Alertes',                sub: 'Seuils & notifications',         bg: '#fefce8',           color: '#a16207' },
+  { href: '/bi/data-sources',         icon: 'pi pi-database',     title: 'Sources de données',     sub: 'Connexions externes',            bg: '#f0f9ff',           color: '#0369a1' },
+  { href: '/bi/sql-editor',           icon: 'pi pi-code',         title: 'Éditeur SQL',            sub: 'Requêtes personnalisées',        bg: '#faf5ff',           color: '#7c3aed' },
+  { href: '/bi/nl-query',             icon: 'pi pi-comments',     title: 'Question en langage naturel', sub: 'Ask your data ✨',          bg: '#eff6ff',           color: '#2563eb' },
+  { href: '/bi/predictive-analytics', icon: 'pi pi-sparkles',     title: 'Analyses prédictives',   sub: 'CA, churn, LTV, modèles ML',     bg: '#fdf4ff',           color: '#a21caf' },
+  { href: '/bi/ai-narratives',        icon: 'pi pi-align-left',   title: 'Narrations IA',          sub: 'Résumés automatiques des KPIs',  bg: '#f0fdfa',           color: '#0d9488' },
+  { href: '/bi/visualizations',       icon: 'pi pi-th-large',     title: 'Galerie de visualisations', sub: 'Types de graphiques disponibles', bg: '#fff1f2',        color: '#e11d48' },
 ]
 
 const reportStatusBadge = (status) => ({

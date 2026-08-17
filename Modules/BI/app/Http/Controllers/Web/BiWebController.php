@@ -8,9 +8,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Modules\BI\Http\Resources\KpiResource;
 use Modules\BI\Models\BiAlert;
 use Modules\BI\Models\BiDataSource;
 use Modules\BI\Models\BiQuery;
+use Modules\BI\Models\Dashboard;
 use Modules\BI\Models\Kpi;
 use Modules\BI\Models\Report;
 
@@ -20,14 +22,79 @@ class BiWebController extends Controller
     {
         $kpis = Kpi::all();
 
+        $dashboards = Dashboard::withCount('widgets')
+            ->where(function ($q) use ($request): void {
+                $q->where('user_id', $request->user()?->id)->orWhere('is_public', true);
+            })
+            ->latest()
+            ->get();
+
         $recentReports = Report::query()
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
 
         return Inertia::render('BI/Index', [
-            'kpis' => $kpis,
+            'kpis' => KpiResource::collection($kpis)->resolve(),
+            'dashboards' => $dashboards,
             'recentReports' => $recentReports,
+        ]);
+    }
+
+    public function analytics(Request $request): Response
+    {
+        return Inertia::render('BI/Analytics');
+    }
+
+    public function kpisPage(Request $request): Response
+    {
+        $kpis = Kpi::latest()->get();
+
+        return Inertia::render('BI/Kpis', [
+            'kpis' => KpiResource::collection($kpis)->resolve(),
+            'period' => 'month',
+        ]);
+    }
+
+    public function nlQuery(Request $request): Response
+    {
+        return Inertia::render('BI/NlQuery');
+    }
+
+    public function visualizations(Request $request): Response
+    {
+        return Inertia::render('BI/Visualizations/Index');
+    }
+
+    public function aiNarratives(Request $request): Response
+    {
+        return Inertia::render('BI/AINarratives/Index');
+    }
+
+    public function predictiveAnalytics(Request $request): Response
+    {
+        return Inertia::render('BI/PredictiveAnalytics/Index');
+    }
+
+    public function dashboardShow(Dashboard $dashboard): Response
+    {
+        $dashboard->load('widgets');
+
+        return Inertia::render('BI/Dashboard', [
+            'dashboard' => $dashboard,
+            'widgets' => $dashboard->widgets,
+        ]);
+    }
+
+    public function builder(Request $request, ?Dashboard $dashboard = null): Response
+    {
+        $dashboard?->load('widgets');
+
+        return Inertia::render('BI/Builder', [
+            'dashboardId' => $dashboard?->id,
+            'dashboardName' => $dashboard?->name ?? '',
+            'existingWidgets' => $dashboard?->widgets ?? [],
+            'dataSources' => BiDataSource::latest()->limit(20)->get(['id', 'name', 'type']),
         ]);
     }
 

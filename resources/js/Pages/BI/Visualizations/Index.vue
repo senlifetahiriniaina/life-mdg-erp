@@ -115,7 +115,7 @@
       <!-- Call to action -->
       <div class="flex justify-center">
         <a
-          href="/bi/builder"
+          href="/bi/dashboards/builder"
           class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <i class="pi pi-plus-circle text-sm" />
