@@ -46,13 +46,6 @@ class BankTransactionController extends Controller
         return response()->json($transaction->fresh());
     }
 
-    public function autoMatch(Request $request, BankAccount $bankAccount): JsonResponse
-    {
-        $count = $this->service->autoMatch($bankAccount);
-
-        return response()->json(['matched' => $count]);
-    }
-
     public function unmatch(Request $request): JsonResponse
     {
         $request->validate([

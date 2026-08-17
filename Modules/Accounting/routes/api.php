@@ -9,8 +9,8 @@ use Modules\Accounting\Http\Controllers\Api\FinancialRatiosController;
 use Modules\Accounting\Http\Controllers\Api\GLAccountController;
 use Modules\Accounting\Http\Controllers\Api\InvoiceApprovalController;
 use Modules\Accounting\Http\Controllers\Api\InvoiceController;
+use Modules\Accounting\Http\Controllers\Api\InvoiceExportController;
 use Modules\Accounting\Http\Controllers\Api\JournalController;
-use Modules\Accounting\Http\Controllers\Api\OpenBankingController;
 use Modules\Accounting\Http\Controllers\Api\ReportController;
 use Modules\Accounting\Http\Controllers\Api\ReportingController;
 use Modules\Accounting\Http\Controllers\TaxComplianceReportController;
@@ -34,6 +34,7 @@ use Modules\Accounting\Http\Controllers\Api\ExpenseReportController;
 use Modules\Accounting\Http\Controllers\Api\TreasuryController;
 use Modules\Accounting\Http\Controllers\Api\FixedAssetController;
 use Modules\Accounting\Http\Controllers\Api\BankReconciliationController;
+use Modules\Accounting\Http\Controllers\Api\ReconciliationSessionController;
 use Modules\Accounting\Http\Controllers\Api\TreasuryPlanningController;
 use Modules\Accounting\Http\Controllers\Api\AccOpenBankingController;
 use Modules\Accounting\Http\Controllers\Api\VatRateController;
@@ -54,6 +55,8 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::get('invoices/outstanding', [InvoiceController::class, 'outstanding']);
     Route::get('invoices/overdue', [InvoiceController::class, 'overdue']);
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
+    Route::get('invoices/{invoice}/pdf', [InvoiceExportController::class, 'pdf']);
+    Route::get('invoices/export/excel', [InvoiceExportController::class, 'excel']);
     Route::get('invoices/approvals/pending', [InvoiceApprovalController::class, 'pending']);
     Route::get('invoices/{invoice}/approvals', [InvoiceApprovalController::class, 'index']);
     Route::get('expenses', [ExpenseController::class, 'index']);
@@ -350,8 +353,19 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::apiResource('bank', BankAccountController::class);
     Route::get('bank/{bank}/statements', [BankAccountController::class, 'statements']);
     Route::post('bank/{bank}/statements', [BankReconciliationController::class, 'importStatement']);
+    Route::get('bank/{bankAccount}/transactions', [BankTransactionController::class, 'index']);
     Route::post('bank/transactions/{transaction}/match', [BankTransactionController::class, 'match']);
     Route::post('bank/transactions/{transaction}/ignore', [BankTransactionController::class, 'ignore']);
+    Route::post('bank/transactions/unmatch', [BankTransactionController::class, 'unmatch']);
+
+    // Reconciliation sessions & account-level auto-match (bank-accounts/{bankAccount}/... —
+    // matches BankAccount $bankAccount param naming used by ReconciliationSessionController)
+    Route::post('bank-accounts/{bankAccount}/transactions/auto-match', [BankReconciliationController::class, 'autoMatchAccount']);
+    Route::get('bank-accounts/{bankAccount}/sessions', [ReconciliationSessionController::class, 'index']);
+    Route::post('bank-accounts/{bankAccount}/sessions', [ReconciliationSessionController::class, 'store']);
+    Route::get('bank-accounts/{bankAccount}/sessions/{reconciliationSession}', [ReconciliationSessionController::class, 'show']);
+    Route::delete('bank-accounts/{bankAccount}/sessions/{reconciliationSession}', [ReconciliationSessionController::class, 'destroy']);
+    Route::post('bank-accounts/{bankAccount}/sessions/{reconciliationSession}/complete', [ReconciliationSessionController::class, 'complete']);
 
     // Exchange Rates (static routes BEFORE apiResource to avoid {exchangeRate} binding conflict)
     Route::get('exchange-rates/gain-losses', [ExchangeRateController::class, 'gainLosses']);

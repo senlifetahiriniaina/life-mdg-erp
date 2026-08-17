@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Accounting\Models\BankAccount;
 use Modules\Accounting\Models\BankStatement;
 use Modules\Accounting\Models\BankTransaction;
+use Modules\Accounting\Models\ReconciliationSession;
 
 class BankReconciliationService
 {
@@ -48,6 +49,18 @@ class BankReconciliationService
         }
 
         return $statement;
+    }
+
+    /**
+     * Auto-match unmatched transactions across every one of an account's
+     * statements (the Reconcile.vue "Auto-Match" action operates per
+     * account, not per statement).
+     */
+    public function autoMatchAccount(BankAccount $account): int
+    {
+        return $account->statements()
+            ->get()
+            ->sum(fn (BankStatement $statement) => $this->autoMatch($statement));
     }
 
     /**
@@ -227,5 +240,23 @@ class BankReconciliationService
     public function getAccountStatements(BankAccount $account): Collection
     {
         return $account->statements()->latest('statement_date')->get();
+    }
+
+    /**
+     * Complete a reconciliation session: mark it completed and update the
+     * bank account's reconciled balance from the session's closing balance.
+     */
+    public function completeReconciliation(ReconciliationSession $session): ReconciliationSession
+    {
+        $session->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        if ($session->closing_balance !== null) {
+            $session->bankAccount->markReconciled((float) $session->closing_balance);
+        }
+
+        return $session->fresh();
     }
 }

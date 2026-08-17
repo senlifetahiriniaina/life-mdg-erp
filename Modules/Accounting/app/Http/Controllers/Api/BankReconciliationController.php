@@ -23,65 +23,6 @@ class BankReconciliationController extends Controller
         private readonly BankReconciliationService $service,
     ) {}
 
-    // ─── Bank Accounts ────────────────────────────────────────────────────────
-
-    public function indexAccounts(): JsonResponse
-    {
-        $accounts = BankAccount::latest()->get();
-
-        return response()->json($accounts);
-    }
-
-    public function storeAccount(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'bank_name' => 'required|string|max:255',
-            'account_number' => 'nullable|string|max:100',
-            'currency' => 'nullable|string|size:3',
-            'current_balance' => 'nullable|numeric',
-            'is_active' => 'nullable|boolean',
-            'notes' => 'nullable|string',
-        ]);
-
-        $account = $this->service->createBankAccount($validated);
-
-        return response()->json($account, 201);
-    }
-
-    public function showAccount(BankAccount $account): JsonResponse
-    {
-        return response()->json($account);
-    }
-
-    public function updateAccount(Request $request, BankAccount $account): JsonResponse
-    {
-        $this->authorize('update', $account);
-
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'bank_name' => 'sometimes|required|string|max:255',
-            'account_number' => 'nullable|string|max:100',
-            'currency' => 'nullable|string|size:3',
-            'current_balance' => 'nullable|numeric',
-            'is_active' => 'nullable|boolean',
-            'notes' => 'nullable|string',
-        ]);
-
-        $account->update($validated);
-
-        return response()->json($account->fresh());
-    }
-
-    public function destroyAccount(BankAccount $account): JsonResponse
-    {
-        $this->authorize('delete', $account);
-
-        $account->delete();
-
-        return response()->json(null, 204);
-    }
-
     // ─── Statements ───────────────────────────────────────────────────────────
 
     public function accountStatements(BankAccount $account): JsonResponse
@@ -128,6 +69,13 @@ class BankReconciliationController extends Controller
             'matched_count' => $count,
             'statement' => $statement->fresh(),
         ]);
+    }
+
+    public function autoMatchAccount(BankAccount $bankAccount): JsonResponse
+    {
+        $count = $this->service->autoMatchAccount($bankAccount);
+
+        return response()->json(['matched_count' => $count]);
     }
 
     // ─── Transaction Actions ─────────────────────────────────────────────────

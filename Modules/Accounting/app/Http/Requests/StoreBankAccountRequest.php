@@ -27,7 +27,7 @@ class StoreBankAccountRequest extends FormRequest
             'bic' => ['nullable', 'string', 'max:11'],
             'currency' => ['nullable', 'string', 'size:3'],
             'gl_account_id' => ['nullable', 'exists:acc_chart_of_accounts,id'],
-            'active' => ['nullable', 'boolean'],
+            'is_active' => ['nullable', 'boolean'],
         ];
     }
 }

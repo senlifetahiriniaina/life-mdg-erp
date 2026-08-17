@@ -229,7 +229,7 @@ async function syncConnection(conn: OpenBankingConnection) {
 async function createAccount() {
   creating.value = true
   try {
-    await fetch('/api/v1/accounting/bank-accounts', {
+    await fetch('/api/v1/accounting/bank', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
       body: JSON.stringify(createForm),

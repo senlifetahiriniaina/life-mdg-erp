@@ -181,12 +181,11 @@ async function matchSelected() {
   if (!selectedTx.value || !selectedEntry.value) return
   matching.value = true
   try {
-    await fetch('/api/v1/accounting/bank-transactions/match', {
+    await fetch(`/api/v1/accounting/bank/transactions/${selectedTx.value.id}/match`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
       body: JSON.stringify({
-        transaction_id: selectedTx.value.id,
-        journal_entry_id: selectedEntry.value.id,
+        entry_id: selectedEntry.value.id,
       }),
     })
     selectedTx.value = null

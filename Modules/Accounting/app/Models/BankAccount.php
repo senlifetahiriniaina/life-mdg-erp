@@ -17,6 +17,9 @@ use Modules\Accounting\Database\Factories\BankAccountFactory;
  * @property string $name
  * @property string $bank_name
  * @property string $account_number
+ * @property int|null $gl_account_id
+ * @property string|null $iban
+ * @property string|null $bic
  * @property string $currency
  * @property string $current_balance
  * @property Carbon|null $last_reconciled_at
@@ -45,6 +48,9 @@ class BankAccount extends Model
         'name',
         'bank_name',
         'account_number',
+        'gl_account_id',
+        'iban',
+        'bic',
         'currency',
         'current_balance',
         'last_reconciled_at',
@@ -60,6 +66,7 @@ class BankAccount extends Model
         'last_reconciled_at' => 'datetime',
         'account_number' => 'encrypted',
         'bank_name' => 'encrypted',
+        'iban' => 'encrypted',
         'notes' => 'encrypted',
     ];
 
@@ -74,6 +81,11 @@ class BankAccount extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(BankTransaction::class, 'bank_account_id');
+    }
+
+    public function reconciliationSessions(): HasMany
+    {
+        return $this->hasMany(ReconciliationSession::class, 'bank_account_id');
     }
 
     public function glAccount(): \Illuminate\Database\Eloquent\Relations\BelongsTo
