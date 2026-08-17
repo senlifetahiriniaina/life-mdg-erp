@@ -16,13 +16,13 @@ class WorkflowBuilderTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        // Chantier 8.2: WorkflowBuilderController now enforces WorkflowPolicy (it
+        // silently allowed any authenticated user before) — needs a real role/permission grant.
+        $this->user = $this->actingAsUser('admin');
     }
 
     public function test_user_can_create_workflow(): void
     {
-        $this->actingAs($this->user);
-
         $response = $this->postJson('/api/v1/crm/workflows', [
             'name'           => 'New Opportunity Workflow',
             'description'    => 'Workflow for new opportunities',

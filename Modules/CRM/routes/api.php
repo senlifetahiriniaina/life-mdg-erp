@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\CRM\Http\Controllers\Api\AccountController;
 use Modules\CRM\Http\Controllers\Api\ActivityController;
 use Modules\CRM\Http\Controllers\Api\AiAgentController;
-use Modules\CRM\Http\Controllers\CampaignController;
+use Modules\CRM\Http\Controllers\Api\CampaignController;
 use Modules\CRM\Http\Controllers\Api\ContactController;
 use Modules\CRM\Http\Controllers\Api\ContactEmailController;
 use Modules\CRM\Http\Controllers\Api\CrmAIController;
@@ -20,12 +20,11 @@ use Modules\CRM\Http\Controllers\Api\PipelineAnalyticsController;
 use Modules\CRM\Http\Controllers\Api\PipelineController;
 use Modules\CRM\Http\Controllers\Api\QuoteController;
 use Modules\CRM\Http\Controllers\Api\TerritoryController;
-use Modules\CRM\Http\Controllers\Api\TerritoryManagementController;
 use Modules\CRM\Http\Controllers\Api\CallRecordingController;
 use Modules\CRM\Http\Controllers\Api\VoipController;
 use Modules\CRM\Http\Controllers\Api\WebFormController;
-use Modules\CRM\Http\Controllers\RevenueIntelligenceController;
-use Modules\CRM\Http\Controllers\WorkflowBuilderController;
+use Modules\CRM\Http\Controllers\Api\RevenueIntelligenceController;
+use Modules\CRM\Http\Controllers\Api\WorkflowBuilderController;
 
 // Public web-form submission — no auth
 Route::post('v1/crm/forms/{slug}/submit', [WebFormController::class, 'submit'])
@@ -75,17 +74,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
         Route::post('crm/territories/{territory}/assign-opportunity', [TerritoryController::class, 'assignOpportunity'])->name('crm.territories.assign-opportunity');
     });
 
-    // Tier 2: Territory Management (complex analytics, 400 req/min)
-    Route::middleware('throttle:complex_get')->prefix('crm/territory-management')->group(function () {
-        Route::get('/', [TerritoryManagementController::class, 'index'])->name('crm.territory-management.index');
-        Route::get('coverage', [TerritoryManagementController::class, 'coverage'])->name('crm.territory-management.coverage');
-        Route::get('forecast', [TerritoryManagementController::class, 'forecast'])->name('crm.territory-management.forecast');
-        Route::get('at-risk', [TerritoryManagementController::class, 'atRisk'])->name('crm.territory-management.at-risk');
-    });
-    Route::middleware('throttle:create_post')->prefix('crm/territory-management')->group(function () {
-        Route::post('auto-balance', [TerritoryManagementController::class, 'autoBalance'])->name('crm.territory-management.auto-balance');
-        Route::post('quota-distribution', [TerritoryManagementController::class, 'quotaDistribution'])->name('crm.territory-management.quota-distribution');
-    });
+    // Tier 2: Territory coverage. The rest of the old "territory-management"
+    // group (index/forecast/at-risk/auto-balance/quota-distribution) called
+    // TerritoryManagementService methods that didn't exist at all, and
+    // duplicated functionality TerritoryController already provides for real
+    // via TerritoryService/TerritoryForecastService (index, forecast,
+    // territoryForecast, atRisk, rebalance, teamQuotas) — deleted rather than
+    // repaired, per Chantier 8.2's audit.
+    Route::middleware('throttle:complex_get')->get('crm/territory-management/coverage', [TerritoryController::class, 'coverage'])->name('crm.territory-management.coverage');
 
     // Tier 2: Einstein-style Weighted Forecasting (complex analytics)
     Route::middleware('throttle:complex_get')->prefix('crm/einstein-forecasting')->group(function () {
@@ -218,7 +214,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
 
     // Per-opportunity scoring & signals — Tier 1: Opportunity Scoring
     Route::get('crm/opportunities/{opportunity}/score', [OpportunityScoringController::class, 'showScore'])->name('crm.opportunities.score.show');
-    Route::get('crm/opportunity-scores', [OpportunityScoringController::class, 'getScores'])->name('crm.opportunity-scores.index');
+    // crm/opportunity-scores itself is already registered above (line ~210,
+    // OpportunityScoringController::indexScores, which just delegates to
+    // getScores() — this used to be a duplicate registration of the same path
+    // under the same route name, which left getScores() unreachable and made
+    // route('crm.opportunity-scores.index') ambiguous).
     Route::get('crm/opportunities/{opportunity}/signals', [OpportunityScoringController::class, 'signals'])->name('crm.opportunities.signals.index');
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('crm/opportunities/{opportunity}/score', [OpportunityScoringController::class, 'scoreOpportunity'])->name('crm.opportunities.score');

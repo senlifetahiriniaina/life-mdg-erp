@@ -99,6 +99,37 @@ class TerritoryService
     }
 
     /**
+     * Coverage summary: how many active territories have at least one
+     * assigned account/contact, and which don't (gaps).
+     *
+     * @return array<string,mixed>
+     */
+    public function coverage(): array
+    {
+        $territories = Territory::where('is_active', true)->get();
+        $total = $territories->count();
+
+        $assignedIds = TerritoryAssignment::whereIn('territory_id', $territories->pluck('id'))
+            ->distinct()
+            ->pluck('territory_id');
+
+        $assigned = $assignedIds->count();
+        $gaps = $territories->whereNotIn('id', $assignedIds)->values();
+
+        return [
+            'total' => $total,
+            'assigned' => $assigned,
+            'unassigned' => $total - $assigned,
+            'percentage' => $total > 0 ? round(($assigned / $total) * 100, 2) : 0.0,
+            'gaps' => $gaps->map(fn (Territory $t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'code' => $t->code,
+            ])->toArray(),
+        ];
+    }
+
+    /**
      * Check if a contact matches the rules JSON for a territory.
      *
      * @param  array<int,array<string,mixed>>  $rules

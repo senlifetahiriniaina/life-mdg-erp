@@ -310,6 +310,17 @@ class TerritoryController extends Controller
     }
 
     /**
+     * Coverage summary: how many active territories have at least one
+     * assigned account/contact, and which don't (gaps).
+     *
+     * @response 200 scenario="Success" {"total": 10, "assigned": 8, "unassigned": 2, "percentage": 80, "gaps": [...]}
+     */
+    public function coverage(): JsonResponse
+    {
+        return response()->json($this->territoryService->coverage());
+    }
+
+    /**
      * Rebalance territory assignments evenly across active territories.
      *
      * @response 200 scenario="Success" {"rebalanced": 12, "territories": [...]}

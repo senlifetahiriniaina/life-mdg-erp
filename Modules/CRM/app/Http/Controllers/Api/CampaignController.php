@@ -1,16 +1,19 @@
 <?php
 
-namespace Modules\CRM\Http\Controllers;
+namespace Modules\CRM\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\CRM\Models\Campaign;
 use Modules\CRM\Models\CampaignEnrollment;
 
-class CampaignController
+class CampaignController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Campaign::class);
+
         $campaigns = Campaign::query()
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->type, fn ($q) => $q->where('type', $request->type))
@@ -22,6 +25,8 @@ class CampaignController
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Campaign::class);
+
         $validated = $request->validate([
             'name'       => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -40,11 +45,15 @@ class CampaignController
 
     public function show(Campaign $campaign): JsonResponse
     {
+        $this->authorize('view', $campaign);
+
         return response()->json($campaign->load(['stages', 'enrollments', 'analytics']));
     }
 
     public function update(Request $request, Campaign $campaign): JsonResponse
     {
+        $this->authorize('update', $campaign);
+
         $validated = $request->validate([
             'name'        => 'string|max:255',
             'description' => 'nullable|string',
@@ -59,6 +68,8 @@ class CampaignController
 
     public function launch(Campaign $campaign): JsonResponse
     {
+        $this->authorize('launch', $campaign);
+
         $campaign->update(['status' => 'active', 'start_date' => now()]);
 
         return response()->json(['message' => 'Campaign launched', 'campaign' => $campaign]);
@@ -66,6 +77,8 @@ class CampaignController
 
     public function pause(Campaign $campaign): JsonResponse
     {
+        $this->authorize('pause', $campaign);
+
         $campaign->update(['status' => 'paused']);
 
         return response()->json(['message' => 'Campaign paused']);
@@ -73,6 +86,8 @@ class CampaignController
 
     public function getAnalytics(Campaign $campaign): JsonResponse
     {
+        $this->authorize('view', $campaign);
+
         $analytics = $campaign->analytics()
             ->orderBy('date', 'desc')
             ->get();

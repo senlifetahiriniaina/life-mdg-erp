@@ -1,14 +1,15 @@
 <?php
 
-namespace Modules\CRM\Http\Controllers;
+namespace Modules\CRM\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\CRM\Models\RevenueInsight;
 use Modules\CRM\Models\RevenueTrend;
 use Modules\CRM\Models\RevenueAnomaly;
 
-class RevenueIntelligenceController
+class RevenueIntelligenceController extends Controller
 {
     public function getInsights(Request $request): JsonResponse
     {

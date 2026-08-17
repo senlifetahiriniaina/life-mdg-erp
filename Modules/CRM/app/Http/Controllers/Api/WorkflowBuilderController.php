@@ -1,17 +1,20 @@
 <?php
 
-namespace Modules\CRM\Http\Controllers;
+namespace Modules\CRM\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\CRM\Models\Workflow;
 use Modules\CRM\Models\WorkflowNode;
 use Modules\CRM\Models\WorkflowEdge;
 
-class WorkflowBuilderController
+class WorkflowBuilderController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Workflow::class);
+
         $workflows = Workflow::query()
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->trigger_type, fn ($q) => $q->where('trigger_type', $request->trigger_type))
@@ -24,6 +27,8 @@ class WorkflowBuilderController
 
     public function create(Request $request): JsonResponse
     {
+        $this->authorize('create', Workflow::class);
+
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
             'description'    => 'nullable|string',
@@ -41,6 +46,8 @@ class WorkflowBuilderController
 
     public function show(Workflow $workflow): JsonResponse
     {
+        $this->authorize('view', $workflow);
+
         $workflow->load(['nodes', 'edges']);
 
         return response()->json($workflow);
@@ -48,6 +55,8 @@ class WorkflowBuilderController
 
     public function saveWorkflow(Request $request, Workflow $workflow): JsonResponse
     {
+        $this->authorize('update', $workflow);
+
         $validated = $request->validate([
             'nodes' => 'required|array',
             'edges' => 'present|array',
@@ -88,6 +97,8 @@ class WorkflowBuilderController
 
     public function activate(Workflow $workflow): JsonResponse
     {
+        $this->authorize('activate', $workflow);
+
         if ($workflow->nodes()->count() === 0) {
             return response()->json(['error' => 'Workflow has no nodes'], 400);
         }
@@ -99,6 +110,8 @@ class WorkflowBuilderController
 
     public function deactivate(Workflow $workflow): JsonResponse
     {
+        $this->authorize('deactivate', $workflow);
+
         $workflow->update(['status' => 'paused']);
 
         return response()->json(['message' => 'Workflow paused']);
@@ -106,6 +119,8 @@ class WorkflowBuilderController
 
     public function getExecutions(Workflow $workflow): JsonResponse
     {
+        $this->authorize('view', $workflow);
+
         $executions = $workflow->executions()
             ->orderBy('started_at', 'desc')
             ->paginate(10);

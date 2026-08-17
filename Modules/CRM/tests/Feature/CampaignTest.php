@@ -16,13 +16,13 @@ class CampaignTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        // Chantier 8.2: CampaignController now enforces CampaignPolicy (it silently
+        // allowed any authenticated user before) — needs a real role/permission grant.
+        $this->user = $this->actingAsUser('admin');
     }
 
     public function test_user_can_create_campaign(): void
     {
-        $this->actingAs($this->user, 'sanctum');
-
         $response = $this->postJson('/api/v1/crm/campaigns', [
             'name'        => 'Q2 2026 Outreach',
             'description' => 'Campaign for Q2 2026',

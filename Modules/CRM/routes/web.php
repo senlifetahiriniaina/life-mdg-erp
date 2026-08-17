@@ -2,6 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\CRM\Http\Controllers\Web\ContactWebController;
+use Modules\CRM\Http\Controllers\Web\ForecastWebController;
+use Modules\CRM\Http\Controllers\Web\OpportunityScoringWebController;
+use Modules\CRM\Http\Controllers\Web\QuoteWebController;
+use Modules\CRM\Http\Controllers\Web\TerritoryWebController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,4 +27,11 @@ Route::middleware(['auth', 'module:CRM'])->group(function () {
     Route::get('/crm/accounts', [ContactWebController::class, 'accounts'])->name('crm.accounts.index');
     Route::get('/crm/email-sequences', [ContactWebController::class, 'emailSequences'])->name('crm.email-sequences.index');
     Route::get('/crm/call-logs', [ContactWebController::class, 'callLogs'])->name('crm.call-logs.index');
+
+    // Chantier 8.2 — real backend + real Vue page existed for these, just missing the web route.
+    Route::get('/crm/quotes', [QuoteWebController::class, 'index'])->name('crm.quotes-page.index');
+    Route::get('/crm/quotes/{quote}', [QuoteWebController::class, 'show'])->name('crm.quotes-page.show');
+    Route::get('/crm/territories', [TerritoryWebController::class, 'index'])->name('crm.territories-page.index');
+    Route::get('/crm/forecast', [ForecastWebController::class, 'index'])->name('crm.forecast-page.index');
+    Route::get('/crm/opportunities/scoring', [OpportunityScoringWebController::class, 'index'])->name('crm.opportunities.scoring-page.index');
 });

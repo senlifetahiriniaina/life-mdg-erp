@@ -105,6 +105,19 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.budget_scenario.approve',
     ];
 
+    // Modules\CRM\Policies\{CampaignPolicy,WorkflowPolicy} check crm.{campaigns,workflows}.
+    // {view,create,edit,delete} — non-standard "edit" verb (not "update") and no
+    // "view-any" (viewAny() checks .view), so the generic MODULES/ACTIONS loop
+    // below can't produce these, same reasoning as the other _PERMISSIONS
+    // constants. Chantier 8.2 found these policies existed but were never
+    // seeded here — the seeder that did seed them (Modules\CRM\database\seeders\
+    // PermissionSeeder, via CRMDatabaseSeeder/TenantDefaultSeeder) is never
+    // reached from this repo's actual DatabaseSeeder chain.
+    private const CRM_EXTRA_PERMISSIONS = [
+        'crm.campaigns.view', 'crm.campaigns.create', 'crm.campaigns.edit', 'crm.campaigns.delete',
+        'crm.workflows.view', 'crm.workflows.create', 'crm.workflows.edit', 'crm.workflows.delete',
+    ];
+
     // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
     // delete} (no resource segment), not the settings.setting.*/settings.group.* the
     // generic MODULES/ACTIONS loop produces for the 'settings' entry below -- same
@@ -221,6 +234,10 @@ class RolesAndPermissionsSeeder extends Seeder
         // Same reasoning as ANALYTICS_PERMISSIONS above, for Accounting's
         // tax_compliance/revenue_recognition/consolidation policies.
         foreach (self::ACCOUNTING_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::CRM_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
