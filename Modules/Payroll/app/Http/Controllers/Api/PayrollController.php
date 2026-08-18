@@ -130,6 +130,12 @@ class PayrollController extends Controller
      */
     public function statistics(Request $request): JsonResponse
     {
+        // Chantier 8.3: previously uncovered by any authorize() check —
+        // accountant/finance-manager (accounting.*/bi.*/strategy.* only, no
+        // payroll.* permissions) could read payroll aggregates by passing
+        // only the outer route role: gate, matching every other method here.
+        abort_unless($request->user()->can('payroll.payslip.view'), 403);
+
         $request->validate([
             'period' => ['nullable', 'date_format:Y-m'],
         ]);
@@ -147,6 +153,8 @@ class PayrollController extends Controller
      */
     public function taxesByCountry(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('payroll.payslip.view'), 403);
+
         $request->validate([
             'period'  => ['nullable', 'date_format:Y-m'],
             'country' => ['nullable', 'string', 'size:2'],
