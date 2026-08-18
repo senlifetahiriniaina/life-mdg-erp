@@ -9,7 +9,6 @@ Le module Analytics porte le moteur de prévision IA transverse (demande, tréso
 | Modèle | Table DB | Rôle |
 |---|---|---|
 | `ForecastModel`, `ForecastPrediction`, `ForecastAlert`, `ForecastScenario` | `create_forecast_models_table` et suivantes | Modèle de prévision, ses prédictions, ses alertes et ses scénarios what-if |
-| `AnomalyDetectionModel`, `DetectedAnomaly`, `AnomalyAlert` | `create_anomaly_detection_models_table` et suivantes | Modèle de détection d'anomalies et anomalies détectées |
 | `MLModel`, `MLModelVersion`, `ModelMetric`, `ModelAccuracyMetric` | `create_ml_models_table`, `create_ml_model_versions_table` | Modèle ML générique avec versionnement, déploiement/rollback |
 | `PredictionModel`, `PredictionInput`, `PredictionResult` | — | Modèle de prédiction générique, ses entrées et résultats |
 | `Recommendation`, `RecommendationModel`, `UserInteraction` | — | Moteur de recommandation et interactions utilisateur associées |
@@ -35,20 +34,30 @@ Deux ensembles de routes, avec des guards d'authentification différents (à not
 | POST | `ai/analyze`, `ai/narrative` | Analyse IA libre et narration de prévision (Claude) |
 | GET | `hub` | Résumé consolidé (demande + trésorerie + RH + production + alertes) |
 
-**Analytics (`v1/analytics`, `auth:api`)**
+**Analytics (`v1/analytics`, `auth:sanctum` + `module:Analytics` + `role:employee,inventory-analyst,manager,admin`)**
 
 | Méthode | Route | Description |
 |---|---|---|
-| CRUD | `predictions` | Modèles de prédiction (`PredictionController`) |
+| GET/POST/GET-1 | `predictions` (`->only(['index','store','show'])`) | Modèles de prédiction (`PredictionController`) |
 | POST | `predictions/{id}/train`, GET `.../results` | Entraînement et résultats |
-| CRUD | `recommendations` | Recommandations |
-| GET | `recommendations/for-user`, POST `.../act`, `.../dismiss` | Cycle de vie d'une recommandation |
-| CRUD | `anomalies` (nommé `anomaly`) | Modèles de détection d'anomalies |
-| GET | `anomalies/{id}/anomalies`, POST `.../investigate`, `.../resolve`, `.../dismiss` | Cycle de vie d'une anomalie détectée |
+| GET/POST/GET-1 | `recommendations` (`->only(['index','store','show'])`) | Recommandations — `update`/`destroy` volontairement exclues (corrigé au Chantier 8.5ars : l'`apiResource` complet enregistrait des routes vers des méthodes que le contrôleur n'implémente pas, un `Call to undefined method` garanti) |
+| GET | `recommendations/for-user`, POST `.../act`, `.../dismiss` | Cycle de vie d'une recommandation (mutation réelle) |
 | CRUD | `ml-models` (nommé `ml_model`) | Modèles ML |
 | GET | `ml-models/{id}/versions`, `.../ab-tests`, POST `.../deploy`, `.../rollback` | Versionnement et déploiement de modèles |
 
 **IA Assisted First** : `POST v1/analytics/ai/assist` (`auth:sanctum`).
+
+**Note** : le sous-registre de détection d'anomalies propre à Analytics (`AnomalyDetectionController`, modèles `AnomalyDetectionModel`/`DetectedAnomaly`/`AnomalyAlert`) a été supprimé — c'était un doublon orphelin (zéro appelant réel, schéma jamais aligné avec `$fillable`). La détection d'anomalies réellement utilisée dans l'ERP vit dans `Modules\AI\Http\Controllers\Api\AiAnomalyController` (`/api/v1/ai/anomalies*`, adossé à `AiAnomalyDetectionService`, qui vérifie réellement Inventory/Accounting/HR) — voir le module AI.
+
+## Contrôleurs
+
+6 contrôleurs : `Api/ForecastingController` (moteur de prévision, `v1/forecasting/*`), `Api/AnalyticsAiAssistController` (guidance IA), `PredictionController`/`RecommendationController`/`MLModelController` (directement sous `Http/Controllers/`, pas `Api/`), `Web/AnalyticsWebController`.
+
+Analytics s'est révélé le module le plus propre des trois du pôle Pilotage et Reporting (avec BI et Reporting) lors de l'audit Chantier 8.5ars : le scoping tenant par `company_id` était déjà correct partout, contrairement à Reporting/Strategy qui souffraient d'une fuite cross-tenant. Corrections apportées malgré tout : `module:Analytics`+`role:employee,inventory-analyst,manager,admin` ajouté aux deux groupes de routes (confirmé dans le code) ; ajout d'une capacité `create` à `RecommendationPolicy` + l'appel `authorize()` manquant dans `RecommendationController::store()` ; ajout de `authorize('view', ...)` + scoping tenant implicite à `PredictionController::results()` et `MLModelController::versions()`/`abTests()`. `PredictionController::train()` a le même trou d'autorisation que les 3 méthodes corrigées — signalé mais volontairement laissé pour un futur passage plutôt que d'élargir le périmètre du chantier en cours.
+
+## Vues (Vue/Inertia)
+
+Une seule page : `Modules/Analytics/resources/js/Pages/Index.vue`, servie par `AnalyticsWebController` sous `/analytics`. L'ancienne page racine `resources/js/Pages/Analytics/Dashboard.vue` (445 lignes de données 100 % simulées, sous des onglets Procurement/Approvals/Quality qui ne correspondent même pas au domaine Analytics, jamais rendue par aucun contrôleur) a été supprimée au Chantier 8.5ars — `resources/js/Pages/Analytics/` ne contient donc plus aucun fichier.
 
 ## Services
 
@@ -61,7 +70,7 @@ Deux ensembles de routes, avec des guards d'authentification différents (à not
 
 ## Permissions RBAC
 
-Préfixe `analytics.` (`database/seeders/RolesAndPermissionsSeeder.php`), ressources `forecast, anomaly` × actions `view-any, view, create, update, delete`. Rôle concerné : `inventory-analyst` (accès complet `analytics.*`, avec `bi.*` et lecture seule `inventory.*`). Aucune policy Laravel additionnelle n'a été trouvée dans `Modules/Analytics/app/Policies` liée à `forecast`/`anomaly` au sens des permissions Spatie ci-dessus — les policies présentes (`ABTestRunPolicy`, `AnomalyDetectionModelPolicy`, `DetectedAnomalyPolicy`, `MLModelPolicy`, `PredictionModelPolicy`, `RecommendationModelPolicy`, `RecommendationPolicy`) couvrent le sous-système ML/recommandation, distinct du sous-système de prévision (`v1/forecasting/*`).
+Préfixe `analytics.` (`database/seeders/RolesAndPermissionsSeeder.php`), ressources `forecast, anomaly` × actions `view-any, view, create, update, delete`. Rôle concerné : `inventory-analyst` (accès complet `analytics.*`, avec `bi.*` et lecture seule `inventory.*`). Le sous-registre d'anomalies propre à Analytics ayant été supprimé (voir Contrôleurs), les policies présentes (`ABTestRunPolicy`, `MLModelPolicy`, `PredictionModelPolicy`, `RecommendationModelPolicy`, `RecommendationPolicy`) couvrent uniquement le sous-système ML/recommandation, distinct du sous-système de prévision (`v1/forecasting/*`) qui n'a pas de Policy dédiée — sa protection vient exclusivement du scoping `company_id` en base et du verrou `role:` de route ajouté au Chantier 8.5ars (même précédent que `RateLimitController`/`AuthenticationEventController` côté Security : pas de modèle naturel où accrocher une Policy).
 
 ## Dépendances avec d'autres modules
 
@@ -71,4 +80,4 @@ Préfixe `analytics.` (`database/seeders/RolesAndPermissionsSeeder.php`), ressou
 ## Particularités du périmètre life-mdg-erp
 
 - **`Forecasting\ProductionForecastService`** (docblock : "Intégré avec Modules/Manufacturing, Modules/Inventory, Modules/Achats") interroge par `DB::table()` les tables `bom_components`, `work_centers` et `manufacturing_orders`, qui appartiennent au module Manufacturing — **absent du périmètre des 27 modules de life-mdg-erp** et sans migration `Schema::create('manufacturing_orders'...)` dans ce dépôt (confirmé par recherche sur l'ensemble des migrations). Cette prévision de production échouera donc à l'exécution (table inexistante) tant que ces requêtes n'auront pas été adaptées ou que la fonctionnalité n'aura pas été retirée — c'est le même type de dette déjà documenté dans le CLAUDE.md racine sous "Known gaps" (fonctionnalités incomplètes héritées de WideHalo-ERP, pas une régression introduite par l'extraction).
-- Les routes `v1/analytics/*` (contrôleurs `PredictionController`, `RecommendationController`, `AnomalyDetectionController`, `MLModelController`) utilisent le guard `auth:api`, alors que la quasi-totalité du reste de l'ERP (y compris les routes `v1/forecasting/*` du même module) utilise `auth:sanctum` — à vérifier si un guard `api` est bien configuré dans `config/auth.php` avant d'exposer ces routes en production.
+- L'incohérence de guard précédemment documentée ici (`v1/analytics/*` sur `auth:api` contre `auth:sanctum` partout ailleurs) a été corrigée au Chantier 8.5ars en même temps que l'ajout du verrou `module:`/`role:` — les deux groupes de routes (`v1/forecasting/*` et `v1/analytics/*`) utilisent désormais `auth:sanctum` de façon cohérente (confirmé dans le code).

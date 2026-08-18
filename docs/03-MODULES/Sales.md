@@ -33,6 +33,16 @@ Routes API sous `auth:sanctum`, middleware `module:Sales`, préfixe `v1/sales` (
 | POST | `sales/quotations/{id}/convert` | Convertir un devis accepté en commande confirmée |
 | POST | `v1/sales/ai/assist` | Guidance IA contextuelle (AI Assisted First) |
 
+## Contrôleurs
+
+Le module reste volontairement compact : 2 contrôleurs Api seulement (`Modules/Sales/app/Http/Controllers/Api/`) — `SalesController` (tout le CRUD commandes/devis) et `SalesAiAssistController` (guidance IA). Aucun contrôleur Web dédié : la route `/sales` est une simple closure `Inertia::render()` (voir Vues).
+
+## Vues (Vue/Inertia)
+
+`Modules/Sales/resources/js/Pages/` contient `SalesIndex.vue` (page auto-suffisante qui appelle directement `GET /api/v1/sales/orders`), plus `CPQ/Index.vue` et `Subscriptions/Index.vue` — ces deux dernières sont **entièrement des maquettes statiques** (aucun `defineProps`, aucun appel `axios`/`fetch`), sans backend réel derrière, et volontairement laissées non routées (même traitement que les pages mock équivalentes de Logistics/Achats — `AIRiskMonitor.vue`/`SupplierRisk/Index.vue`).
+
+`SalesIndex.vue` était jusqu'au Chantier 8.5-light totalement inaccessible : `routes/web.php` était un placeholder vide. Une route `GET /sales` a été ajoutée (`Route::middleware(['web','auth','module:Sales'])`), suivant le même schéma « page auto-suffisante → closure Inertia::render() » déjà utilisé pour `Inventory/Stock/Movements` ou `Achats/SpendAnalytics/Index`.
+
 ## Services
 
 - **`SalesService`** — seul service métier du module. Responsabilités : génération de référence unique par année (`SO-{année}-{compteur}`, `QT-{année}-{compteur}`), `createOrder()` (transaction DB, création de la commande + ses lignes, recalcul des totaux), `recalculateOrderTotals()` (calcule sous-total/remise/taxe/total à partir des lignes, avec arrondi à 2 décimales), `confirmOrder()` (n'autorise la transition que depuis le statut `draft`, sinon lève une `RuntimeException`), `cancelOrder()` (vérifie `isCancellable()` avant transition, journalise le motif dans `notes`), `createQuotation()`, `convertQuotationToOrder()` (vérifie `isConvertible()` puis crée la commande dans une transaction et marque le devis `accepted`).
@@ -41,8 +51,14 @@ Devise par défaut dans `SalesService` : `XOF` (CFA Franc UEMOA), cohérent avec
 
 ## Permissions RBAC
 
-Sales a une entrée dédiée dans `RolesAndPermissionsSeeder::MODULES` : `'sales' => ['order', 'line', 'quotation']`, générant les permissions `sales.order.*`, `sales.line.*`, `sales.quotation.*` (5 actions × 3 ressources = 15 permissions). `SalesOrderPolicy` s'appuie directement sur ces permissions (`$user->can('sales.order.view-any')`, etc. — pas de vérification de rôle en dur, contrairement à Workflow/Calendar). Le rôle `sales-manager` reçoit l'intégralité de `sales.*` (en plus de `crm.*` et d'un accès BI/Accounting en lecture).
+Sales a une entrée dédiée dans `RolesAndPermissionsSeeder::MODULES` : `'sales' => ['order', 'line', 'quotation']`, générant les permissions `sales.order.*`, `sales.line.*`, `sales.quotation.*` (5 actions × 3 ressources = 15 permissions). `SalesOrderPolicy` s'appuie directement sur ces permissions. Le rôle `sales-manager` reçoit l'intégralité de `sales.*` (en plus de `crm.*` et d'un accès BI/Accounting en lecture). Route-level : `module:Sales` sur tout le groupe `v1` (`Modules/Sales/routes/api.php`, vérifié dans le code).
+
+**Chantier 8.5-light** a ajouté l'autorisation manquante sur `confirmOrder()`/`cancelOrder()` (aucune auparavant, contrairement à leurs méthodes sœurs) et un contrôle d'appartenance au tenant sur les 4 méthodes de lookup (`showOrder`/`updateOrder`/`confirmOrder`/`cancelOrder`) — un IDOR réel une fois la fuite multi-tenant ci-dessous corrigée, jusque-là masqué par le fait que toutes les commandes finissaient dans le même compartiment partagé.
 
 ## Dépendances avec d'autres modules
 
 Sales importe (`use Modules\...`) `Modules\AI` (guidance IA) et `Modules\Helpdesk` (trait `HelpdeskLinkable` sur `SalesOrder`). Aucun autre module de life-mdg-erp n'importe `Modules\Sales` dans son code PHP — le lien fonctionnel avec CRM se fait uniquement via les colonnes `contact_id`/`account_id`/`opportunity_id` de `SalesOrder`, sans dépendance de code formelle dans un sens ou dans l'autre.
+
+## Particularités du périmètre life-mdg-erp
+
+**Fuite cross-tenant corrigée (Chantier 8.5-light)** : `SalesController::indexOrders()`/`storeOrder()` (et les équivalents devis) résolvaient le tenant via `$user->tenant_id ?? 1` — `users.tenant_id` est une colonne fantôme, jamais peuplée par le vrai flux d'inscription — donc toutes les commandes/devis de toutes les sociétés atterrissaient silencieusement dans le même compartiment partagé « tenant 1 ». Corrigé pour utiliser `$user->company_id ?? 0`, la vraie colonne de frontière multi-tenant (confirmé dans le code : `tenantId()` porte un commentaire explicite documentant ce fix et retourne bien `(int) ($request->user()?->company_id ?? 0)`).

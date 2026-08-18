@@ -26,6 +26,22 @@ Le module dépend en réalité du modèle `Modules\Core\Models\AuditLog` (table 
 
 **Web** (Inertia, voir `Modules/AuditLog/routes/web.php`) : `GET /audit/logs` → `AuditLogWebController@index`, protégée par `middleware(['auth', 'module:AuditLog'])` côté route et `can:auditlog.logs.view-any` côté contrôleur.
 
+## Contrôleurs
+
+`Modules/AuditLog/app/Http/Controllers/` (3 fichiers) :
+
+| Contrôleur | Rôle |
+|---|---|
+| `Api\AuditLogApiController` | `index`/`stats`/`export`/`show` — lit `Modules\Core\Models\AuditLog` (`core_audit_logs`), désormais scopé `company_id` |
+| `Api\AuditLogAiAssistController` | Guidance IA contextuelle (AI Assisted First) |
+| `Web\AuditLogWebController` | Rend `AuditLog/Index` (voir Vues), même scope `company_id` |
+
+Une page Vue dupliquée, masquée par la vraie page racine `resources/js/Pages/AuditLog/Index.vue`, a été **supprimée** cette session (voir Vues).
+
+## Vues (Vue/Inertia)
+
+Une seule page réellement servie : `resources/js/Pages/AuditLog/Index.vue` (racine du dépôt, pas sous `Modules/AuditLog/`) — la résolution Inertia (`resources/js/app.js`) essaie d'abord `./Pages/AuditLog/Index.vue` avant de retomber sur une éventuelle copie module, donc la page racine gagne systématiquement. Rendue par `AuditLogWebController::index()` (`GET /audit/logs`, `middleware(['auth', 'module:AuditLog'])` + `can:auditlog.logs.view-any`).
+
 ## Services
 
 - `Modules\AuditLog\Services\AuditService` — service minimal (`log(array $data)`, `getActivity()`, `getStats()`) opérant sur le modèle `Modules\AuditLog\Models\AuditLog` (table `audit_logs`, tenant-scopée). Non appelé par les contrôleurs API/Web du module lui-même (voir Particularités).
@@ -33,12 +49,9 @@ Le module dépend en réalité du modèle `Modules\Core\Models\AuditLog` (table 
 
 ## Permissions RBAC
 
-Le module possède bien un préfixe de permission dédié : `auditlog.logs.*` (`view-any`, `view`, `create`, `update`, `delete`), seedé dans `RolesAndPermissionsSeeder::MODULES['auditlog'] = ['logs']`. Le rôle `security-admin` reçoit explicitement `auditlog.logs.view-any` et `auditlog.logs.view`, en plus de `admin.audit.view` et `admin.security.manage`. Le rôle `admin` reçoit l'ensemble des permissions du module via `syncPermissions(array_merge($allPermissions, $adminPermissions))`.
+Le module possède bien un préfixe de permission dédié : `auditlog.logs.*` (`view-any`, `view`, `create`, `update`, `delete`), seedé dans `RolesAndPermissionsSeeder::MODULES['auditlog'] = ['logs']`, plus `auditlog.logs.export` (verbe non-standard, bloc `AUDITLOG_EXTRA_PERMISSIONS`). Le rôle `security-admin` reçoit explicitement `auditlog.logs.view-any` et `auditlog.logs.view`, en plus de `admin.audit.view` et `admin.security.manage`. Le rôle `admin` reçoit l'ensemble des permissions du module via `syncPermissions(array_merge($allPermissions, $adminPermissions))`.
 
-Deux incohérences de nommage existent dans le code du module lui-même :
-- `AuditLogPolicy` (non branchée sur les contrôleurs actuels) vérifie des permissions au format `auditlog.auditlog.*` (ex. `auditlog.auditlog.view-any`), qui ne sont **jamais seedées** — cette policy est donc inopérante en pratique.
-- `AuditLogApiController` (celui réellement utilisé par l'API) vérifie `$request->user()->can('audit-log.view')` / `'audit-log.export'` — un troisième format, avec un tiret, lui aussi absent du seeder. Aucun rôle autre que `super-admin` (qui bypass tous les Gate via `Gate::before`) ne peut donc jamais passer ces contrôles pour l'instant.
-- Seule la page Web (`AuditLogWebController`) utilise le format réellement seedé, `auditlog.logs.view-any`.
+Les incohérences de nommage documentées auparavant sont résolues : `AuditLogApiController` (celui réellement utilisé par l'API) vérifie désormais `$request->user()->can('auditlog.logs.view')` / `'auditlog.logs.export'` — le format réellement seedé, aligné sur celui déjà utilisé par la page Web (`auditlog.logs.view-any`). L'ancienne `AuditLogPolicy` (qui vérifiait un troisième format jamais seedé, `auditlog.auditlog.*`, et n'était de toute façon jamais enregistrée ni appelée) a été **supprimée** cette session — les deux contrôleurs gatent directement via `abort_unless($user->can(...))`, sans Policy Eloquent.
 
 ## Dépendances avec d'autres modules
 
@@ -47,5 +60,6 @@ Deux incohérences de nommage existent dans le code du module lui-même :
 
 ## Particularités du périmètre life-mdg-erp
 
+- **Fuite cross-tenant corrigée cette session — la découverte la plus significative de tout l'audit « Chantier 8 »** : `Modules\Core\Models\AuditLog` (table `core_audit_logs`), le journal d'audit réel et alimenté en continu (54+ modèles via `RecordsActivity`, 23 via `AuditableActions`, `AuditAuthListener` sur chaque événement d'authentification), n'avait **aucune colonne de tenant/société** — et ni `AuditLogApiController` ni `AuditLogWebController` ne filtraient par tenant. N'importe quel utilisateur détenant `auditlog.logs.view*` (y compris `admin` via son wildcard) pouvait parcourir l'historique d'audit complet de **toutes** les sociétés — chaque create/update/delete de l'application entière, diffs old/new complets — via `GET /api/v1/audit-logs`, `/audit-logs/export` et `/audit/logs`. Corrigé par une nouvelle migration ajoutant une colonne `company_id` nullable à `core_audit_logs`, rétro-remplie depuis `user_id → users.company_id` (lignes non résolvables normalisées à `0`), tous les écrivains (`RecordsActivity`, `AuditableActions`, `AuditAuthListener`, `AuditLogFactory`) mis à jour pour la peupler, et le filtre tenant manquant ajouté aux deux contrôleurs.
 - **Le trait `HasAuditLog`, bien qu'omniprésent, n'écrit jamais réellement de trace exploitable dans ce périmètre** : `bootHasAuditLog()` appelle `Log::channel('audit')->info(...)`, mais `config/logging.php` ne définit **aucun** canal nommé `audit` (seul un canal `gdpr-audit` existe). L'appel lève donc une `InvalidArgumentException` à chaque create/update/delete d'un modèle utilisant ce trait — exception silencieusement avalée par le `catch (\Throwable)` du trait (« Never let audit logging break normal operations »). En pratique, l'écriture d'audit réellement effective dans l'application vient du trait **Core** `RecordsActivity` (table `core_audit_logs`), pas de `HasAuditLog`.
-- **Le modèle et la table propres au module (`Modules\AuditLog\Models\AuditLog`, table `audit_logs`) ne sont lus par aucun contrôleur du module** : l'API et la page Web interrogent toutes deux `Modules\Core\Models\AuditLog` (`core_audit_logs`). Le service `Modules\AuditLog\Services\AuditService` qui sait écrire dans `audit_logs` existe mais n'est appelé nulle part dans les contrôleurs du module — la table `audit_logs` du module AuditLog est donc, dans ce périmètre, vestigiale.
+- **Le modèle et la table propres au module (`Modules\AuditLog\Models\AuditLog`, table `audit_logs`, avec une vraie colonne `tenant_id`) ne sont lus par aucun contrôleur du module** : l'API et la page Web interrogent toutes deux `Modules\Core\Models\AuditLog` (`core_audit_logs`). Le service `Modules\AuditLog\Services\AuditService` qui sait écrire dans `audit_logs` existe mais n'est appelé nulle part dans les contrôleurs du module — confirmé cette session (zéro lecteur) et volontairement laissé tel quel : la table `audit_logs` du module AuditLog reste, dans ce périmètre, une voie secondaire vestigiale plutôt que la source de vérité.

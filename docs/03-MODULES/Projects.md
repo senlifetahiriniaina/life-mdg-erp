@@ -9,8 +9,7 @@ Le module Projects fournit la gestion de projet complète de l'ERP : projets, t�
 | Modèle | Table DB | Rôle |
 |---|---|---|
 | `Project` | `prj_projects` | Projet (propriétaire, statut, dates, budget, devise) ; utilise le trait `HelpdeskLinkable` (voir Dépendances) |
-| `Task` | `prj_tasks` | Tâche (hiérarchie parent/sous-tâches, épic/sprint/jalon, priorité, points d'histoire) |
-| `ProjectTask` | `prj_tasks` | Modèle « alias » de `Task` sur la même table, ajoutant les accesseurs EVM/Gantt (Phase 49) sans modifier `Task` — voir Particularités |
+| `Task` | `prj_tasks` | Tâche (hiérarchie parent/sous-tâches, épic/sprint/jalon, priorité, points d'histoire) — modèle unique désormais (voir Particularités : `ProjectTask`, un doublon sur la même table, a été supprimé cette session) |
 | `Milestone` | `prj_milestones` | Jalon de projet, utilisé aussi pour la facturation par jalon (Timesheets) |
 | `Epic` | `prj_epics` | Regroupement de tâches au niveau épopée (méthodologie agile) |
 | `Sprint` | `prj_sprints` | Sprint agile (burndown, vélocité) |
@@ -18,9 +17,9 @@ Le module Projects fournit la gestion de projet complète de l'ERP : projets, t�
 | `ProjectTeamMember` | `prj_team_members` | Membre d'équipe affecté à un projet |
 | `ResourceAllocation` / `ResourceCapacity` | `prj_resource_allocations` / `prj_resource_capacity` | Planification de capacité des ressources humaines sur les projets |
 | `AutomationRule` | `prj_automation_rules` | Règle « SI/QUAND/ALORS » déclenchée par les évènements projet |
-| `BudgetLine` | `prj_budget_lines` | Ligne budgétaire (CAPEX/OPEX) pour le suivi EVM |
-| `ProjectRisk` | `prj_risks` | Risque identifié sur un projet |
-| `TimeEntry` / `TimeLog` / `ProjectTimeLog` | `prj_time_entries` / `prj_time_logs` (partagée par `TimeLog` et `ProjectTimeLog`) | Suivi de temps propre à Projects (distinct des modèles du module Timesheets) |
+| `BudgetLine` | `prj_budget_lines` | Ligne budgétaire (CAPEX/OPEX) pour le suivi EVM — table migrée cette session (voir Particularités, elle n'existait pas du tout avant) |
+| `ProjectRisk` | `prj_risks` | Risque identifié sur un projet — table migrée cette session |
+| `TimeEntry` / `ProjectTimeLog` | `prj_time_entries` / `prj_time_logs` | Suivi de temps propre à Projects (distinct des modèles du module Timesheets) — `ProjectTimeLog` est désormais le seul modèle réel sur `prj_time_logs` (voir Particularités : `TimeLog`, cassé et jamais aligné avec cette table, a été supprimé cette session) |
 | `ProjectBilling` (Projects) | `prj_project_billing` | Facturation côté Projects — homonyme du modèle `ProjectBilling` de Timesheets mais table et namespace différents |
 | `CustomField` / `CustomFieldValue` | `projects_custom_fields` / `projects_custom_field_values` | Champs personnalisés par projet |
 | `SavedView` | `projects_saved_views` | Vue sauvegardée (filtre Kanban/Gantt/Calendrier) |
@@ -50,6 +49,20 @@ Tous sous `auth:sanctum` + `module:Projects` + `role:employee,manager,admin`, mo
 | POST | `capacity/suggest`, `capacity/users/{user}/leave` | Suggestion d'allocation, saisie de congé |
 | POST | `projects/ai/estimate-task`, `identify-risks`, `status-report`, `generate-tasks`, `suggest-prioritization` | IA projet (`throttle:expensive`) |
 | POST | `v1/projects/ai/assist` | Guidance IA contextuelle (AI Assisted First) |
+| GET | `v1/projects/portfolio/kpis\|timeline\|resources`, `v1/projects/{id}/budget\|kpis\|risks` | Budget/KPI/risque avancés (`ProjectAdvancedController`, Phase 49) — désormais sous `module:Projects, role:employee,manager,admin` (voir Particularités, trou RBAC corrigé cette session) |
+| GET/POST/PUT/DELETE | `projects/time-entries`, `projects/{project}/tasks/{task}/time-entries` | Suivi de temps par tâche, réécrit cette session sur `ProjectTimeLog` (voir Particularités) |
+
+Routes web (`Modules/Projects/routes/web.php`, `auth`+`module:Projects`) : `projects`, `projects/time-report`, `projects/roadmap`, `projects/{project}`, `projects/{project}/{calendar,gantt,kanban,automation,epics,sprints}` — 7 pages réelles ajoutées cette session (voir Particularités, elles n'avaient auparavant aucune route).
+
+## Contrôleurs
+
+API (`Modules/Projects/app/Http/Controllers/Api/`) : `ProjectController`, `TaskController`, `MilestoneController`, `EpicController`, `SprintController`, `GanttController`, `ProjectViewsController`, `ProjectReportController`, `ProjectTeamController`, `ProjectMemberController`, `AutomationController`, `ResourceCapacityController`, `TimeEntryController` (réécrit cette session sur `ProjectTimeLog` — voir Particularités), `TimeTrackingController`, `ProjectAdvancedController` (Phase 49 : budget/KPI/risques/portefeuille — `index`/`store`/`show`/`gantt`/`storeTask`/`updateTask` sont délibérément non routés, car ils entreraient en collision avec les routes déjà actives des contrôleurs dédiés), `ProjectsAIController`, `ProjectsAiAssistController`.
+
+Web (`Modules/Projects/app/Http/Controllers/Web/`) : **`ProjectWebController`** (index/show/calendar/gantt/kanban/automation/epics/sprints/roadmap), **`ProjectTimeReportController`** (rapport de temps global, réécrit cette session sur `TimeTrackingController`). Un `ProjectsController` scaffold mort (zéro route + vue Blade) et 3 policies inatteignables (`Modules\Projects\Policies\{Project,Task,Milestone}Policy` — les vraies policies actives sont `App\Policies\{Project,Task}Policy`) ont été supprimés.
+
+## Vues (Vue/Inertia)
+
+Toutes les pages Projects actives vivent désormais à la **racine** (`resources/js/Pages/Projects/`) — le module `Modules/Projects/resources/js/Pages/` ne contient plus aucune page après suppression du doublon `TimeReport/Index.vue` masqué cette session : `Index.vue`, `Show.vue`, `Calendar.vue`, `Gantt.vue`, `Kanban.vue`, `Roadmap.vue`, `Automation/Index.vue`, `Epics/Index.vue`, `Sprints/Index.vue`, `TimeReport/Index.vue`. Les 7 premières (`Automation`/`Calendar`/`Epics`/`Gantt`/`Kanban`/`Roadmap`/`Sprints`) étaient réelles et entièrement construites mais **n'avaient aucune route web** avant cette session ; `TimeReport/Index.vue` appelait un endpoint `time-report-global` qui n'existait pas — bâti sur `TimeTrackingController`, avec agrégation réelle par membre/projet/tâche et montant facturable.
 
 ## Services
 
@@ -70,7 +83,9 @@ Tous sous `auth:sanctum` + `module:Projects` + `role:employee,manager,admin`, mo
 
 ## Permissions RBAC
 
-Permissions dédiées sous le préfixe `projects.*` dans `database/seeders/RolesAndPermissionsSeeder.php` : ressources `project` et `task`, actions `view-any|view|create|update|delete` (plus `approve`, `export`, `archive` référencées par `ProjectPolicy` mais non déclarées dans la liste `MODULES` du seeder — à vérifier/compléter si ces actions doivent réellement être assignables). Le rôle `project-manager` reçoit l'ensemble des permissions `projects.*` ainsi que `timesheets.*` et un accès en lecture aux employés HR.
+Permissions dédiées sous le préfixe `projects.*` dans `database/seeders/RolesAndPermissionsSeeder.php` : ressources `project` et `task`, actions `view-any|view|create|update|delete` (plus `approve`, `export`, `archive` référencées par `ProjectPolicy` mais non déclarées dans la liste `MODULES` du seeder — inchangé cette session). Le rôle `project-manager` reçoit l'ensemble des permissions `projects.*` ainsi que `timesheets.*` et un accès en lecture aux employés HR.
+
+Correction RBAC de cette session : le groupe de routes Phase 49 (`portfolio/*`, `{id}/budget\|kpis\|risks`) n'avait **aucune** gating `module:`/`role:` — n'importe quel utilisateur authentifié de n'importe quel tenant pouvait lire le budget/KPI/risque de n'importe quel projet. Corrigé avec `module:Projects, role:employee,manager,admin`, identique au reste du module. Ses tables (`prj_budget_lines`/`prj_expense_ledger`/`prj_risks`) n'avaient elles-mêmes aucune migration — chaque appel réel échouait de toute façon (« table not found ») avant que le trou RBAC ne soit même exploitable ; corrigé par la même migration.
 
 ## Dépendances avec d'autres modules
 
@@ -82,4 +97,5 @@ Permissions dédiées sous le préfixe `projects.*` dans `database/seeders/Roles
 ## Particularités du périmètre life-mdg-erp
 
 - **La fonctionnalité wiki de projet a été retirée**, comme documenté dans `CLAUDE.md` : aucune trace de `ProjectWikiService`, `ProjectWikiController`, ni d'aucune référence au module `Notes` (`Modules\Notes\Models\Note`) n'existe dans le code actuel de `Modules/Projects` — confirmé par une recherche exhaustive des chaînes `Notes`, `Wiki`/`wiki` dans le module, qui ne retourne aucun résultat. C'était une fonctionnalité annexe autonome, retirée plutôt que transformée en stub, car elle dépendait du module Notes exclu du périmètre life-mdg-erp.
-- **Duplication délibérée de modèles sur les mêmes tables** : `Task`/`ProjectTask` partagent tous deux la table `prj_tasks` (le second est explicitement documenté dans son commentaire de classe comme un « alias model » ajoutant des accesseurs EVM/Gantt sans toucher au modèle `Task` existant), et `TimeLog`/`ProjectTimeLog` partagent `prj_time_logs`. Ce n'est pas une erreur d'extraction mais un choix architectural déjà présent tel quel dans le code.
+- **Trois piles de suivi de temps qui se chevauchaient ont été réduites cette session** : `Task`/`ProjectTask` partageaient `prj_tasks` (le second n'ajoutait que des accesseurs EVM/Gantt) et `TimeLog`/`ProjectTimeLog` partageaient `prj_time_logs`, mais `TimeLog` avait un `$fillable` qui ne correspondait jamais réellement à cette table. `ProjectTask` et `TimeLog` (+ leurs factories) ont été supprimés ; `TimeEntryController` (endpoint `projects/{project}/tasks/{task}/time-entries`, déjà routé) a été réécrit sur `ProjectTimeLog`, le modèle qui correspond réellement au schéma, avec un adaptateur convertissant la saisie manuelle simple (heures + date) vers la forme « minuteur » réellement stockée par ce modèle.
+- **Référence orpheline non déclenchée trouvée pendant cette vérification** (non corrigée — hors du périmètre « documentation » de cette passe, signalée ici plutôt que masquée) : `Task::timeLogs()` (`Modules/Projects/app/Models/Task.php`) référence toujours `TimeLog::class` — la classe supprimée ci-dessus — sans qu'aucune classe de ce nom n'existe plus dans `Modules\Projects\Models`. Aucun appelant de cette relation n'a été trouvé dans le dépôt (`$task->timeLogs`/`timeLogs()` : zéro résultat hors de sa propre définition), donc ce n'est pas une régression active, mais le premier appel réel lèverait une erreur de classe introuvable.

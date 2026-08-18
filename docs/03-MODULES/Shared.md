@@ -10,23 +10,38 @@
 |---|---|---|
 | `Country` | `shared_countries` | Référentiel pays : codes ISO alpha-2/3, devise, préfixe téléphonique, indicateurs `is_ohada`/`is_uemoa`/`is_cemac`, taux de TVA par défaut, fuseau horaire. |
 | `Currency` | `shared_currencies` | Référentiel devises : code, symbole, décimales, indicateur `is_cfa`, taux de change vers USD. |
-| `Language` | `shared_languages` | Référentiel langues (code, nom natif, sens d'écriture RTL, région). |
-| `Tag` | `shared_tags` | Système de tags génériques, scopé par `tenant_id` et par `module` d'origine, avec compteur d'usage. |
 
-Une migration additionnelle crée `shared_preferences` (préférences utilisateur/tenant) sans modèle Eloquent dédié dans le code actuel.
+Une migration additionnelle crée `shared_preferences` (préférences utilisateur/tenant) sans modèle Eloquent dédié dans le code actuel. `Tag`/`Language` (modèles + `SharedResourcePolicy`) ont été **supprimés** cette session : confirmés zéro consommateur nulle part dans le dépôt.
 
 ## Endpoints principaux
 
 ```
 GET  /api/v1/shared/countries                    — liste des pays
 GET  /api/v1/shared/countries/{code}              — détail d'un pays
-GET  /api/v1/shared/currencies                    — liste des devises
 GET  /api/v1/shared/countries/{code}/tax-rates    — taux de taxe actifs pour un pays
+
+GET  /api/v1/shared/currencies                    — liste des devises (CurrencyController, filtres région/CFA/actif)
+GET  /api/v1/shared/currencies/{code}             — détail d'une devise
+POST /api/v1/shared/currencies/convert            — conversion réelle entre deux devises
 
 POST /api/v1/shared/ai/assist  (auth:sanctum)     — guidance IA contextuelle
 ```
 
-Les 4 premières routes ne sont pas protégées par `auth:sanctum` (référentiels publics). `CountryController` interroge directement les tables via `DB::table()` plutôt que via les modèles Eloquent — les filtres utilisés (`active`, `code`, `ohada_member` dans `index()`/`show()`/`taxRates()`) ne correspondent pas aux colonnes réellement définies par la migration `shared_countries` (`is_ohada`, `iso_alpha2`, pas de colonne `active` ni `code`), à surveiller si ces endpoints sont exercés en pratique.
+Les routes pays/devises ne sont pas protégées par `auth:sanctum` (référentiels publics, design volontaire — Africa First/Asia First). `CountryController` interroge directement les tables via `DB::table()` plutôt que via les modèles Eloquent — les filtres utilisés (`active`, `code`, `ohada_member` dans `index()`/`show()`/`taxRates()`) ne correspondent pas aux colonnes réellement définies par la migration `shared_countries` (`is_ohada`, `iso_alpha2`, pas de colonne `active` ni `code`), à surveiller si ces endpoints sont exercés en pratique — non touché cette session (hors scope du correctif ciblé).
+
+## Contrôleurs
+
+`Modules/Shared/app/Http/Controllers/Api/` (3 fichiers) :
+
+| Contrôleur | Rôle |
+|---|---|
+| `CountryController` | Référentiel pays + taux de taxe (voir réserve ci-dessus) |
+| `CurrencyController` | Référentiel devises + conversion — **wiré pour la première fois cette session** (voir Particularités) |
+| `SharedAiAssistController` | Guidance IA contextuelle |
+
+## Vues (Vue/Inertia)
+
+`Modules/Shared/resources/js/Pages/Index.vue` existe dans le dépôt mais **n'est rendue par aucune route web** — ni `Modules/Shared/routes/web.php` (absent) ni aucune route racine ne la référencent. Contrairement aux pages « mock, laissées de côté volontairement » documentées ailleurs dans ce dépôt, ce cas n'a pas été explicitement statué par un chantier : à considérer comme une page orpheline plutôt que comme une décision produit actée.
 
 ## Services
 
@@ -39,7 +54,7 @@ Les 4 premières routes ne sont pas protégées par `auth:sanctum` (référentie
 
 ## Permissions RBAC
 
-Aucune entrée `shared.*` dans `RolesAndPermissionsSeeder::MODULES` — pas de permissions Spatie dédiées. L'autorisation passe par `SharedResourcePolicy` : lecture ouverte à tout utilisateur authentifié (`viewAny`/`view` retournent toujours `true`), création/modification réservées aux rôles `admin`/`super-admin`/`tenant-admin`, suppression réservée à `super-admin`.
+Aucune entrée `shared.*` dans `RolesAndPermissionsSeeder::MODULES` — pas de permissions Spatie dédiées. `SharedResourcePolicy` a été **supprimée** cette session (zéro consommateur confirmé) : il n'y a donc plus de Policy du tout sur ce module — les référentiels pays/devises restent en lecture publique par design (voir Endpoints principaux), sans écriture exposée par API dans ce périmètre.
 
 ## Dépendances avec d'autres modules
 
@@ -47,4 +62,5 @@ Aucune entrée `shared.*` dans `RolesAndPermissionsSeeder::MODULES` — pas de p
 
 ## Particularités du périmètre life-mdg-erp
 
-Certains jobs qui étendent `BaseAsyncJob` (ex. dans `Accounting\Jobs\ConsolidateFinancialsJob`, `ProcessConsolidationAdjustmentsJob`) appartiennent aux fonctionnalités de consolidation multi-société déjà incomplètes dans WideHalo-ERP source (voir `CLAUDE.md`, section « Known gaps ») — `Shared` lui-même est complet, mais certains de ses consommateurs ne le sont pas.
+- **`CurrencyController` était réel mais entièrement non routé avant cette session** : seul un alias plus mince, `CountryController::currencies()` (une simple liste `DB::table()` non filtrée), était enregistré sous `GET currencies`. `CurrencyController` (filtrage région/CFA/actif, lookup d'une devise unique, et la seule implémentation réelle de *conversion* de devise du module) a remplacé cet alias comme la vraie route `currencies*`, plutôt que d'être enregistré en doublon sur la même URI — cela aurait recréé le même piège d'écrasement silencieux (dernière déclaration gagnante dans la table de routes de Laravel) déjà documenté et corrigé pour les routes de base de connaissances de Helpdesk. Le multi-devises étant l'un des sept principes fondateurs de l'application, cette absence de route était considérée comme un vrai gap plutôt qu'un détail mineur.
+- Certains jobs qui étendent `BaseAsyncJob` (ex. dans `Accounting\Jobs\ConsolidateFinancialsJob`, `ProcessConsolidationAdjustmentsJob`) appartiennent aux fonctionnalités de consolidation multi-société déjà incomplètes dans WideHalo-ERP source (voir `CLAUDE.md`, section « Known gaps ») — `Shared` lui-même est complet, mais certains de ses consommateurs ne le sont pas.

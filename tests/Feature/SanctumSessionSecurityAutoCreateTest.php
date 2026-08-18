@@ -24,9 +24,27 @@ class SanctumSessionSecurityAutoCreateTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Chantier 8.3hp gated /api/v1/hr/departments behind
+     * role:employee,hr-manager,payroll-officer,manager,admin — a bare
+     * factory user with no role now 403s at the route-level gate before
+     * ever reaching SanctumSessionSecurity, which broke this test's use of
+     * that route as a generic "any protected endpoint" probe.
+     */
+    private function makeSessionTestUser(): User
+    {
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+
+        return $user;
+    }
+
     public function test_a_token_with_no_session_record_is_auto_created_instead_of_419(): void
     {
-        $user = User::factory()->create();
+        $user = $this->makeSessionTestUser();
         $token = $user->createToken('api');
         $user->withAccessToken($token->accessToken);
         $this->actingAs($user, 'sanctum');
@@ -41,7 +59,7 @@ class SanctumSessionSecurityAutoCreateTest extends TestCase
 
     public function test_a_genuinely_hijacked_session_still_gets_a_419(): void
     {
-        $user = User::factory()->create();
+        $user = $this->makeSessionTestUser();
         $someoneElseId = $user->id + 999999;
         $token = $user->createToken('api');
         $user->withAccessToken($token->accessToken);

@@ -9,19 +9,18 @@ Le module Logistics est le TMS (Transport Management System) de l'ERP : expédit
 | Modèle | Table DB | Rôle |
 |---|---|---|
 | `Shipment` | `logistics_shipments` | Expédition (TMS), liée à un `HelpdeskLinkable` |
-| `ShipmentLine`, `ShipmentPackage`, `ShipmentTrackingEvent` / `TrackingEvent` / `LgxTrackingEvent` | — | Lignes, colis et évènements de suivi d'une expédition |
-| `Carrier` / `LgxCarrier` | — | Transporteur (dont transporteurs africains : SenPost, CamPost, DHL, Chronopost, Bolloré) |
+| `ShipmentLine`, `ShipmentPackage`, `ShipmentTrackingEvent` / `TrackingEvent` | — | Lignes, colis et évènements de suivi d'une expédition |
+| `Carrier` | — | Transporteur (dont transporteurs africains : SenPost, CamPost, DHL, Chronopost, Bolloré) |
 | `CarrierRate`, `CarrierRateCard` | — | Grilles tarifaires transporteur |
 | `DeliveryRound`, `DeliveryStop` | — | Tournée de livraison dernier kilomètre et arrêts (preuve de livraison) |
-| `Route` / `LogisticsRoute`, `RouteStop` | — | Itinéraire optimisé (VRP, plus proche voisin, Haversine) |
-| `CustomsDeclaration`, `CustomsItem` | — | Déclaration douanière et lignes associées |
+| `LogisticsRoute`, `RouteStop`, `DeliveryRoute` | — | Itinéraire optimisé (VRP, plus proche voisin, Haversine) |
+| `CustomsDeclaration` | — | Déclaration douanière |
 | `HsCode` | — | Nomenclature SH (codes douaniers) |
 | `FreightInvoice` | — | Facture fret transporteur (approbation/contestation) |
-| `Warehouse`, `WarehouseZone`, `WarehouseLocation`, `WarehouseMovement` | `wh_warehouses` | Entrepôt multi-sites, zones et emplacements (distinct du `Warehouse` d'Inventory) |
-| `PutawayRule` / `WarehousePutAwayRule` | — | Règles de rangement (FEFO/FIFO) |
+| `PutawayRule` | — | Règles de rangement (FEFO/FIFO) |
 | `Vehicle` | — | Véhicule de livraison |
 | `Location` | — | Emplacement géographique générique |
-| `LgxShipment`, `LgxShipmentItem` | — | Modèles d'expédition liés aux connecteurs de visibilité (Flexport, MarineTraffic, FlightAware) |
+| `CarrierRateCard` | — | Grille tarifaire transporteur (table `lgx_carrier_rate_cards`) |
 
 ## Endpoints principaux
 
@@ -50,6 +49,25 @@ Tous sous préfixe `v1`, `auth:sanctum`, avec garde de rôle `role:logistics-man
 | GET | `logistics/shipments/{id}/visibility`, `tracking-events`, POST `refresh-tracking` | Agrégateur de visibilité maritime/aérien |
 | POST | `v1/logistics/ai/assist` | Guidance IA contextuelle (AI Assisted First) |
 
+## Contrôleurs
+
+15 contrôleurs Api (`Modules/Logistics/app/Http/Controllers/Api/`) + 1 contrôleur Web (`LogisticsWebController`).
+
+Api : `ShipmentController`, `TrackingEventController`, `ShipmentVisibilityController`, `CarrierController`/`CarrierRateController`, `RouteController`/`RouteOptimizationController`, `DeliveryRoundController`, `FreightInvoiceController`, `CustomsDeclarationController`/`CustomsRouteController`, `HsCodeController` (nomenclature SH, lecture seule), `LocationController`, `PutawayRuleController`, `LogisticsAnalyticsController`, `LogisticsAiAssistController`.
+
+**Corrections RBAC (Chantier 8.3)** : `CarrierPolicy`/`ShipmentPolicy`/`DeliveryRoundPolicy` existaient mais n'étaient jamais invoquées par `CarrierController`/`ShipmentController`/`DeliveryRoundController` ni enregistrées auprès du Gate — corrigé via `LogisticsServiceProvider::registerPolicies()` (les policies namespacées `Modules\*` ne s'auto-découvrent pas) et l'ajout des appels `authorize()` manquants, plus un bloc `LOGISTICS_EXTRA_PERMISSIONS` (8 permissions `logistics.deliveryround.*`).
+
+**Bug de cycle de vie corrigé** : `ShipmentController::book()`/`dispatch()`/`deliver()`/`cancel()` avaient `ShipmentService` injecté mais ne l'appelaient jamais — ils modifiaient `status` directement, si bien que `booked_at`/`picked_up_at`/l'historique de suivi n'étaient jamais écrits ; `dispatch()` utilisait en plus le mauvais vocabulaire (`'dispatched'`, qui appartient au modèle mort `LgxShipment` — le vrai vocabulaire est `'picked_up'`). Les 4 méthodes délèguent désormais réellement à `ShipmentService`.
+
+**Sous-système mort supprimé (Chantier 8.3)** : l'ensemble parallèle `wh_*`/`lgx_*` — `WarehouseShipmentController`, `WarehouseService`, `LgxShipmentService`, et les modèles `Warehouse`/`WarehouseZone`/`WarehouseMovement`/`WarehouseLocation`/`WarehousePutAwayRule`/`LgxShipment`/`LgxCarrier`/`LgxTrackingEvent`/`LgxShipmentItem` — entrait en collision d'URL avec le vrai `ShipmentController`/`CarrierController` déjà routé et a été supprimé intégralement (confirmé : aucun de ces modèles ne subsiste dans `Modules/Logistics/app/Models`). `Route.php` (doublon octet-pour-octet de `LogisticsRoute`) et `CustomsItem.php` (orphelin, table jamais migrée) ont également été supprimés.
+
+## Vues (Vue/Inertia)
+
+- **Racine** (`resources/js/Pages/Logistics/`) : `Analytics/`, `Carriers/`, `Customs/`, `DeliveryRounds/`, `FreightInvoices/`, `Shipments/` — versions réelles, servies par `LogisticsWebController`, qui font de vrais appels `fetch()` vers les vraies API.
+- **Module** (`Modules/Logistics/resources/js/Pages/`) : `Dashboard/`, `RouteOptimization/Index.vue` (page auto-suffisante, routée par closure `Inertia::render()` au Chantier 8.3), `Returns/Index.vue` et `AIRiskMonitor/Index.vue` — ces deux dernières sont **100 % maquettes statiques** (aucun `defineProps`, aucun appel réseau, aucun modèle/service/table derrière) et restent volontairement non routées : les câbler impliquerait d'inventer un moteur de scoring de risque IA et un sous-système RMA complets, hors mandat du chantier de re-câblage (« construire du réel, ne pas inventer de logique métier »).
+
+6 pages qui existaient en double côté module (`Analytics`, `Carriers`, `Customs`, `DeliveryRounds`, `FreightInvoices`, `Shipments`) ont été confirmées mortes et supprimées — les copies racine sont celles réellement servies par `LogisticsWebController`, `app.js`'s `resolve()` donnant la priorité à `./Pages/` avant `../../Modules/*/resources/js/Pages/`.
+
 ## Services
 
 - **`ShipmentService`** — cycle de vie d'une expédition (réservation, expédition, livraison, annulation).
@@ -58,11 +76,10 @@ Tous sous préfixe `v1`, `auth:sanctum`, avec garde de rôle `role:logistics-man
 - **`FreightBillingService`** — facturation fret et rapprochement.
 - **`CustomsService`** — calcul des droits de douane (règles OHADA), gestion des déclarations.
 - **`LogisticsAnalyticsService`** — KPI transporteurs, statistiques d'expédition, émissions CO2.
-- **`WarehouseService`** — gestion des zones/emplacements d'entrepôt et règles de rangement.
+- **`PutawayRuleController`** contourne en réalité le modèle Eloquent `PutawayRule` et écrit via `DB::table()` brut, sur un jeu de champs distinct du modèle (confirmé au Chantier 8.3 : `product_category`/`carrier_id`/`transport_mode`/`requires_cold_chain`/`has_hazmat`, pas les colonnes `$fillable` inutilisées du modèle) — les règles de rangement d'entrepôt passent donc par ce contrôleur, pas par un `WarehouseService` dédié (le service du même nom, qui appartenait au sous-système mort `wh_*`, a été supprimé).
 - **`LocationPrivacyService`** — anonymisation/protection des données de géolocalisation.
 - **`WebhookSecurityService`** — vérification de signature des webhooks entrants (transporteurs, connecteurs).
 - **`ShipmentVisibilityService`** avec connecteurs dédiés (`MarineTrafficConnector`, `FlightAwareConnector`, `FlexportConnector`, `FallbackTrackingConnector`) — agrégation de la visibilité de suivi maritime/aérien, avec repli si aucun connecteur externe n'est disponible.
-- **`LgxShipmentService`** — services liés aux expéditions du sous-système "LGX" (connecteurs de visibilité).
 
 ## Permissions RBAC
 

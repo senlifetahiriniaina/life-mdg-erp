@@ -129,7 +129,7 @@ class Task extends Model
 
     public function timeLogs(): HasMany
     {
-        return $this->hasMany(TimeLog::class, 'task_id');
+        return $this->hasMany(ProjectTimeLog::class, 'task_id');
     }
 
     public function dependencies(): HasMany

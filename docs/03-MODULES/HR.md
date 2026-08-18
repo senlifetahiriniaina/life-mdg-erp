@@ -32,7 +32,7 @@ Le module HR couvre le périmètre RH « basique » de life-mdg-erp : dossier em
 
 ## Endpoints principaux
 
-Toutes sous `auth:sanctum`, préfixe `/api/v1/hr/` (`HRServiceProvider` route `RouteServiceProvider`) :
+Toutes sous `auth:sanctum, session.security, tenancy.user, module:HR, role:employee,hr-manager,payroll-officer,manager,admin` (corrigé cette session — le module n'avait auparavant aucune gating de ce type sur ses ~50 endpoints), préfixe `/api/v1/hr/` (`HRServiceProvider` → `RouteServiceProvider`) :
 
 | Méthode | Route | Description |
 |---|---|---|
@@ -50,8 +50,12 @@ Toutes sous `auth:sanctum`, préfixe `/api/v1/hr/` (`HRServiceProvider` route `R
 | CRUD (lecture) | `skills` | Compétences |
 | CRUD | `salary-bands` | Grilles salariales |
 | POST | `salary-bands/{salaryBand}/simulate-raise` | Simulation d'augmentation |
-| GET | `me`, `me/payslips`, `me/leave-balance` | Self-service — `me/payslips` renvoie des `Modules\Payroll\Models\Payslip` |
-| GET | `dashboard`, `dashboard/realtime` | Tableau de bord RH |
+| GET | `me`, `me/payslips`, `me/leave-balance` | Self-service — `me/payslips` renvoie des `Modules\Payroll\Models\Payslip`, réponse `me`/`profile` désormais servie via `SelfServiceEmployeeResource` (voir Particularités — fuite PII corrigée) |
+| GET | `employees/{employee}/profile` | Profil complet employé (`EmployeeManagementController`) |
+| POST | `employees/onboard`, `employees/{employee}/complete-onboarding`, `employees/{employee}/terminate` | Cycle d'onboarding/terminaison (`EmployeeManagementController`, nouveau cette session) |
+| GET | `employees/{employee}/compensation/{current,breakdown,history,bonus-accrual}`, `compensation/audit` | Rémunération détaillée (`CompensationController`, nouveau cette session) |
+| POST | `employees/{employee}/compensation`, `.../update-vesting`, `.../benchmark` | Écritures de rémunération (`CompensationController`) |
+| GET | `dashboard`, `dashboard/realtime` | Tableau de bord RH — rend désormais `Inertia::render('HR/Dashboard')` (corrigé cette session, voir Particularités) |
 | POST | `ai/optimize-leave-planning`, `ai/analyze-payslip`, `ai/detect-payroll-anomalies` | IA RH (`HrAIController` → `HrAIService`) |
 | GET/POST | `employee-portal`, `employee-portal/leave-balance`, `employee-portal/leave-requests`, `employee-portal/payslips`, `employee-portal/payslips/{payslip}` | Portail employé |
 | PUT/POST | `me`, `self-service/leave-requests` | Mise à jour profil / soumission congé |
@@ -59,38 +63,79 @@ Toutes sous `auth:sanctum`, préfixe `/api/v1/hr/` (`HRServiceProvider` route `R
 | GET/POST | `portal/profile`, `portal/leave-balance`, `portal/leave-requests`, `portal/payslips`, `portal/payslips/{payslip}` | Portail self-service (tout utilisateur authentifié, pas seulement `hr-manager`) |
 | POST | `ai/assist` | Guidance IA contextuelle (`HRAiAssistController`) |
 
-Routes web (`/hr/…`, session `auth`) : `employees`, `employees/{employee}`, `payroll` (vue), `attendance`, `shifts/schedule`, `leave/analytics`, `compensation`.
+Routes web (`/hr/…`, session `auth`) : `employees`, `employees/create`, `employees/{employee}`, `employees/{employee}/edit`, `payroll` (vue), `attendance`, `attendance/manage`, `shifts/schedule`, `leave/analytics`, `compensation`, `portal`, `departments`, `leaves`.
+
+## Contrôleurs
+
+API (`Modules/HR/app/Http/Controllers/Api/`) :
+
+- **`EmployeeController`** — CRUD employé, métriques, filtrage par département.
+- **`EmployeeManagementController`** (nouveau cette session) — cycle d'onboarding/terminaison/profil complet, construit à partir du service `EmployeeManagementService` réécrit (voir Services) ; `terminate()` réutilise volontairement l'habileté `update` plutôt que `EmployeePolicy::archive()`, la permission `hr.employee.archive` n'ayant jamais été seedée.
+- **`CompensationController`** (nouveau cette session) — rémunération détaillée par employé (courant, décomposition, historique, accrual de prime, vesting, benchmark), distinct de `SalaryBandController::equityAnalysis()` (analyse au niveau grille salariale).
+- **`EmployeeSelfServiceController`** / **`EmployeePortalController`** — self-service employé ; leurs réponses `me()`/`updateMe()`/`profile()` passent désormais par `SelfServiceEmployeeResource` (voir Particularités — fuite PII corrigée).
+- **`DepartmentController`**, **`JobPositionController`**, **`LeaveTypeController`**, **`SalaryBandController`**, **`SkillController`** — CRUD organisation/paramétrage, désormais chacun couvert par une Policy dédiée (voir RBAC).
+- **`LeaveController`** / **`LeaveRequestController`** — congés, avec `approve()`/`reject()` désormais gatés par `authorize('approve', ...)` (corrigé cette session — n'importe quel employé authentifié pouvait auparavant approuver/rejeter le congé de n'importe qui).
+- **`AttendanceController`** — pointage simple self clock-in/out.
+- **`AttendanceBiometricController`** (13 méthodes) — sous-système additif : gestion de terminaux biométriques, vérification de pointage, exceptions, plannings d'équipe, demandes d'absence, analytique — entièrement câblé cette session (routes, migrations, enregistrement de policy — voir Particularités).
+- **`DocumentAlertController`** — suivi d'expiration des documents de conformité.
+- **`HrAIController`** / **`HRAiAssistController`** — IA métier / guidance contextuelle.
+- **`HrDashboardController`** — tableau de bord RH.
+
+Web (`Modules/HR/app/Http/Controllers/Web/`) : **`EmployeeWebController`** (index/create/edit/show/payroll/attendance/schedule/portal/compensation), **`LeaveAnalyticsWebController`**. Un `HRController` scaffold mort (zéro route, vues Blade jamais réelles) a été supprimé cette session.
+
+## Vues (Vue/Inertia)
+
+Résolution racine-first (`resources/js/Pages/HR/...` prioritaire sur `Modules/HR/resources/js/Pages/...` à nom identique — voir `resources/js/app.js::resolve()`) :
+
+- **Racine** (`resources/js/Pages/HR/`) : `Dashboard.vue` (corrigé cette session — la route rendait auparavant une vue Blade `hr::dashboard` inexistante, 404 systématique), `Employees/{Index,Show}.vue`, `Attendance/Index.vue` (page personnelle de pointage — gagne la collision de nom sur `attendance`), `Portal.vue`, `Compensation/Index.vue`, `Payroll/Index.vue`. Des pages hors périmètre (`Recruitment`, `Succession`, `Training`, `Learning`, `Performance`) existent aussi à la racine mais ne sont **rattachées à aucune route HR active** dans ce dépôt (ATS/recrutement/formation/succession étant hors scope « basique »).
+- **Module** (`Modules/HR/resources/js/Pages/`) : `Employees/Form.vue` (create/edit), `Departments/Index.vue` (reconstruite cette session sur le vrai champ `status` — l'ancienne version supposait une hiérarchie `parent_id`/`is_active` jamais reliée au modèle), `Leaves/Index.vue`, `Leave/Analytics.vue` (reconstruite sur un vrai service `HrDashboardService::getLeaveAnalytics()` — avant cette session, 100% de données factices `Math.random()`), `Shifts/Schedule.vue` (adaptée cette session à la vraie forme de `ShiftSchedule` — modèles de planning hebdomadaires récurrents, pas un calendrier mensuel par date), `Attendance/Manage.vue` (page CRUD admin réelle, renommée cette session pour lever une collision de nom avec la page racine de pointage personnel).
+
+Pages dupliquées mortes supprimées cette session : anciennes `Employees/{Index,Show}.vue`/`Leaves/RequestForm.vue` côté module (masquées par les vraies pages racine), un `EmployeeNode.vue` orphelin.
 
 ## Services
 
-- **`EmployeeService`** / **`EmployeeManagementService`** — cycle de vie employé (création, onboarding, mise à jour).
-- **`AttendanceService`** / **`AdvancedAttendanceService`** — pointage, intégration terminaux biométriques, détection d'exceptions, gestion des demandes d'absence.
-- **`AbsenceManagementService`** — congés/absences, règles d'accumulation, workflow d'approbation.
-- **`CompensationService`** — rémunération totale, vesting, primes, lettres d'offre.
+- **`EmployeeService`** — cycle de vie employé basique (création, mise à jour), consommé par `EmployeeController`.
+- **`EmployeeManagementService`** — réécrit cette session : `onboardEmployee()`/`getEmployeeProfile()` référençaient des colonnes `Employee` inexistantes (`department`/`position`/`salary` — les vraies colonnes sont `department_id`/`job_position_id`, le salaire vivant sur `EmployeeCompensation`) ; corrigées. `updateEmployee()`/`getEmployeesByDepartment()` ont été supprimées comme 100% redondantes avec `EmployeeController::update()`/`byDepartment()`, déjà réels et routés.
+- **`AttendanceService`** — pointage simple (clock-in/out).
+- **`CompensationService`** — rémunération totale, vesting, primes ; câblée sur `CompensationController` cette session (était réelle et correcte mais totalement non routée). `generateOfferLetterData()`/`getBenefitsDetails()` restent non exposés par une route — artefact de recrutement hors du périmètre RH « basique ».
 - **`SkillMatrixService`** — compétences et écarts de compétences (grille simple, sans catalogue de formation).
 - **`DocumentExpiryService`** — documents arrivant à expiration, rapport de conformité (commande planifiée `CheckDocumentExpiry`).
-- **`BankDetailsMaskingService`** — masquage PCI DSS des coordonnées bancaires (4 derniers chiffres visibles).
-- **`HrDashboardService`** — statistiques RH agrégées (effectif, absences du jour, ancienneté moyenne).
+- **`BankDetailsMaskingService`** — masquage PCI DSS des coordonnées bancaires (4 derniers chiffres visibles), désormais réellement exposé côté self-service via `SelfServiceEmployeeResource` (voir Particularités).
+- **`HrDashboardService`** — statistiques RH agrégées (effectif, absences du jour, ancienneté moyenne) + `getLeaveAnalytics()` (nouveau cette session, remplace les données factices de `Leave/Analytics.vue`).
 - **`HRService`** — services génériques transverses au module.
-- **`AI\HrAIService`** — appelle `Modules\Core\Services\AI\AIService::ask()` pour l'optimisation de planning de congés, l'analyse de bulletin de paie et la détection d'anomalies de paie (retourne du JSON structuré généré par l'IA).
+- **`AI\HrAIService`** — appelle `Modules\Core\Services\AI\AIService::ask()` pour l'optimisation de planning de congés, l'analyse de bulletin de paie et la détection d'anomalies de paie.
 
 Deux observers (`EmployeeObserver`, `LeaveRequestObserver`) diffusent les événements `HrEmployeeUpdated` / `HrLeaveRequestUpdated` (`App\Events`) sur `created`/`updated`.
 
+**Services supprimés cette session** — `AbsenceManagementService` et `AdvancedAttendanceService` (~1 000 lignes combinées, zéro consommateur contrôleur) se sont révélés être des sous-systèmes parallèles cassés/redondants plutôt que des fonctionnalités à finir : `AbsenceManagementService` dupliquait le flux congés déjà réel de `LeaveController`/`LeaveRequestController` avec un type de congé américain codé en dur et une vérification FMLA (droit du travail fédéral américain, hors périmètre — voir `CLAUDE.md`) ; `AdvancedAttendanceService` contenait des valeurs factices codées en dur (`$isEnrolled = true`, taux horaire à 50$ fixe) et écrivait sur des noms de colonnes inexistants sur `AttendanceRecord`/`LeaveRequest`. Les deux ont été supprimés plutôt que réparés, après validation explicite de l'utilisateur — voir `CLAUDE.md` pour le détail complet de la décision.
+
 ## Permissions RBAC
 
-Préfixe `hr.*` dans `RolesAndPermissionsSeeder::MODULES` : ressources `employee`, `department`, `job-position`, `leave`, `leave-type`, actions standard `view-any|view|create|update|delete`. Le rôle `hr-manager` reçoit toutes les permissions `hr.*` + `payroll.*` + `timesheets.*`. `EmployeePolicy` vérifie en plus `hr.employee.approve`, `hr.employee.export`, `hr.employee.archive` — trois actions non couvertes par la liste `ACTIONS` du seeder (`view-any|view|create|update|delete`), donc ces permissions précises ne sont jamais créées automatiquement. De même, `AttendancePolicy` vérifie une dizaine de permissions `hr.attendance.*` (`view`, `view-personal`, `record`, `manage-devices`, `verify-records`, `handle-exceptions`, `approve-exception`, `request-time-off`, `approve-time-off`, `reject-time-off`, `manage-shifts`, `view-analytics`, `export`) alors que `attendance` n'apparaît pas du tout comme ressource du module `hr` dans le seeder — aucune de ces permissions n'est seedée : ces policies ne peuvent donc être satisfaites, en l'état, que par un rôle qui bypass les Gates (`super-admin`) ou par des permissions créées manuellement hors seeder.
+Préfixe `hr.*` dans `RolesAndPermissionsSeeder::MODULES` : ressources `employee`, `department`, `job-position`, `leave`, `leave-type`, actions standard `view-any|view|create|update|delete`. Le rôle `hr-manager` reçoit toutes les permissions `hr.*` + `payroll.*` + `timesheets.*`.
+
+Corrections RBAC de cette session (`HR_EXTRA_PERMISSIONS`, nouveau bloc du seeder) :
+- `hr.documents.*` (view/create/edit/delete/remind) pour `DocumentAlertController`, qui n'avait aucune permission seedée alors qu'il gate chaque action.
+- `hr.salary-band.*` et `hr.skill.*` — `SalaryBandController`/`SkillController` n'avaient auparavant **aucune classe Policy du tout** (trou RBAC réel, corrigé par `SalaryBandPolicy`/`SkillPolicy`, nouveaux) et ces deux ressources n'apparaissaient pas dans `MODULES['hr']`.
+- `hr.attendance.*` (13 permissions : `view`, `view-personal`, `record`, `manage-devices`, `verify-records`, `handle-exceptions`, `approve-exception`, `request-time-off`, `approve-time-off`, `reject-time-off`, `manage-shifts`, `view-analytics`, `export`) — backant `AttendancePolicy`, désormais réellement seedées (c'était un vrai trou avant cette session : `AttendanceBiometricController` avait zéro route et `AttendancePolicy` n'était satisfaisable par aucun rôle non-`super-admin`).
+
+`DepartmentPolicy`/`JobPositionPolicy`/`LeaveTypePolicy` (nouvelles cette session) couvrent les 3 contrôleurs qui n'avaient auparavant aucune classe Policy. `EmployeePolicy` vérifie toujours `hr.employee.approve`/`.export` (non couvertes par la liste `ACTIONS` générique) ; `.archive` reste non seedée par choix (voir `EmployeeManagementController::terminate()` ci-dessus, qui contourne délibérément cette permission manquante).
+
+Fuite PII corrigée cette session : `EmployeeSelfServiceController::me()`/`updateMe()` et `EmployeePortalController::profile()` renvoyaient auparavant `response()->json($employee)` brut, sérialisant en clair `bank_details_encrypted`/`national_id`/`passport_number` déchiffrés. Une nouvelle `SelfServiceEmployeeResource` n'expose que `masked_bank_details` (via `BankDetailsMaskingService`) et omet totalement les deux champs d'identité.
+
+`LeaveRequestPolicy::update()` comparait `$model->employee_id` (un `hr_employees.id`) directement à `$user->id` (un `users.id`) — un employé ne pouvait jamais passer ce contrôle sur sa propre demande de congé ; corrigé en comparant `$model->employee?->user_id`. `LeaveRequestController::approve()`/`reject()` n'avaient aucun `authorize()` du tout avant cette session (n'importe quel employé pouvait approuver/rejeter n'importe quelle demande) — corrigé.
 
 ## Dépendances avec d'autres modules
 
-- **Payroll** : `Modules\Payroll\Models\Payslip` est utilisé par `EmployeeSelfServiceController`, `EmployeePortalController` et lié en route-model-binding dans `HR\Providers\RouteServiceProvider` (`Route::bind('payslip', …)`) — HR ne fait que lire les bulletins produits par Payroll, il ne les génère plus.
+- **Payroll** : `Modules\Payroll\Models\Payslip` est utilisé par `EmployeeSelfServiceController`, `EmployeePortalController` et lié en route-model-binding dans `HR\Providers\RouteServiceProvider` (`Route::bind('payslip', …)`) — HR ne fait que lire les bulletins produits par Payroll. Inversement, `Modules\Payroll\Services\PayrollIntegrationService` consomme désormais `Modules\HR\Models\Employee` et `Modules\HR\Models\EmployeeCompensation` (voir `docs/03-MODULES/Payroll.md`) — l'ancien bug où ce service référençait des classes `PayrollRecord`/`PayrollPeriod` inexistantes dans HR a été corrigé cette session (n'est plus une particularité active de ce module).
 - **Helpdesk** : `Employee` utilise le trait `HelpdeskLinkable`.
+- **Timesheets** : `Modules\Payroll\Services\PayrollIntegrationService` lit `Modules\Timesheets\Models\TimesheetEntry` pour dériver les heures supplémentaires (indirect, via Payroll — pas d'import direct de HR vers Timesheets).
 - **Core** : `HrAIService` s'appuie sur `Modules\Core\Services\AI\AIService`.
 - **AI** : `HRAiAssistController` utilise `AiContextualAssistantService`.
 - Aucune dépendance résiduelle vers `Modules\Planning\*` n'a été trouvée dans le code actuel (voir Particularités).
 
 ## Particularités du périmètre life-mdg-erp
 
-- **Duplication Payroll supprimée, confirmée dans le code** : `Modules/HR/app/Models/` ne contient aucun modèle `Payroll`/`PayrollRun`/`PayrollCalculation`/`Payslip` — la seule trace de paie côté HR est la consommation en lecture de `Modules\Payroll\Models\Payslip` (self-service et portail employé). Le module `Payroll` est bien l'unique source de vérité, conformément à `CLAUDE.md`.
-  - Fait notable qui nuance cette séparation : `Modules\Payroll\Services\PayrollIntegrationService`, le contrôleur `Modules\Payroll\Http\Controllers\Api\PayrollController` (routes `payslips`, `generate`, `payslips/approve-batch`, `process-payment`, `taxes/by-country`) et leur test `PayrollIntegrationServiceTest` importent tous `Modules\HR\Models\PayrollRecord` (et `PayrollPeriod`) — des classes qui **n'existent nulle part dans le dépôt** (ni dans `Modules/HR/app/Models/`, ni ailleurs). Ce sont très probablement des reliquats de l'ancienne duplication HR/Payroll retirée lors de l'extraction : le nettoyage a supprimé les modèles mais pas cette branche de code qui les référence encore, ce qui rend ces routes du `PayrollController` non fonctionnelles en l'état (erreur de classe introuvable à l'exécution). Voir `docs/03-MODULES/Payroll.md` pour le détail.
-- **Découplage de `Modules\Planning\Models\EmployeeSchedule` vérifié** : aucune relation ni import de `Modules\Planning\*` n'existe dans `Employee.php` ni ailleurs dans `Modules/HR/app/`. Le seul rapprochement lexical trouvé (`AdvancedAttendanceService::getEmployeeScheduledTime()` / `getEmployeeScheduledEndTime()`) travaille avec `ShiftSchedule` (modèle HR local), pas avec le module `Planning` exclu du périmètre — la coupure documentée dans `CLAUDE.md` est bien effective.
+- **Duplication Payroll supprimée, confirmée dans le code, et le bug résiduel qui subsistait est désormais corrigé** : `Modules/HR/app/Models/` ne contient toujours aucun modèle `Payroll`/`PayrollRun`/`PayrollCalculation`/`Payslip` — la seule trace de paie côté HR reste la consommation en lecture de `Modules\Payroll\Models\Payslip`. Le module `Payroll` est bien l'unique source de vérité, conformément à `CLAUDE.md`. Le reliquat documenté précédemment ici (`PayrollIntegrationService`/`PayrollController` important des classes `Modules\HR\Models\PayrollRecord`/`PayrollPeriod` inexistantes) a été réécrit cette session pour opérer directement sur `Modules\HR\Models\EmployeeCompensation` — voir `docs/03-MODULES/Payroll.md`.
+- **Découplage de `Modules\Planning\Models\EmployeeSchedule` vérifié** : aucune relation ni import de `Modules\Planning\*` n'existe dans `Employee.php` ni ailleurs dans `Modules/HR/app/`. `AdvancedAttendanceService` (supprimé cette session) était le seul rapprochement lexical trouvé, et il travaillait avec `ShiftSchedule` (modèle HR local), pas avec le module `Planning` exclu du périmètre.
 - Le scope RH « basique » se reflète aussi dans le naming : `JobPosition` porte un commentaire explicite dans les routes (« basic org structure — not to be confused with recruitment job postings ») et `SkillController`/`Skill` sont qualifiés de « basic skill tagging, no training catalogue / skill matrix visualization » — cohérent avec le retrait de l'ATS/recrutement et du catalogue de formation.
+- **`AttendanceBiometricController`** (device biométrique, vérification, exceptions, plannings, demandes d'absence, analytique) était entièrement écrit mais totalement non câblé avant cette session : zéro route, 6 tables manquantes (`BiometricDevice`, `TimeOffRequest`, `AttendanceException`, `AttendanceAnalytics`, `CompensationHistory`, `Deduction`), et `AttendancePolicy` (qui couvre 5 modèles différents) jamais enregistrée auprès du Gate. Tout est désormais réel : migration ajoutée, `HRServiceProvider::registerPolicies()` (nouveau) enregistre les 5 liaisons de policy, routes montées sous `biometric-devices`/`attendance-records`/`attendance-exceptions`/`shifts`/`time-off-requests`/`attendance-analytics`.

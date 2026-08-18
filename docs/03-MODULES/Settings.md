@@ -23,6 +23,21 @@ Toutes les routes sont sous `auth:sanctum` (`routes/api.php`, pas de préfixe ex
 | PUT | `/{module}/{key}` | Mise à jour (ou création) d'un réglage unique |
 | POST | `v1/settings/ai/assist` | Guidance IA contextuelle (`SettingsAiAssistController`) |
 
+## Contrôleurs
+
+`Modules/Settings/app/Http/Controllers/Api/` (2 fichiers, module sans dossier `Web/`) :
+
+| Contrôleur | Rôle |
+|---|---|
+| `SettingsController` | `index`/`showModule`/`bulk`/`update` |
+| `SettingsAiAssistController` | Guidance IA contextuelle |
+
+**Correctif RBAC de cette session** : `SettingsController::update()` (mise à jour d'un réglage unique, `PUT /{module}/{key}`) n'avait **aucun** appel `authorize()`, contrairement à ses trois méthodes sœurs (`index`, `showModule`, `bulk`) — n'importe quel utilisateur authentifié de n'importe quel rôle pouvait modifier n'importe quel réglage individuel d'un tenant, potentiellement de la configuration paiement/sécurité, sans avoir besoin de `settings.update`. Corrigé pour appliquer le même contrôle que `bulk()`.
+
+## Vues (Vue/Inertia)
+
+Pas de page propre au module (`Modules/Settings/resources/js/Pages/` n'existe pas). L'écran de configuration est `resources/js/Pages/Settings/Index.vue` (racine du dépôt), rendu par une route directe du fichier racine `routes/web.php` (`GET /settings` → `Inertia::render('Settings/Index')`) — hors du module lui-même, qui n'a pas de `routes/web.php`. Une copie dupliquée `SettingsIndex.vue`, masquée par cette page racine, a été **supprimée** cette session.
+
 ## Services
 
 - **`SettingsService`** — accès centralisé en lecture/écriture avec cache par tenant (clé `settings:{tenant_id}:{module}:{key}`, TTL 1h) :

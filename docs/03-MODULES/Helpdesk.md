@@ -36,14 +36,31 @@ Montés sous `api/v1/helpdesk` (`Modules/Helpdesk/routes/api.php`), avec des gro
 | — | POST | `helpdesk/tickets/{ticket}/assign\|resolve\|close\|escalate` | Cycle de vie du ticket |
 | — | GET/POST/PUT/DELETE | `helpdesk/tickets/{ticket}/comments` | Commentaires |
 | — | GET/POST/PUT/DELETE | `helpdesk/teams` | Équipes de support |
-| — | GET/POST/PUT/DELETE | `helpdesk/kb/articles`, `helpdesk/kb/categories` (deux contrôleurs : `KbArticleController`/`KbCategoryController` et `KnowledgeBaseController` unifié) | Base de connaissance |
-| — | POST (`throttle:ai`) | `helpdesk/ai/categorize`, `suggest-response`, `summarize`, `predict-escalation`, `kb-chatbot` | IA support |
+| — | GET/POST/PUT/DELETE | `helpdesk/kb/articles`, `helpdesk/kb/categories` (`KnowledgeBaseController`, contrôleur unifié) | Base de connaissance — les doublons `KbCategoryController` et la plupart de `KbArticleController` ont été supprimés cette session (voir Particularités, un bug de double-enregistrement de route) |
+| — | POST (`throttle:ai`) | `helpdesk/ai/categorize`, `suggest-response`, `summarize`, `predict-escalation` | IA support (`kb-chatbot` retiré — orphelin, `KbChatbotController::answer` couvre déjà ce besoin) |
+| Auth + `module:Helpdesk` | GET/POST/PUT/DELETE | `helpdesk/cs-ai/*` (21 endpoints) | `CustomerServiceAIController` — sentiment/émotion/langue, règles de routage, prédiction d'escalade, modèles de réponse, prédiction satisfaction/NPS, performance/coaching/objectifs agent ; désormais couvert par `CustomerServiceAIPolicy` (voir RBAC — trou de sécurité corrigé cette session) |
 | — | GET/POST/PUT/DELETE | `helpdesk/sla-policies`, `helpdesk/escalation-rules`, `helpdesk/sla/policies` | Configuration SLA/escalade |
 | — | GET | `helpdesk/sla/breaches/pending`, `helpdesk/sla/stats/compliance\|performance` | Suivi SLA |
 | — | POST | `helpdesk/sla/check`, `helpdesk/sla/escalate` | Déclenchement manuel de la vérification/escalade SLA |
 | — | GET/POST | `helpdesk/csat/surveys`, `helpdesk/csat/campaigns`, `helpdesk/csat/report` | CSAT |
 | — | GET/POST | `v1/helpdesk/forums`, `.../threads`, `.../replies` | Forums (recherche publique + actions authentifiées) |
 | — | POST | `v1/helpdesk/ai/assist` | Guidance IA contextuelle (AI Assisted First) |
+
+Route web publique notable (hors groupe `auth`) : `GET /helpdesk/bot/widget` → `Helpdesk/Bot/Widget.vue`, un widget de chat autonome conçu pour l'intégration anonyme sur un site externe, réellement présent dans le dépôt mais jamais monté avant cette session.
+
+## Contrôleurs
+
+API (`Modules/Helpdesk/app/Http/Controllers/Api/`) : `TicketController`, `TicketCommentController`, `TeamController`, `EscalationController`, `SlaController`, `KnowledgeBaseController` (unifié), `KbArticleController` (réduit à sa seule méthode `suggest()`, le reste étant redondant), `KbPortalController`, `KbChatbotController`, `ChatController`, `LiveChatController`, `ForumController`, `CommunityForumController`, `CsatController`, `AgentPerformanceController`, `CustomerServiceAIController`, `AnswerBotController`, `HelpdeskAIController`, `HelpdeskAiAssistController`.
+
+Web (`Modules/Helpdesk/app/Http/Controllers/Web/`) : `TicketWebController`, `ChatWebController`, `EscalationWebController`, `PortalWebController`, **`SlaAutomationWebController`** (nouveau cette session — voir Vues).
+
+**Nettoyage effectué cette session** : `KbCategoryController` (100% redondant avec `KnowledgeBaseController`) supprimé ; un `HelpdeskController` scaffold mort (zéro route, vues Blade jamais réelles) supprimé avec ses vues ; 4 méthodes mortes de `ChatController` déjà supersédées par `LiveChatController` supprimées ; `HelpdeskAIController::kbChatbot` (jamais routé, doublon de `KbChatbotController::answer`) supprimé. Le module enregistrait deux fois les routes CRUD de la base de connaissance (une fois vers `KbCategoryController`/`KbArticleController`, une seconde fois plus loin dans le fichier vers `KnowledgeBaseController`) — Laravel indexant les routes par méthode+URI, c'est la **dernière** déclaration qui gagnait silencieusement à l'exécution, pas la première ; corrigé en supprimant les lignes désormais visiblement mortes.
+
+## Vues (Vue/Inertia)
+
+Toutes les pages actives vivent à la **racine** (`resources/js/Pages/Helpdesk/`) : `Tickets/*`, `KnowledgeBase/*`, `Chat/*`, `CSAT/*`, `Escalation/Index.vue` (config admin `HelpdeskSlaPolicy`/`EscalationRule`, distincte de SLA Automation ci-dessous), `Forum/*`, `Portal/*`, `Bot/Widget.vue` (voir ci-dessus).
+
+Côté module (`Modules/Helpdesk/resources/js/Pages/`) : `AIBot/`, `QualityAssurance/`, et **`SlaAutomation/Index.vue`** (nouveau cette session, accessible uniquement par URL directe — pas encore de lien de navigation — même précédent de découvrabilité que `consolidation-hierarchies` côté Accounting) : construit pour les 11 endpoints réels et déjà migrés de `SlaController` (`SlaPolicy`/`SlaBreach`/`SlaAutomationService`, ce dernier tournant sur chaque création de ticket) qui n'avaient jamais eu de page — un concept réellement distinct de `Escalation/Index.vue`, pas un doublon.
 
 ## Services
 
@@ -62,7 +79,9 @@ Montés sous `api/v1/helpdesk` (`Modules/Helpdesk/routes/api.php`), avec des gro
 
 ## Permissions RBAC
 
-Permissions dédiées sous le préfixe `helpdesk.*` dans `database/seeders/RolesAndPermissionsSeeder.php` : ressources `ticket` et `team`, actions `view-any|view|create|update|delete`. Les rôles `support-admin` (gestion helpdesk), `customer-service` (Helpdesk complet + vue contact/compte CRM) et `service-partner` (prestataire externe : Helpdesk + Projects) reçoivent les permissions `helpdesk.*`. `TicketPolicy` (étend `App\Policies\BaseErpPolicy`) ajoute une logique fine par rôle Spatie (`support-agent`, `supervisor`, `manager`, `admin`, `super-admin`) pour la visibilité/mise à jour/fermeture/assignation d'un ticket, en plus des permissions granulaires.
+Permissions dédiées sous le préfixe `helpdesk.*` dans `database/seeders/RolesAndPermissionsSeeder.php` : ressources `ticket`, `team`, `agent-performance`, actions `view-any|view|create|update|delete`. Les rôles `support-admin` (gestion helpdesk), `customer-service` (Helpdesk complet + vue contact/compte CRM) et `service-partner` (prestataire externe : Helpdesk + Projects) reçoivent les permissions `helpdesk.*` par correspondance générique (préfixe). `TicketPolicy` (étend `App\Policies\BaseErpPolicy`) ajoute une logique fine par rôle Spatie (`support-agent`, `supervisor`, `manager`, `admin`, `super-admin`) pour la visibilité/mise à jour/fermeture/assignation d'un ticket, en plus des permissions granulaires.
+
+**Trou RBAC corrigé cette session** : `CustomerServiceAIPolicy` (46 méthodes d'habileté, couvrant les 21 endpoints de `CustomerServiceAIController`) existait, était bien écrite, mais n'était **jamais appelée depuis le contrôleur et jamais enregistrée auprès du Gate de Laravel** — n'ayant pas de modèle Eloquent unique associé, ni l'auto-découverte ni `AppServiceProvider::$policies` ne pouvaient la trouver. N'importe quel utilisateur authentifié du module Helpdesk pouvait donc atteindre les 21 endpoints sans aucune vérification. Corrigé par : (1) `HelpdeskServiceProvider::boot()` enregistre désormais chaque méthode publique de la policy comme sa propre habileté Gate (`Gate::define($ability, [CustomerServiceAIPolicy::class, $ability])`, en bouclant sur `get_class_methods()`) ; (2) `$this->authorize()` ajouté aux 21 méthodes du contrôleur ; (3) les 44 chaînes de permission `helpdesk.*` distinctes que la policy vérifie sont désormais seedées (`HELPDESK_EXTRA_PERMISSIONS`, nouveau bloc du seeder) — `support-admin`/`customer-service`/`admin` les couvrent déjà via leur correspondance générique sur le préfixe `helpdesk.`, aucun autre changement de seeder n'était nécessaire.
 
 ## Dépendances avec d'autres modules
 
@@ -83,3 +102,5 @@ Les 5 points de couplage cross-module décrits pour ce module ont tous été vé
 5. **Bouton global « Signaler un incident »** — confirmé : `resources/js/Components/Helpdesk/QuickTicketButton.vue` existe et est importé/monté dans `resources/js/Layouts/AppLayout.vue`, rendant la création rapide de ticket accessible depuis n'importe quelle page authentifiée.
 
 Point annexe observé pendant la vérification (non demandé explicitement mais pertinent pour la cohérence documentaire) : il existe deux modèles de politique SLA distincts, `SlaPolicy` (`hd_sla_policies`) et `HelpdeskSlaPolicy` (`hd_helpdesk_sla_policies`), utilisés par des contrôleurs différents (`EscalationController` vs `SlaController`) — ce n'est pas un bug d'extraction, les deux existent tels quels dans le code actuel.
+
+**8 tables manquantes ajoutées cette session** (`ConversationAnalytics`, `EscalationHistory`, `EscalationWorkflow`, `ResponseCustomization`, `ResponsePerformance`, `SatisfactionFactor`, `SatisfactionHistory`, `SatisfactionModel`, préfixe `cs_*`) : ces 8 modèles avaient un `$fillable`/`$casts` corrects mais aucune table du tout — dormants aujourd'hui (aucune relation active ne les référence encore), mais c'était une vraie mine « table introuvable » en attente. Migration additive dédiée.

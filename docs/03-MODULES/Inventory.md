@@ -36,7 +36,7 @@ Tous les endpoints sont sous `auth:sanctum` avec limitation de débit différenc
 
 | Méthode | Route | Description |
 |---|---|---|
-| GET/POST/PUT/DELETE | `products`, `categories`, `warehouses`, `suppliers`, `barcodes` | CRUD ressources catalogue (cache 10 min en lecture) |
+| GET/POST/PUT/DELETE | `products`, `categories`, `warehouses`, `suppliers`, `channels`, `units` | CRUD ressources catalogue (cache 10 min en lecture) |
 | GET | `products/low-stock`, `products/metrics`, `products/{id}/stock`, `products/{id}/history` | Analyses produit |
 | GET | `products/valuation`, `low-stock` | Rapports de valorisation et rupture |
 | PATCH/POST | `products/{id}/stock/{warehouseId}`, `products/{id}/transfer` | Ajustement et transfert de stock |
@@ -47,9 +47,11 @@ Tous les endpoints sont sous `auth:sanctum` avec limitation de débit différenc
 | POST | `demand-forecasts/generate`, `demand-forecasts/reconcile` | Prévision de la demande |
 | POST | `transfer-orders/{id}/approve\|ship\|receive\|cancel` | Cycle de vie transfert inter-entrepôts |
 | POST | `redistribution/rules`, `redistribution/auto-suggest` | Rééquilibrage automatique du stock |
-| POST | `picking-orders/{id}/record\|assign\|complete`, `waves/{wave}/start\|complete` | Préparation de commande / picking par vagues |
-| POST | `cycle-counts/{id}/record\|validate` | Comptage cyclique |
-| POST | `barcodes/lookup`, GET `barcode/product/{barcode}`, `barcode/location/{barcode}` | Scan code-barres |
+| GET | `picking-orders/next` | File d'attente : prochaine commande à préparer (ajouté au Chantier 8.3, seul vrai manque trouvé parmi 7 routes mortes) |
+| POST | `picking-orders/{id}/assign`, `.../lines/{line}/pick`, `.../complete`, `waves/{wave}/start\|complete` | Préparation de commande / picking par vagues |
+| POST | `cycle-counts/{id}/validate`, `.../lines/{line}/count` | Comptage cyclique |
+| GET | `barcode/product/{barcode}`, `barcode/location/{barcode}` | Scan code-barres (l'ancienne route `barcodes/lookup` et l'`apiResource('barcodes', ...)` non implémenté ont été supprimés au Chantier 8.3, un code-barres n'étant pas une ressource CRUD autonome dans ce modèle) |
+| POST | `barcode/stock-movement` | Mouvement de stock déclenché par scan |
 | POST | `ai/forecast-demand`, `ai/suggest-reorder`, `ai/analyze-anomalies`, `ai/classify-abc`, `ai/detect-obsolete` | IA stock (ABC, anomalies, obsolescence) |
 | POST | `purchase-orders/{id}/send\|receive` | Cycle bon de commande interne à Inventory |
 | POST | `shipments/rates`, GET `shipments/{id}/track` | Cotation transporteur et suivi |
@@ -57,6 +59,24 @@ Tous les endpoints sont sous `auth:sanctum` avec limitation de débit différenc
 | POST | `v1/inventory/ai/assist` | Guidance IA contextuelle (AI Assisted First) |
 | POST | `v1/inventory/edi/receive`, `edi/generate-810`, GET `edi/transactions` | EDI 850/856/810 |
 | GET/POST | `v1/inventory/3pl/connectors`, `3pl/fulfill`, `3pl/orders/{id}/status`, `3pl/sync-inventory` | Connecteurs 3PL (Amazon FBA, ShipBob, ShipMonk) |
+
+## Contrôleurs
+
+25 contrôleurs Api (`Modules/Inventory/app/Http/Controllers/Api/`) + 4 contrôleurs Web (`Http/Controllers/Web/`).
+
+Api : `ProductController`, `CategoryController`, `WarehouseController`, `SupplierController`, `StockMovementController`, `LotTrackingController`, `TransferOrderController`, `CycleCountController`, `PickingOrderController`, `WavePickingController`, `CrossdockController`, `RmaController`, `DemandForecastController`, `SeasonalFactorController`, `ValuationController`, `BarcodeController`, `ShipmentController`, `PurchaseOrderController` (bon de commande « léger » propre à Inventory), `EdiController`, `FulfillmentController` (3PL), `EcommerceSyncController`, `ChannelController`, `UnitController`, `InventoryAIController`/`InventoryAiAssistController`.
+
+Web : `ProductController`, `CategoryController`, `WarehouseController` (les trois réduits à leur seule méthode `index()` réelle lors du Chantier 8.3 — les pages `categories`/`warehouses` sont des listes+modales CRUD qui appellent l'API JSON directement, sans besoin de routes web `create`/`store`/`show`/`edit`/`update`/`destroy` séparées), `InventoryWebController` (8 méthodes servant `Suppliers`, `PurchaseOrders`, `WMS/Picking`, `CycleCounts`, plus 4 pages auto-suffisantes routées par closure).
+
+**Contrôleurs supprimés (Chantier 8.3, dette morte)** : `Http\Controllers\InventoryController` (scaffold mort, zéro route, vues blade jamais réelles dans cet Inertia-app) et `Http\Controllers\Web\ProductWebController` (100 % redondant avec `ProductController::index()`).
+
+**ChannelController**/**UnitController** étaient des contrôleurs Api réels et complets mais sans aucune route — câblés au Chantier 8.3 (`channels*`/`units*`).
+
+## Vues (Vue/Inertia)
+
+`Modules/Inventory/resources/js/Pages/` contient (entre autres) `Products/`, `Categories/Index.vue` (nouvelle page liste+modale-CRUD construite au Chantier 8.3 sur le même patron que `Warehouses/Index.vue`), `Warehouses/Index.vue`, `Stock/Movements.vue` (couvre aussi les ajustements manuels de stock — la ressource `stock-adjustments` séparée, 100 % scaffold sans route API, a été supprimée plutôt que construite), `Suppliers/`, `PurchaseOrders/`, `WMS/Picking.vue`, `CycleCounts/`, `Shipments/Index.vue`, `Returns/Index.vue` (RMA), `WMS/Crossdock/Index.vue`, `WMS/Waves/Index.vue`, `Channels/Index.vue` (nouvelle, Chantier 8.3), `ReorderAutomation/Index.vue`, `DemandForecast/Index.vue`, `MarketplaceSync/Index.vue`.
+
+`Channels/Index.vue` (`/inventory/channels`) n'est accessible que par URL directe — pas de lien de navigation, même schéma de découvrabilité que `consolidation-hierarchies` côté Accounting. `Shipments/Index.vue`, `Returns/Index.vue`, `WMS/Crossdock/Index.vue` et `WMS/Waves/Index.vue` sont des pages auto-suffisantes (fetch direct, aucune prop serveur) routées par simples closures `Inertia::render()`.
 
 ## Services
 
@@ -79,6 +99,8 @@ Tous les endpoints sont sous `auth:sanctum` avec limitation de débit différenc
 
 ## Permissions RBAC
 
+**Correction RBAC majeure (Chantier 8.3)** : `Modules/Inventory/routes/api.php` n'avait **aucun** verrou `module:`/`role:` sur ses ~120 endpoints — seulement `auth:sanctum, session.security, tenancy.user` — n'importe quel utilisateur authentifié de n'importe quel tenant pouvait lire/écrire toutes les données d'inventaire. Corrigé en ajoutant `module:Inventory` + `role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin` aux 4 groupes de routes de premier niveau (confirmé dans le code : les 4 occurrences de `module:Inventory` dans `routes/api.php`) ; `employee` est inclus délibérément — c'est le rôle « toutes permissions non-destructives, tous modules » de cette app.
+
 Préfixe `inventory.` (`database/seeders/RolesAndPermissionsSeeder.php`), avec ressources `product, category, warehouse, unit, stock-movement, purchase-order, supplier` × actions `view-any, view, create, update, delete`. Rôles concernés :
 - `logistics-manager` — accès complet `inventory.*` + `logistics.*`
 - `purchasing-manager` — accès complet `inventory.*` + `achats.*`
@@ -96,4 +118,5 @@ Préfixe `inventory.` (`database/seeders/RolesAndPermissionsSeeder.php`), avec r
 ## Particularités du périmètre life-mdg-erp
 
 - Le module conserve plusieurs fonctionnalités très avancées (connecteurs Amazon SP-API/eBay, 3PL ShipBob/ShipMonk/FBA, EDI 850/856/810) héritées telles quelles de WideHalo, bien que les modules Ecommerce et Manufacturing aient été retirés du périmètre Life MDG — ces connecteurs restent fonctionnels de manière autonome (ils ne dépendent pas d'Ecommerce).
+- **Chantier 8.3 a corrigé une casse active réelle** : `/categories`, `/warehouses` et l'ancien `/stock-adjustments` renvoyaient une 500 sur toutes leurs actions `create`/`show`/`edit` (les vues Vue ciblées n'existaient nulle part dans le dépôt) — `stock-adjustments` a été supprimé (100 % redondant avec `Stock/Movements.vue`), `categories`/`warehouses` ont reçu de vraies pages. Plusieurs dizaines de tables `inventory_*` issues de la migration fourre-tout de scaffold ont aussi été patchées pour porter les colonnes que leurs contrôleurs déjà routés écrivaient réellement (ex. `inventory_cycle_counts.assigned_to`, `inventory_purchase_orders.expected_at`/`received_at`) — voir le `CLAUDE.md` racine (Chantier 8.3, parties 1 à 7) pour le détail exhaustif.
 - **Inventory possède son propre modèle `PurchaseOrder`** (table `inventory_purchase_orders`, avec son propre `PurchaseOrderService` et `PurchaseOrderController`), distinct et non synchronisé automatiquement avec le `PurchaseOrder` du module **Achats** (table `achats_purchase_orders` implicite) que `ReorderAutomationService` utilise réellement pour l'automatisation. De même, `Supplier` existe en double (`inventory_suppliers` vs `achats_suppliers`), tout comme `Shipment` (`inventory_shipments` vs `logistics_shipments`) et `Warehouse` (`inventory_warehouses` vs `wh_warehouses` dans Logistics). Ce n'est pas une erreur d'extraction : cette duplication de modèles existe déjà telle quelle dans WideHalo-ERP et n'a pas été retirée lors du découpage vers Life MDG.

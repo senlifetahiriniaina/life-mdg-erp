@@ -34,6 +34,23 @@ Toutes les routes API sont sous `auth:sanctum`, middleware `module:Calendar`, `r
 | POST | `v1/calendar/webhooks/google` \| `/outlook` | Callbacks webhook fournisseurs (hors `auth:sanctum`, préfixe séparé) |
 | POST | `v1/calendar/ai/assist` | Guidance IA contextuelle (AI Assisted First) |
 
+Routes web (`auth` + `module:Calendar`, préfixe `/calendar`) : `index`, `settings` (rend désormais `Calendar/Integrations`, voir Vues), `events/create`, `events/{event}`, `integrations`, `teams` — les 4 dernières ajoutées cette session (elles n'avaient auparavant aucune route malgré des pages réelles et des liens qui pointaient vers elles).
+
+## Contrôleurs
+
+- **`Api\CalendarController`** — CRUD calendriers/événements/participants. Ses appels `authorize()` (déjà présents) ont longtemps 403 sur `update`/`delete` pour tout le monde, y compris les admins — voir RBAC.
+- **`Api\CalendarSyncController`** — cycle OAuth/CalDAV Google/Outlook/Apple + export iCal + webhooks fournisseurs.
+- **`Api\CalendarAiAssistController`** — guidance IA contextuelle.
+- **`Web\CalendarPageController`** — rend les pages Inertia (`index`, `settings`/`integrations` désormais alias intentionnels de la même page, `events.create`, `events.show` — nouveau, `teams`).
+
+## Vues (Vue/Inertia)
+
+Toutes sous `Modules/Calendar/resources/js/Pages/` — Calendar est le seul module du dépôt à avoir eu un dossier `Pages/Calendar/` imbriqué à l'intérieur de son propre dossier `Pages/`, ce qui a créé une confusion corrigée cette session (voir Particularités) :
+
+- **`Index.vue`** — page principale, réellement servie par `resources/js/app.js::resolve()` pour la clé `Calendar/Index` (résolution racine-first : `./Pages/Calendar/Index.vue` prioritaire sur le module). Contenait initialement la version la plus pauvre des deux implémentations qui coexistaient ; contient désormais la version riche (déplacée depuis l'ancien sous-dossier imbriqué, voir Particularités).
+- **`Event/Create.vue`**, **`Event/Show.vue`**, **`Integrations.vue`**, **`Teams.vue`** — déplacées cette session depuis un sous-dossier `Pages/Calendar/` imbriqué mort (jamais servi par `resolve()`) vers leur emplacement réel ; toutes réelles et fonctionnelles mais sans route avant cette session.
+- `/calendar/settings` (500 sur chaque visite avant cette session — `Calendar/Settings.vue` n'a jamais existé) pointe désormais directement vers `Integrations.vue`, qui couvre déjà exactement ce que `settings()` était censé fournir, plutôt que de dupliquer un composant.
+
 ## Services
 
 - **`CalendarService`** — gestion cœur des calendriers/événements.
@@ -43,7 +60,9 @@ Toutes les routes API sont sous `auth:sanctum`, middleware `module:Calendar`, `r
 
 ## Permissions RBAC
 
-Calendar n'a pas d'entrée dans `RolesAndPermissionsSeeder::MODULES` : aucune permission granulaire `calendar.*.*` n'est seedée. L'accès API passe par le middleware de route `role:employee,manager,admin` (accès large à tout utilisateur ayant l'un de ces trois rôles), et la policy `CalendarEventPolicy` autorise `view`/`viewAny`/`create` à tout utilisateur authentifié, en réservant `update`/`delete` au créateur de l'événement (`created_by`) ou à `admin`/`super_admin`.
+Calendar n'a pas d'entrée dans `RolesAndPermissionsSeeder::MODULES` : aucune permission granulaire `calendar.*.*` n'est seedée. L'accès API passe par le middleware de route `role:employee,manager,admin` (accès large à tout utilisateur ayant l'un de ces trois rôles), et les policies `CalendarPolicy`/`CalendarEventPolicy` autorisent `view`/`viewAny`/`create` à tout utilisateur authentifié, en réservant `update`/`delete` au créateur de l'événement (`created_by`) ou à `admin`/`super-admin`.
+
+**Rupture active corrigée cette session** : `CalendarPolicy`/`CalendarEventPolicy` étaient correctement écrites et correctement appelées via `authorize()` dans `CalendarController`, mais `CalendarServiceProvider` ne les enregistrait jamais auprès du Gate de Laravel — chaque mise à jour/suppression de calendrier ou d'événement renvoyait donc un 403 pour absolument tout le monde, y compris les administrateurs. Corrigé par un `registerPolicies()` (nouveau) dans `CalendarServiceProvider`. Une coquille de nom de rôle (`super_admin` au lieu de `super-admin`) dans les deux policies a été corrigée au passage — de sévérité faible, puisque `super-admin` court-circuite de toute façon les vérifications de Gate via `Gate::before`, mais incorrecte quand même.
 
 ## Dépendances avec d'autres modules
 
@@ -52,3 +71,5 @@ Calendar est un **consommateur passif** d'autres modules : `ModuleEventAggregato
 ## Particularités du périmètre life-mdg-erp
 
 `ModuleEventAggregatorService::importManufacturingOrders()` reste présent dans le code et référencé dans la liste des sources agrégées, alors que le module Manufacturing est hors périmètre life-mdg-erp. Il est inoffensif : la méthode commence par `Schema::hasTable('manufacturing_orders')` et retourne `0` immédiatement puisque cette table n'existe pas dans ce dépôt (elle n'est créée par aucune migration), et l'appel est de toute façon enveloppé dans le `try/catch` silencieux de `aggregateForUser()`. Aucune donnée manufacturing n'apparaît donc jamais dans le calendrier ; c'est du code mort inoffensif plutôt qu'une régression fonctionnelle.
+
+**Confusion racine/module corrigée cette session** : Calendar était le seul module du dépôt à avoir un sous-dossier `Pages/Calendar/` imbriqué *à l'intérieur* de son propre `Modules/Calendar/resources/js/Pages/`. En traçant l'algorithme réel de `resources/js/app.js::resolve()` (résolution racine-first, `./Pages/${name}.vue` avant le repli module), il s'est avéré que c'est le `Pages/Index.vue` plat qui était réellement servi pour `Calendar/Index`, pas la version imbriquée plus riche — l'audit initial avait supposé l'inverse. Le sous-dossier imbriqué (`Event/Create.vue`, `Event/Show.vue`, `Integrations.vue`, `Teams.vue`) a été remonté d'un niveau et le contenu riche a remplacé celui d'`Index.vue`, l'ancien dossier imbriqué désormais vide a été supprimé — le résultat net (construire les vraies pages, supprimer les mortes) reste celui visé, seule la direction du fichier « réel » avait été mal identifiée au départ.

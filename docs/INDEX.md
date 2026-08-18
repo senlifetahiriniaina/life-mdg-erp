@@ -48,7 +48,13 @@ Un fichier deep-dive par module gardé (27), groupés comme dans `CLAUDE.md` :
 
 ## 06 — Base de données
 
-- [Schéma général](06-BASE-DE-DONNEES/SCHEMA-GENERAL.md)
+- [Schéma général](06-BASE-DE-DONNEES/SCHEMA-GENERAL.md) — deux niveaux de migrations, phénomène des tables stub, tables hors périmètre, chiffres clés (~803 tables)
+- Inventaire des tables par module (généré depuis les migrations réelles, pas depuis la mémoire) :
+  - [Socle CORE / système](06-BASE-DE-DONNEES/INVENTAIRE-01-SOCLE.md) — Core, AI, Security, AuditLog, API, Integration, Validation, Shared, Settings, Setup, Workflow, Calendar
+  - [Compta/Finance et Commercial/CRM](06-BASE-DE-DONNEES/INVENTAIRE-02-FINANCE-COMMERCIAL.md) — Accounting, CRM, Sales
+  - [Stock et Logistique](06-BASE-DE-DONNEES/INVENTAIRE-03-STOCK-LOGISTIQUE.md) — Inventory, Logistics, Achats
+  - [Pilotage et Reporting](06-BASE-DE-DONNEES/INVENTAIRE-04-PILOTAGE.md) — BI, Analytics, Reporting, Strategy
+  - [RH basique et Support](06-BASE-DE-DONNEES/INVENTAIRE-05-RH-SUPPORT.md) — HR, Payroll, Timesheets, Projects, Helpdesk
 - [Dépendances entre modules (niveau données)](06-BASE-DE-DONNEES/DEPENDANCES-MODULES.md)
 
 ## 07 — Déploiement

@@ -40,6 +40,41 @@ Tous préfixés `/api/v1/` (voir `Modules/Core/routes/api.php` et `routes/secret
 - **Import de données** : `POST import/upload`, `PUT import/jobs/{job}/mapping`, `POST import/jobs/{job}/execute|rollback`
 - **Realtime** : `GET realtime/subscribe`, `GET realtime/health`
 - **Secrets** (`routes/secrets.php`, throttle dédié `secrets`) : `GET/POST v1/secrets`, `PUT {name}/rotate`, `DELETE {name}`, gestion des accès
+- **Superadmin** (`core/superadmin/*`, `role:super-admin`) : portail multi-tenant complet — CRUD tenant, suspend/reactivate/upgrade-plan/purge/export RGPD, stats globales, audit log. Écrit dès la Phase 40 mais **jamais enregistré dans `routes/api.php` avant Chantier 8.3** — `SuperadminController` existait sans qu'aucune route ne l'atteigne.
+- **Onboarding** (`core/onboarding/*`) : wizard tenant-scopé (distinct du portail superadmin), également wiré pour la première fois en Chantier 8.3.
+- **Smart Defaults / mode expert** (`core/smart-defaults`, `core/defaults`, `PUT core/simple-mode`) : pré-remplissage devise/TVA/fuseau par pays, bascule Simplicity First.
+- **CSP** (`core/csp/report` public/non-authentifié, throttle `webhook`, plus `index`/`show`/`resolve`/`stats` authentifiés) : réception des violations `report-uri` du navigateur — `CspViolationController` ajouté en Chantier 8.3, `CspViolation`/`CspViolationLogger`/`CspViolationPolicy` existaient déjà mais n'avaient aucun contrôleur/route pour les recevoir.
+
+## Contrôleurs
+
+`Modules/Core/app/Http/Controllers/` (27 fichiers, tous sous `Api/` sauf `MobileAuthController` à la racine) :
+
+| Contrôleur | Rôle |
+|---|---|
+| `AuthController` / `AccountController` | Authentification Sanctum, cycle de vie du compte |
+| `TenantController` / `TenantRegistrationController` / `TenantExchangeController` | Cycle de vie tenant, inscription publique, échanges inter-tenants |
+| `ModuleController` | Activation/désactivation des modules par tenant |
+| `SyncController` | Synchronisation offline (push/pull) |
+| `AIAssistantController` | `POST ai/ask\|analyze\|generate-document` — implémentation Core de l'IA générique |
+| `NotificationController` / `PushTokenController` / `GlobalSearchController` / `HelpController` | Notifications, tokens push, recherche globale, aide contextuelle |
+| `GdprController` / `ConsentController` / `ConsentWithdrawalController` | RGPD : export SAR, consentements |
+| `AuditLogController` | `core/audit-log(s)*` — lit `Modules\Core\Models\AuditLog` (voir Particularités) |
+| `ImportController` | Pipeline d'import de données (onboarding) |
+| `RealtimeController` | Souscription/health-check temps réel |
+| `SandboxController` | Environnements de démo (`role:super-admin`) |
+| `SecretsController` | Coffre-fort de secrets (`routes/secrets.php`) |
+| `SmartDefaultsController` | Pré-remplissage pays/devise, mode expert — écrit mais jamais routé avant Chantier 8.3, wiré depuis |
+| `SuperadminController` | Portail multi-tenant complet — même sort que `SmartDefaultsController` |
+| `WorkflowController` / `ApprovalController` | Moteur de workflow/approbation générique (voir `CustomFieldController` ci-dessous pour les policies nouvellement enregistrées) |
+| `CustomFieldController` | Champs personnalisés attachables (`HasCustomFields`) |
+| `CspViolationController` | Réception des rapports CSP du navigateur, ajouté en Chantier 8.3 |
+| `MobileAuthController` | Authentification appareil mobile/biométrique — endpoints réels mais délibérément non consommés (voir Vues) |
+
+**Nettoyage effectué cette session** : `Modules\Core\Http\Controllers\Api\GDPRController` (doublon à la casse près du vrai `GdprController`, un risque PSR-4 sur filesystem sensible à la casse) et le scaffold mort `CoreController` + ses vues blade incomplètes ont été supprimés.
+
+## Vues (Vue/Inertia)
+
+Core est **délibérément sans interface propre** (principe « API First » — Core expose ses fonctionnalités en API pure, l'UI vit dans les modules consommateurs ou au niveau racine de `resources/js/Pages/`) : `Modules/Core/routes/web.php` est un fichier intentionnellement vide depuis la suppression du scaffold `CoreController`. La seule exception est `Modules/Core/resources/js/Pages/MobileAuth/{Devices,Settings,LoginHistory}.vue` — trois pages réelles pour la gestion des appareils mobiles/biométrie, mais **sans aucune route web** : elles correspondent au gap documenté dans `CLAUDE.md` (« Mobile device auth » — endpoints pour les modules Mobile/MobileSync exclus du périmètre, aucune app React Native/Expo dans ce dépôt pour les appeler), laissé tel quel plutôt que branché.
 
 ## Services
 
@@ -59,9 +94,11 @@ Tous préfixés `/api/v1/` (voir `Modules/Core/routes/api.php` et `routes/secret
 
 ## Permissions RBAC
 
-Core n'a **pas** de bloc de permissions granulaires dédié dans `RolesAndPermissionsSeeder::MODULES` (pas de préfixe `core.*.*`). Le contrôle d'accès Core repose sur :
+Core n'a pas d'entrée dans le tableau générique `RolesAndPermissionsSeeder::MODULES` (pas de `core.approvalworkflow.*`/`core.customfield.*` produit par la boucle standard `MODULES`×`ACTIONS`), mais possède depuis Chantier 8.3 un bloc dédié **`CORE_EXTRA_PERMISSIONS`** (16 permissions : `core.approvalworkflow.{view-any,view,create,update,delete,approve,export,archive}` et `core.customfield.{...}` même liste) — nécessaire car `ApprovalWorkflowPolicy`/`CustomFieldPolicy` étaient déjà écrites et déjà appelées via `$this->authorize()` dans `ApprovalController`/`CustomFieldController`, mais **jamais enregistrées auprès du Gate** (`CoreServiceProvider::registerPolicies()`, ajouté en Chantier 8.3 — les policies namespacées `Modules\*` ne s'auto-découvrent pas comme celles d'`App\Policies`) : avant ce correctif, tout appel `authorize()` de ces deux contrôleurs échouait silencieusement faute de policy trouvable.
+
+Le reste du contrôle d'accès Core repose sur :
 - des permissions d'administration globales (`ADMIN_PERMISSIONS`) : `admin.modules.view`, `admin.modules.toggle`, `admin.security.manage`, `admin.audit.view`, `admin.users.*`, `admin.roles.*`, attribuées au rôle `admin` (toutes) et partiellement au rôle `tenant-admin` (modules/utilisateurs/rôles) ;
-- des middlewares de rôle directs sur les routes (`role:super-admin` pour la gestion des tenants, `role:admin,manager` pour l'audit et les demandes RGPD) plutôt que sur des permissions Spatie nommées.
+- des middlewares de rôle directs sur les routes (`role:super-admin` pour la gestion des tenants et le portail `core/superadmin/*`, `role:admin,manager` pour l'audit et les demandes RGPD) plutôt que sur des permissions Spatie nommées.
 
 ## Dépendances avec d'autres modules
 

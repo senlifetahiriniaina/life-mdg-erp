@@ -2,7 +2,7 @@
 
 ## Rôle
 
-Le module Payroll est la source unique de vérité pour la paie dans life-mdg-erp (voir `CLAUDE.md`) : cycles de paie (« runs »), bulletins de salaire, composants salariaux configurables et barèmes fiscaux/sociaux par pays africain (Africa First). Il fournit aussi un service d'intégration comptable OHADA et un jeu de données statutaires (IPRES, CSS, IR…) pour plusieurs pays.
+Le module Payroll est la source unique de vérité pour la paie dans life-mdg-erp (voir `CLAUDE.md`) : cycles de paie (« runs »), bulletins de salaire, composants salariaux configurables et barèmes fiscaux/sociaux par pays africain (Africa First). Il fournit aussi un service d'intégration comptable OHADA et un jeu de données statutaires réel (impôt progressif + régimes de cotisations sociales pour 8 pays) désormais réellement branché sur le calcul de paie.
 
 ## Modèles clés
 
@@ -12,46 +12,68 @@ Le module Payroll est la source unique de vérité pour la paie dans life-mdg-er
 | `Payslip` | `payslips` | Bulletin de salaire individuel rattaché à un `PayrollRun`, `salary_components` stocké en JSON |
 | `SalaryComponent` | `salary_components` | Composant de rémunération configurable (fixe ou pourcentage), taxable/statutaire, portée (`applies_to`) |
 
-`PayrollRun` expose la relation `payslips()` (hasMany). Ce trio (`PayrollRun`/`Payslip`/`SalaryComponent`) est le schéma **actuel et migré** du module — à ne pas confondre avec `Modules\HR\Models\PayrollRecord`/`PayrollPeriod`, référencés ailleurs dans le code mais absents du dépôt (voir Particularités).
+`PayrollRun` expose la relation `payslips()` (hasMany). Ce trio (`PayrollRun`/`Payslip`/`SalaryComponent`) est le schéma migré et **désormais le seul chemin réellement exposé par l'API** — le bug historique documenté ici jusqu'à cette refonte (`PayrollController`/`PayrollIntegrationService` important `Modules\HR\Models\PayrollRecord`/`PayrollPeriod`, deux classes qui n'existaient nulle part dans le dépôt) a été corrigé : `PayrollIntegrationService` a été réécrit pour opérer directement sur `PayrollRun`/`Payslip` et sur la vraie source de salaire (voir Services ci-dessous).
 
 ## Endpoints principaux
 
-Toutes sous `auth:sanctum` + `role:hr-manager,accountant,finance-manager,manager,admin`, préfixe `/api/v1/payroll/` :
+Préfixe `/api/v1/payroll/` (`Modules/Payroll/routes/api.php`) :
 
-| Méthode | Route | Description |
-|---|---|---|
-| GET | `payslips` | Liste des bulletins pour une période (`?period=YYYY-MM`) |
-| POST | `generate` | Génère les bulletins pour tous les employés actifs d'une période |
-| POST | `payslips/approve-batch` | Approuve en lot les bulletins brouillon d'une période |
-| POST | `process-payment` | Traite le paiement des bulletins approuvés + intégration comptable |
-| GET | `statistics` | Statistiques de paie pour une période |
-| GET | `taxes/by-country` | Répartition des taxes/cotisations par pays |
-| POST | `ai/assist` | Guidance IA contextuelle (`PayrollAiAssistController`, `auth:sanctum` seul) |
+| Middleware | Méthode | Route | Description |
+|---|---|---|---|
+| `auth:sanctum, session.security, tenancy.user, role:hr-manager,payroll-officer,accountant,finance-manager,manager,admin` | GET | `payslips` | Liste des bulletins pour une période (`?period=YYYY-MM`) |
+| — | POST | `generate` | Génère les bulletins pour tous les employés actifs d'une période |
+| — | POST | `payslips/approve-batch` | Approuve en lot les bulletins brouillon d'une période |
+| — | POST | `process-payment` | Traite le paiement des bulletins approuvés + intégration comptable |
+| — | GET | `statistics` | Statistiques de paie pour une période |
+| — | GET | `taxes/by-country` | Répartition des taxes/cotisations par pays |
+| `auth:sanctum, session.security, tenancy.user` (tout utilisateur) | GET | `me/payslips` | Bulletins de l'utilisateur connecté (self-service) |
+| — | GET | `payslips/{payslip}` | Détail d'un bulletin — `authorize('view', $payslip)` via `PayrollPolicy` (tout employé peut voir son propre bulletin, pas seulement le staff paie) |
+| `auth:sanctum, session.security, tenancy.user` | POST | `ai/assist` | Guidance IA contextuelle (`PayrollAiAssistController`) |
+
+Note : ce groupe applique `role:` mais pas de middleware `module:Payroll` dédié (contrairement à HR/Timesheets/Projects) — l'accès reste néanmoins fermé par la liste de rôles explicite.
+
+Route web (`Modules/Payroll/routes/web.php`, ajoutée cette session — le module n'en avait aucune) : `GET /payroll` → `Inertia::render('Payroll/Dashboard/Index')`.
+
+## Contrôleurs
+
+- **`Api\PayrollController`** — bulletins, génération, approbation par lot, paiement, statistiques, répartition fiscale par pays, self-service (`myPayslips`/`show`). Chaque méthode staff vérifie `$request->user()->can('payroll.payslip.<verb>')` (`abort_unless`) ; `show()` passe par `$this->authorize('view', $payslip)`.
+- **`Api\PayrollAiAssistController`** — guidance IA contextuelle, passe désormais `module: 'Payroll'` (et non `'HR'`) à `AiContextualAssistantService::getGuidance()`, atteignant enfin la vraie table de repli statique du module Payroll (`generate_payslips`/`approve_payroll`/`export_payroll`/`view_dashboard`).
+
+Aucun contrôleur Web dédié : la route `/payroll` rend directement `Payroll/Dashboard/Index` via une closure Inertia.
+
+## Vues (Vue/Inertia)
+
+- **`Dashboard/Index.vue`** (`Modules/Payroll/resources/js/Pages/Dashboard/Index.vue`) — page réelle et auto-alimentée (liste des bulletins, statistiques, répartition fiscale, approbation par lot, traitement du paiement), appelant l'API Payroll réelle. Elle existait déjà mais n'avait **aucune route** pour l'atteindre avant l'ajout de `routes/web.php` cette session.
+- Pas de page dédiée « mes bulletins » côté self-service pour l'instant — `GET me/payslips`/`GET payslips/{payslip}` sont consommés côté HR (`resources/js/Pages/HR/Payroll/Index.vue`, `HR/Portal.vue`) plutôt que par une vue propre au module Payroll.
 
 ## Services
 
-- **`PayrollService`** — opère sur le schéma actuel (`PayrollRun`/`Payslip`/`SalaryComponent`) : `createRun()`, `processRun()` (agrège les totaux depuis les bulletins), `validateRun()`, `markAsPaid()`, `getActiveComponents()`, `computeSalary()` (calcule brut/déductions/net à partir d'un salaire de base et des composants actifs du tenant). **N'est appelé par aucun contrôleur HTTP de ce module** — son seul consommateur trouvé dans le code est `Modules\Workflow\Services\Actions\Phase52ActionHandler::generatePayrollRun()`, qui l'invoque via `app(PayrollService::class)` pour déclencher un cycle de paie depuis le moteur d'automatisation.
-- **`PayrollIntegrationService`** — service historique branché sur le `PayrollController` : génération de bulletins (`generatePayslips`/`generatePayslip`), calcul de composants (allocations, heures sup., primes), calcul des déductions (IR, sécurité sociale, pension) avec des barèmes codés en dur par pays (SN/CI/CM/NG + repli OHADA générique), et **passage des écritures comptables OHADA** (`postPayslipsToAccounting()` → `Modules\Accounting\Models\JournalEntry`, imputation Cl.6161/Cl.4210). Ce service dépend de `Modules\HR\Models\PayrollRecord`/`PayrollPeriod`, deux classes absentes du dépôt (voir Particularités) — il ne peut donc pas fonctionner tel quel.
-- **`StatutorySchemes`** (`app/Data/`) — table de données statique des régimes de cotisations sociales et de l'impôt sur le revenu par pays (Sénégal détaillé : IPRES, CSS, IR/TRIMF avec taux, plafonds, périodicité, comptes OHADA). N'est référencée par aucun service ou contrôleur du module — données prêtes mais non câblées.
+- **`PayrollService`** — opère sur le schéma actuel (`PayrollRun`/`Payslip`/`SalaryComponent`) : `createRun()`, `processRun()`, `validateRun()`, `markAsPaid()`, `getActiveComponents()`, `computeSalary()`. Toujours **appelé uniquement par `Modules\Workflow\Services\Actions\Phase52ActionHandler::generatePayrollRun()`** (le moteur d'automatisation), pas par un contrôleur HTTP direct de ce module.
+- **`PayrollIntegrationService`** — service branché sur `PayrollController`, réécrit cette session pour supprimer sa dépendance envers les classes `Modules\HR\Models\PayrollRecord`/`PayrollPeriod` (absentes du dépôt) : génère les bulletins (`generatePayslips`/`generatePayslip`) directement sur `PayrollRun`/`Payslip`, calcule les composants de salaire, les heures supplémentaires, les allocations et les déductions, et passe les écritures comptables OHADA (`postPayslipsToAccounting()` → `Modules\Accounting\Models\JournalEntry`, imputation Cl.6161/Cl.4210).
+  - **Source de salaire réelle** : `base_salary`/`currency` viennent désormais de `Modules\HR\Models\EmployeeCompensation` via un helper `getCurrentCompensation(Employee, Carbon $asOf)` (résolu à la date de début de la période de paie, pas `now()`) — corrige le bug historique où `base_salary`/`monthly_salary` étaient lus directement sur `Employee`, des colonnes qui existent en base mais jamais dans son `$fillable`, ce qui faisait silencieusement calculer un salaire quasi nul sur tout bulletin généré via l'UI/API réelle (seuls les tests passaient, en contournant `$fillable` via `Model::unguarded()`).
+  - **Tenant** : `tenant_id` vient désormais de l'appelant (ou, à défaut, de `Employee::user->tenant_id`, la vraie colonne de délimitation multi-tenant) plutôt que du champ fantôme `hr_employees.tenant_id` (jamais alimenté).
+  - **Heures supplémentaires** : dérivées des saisies réelles et approuvées de `Modules\Timesheets\Models\TimesheetEntry` (au-delà de 160h/mois), plutôt que de la table `hr_timesheets` (jamais alimentée) lue auparavant.
+  - **Allocations granulaires** (`housing_allowance`, `transport_allowance`, `family_allowance`, `monthly_bonus`) restent lues sur des champs `Employee` qui n'ont pas de source de données réelle par employé dans cette version — laissées à `?? 0` (repli documenté, pas un bug corrigé silencieusement).
+  - **Remboursement de prêt** (`calculateLoanRepayment()`) reste à 0 — aucune fonctionnalité de gestion de prêts salariés n'existe nulle part dans le dépôt.
+- **`Data\StatutorySchemes`** (`app/Data/`) — table de données statiques des régimes de cotisations sociales et de l'impôt sur le revenu pour 8 pays africains (SN, CI, CM, MG, BJ, TG, BF, ML) : tranches d'IR progressives, abattements, surtaxes, minimums statutaires, régimes de cotisations sociales avec taux et plafonds, catégorisés (`pension`/`social_security`/`health`/`combined`). **Désormais réellement câblée** : `calculateIncomeTax()` exécute un vrai calcul par tranches progressives pour ces 8 pays (`calculateProgressiveIncomeTax()`), avec repli sur l'ancienne approximation à taux forfaitaire pour les pays hors de ce jeu de données (dont NG) ; `calculateSocialSecurity()`/`calculatePensionContribution()` sommes les régimes réels par catégorie sans double comptage.
+- **`PayrollPolicy`** — corrigée : la vérification « bulletin personnel » comparait `$model->employee_id` (un `hr_employees.id`) directement à `$user->id` (un `users.id`), empêchant tout employé de passer le contrôle sur son propre bulletin ; compare désormais `$user->employee->id`. Le rôle inexistant `payroll-manager` a été remplacé par le vrai rôle `payroll-officer`. Désormais enregistrée auprès du Gate via `PayrollServiceProvider::registerPolicies()` (`Gate::policy(Payslip::class, PayrollPolicy::class)`) — les policies namespacées sous `Modules\*` ne s'auto-découvrent pas.
 
 ## Permissions RBAC
 
-Préfixe `payroll.*` dans `RolesAndPermissionsSeeder::MODULES` : ressources `payslip`, `run`, `tax-config`, actions standard `view-any|view|create|update|delete`. Le rôle `hr-manager` reçoit toutes les permissions `payroll.*` (avec `hr.*` et `timesheets.*`) ; le rôle `payroll-officer` (décrit en commentaire comme « full Payroll + HR compensation/leave ») reçoit aussi toutes les permissions `payroll.*`.
+Préfixe `payroll.*` dans `RolesAndPermissionsSeeder::MODULES` : ressources `payslip`, `run`, `tax-config`, actions standard `view-any|view|create|update|delete`. Le rôle `hr-manager` reçoit toutes les permissions `payroll.*` ; le rôle `payroll-officer` aussi.
 
-Cependant, le contrôle d'accès réellement appliqué diverge de ce schéma à deux endroits :
-- **`PayrollController`** n'utilise pas les permissions Spatie `payroll.*.{action}` du seeder mais des chaînes ad hoc non seedées : `payroll.payslips.view`, `payroll.payslips.generate`, `payroll.payslips.approve` (notez le pluriel `payslips` et l'action `generate`/`approve`, absents de la liste `ACTIONS` et de la ressource `payslip` au singulier définie dans le seeder) — ces `abort_unless($user->can(...))` échoueront donc toujours sauf pour un rôle qui bypass les Gates.
-- **`PayrollPolicy`** (utilisée ailleurs, ex. Policy Eloquent standard) n'interroge pas non plus les permissions Spatie mais fait du contrôle par rôle direct (`hasAnyRole(['hr-manager', 'payroll-manager', 'admin', 'super-admin'])`). Le rôle `payroll-manager` qu'elle cite **n'existe pas** dans le seeder (seul `payroll-officer` y est créé) — un utilisateur avec seulement le rôle `payroll-officer` ne passera donc pas ces vérifications `hasAnyRole`, malgré son intitulé de commentaire dans le seeder.
+`PayrollController` vérifie en réalité des chaînes ad hoc (`payroll.payslip.view`, `.generate`, `.approve`) plutôt que le schéma générique `payroll.<resource>.<action>` du seeder — ces chaînes sont bien réelles/seedées (`payslip` est une ressource déclarée), donc les vérifications fonctionnent pour les rôles porteurs de `payroll.*`. Correction RBAC de cette session : le groupe de routes n'incluait pas `payroll-officer` — le rôle nommé pour ce module était bloqué à la porte d'entrée avant même la vérification de permission — et `statistics()`/`taxesByCountry()` n'avaient aucun `authorize()`/`abort_unless()` du tout, permettant à `accountant`/`finance-manager` (qui n'ont pas `payroll.*`) de lire ces agrégats en ne passant que la grille de rôles au niveau route ; les deux ont été corrigés (rôle ajouté au groupe, `abort_unless` ajouté aux deux méthodes).
 
 ## Dépendances avec d'autres modules
 
-- **HR** : `PayrollIntegrationService` et `PayrollController` importent `Modules\HR\Models\Employee` (existe) et `Modules\HR\Models\PayrollRecord`/`PayrollPeriod` (n'existent pas — voir Particularités) ; à l'inverse, HR consomme `Modules\Payroll\Models\Payslip` en lecture pour son self-service (voir `docs/03-MODULES/HR.md`).
+- **HR** : `PayrollIntegrationService` importe désormais `Modules\HR\Models\Employee` et `Modules\HR\Models\EmployeeCompensation` (la vraie source de salaire, construite par `Modules\HR\Services\CompensationService`) — la dépendance envers les classes inexistantes `PayrollRecord`/`PayrollPeriod` a été supprimée. Inversement, HR consomme `Modules\Payroll\Models\Payslip` en lecture pour son self-service (voir `docs/03-MODULES/HR.md`).
+- **Timesheets** : `PayrollIntegrationService::calculateOvertime()` lit `Modules\Timesheets\Models\TimesheetEntry` (heures approuvées) pour dériver les heures supplémentaires.
 - **Accounting** : `PayrollIntegrationService::postPayslipsToAccounting()` crée des `Modules\Accounting\Models\JournalEntry` (comptabilisation OHADA du salaire brut et du net à payer).
 - **AI** : `PayrollAiAssistController` utilise `AiContextualAssistantService`.
 - **Workflow** : `Phase52ActionHandler` (module Workflow) déclenche `PayrollService::createRun()` via l'automatisation cross-module.
 
 ## Particularités du périmètre life-mdg-erp
 
-Le module a en réalité **deux implémentations parallèles et incompatibles** cohabitant dans le code actuel :
-
-1. Le schéma **migré et fonctionnel** — `PayrollRun`/`Payslip`/`SalaryComponent` (avec migrations dans `Modules/Payroll/database/migrations/`) piloté par `PayrollService`, mais qui n'est branché à aucune route HTTP du module (seul le moteur d'automatisation `Workflow` l'utilise).
-2. Le chemin **effectivement exposé par l'API REST** (`PayrollController` → `PayrollIntegrationService`), qui repose sur `Modules\HR\Models\PayrollRecord`/`PayrollPeriod` — deux classes qui n'existent nulle part dans ce dépôt trimmé (confirmé par recherche exhaustive sur `Modules/`, `app/` et `tests/`). Cela correspond très probablement à un reliquat de l'ancienne duplication de paie qui vivait dans `Modules/HR` avant l'extraction (voir `CLAUDE.md`, section HR) : les modèles ont été supprimés du module HR, mais ce service/contrôleur du module Payroll qui les référençait encore n'a pas été mis à jour vers le nouveau schéma `PayrollRun`/`Payslip`. En l'état, toutes les routes de `PayrollController` (`payslips`, `generate`, `payslips/approve-batch`, `process-payment`, `taxes/by-country`) échoueront à l'exécution (classe introuvable), de même que `PayrollIntegrationServiceTest`. C'est un gap concret non mentionné dans les « Known gaps » de `CLAUDE.md` et qui mériterait d'y être ajouté : soit réécrire `PayrollController`/`PayrollIntegrationService` pour utiliser `PayrollRun`/`Payslip`/`SalaryComponent`, soit les retirer au profit du chemin `PayrollService` déjà fonctionnel.
+- **Les deux implémentations parallèles documentées avant cette refonte n'existent plus en tant que bug** : le schéma migré (`PayrollRun`/`Payslip`/`SalaryComponent`, piloté par `PayrollService`) reste utilisé uniquement par le moteur d'automatisation Workflow, mais le chemin exposé par l'API REST (`PayrollController` → `PayrollIntegrationService`) a été réécrit pour opérer sur ce même schéma au lieu de référencer des classes `Modules\HR\Models\PayrollRecord`/`PayrollPeriod` inexistantes. Les deux chemins convergent désormais sur `PayrollRun`/`Payslip` ; `PayrollService` reste néanmoins un second point d'entrée non exposé par HTTP.
+- **Répartition fine des primes/allocations non modélisée** : seule une valeur agrégée (`base_salary`, `bonus_amount`, `benefits_annual_value`) existe par employé sur `EmployeeCompensation` — les sous-catégories (logement, transport, famille, prime mensuelle) restent à 0 par défaut, faute de source de données dédiée, plutôt que d'inventer une répartition arbitraire.
+- **Gestion de prêts salariés absente** : `calculateLoanRepayment()` retourne toujours 0, faute de tout modèle/contrôleur/UI de prêt employé dans ce dépôt — documenté comme gap plutôt que masqué.

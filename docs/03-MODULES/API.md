@@ -25,14 +25,31 @@ Tous préfixés `/api/v1/api/`, protégés `auth:sanctum` (voir `Modules/API/rou
 
 Un second fichier de routes, `routes/graphql.php`, déclare un préfixe `graphql/*` (query, mutation, subscriptions WebSocket, gestion de schéma, optimisation de requêtes, versioning) — voir Particularités : les contrôleurs ciblés n'existent pas dans ce périmètre.
 
+## Contrôleurs
+
+`Modules/API/app/Http/Controllers/Api/` (4 fichiers) :
+
+| Contrôleur | Rôle |
+|---|---|
+| `ApiKeyController` | CRUD clés API + révocation + logs par clé |
+| `WebhookController` | CRUD webhooks sortants + test |
+| `RequestLogController` | Consultation du journal `api_requests` + stats |
+| `APIAiAssistController` | Guidance IA contextuelle (AI Assisted First) |
+
+Ni doublon ni scaffold mort trouvé dans ce module cette session — le seul point orphelin réel est `routes/graphql.php` (voir Particularités), pas un contrôleur.
+
+## Vues (Vue/Inertia)
+
+Aucune — `Modules/API/routes/web.php` n'existe pas. Conforme au principe « API First » : ce module gère l'exposition programmatique de l'ERP à des systèmes tiers, il n'a jamais eu vocation à avoir une interface propre.
+
 ## Services
 
 - `APIVersioningService` — informations de version (`v1.0.0` déprécié, `v1.5.0` supporté, `LATEST_VERSION = 2.0.0`), matrice de compatibilité, guides de migration — logique présente mais non exposée par une route active du module (elle alimentait `routes/graphql.php`, non chargé)
-- `GraphQLSchemaBuilderService`, `GraphQLQueryOptimizerService`, `GraphQLSubscriptionManagerService` — services GraphQL enregistrés en singleton dans `APIServiceProvider` (avec alias `graphql_schema`, `graphql_optimizer`, `graphql_subscriptions`) mais sans contrôleur pour les invoquer (voir Particularités)
+- `GraphQLSchemaBuilderService`, `GraphQLQueryOptimizerService`, `GraphQLSubscriptionManagerService` — services GraphQL enregistrés en singleton dans `APIServiceProvider` (avec alias `graphql_schema`, `graphql_optimizer`, `graphql_subscriptions`) mais sans contrôleur pour les invoquer (voir Particularités). Ces services restent utiles indépendamment de GraphQL : le `CLAUDE.md` racine note que 74 tests hors du périmètre GraphQL dépendent d'eux pour de la bookkeeping d'optimisation de requêtes/souscriptions non liée à GraphQL — ils n'ont donc pas été supprimés malgré l'absence de route HTTP GraphQL réelle.
 
 ## Permissions RBAC
 
-`API` n'a pas de bloc `api.*.*` dans `RolesAndPermissionsSeeder::MODULES`. Le contrôle d'accès repose sur des policies dédiées (`ApiKeyPolicy`, `WebhookPolicy`) et sur `auth:sanctum` ; aucune permission Spatie nommée n'est vérifiée explicitement dans les contrôleurs lus (`ApiKeyController`, `WebhookController`, `RequestLogController`).
+`API` n'a pas de bloc `api.*.*` dans `RolesAndPermissionsSeeder::MODULES`. Le contrôle d'accès repose sur des policies dédiées (`ApiKeyPolicy`, `WebhookPolicy`) désormais **enregistrées auprès du Gate** (`APIServiceProvider::registerPolicies()`, ajouté cette session — avant ce correctif, les deux policies existaient et étaient correctement écrites mais n'étaient jamais résolues par Laravel, donc n'importe quel utilisateur authentifié de n'importe quel rôle pouvait créer/révoquer des clés API et des webhooks) et sur `auth:sanctum`. Aucune permission Spatie nommée n'est par ailleurs vérifiée explicitement dans les contrôleurs.
 
 ## Dépendances avec d'autres modules
 

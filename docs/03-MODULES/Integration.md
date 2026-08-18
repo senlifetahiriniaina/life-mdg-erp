@@ -53,6 +53,28 @@ Toutes les routes sont sous `auth:sanctum`.
 |---|---|---|
 | POST | `invite` \| `accept` \| `exchange` \| `refresh` | Réception des messages de fédération envoyés par une instance distante |
 
+## Contrôleurs
+
+`Modules/Integration/app/Http/Controllers/Api/` (5 fichiers) :
+
+| Contrôleur | Rôle |
+|---|---|
+| `IntegrationController` | CRUD connecteurs + activation/webhook/dispatch/logs/stats |
+| `WhbPartnerController` | Cycle de vie des connexions WHB (invite/join/approve/reject/suspend/inbox) |
+| `WhbFederationController` | Réception des messages HMAC-signés d'une instance distante (`v1/federation/*`) |
+| `BackendStatusController` | Statut/test Supabase et Firebase |
+| `IntegrationAiAssistController` | Guidance IA contextuelle |
+
+**Deux vulnérabilités IDOR réelles corrigées cette session** :
+- `IntegrationController::show/activate/addWebhook/dispatch/logs` prenait un `IntegrationConnector` lié à la route sans aucun `authorize()` ni filtre tenant (seuls `index`/`store`/`stats` étaient correctement scopés) — n'importe quel utilisateur de n'importe quel tenant pouvait consulter la config d'un connecteur d'un autre tenant (identifiants potentiellement inclus), l'activer, y enregistrer des webhooks, y déclencher des envois arbitraires et en lire les logs, en devinant simplement l'id. Corrigé avec les appels `authorize()` manquants et un vrai contrôle d'appartenance ajouté **dans** `IntegrationConnectorPolicy` elle-même (qui existait et était enregistrée au Gate, mais ignorait totalement l'argument `$connector` et ne vérifiait qu'une chaîne de permission plate) — comparaison `$user->company_id` vs `integration_connectors.tenant_id` castée en chaîne des deux côtés (`tenant_id` est un reliquat `string(36)` d'une conception UUID antérieure).
+- `WhbPartnerController::approve/reject/suspend` n'avait ni scope tenant ni gate de rôle (contrairement à `show`/`exchanges` sur le même contrôleur, déjà correctement `forTenant()`-scopés) — n'importe quel utilisateur authentifié de n'importe quel tenant pouvait approuver/rejeter/suspendre la connexion de fédération d'une **autre** société. Corrigé avec le même pattern `forTenant()` plus un gate `module:Integration`+`role:admin,super-admin` sur tout le groupe `v1/whb`.
+
+Les endpoints publics `v1/federation/*` (HMAC-signés, sans `auth:sanctum`) étaient déjà correctement protégés et n'ont pas été touchés.
+
+## Vues (Vue/Inertia)
+
+`Modules/Integration/resources/js/Pages/IntegrationsIndex.vue` — page réelle, auto-alimentée (`fetch`) contre `v1/integration/*`, mais qui n'avait **aucune route web** avant cette session (`routes/web.php` n'existait pas du tout). Ajouté : `GET /integration` → `Inertia::render('Integration/IntegrationsIndex')`, sous `middleware(['auth', 'module:Integration'])`. La page appelait aussi un schéma `/webhooks` plat fictif (aucun backend de ce type n'existe) — corrigé pour cibler le vrai endpoint imbriqué par connecteur plutôt que d'inventer un nouveau backend.
+
 ## Services
 
 - **`IntegrationManager`** — registre central (`REGISTRY` const) de toutes les intégrations disponibles : mobile money africain (`orange-money`, `wave`, `mtn-momo`, `mpesa`), e-commerce (`shopify`, `woocommerce`, `jumia`), et connecteurs métier. Chaque entrée déclare son connecteur PHP, les pays supportés et les champs de credentials requis.
@@ -65,7 +87,7 @@ Toutes les routes sont sous `auth:sanctum`.
 
 ## Permissions RBAC
 
-Préfixe `integration.*` dans `RolesAndPermissionsSeeder::MODULES` — ressources `connector`, `webhook`, `sync-log`, avec les actions standard (`view-any`, `view`, `create`, `update`, `delete`). `IntegrationConnectorPolicy` applique ces permissions (`integration.connector.view-any`, etc.) via `Gate::policy(IntegrationConnector::class, ...)`. Les rôles WHB (invitation, approbation) ne sont eux protégés que par `auth:sanctum` — pas de permission Spatie dédiée dans le seeder.
+Préfixe `integration.*` dans `RolesAndPermissionsSeeder::MODULES` — ressources `connector`, `webhook`, `sync-log`, avec les actions standard (`view-any`, `view`, `create`, `update`, `delete`). `IntegrationConnectorPolicy` applique ces permissions (`integration.connector.view-any`, etc.) via `Gate::policy(IntegrationConnector::class, ...)`, avec en plus désormais un vrai contrôle d'appartenance tenant (voir Contrôleurs). Le groupe `v1/whb` (invitation, approbation, suspension) n'a pas de permission Spatie dédiée mais est désormais gaté par `module:Integration`+`role:admin,super-admin` (ajouté cette session) — auparavant protégé par `auth:sanctum` seul.
 
 ## Dépendances avec d'autres modules
 

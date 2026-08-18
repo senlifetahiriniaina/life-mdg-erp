@@ -52,6 +52,24 @@ Toutes les routes sont sous `v1`, `auth:sanctum`, `module:BI`, garde de rôle `r
 | POST | `v1/bi/embed/tokens`, DELETE `.../{jti}` | Gestion des jetons d'intégration (authentifié) |
 | GET | `v1/bi/embed/validate`, `v1/bi/embed/dashboard/{id}` | Endpoints publics d'intégration en marque blanche (vérifiés par jeton, sans `auth:sanctum`) |
 
+## Contrôleurs
+
+22 contrôleurs Api (`Modules/BI/app/Http/Controllers/Api/`) + 5 contrôleurs Web.
+
+Api : `DashboardController`, `KpiController`/`KpiAlertController`, `QueryController`/`BiNlQueryController`, `AlertController`/`AlertRuleController`, `DataSourceController`/`ExternalDataSourceController`, `ReportController`, `ExportController`, `DrillDownController`, `EmbedController`, `AnalyticsController`/`BiInsightsController`, `DataStoryController`, `VisualizationController`, `PredictiveAnalyticsController`/`ForecastingController`, `BiAIController`/`AiBiController`/`BIAiAssistController`.
+
+Web : `BiWebController` (11 pages historiques + dashboards), et les 4 issus du Chantier 8.2bi : `AlertRuleWebController`, `DataStoryWebController`, `ExternalDataSourceWebController`, `ForecastingWebController`.
+
+**Casse active corrigée (Chantier 8.2bi)** : la migration fourre-tout de scaffold avait laissé `bi_dashboards`/`bi_reports` et 10 autres tables `bi_*` en stub `id/tenant_id/data/timestamps`, faisant planter 5 pages réelles déjà routées (`/bi`, `/bi/sql-editor`, `/bi/alerts`, `/bi/data-sources`, `/bi/dashboards/builder`) — patchées additivement (`2026_08_24_000001_patch_remaining_bi_stub_tables.php`).
+
+**5 sous-systèmes entiers construits pour de vrai après checkpoint utilisateur** : `AlertRule`, `DataStory`, `ExternalDataSource`, `ForecastModel`, `CustomVisualization` étaient chacun entièrement écrits (Policy + Controller appelant déjà `authorize()`) mais sans table, sans route, sans permission seedée. Chacun a reçu ses tables manquantes, un contrôleur Web léger + page `Index.vue` (découvrabilité par URL directe, sauf Visualization où `BiWebController::visualizations()` existait déjà), un enregistrement `Gate::policy()` dans `BIServiceProvider::registerPolicies()` (aucune des 5 policies n'était auto-découvrable — le nom de classe ne correspond pas au modèle, ex. `AlertRule` → `AlertPolicy`), et un bloc `BI_EXTRA_PERMISSIONS` (45 permissions).
+
+`BIController` (scaffold mort, zéro route) + ses vues blade ont été supprimés, même précédent que `HelpdeskController`.
+
+## Vues (Vue/Inertia)
+
+`Modules/BI/resources/js/Pages/` : `Visualizations/`, `DataStories/`, `Forecasting/`, `AlertRules/`, `AINarratives/`, `PredictiveAnalytics/`, `ExternalDataSources/` — les 4 dernières venant du Chantier 8.2bi (`AlertRules`, `DataStories`, `ExternalDataSources`, `Forecasting` sont accessibles via `/bi/alert-rules`, `/bi/data-stories`, `/bi/external-data-sources`, `/bi/forecasting`), plus les pages historiques (`/bi`, `/bi/analytics`, `/bi/kpis`, `/bi/nl-query`, `/bi/sql-editor`, `/bi/alerts`, `/bi/data-sources`, `/bi/reports`, `/bi/dashboards/builder`, `/bi/dashboards/{dashboard}`) servies par `BiWebController`.
+
 ## Services
 
 - **`AlertService` / `RealTimeAlertService`** — création, test et déclenchement des règles d'alerte, déduplication et escalade.
@@ -76,7 +94,7 @@ Préfixe `bi.` (`database/seeders/RolesAndPermissionsSeeder.php`), ressources `d
 - `inventory-analyst` — accès complet `bi.*` + `analytics.*`, en lecture seule sur `inventory.*`
 - `manager` — sous-ensemble en lecture (`bi.dashboard.view-any/view`, `bi.report.view-any/view`, `bi.kpi.view-any/view`)
 
-Ces permissions Spatie s'ajoutent au contrôle direct de rôle imposé par le middleware `role:manager,admin` sur les routes API, et aux policies dédiées (`BiAlertPolicy`, `BiAnomalyPolicy`, `BiDataSourcePolicy`, `DataStoryPolicy`, `ExternalDataPolicy`, `ForecastingPolicy`, `VisualizationPolicy`, `AlertPolicy`).
+Ces permissions Spatie s'ajoutent au contrôle direct de rôle imposé par le middleware `role:manager,admin` sur les routes API, et aux policies dédiées (`BiAlertPolicy`, `BiAnomalyPolicy`, `BiDataSourcePolicy`, `DataStoryPolicy`, `ExternalDataPolicy`, `ForecastingPolicy`, `VisualizationPolicy`, `AlertPolicy`). Le bloc `BI_EXTRA_PERMISSIONS` (Chantier 8.2bi, 45 chaînes réparties sur 5 préfixes `bi.<ressource>.*`) couvre les 5 sous-systèmes nouvellement construits (`alertrule`, `datastory`, `externaldatasource`, `forecastmodel`, `customvisualization`) — `finance-manager`/`inventory-analyst` les couvrent déjà via leur wildcard `bi.*`.
 
 ## Dépendances avec d'autres modules
 
