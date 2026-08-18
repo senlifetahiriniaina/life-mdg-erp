@@ -97,9 +97,13 @@ class AnalyticsController extends Controller
 
     private function topProducts(int $limit = 5): array
     {
-        $rows = DB::table('pos_order_items as oi')
+        // Chantier 9: was querying `pos_order_items`, a stub table scaffolded
+        // for the POS module — which is explicitly out of Life MDG's 27-module
+        // scope (no Modules/POS exists) and never had real order data. Repointed
+        // at the real, in-scope Sales module's order lines instead.
+        $rows = DB::table('sales_order_lines as oi')
             ->join('inventory_products as p', 'p.id', '=', 'oi.product_id')
-            ->selectRaw('p.name, SUM(oi.total) as revenue, SUM(oi.quantity) as units')
+            ->selectRaw('p.name, SUM(oi.line_total) as revenue, SUM(oi.quantity) as units')
             ->groupBy('p.id', 'p.name')
             ->orderByDesc('revenue')
             ->limit($limit)

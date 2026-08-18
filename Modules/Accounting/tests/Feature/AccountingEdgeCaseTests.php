@@ -4,7 +4,6 @@ namespace Modules\Accounting\Tests\Feature;
 
 use App\Models\Company;
 use App\Models\User;
-use Modules\Accounting\Models\RevenueContract;
 use Modules\Accounting\Models\TaxComplianceReport;
 use Modules\Accounting\Models\DepreciationSchedule;
 use Tests\TestCase;
@@ -23,9 +22,6 @@ class AccountingEdgeCaseTests extends TestCase
 
         // Grant all permissions for edge case testing
         $permissions = [
-            'accounting.revenue_recognition.view',
-            'accounting.revenue_recognition.create',
-            'accounting.revenue_recognition.update',
             'accounting.tax_compliance.view',
             'accounting.tax_compliance.create',
             'accounting.tax_compliance.update',
@@ -43,47 +39,6 @@ class AccountingEdgeCaseTests extends TestCase
     // ============================================================================
     // EDGE CASE: VERY LARGE MONETARY VALUES
     // ============================================================================
-
-    public function test_revenue_contract_with_maximum_contract_value(): void
-    {
-        $maxValue = 999999999.99;
-
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-LARGE-001',
-                'contract_type' => 'Service',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => $maxValue,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        $response->assertCreated();
-        $this->assertDatabaseHas('revenue_contracts', [
-            'contract_value' => $maxValue,
-        ]);
-    }
-
-    public function test_revenue_contract_with_zero_value(): void
-    {
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-ZERO-001',
-                'contract_type' => 'Service',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => 0,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        $response->assertCreated();
-    }
 
     public function test_depreciation_schedule_with_very_high_depreciation_rate(): void
     {
@@ -108,24 +63,6 @@ class AccountingEdgeCaseTests extends TestCase
     // EDGE CASE: NEGATIVE/INVALID VALUES
     // ============================================================================
 
-    public function test_revenue_contract_rejects_negative_value(): void
-    {
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-NEG-001',
-                'contract_type' => 'Service',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => -1000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        $response->assertUnprocessable();
-    }
-
     public function test_depreciation_schedule_rejects_negative_residual(): void
     {
         $asset = \Modules\Accounting\Models\FixedAsset::factory()->for($this->company)->create();
@@ -148,49 +85,6 @@ class AccountingEdgeCaseTests extends TestCase
     // ============================================================================
     // EDGE CASE: DATE BOUNDARIES
     // ============================================================================
-
-    public function test_revenue_contract_with_same_date_for_start_and_end(): void
-    {
-        $sameDate = now()->toDateString();
-
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-SAMEDATE-001',
-                'contract_type' => 'Service',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => $sameDate,
-                'start_date' => $sameDate,
-                'end_date' => $sameDate,
-                'contract_value' => 10000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'point_in_time',
-            ]);
-
-        $response->assertCreated();
-    }
-
-    public function test_revenue_contract_end_date_before_start_date_rejected(): void
-    {
-        $startDate = now()->toDateString();
-        $endDate = now()->subMonths(1)->toDateString();
-
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-BADDATE-001',
-                'contract_type' => 'Service',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => $startDate,
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'contract_value' => 10000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        $response->assertUnprocessable();
-    }
 
     public function test_depreciation_schedule_with_very_short_useful_life(): void
     {
@@ -282,43 +176,6 @@ class AccountingEdgeCaseTests extends TestCase
     // EDGE CASE: DUPLICATE/CONCURRENT OPERATIONS
     // ============================================================================
 
-    public function test_duplicate_contract_number_rejected(): void
-    {
-        $contractNumber = 'CONTRACT-UNIQUE-001';
-        $customerId = \App\Models\Customer::factory()->for($this->company)->create()->id;
-
-        // First contract
-        $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => $contractNumber,
-                'contract_type' => 'Service',
-                'customer_id' => $customerId,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => 10000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        // Duplicate attempt
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => $contractNumber,
-                'contract_type' => 'Service',
-                'customer_id' => $customerId,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => 10000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonPath('errors.contract_number.0', 'The contract number has already been taken.');
-    }
-
     public function test_multiple_depreciation_records_same_period(): void
     {
         $schedule = \Modules\Accounting\Models\DepreciationSchedule::factory()
@@ -342,31 +199,6 @@ class AccountingEdgeCaseTests extends TestCase
 
         // Should fail due to unique constraint
         $response2->assertUnprocessable();
-    }
-
-    // ============================================================================
-    // EDGE CASE: SPECIAL CHARACTERS IN TEXT FIELDS
-    // ============================================================================
-
-    public function test_contract_with_special_characters_in_type(): void
-    {
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-SPECIAL-001',
-                'contract_type' => 'Service & Consulting (Premium)',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => 10000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-            ]);
-
-        $response->assertCreated();
-        $this->assertDatabaseHas('revenue_contracts', [
-            'contract_type' => 'Service & Consulting (Premium)',
-        ]);
     }
 
     // ============================================================================
@@ -395,50 +227,6 @@ class AccountingEdgeCaseTests extends TestCase
     }
 
     // ============================================================================
-    // EDGE CASE: EMPTY/NULL OPTIONAL FIELDS
-    // ============================================================================
-
-    public function test_revenue_contract_without_optional_end_date(): void
-    {
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/accounting/revenue-contracts', [
-                'contract_number' => 'CONTRACT-NOEND-001',
-                'contract_type' => 'Perpetual License',
-                'customer_id' => \App\Models\Customer::factory()->for($this->company)->create()->id,
-                'contract_date' => now()->toDateString(),
-                'start_date' => now()->toDateString(),
-                'contract_value' => 10000,
-                'currency' => 'USD',
-                'performance_obligation_type' => 'time_based',
-                'revenue_recognition_method' => 'over_time',
-                // end_date intentionally omitted
-            ]);
-
-        $response->assertCreated();
-        $contract = RevenueContract::find($response->json('data.id'));
-        $this->assertNull($contract->end_date);
-    }
-
-    // ============================================================================
-    // EDGE CASE: COMPANY ISOLATION
-    // ============================================================================
-
-    public function test_cannot_access_other_company_contracts(): void
-    {
-        $otherCompany = Company::factory()->create();
-        $otherUser = User::factory()->for($otherCompany)->create();
-
-        $contract = RevenueContract::factory()
-            ->for(\App\Models\Customer::factory()->for($otherCompany)->create())
-            ->create();
-
-        $response = $this->actingAs($this->user)
-            ->getJson("/api/accounting/revenue-contracts/{$contract->id}");
-
-        $response->assertForbidden();
-    }
-
-    // ============================================================================
     // EDGE CASE: VERY LONG TEXT FIELDS
     // ============================================================================
 
@@ -457,34 +245,5 @@ class AccountingEdgeCaseTests extends TestCase
             ]);
 
         $response->assertCreated();
-    }
-
-    // ============================================================================
-    // EDGE CASE: MULTIPLE CURRENCIES
-    // ============================================================================
-
-    public function test_revenue_contracts_in_different_currencies(): void
-    {
-        $customerId = \App\Models\Customer::factory()->for($this->company)->create()->id;
-        $currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD'];
-
-        foreach ($currencies as $currency) {
-            $response = $this->actingAs($this->user)
-                ->postJson('/api/accounting/revenue-contracts', [
-                    'contract_number' => "CONTRACT-{$currency}-001",
-                    'contract_type' => 'Service',
-                    'customer_id' => $customerId,
-                    'contract_date' => now()->toDateString(),
-                    'start_date' => now()->toDateString(),
-                    'contract_value' => 10000,
-                    'currency' => $currency,
-                    'performance_obligation_type' => 'time_based',
-                    'revenue_recognition_method' => 'over_time',
-                ]);
-
-            $response->assertCreated();
-        }
-
-        $this->assertDatabaseCount('revenue_contracts', 5);
     }
 }

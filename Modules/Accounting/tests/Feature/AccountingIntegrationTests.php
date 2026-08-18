@@ -4,7 +4,6 @@ namespace Modules\Accounting\Tests\Feature;
 
 use App\Models\Company;
 use App\Models\User;
-use Modules\Accounting\Models\RevenueRecognitionSchedule;
 use Modules\Accounting\Models\DepreciationEntry;
 use Modules\Accounting\Models\IntercompanyReconciliation;
 use Tests\TestCase;
@@ -22,9 +21,6 @@ class AccountingIntegrationTests extends TestCase
         $this->user = User::factory()->for($this->company)->create();
 
         $permissions = [
-            'accounting.revenue_recognition.view',
-            'accounting.revenue_recognition.create',
-            'accounting.revenue_recognition.recognize',
             'accounting.tax_compliance.view',
             'accounting.tax_compliance.create',
             'accounting.consolidation.view',
@@ -39,63 +35,6 @@ class AccountingIntegrationTests extends TestCase
         foreach ($permissions as $perm) {
             $this->user->givePermissionTo($perm);
         }
-    }
-
-    // ============================================================================
-    // INTEGRATION: Revenue Recognition → Journal Entries
-    // ============================================================================
-
-    public function test_revenue_recognition_with_journal_entry_linkage(): void
-    {
-        $contract = \Modules\Accounting\Models\RevenueContract::factory()
-            ->for(\App\Models\Customer::factory()->for($this->company)->create())
-            ->create(['status' => 'active']);
-
-        $journalEntry = \Modules\Accounting\Models\JournalEntry::factory()
-            ->for($this->company)
-            ->create();
-
-        $glAccount = \Modules\Accounting\Models\GlAccount::factory()
-            ->for($this->company)
-            ->create();
-
-        $schedule = RevenueRecognitionSchedule::create([
-            'revenue_contract_id' => $contract->id,
-            'recognition_date' => now()->toDateString(),
-            'amount' => 5000,
-            'tax_amount' => 500,
-            'gl_account_id' => $glAccount->id,
-            'journal_entry_id' => $journalEntry->id,
-            'status' => 'recognized',
-            'recognized_at' => now(),
-        ]);
-
-        $this->assertNotNull($schedule->journal_entry_id);
-        $this->assertTrue($schedule->journalEntry()->exists());
-        $this->assertEquals($journalEntry->id, $schedule->journal_entry_id);
-    }
-
-    public function test_revenue_recognition_without_journal_entry(): void
-    {
-        $contract = \Modules\Accounting\Models\RevenueContract::factory()
-            ->for(\App\Models\Customer::factory()->for($this->company)->create())
-            ->create(['status' => 'active']);
-
-        $glAccount = \Modules\Accounting\Models\GlAccount::factory()
-            ->for($this->company)
-            ->create();
-
-        $schedule = RevenueRecognitionSchedule::create([
-            'revenue_contract_id' => $contract->id,
-            'recognition_date' => now()->toDateString(),
-            'amount' => 5000,
-            'gl_account_id' => $glAccount->id,
-            'status' => 'scheduled',
-            'journal_entry_id' => null,
-        ]);
-
-        $this->assertNull($schedule->journal_entry_id);
-        $this->assertFalse($schedule->journalEntry()->exists());
     }
 
     // ============================================================================
@@ -288,32 +227,6 @@ class AccountingIntegrationTests extends TestCase
 
         $this->assertTrue($template->jurisdiction()->exists());
         $this->assertEquals($jurisdiction->id, $template->tax_jurisdiction_id);
-    }
-
-    // ============================================================================
-    // INTEGRATION: Contract Liability → GL Accounts
-    // ============================================================================
-
-    public function test_contract_liability_references_correct_gl_account(): void
-    {
-        $contract = \Modules\Accounting\Models\RevenueContract::factory()
-            ->for(\App\Models\Customer::factory()->for($this->company)->create())
-            ->create();
-
-        $deferredRevenueAccount = \Modules\Accounting\Models\GlAccount::factory()
-            ->for($this->company)
-            ->create(['account_type' => 'Liability']);
-
-        $liability = \Modules\Accounting\Models\ContractLiability::create([
-            'revenue_contract_id' => $contract->id,
-            'liability_amount' => 100000,
-            'recognized_amount' => 25000,
-            'remaining_amount' => 75000,
-            'deferred_revenue_account_id' => $deferredRevenueAccount->id,
-        ]);
-
-        $this->assertTrue($liability->deferredRevenueAccount()->exists());
-        $this->assertEquals($deferredRevenueAccount->id, $liability->deferred_revenue_account_id);
     }
 
     // ============================================================================

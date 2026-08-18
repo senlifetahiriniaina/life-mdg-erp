@@ -9,7 +9,6 @@ use Modules\Helpdesk\Services\SentimentAnalysisService;
 use Modules\Helpdesk\Services\PredictiveEscalationService;
 use Modules\Helpdesk\Services\AiResponseService;
 use Modules\Helpdesk\Services\SatisfactionPredictionService;
-use Modules\Helpdesk\Services\AgentPerformanceService;
 
 uses(RefreshDatabase::class);
 
@@ -569,83 +568,15 @@ describe('SatisfactionPredictionService', function () {
     });
 });
 
-describe('AgentPerformanceService', function () {
-    test('calculates resolution time', function () {
-        $service = app(AgentPerformanceService::class);
-        $ticket = Ticket::factory()->create([
-            'created_at' => now()->subHours(5),
-            'resolved_at' => now(),
-            'status' => 'resolved',
-        ]);
-
-        $metrics = $service->calculateMetrics($ticket->assignee);
-
-        expect($metrics['average_resolution_time_hours'])->toBeGreaterThan(0);
-    });
-
-    test('calculates satisfaction score', function () {
-        $service = app(AgentPerformanceService::class);
-        $user = User::factory()->create();
-
-        $metrics = $service->calculateMetrics($user);
-
-        expect($metrics['average_satisfaction_score'])->toBeGreaterThanOrEqual(1)->toBeLessThanOrEqual(5);
-    });
-
-    test('calculates sla compliance', function () {
-        $service = app(AgentPerformanceService::class);
-        $user = User::factory()->create();
-
-        $metrics = $service->calculateMetrics($user);
-
-        expect($metrics['sla_compliance_rate'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(1);
-    });
-
-    test('calculates first response time', function () {
-        $service = app(AgentPerformanceService::class);
-        $ticket = Ticket::factory()->create([
-            'created_at' => now()->subMinutes(30),
-            'first_response_at' => now(),
-        ]);
-
-        $metrics = $service->calculateMetrics($ticket->assignee);
-
-        expect($metrics['first_response_time_minutes'])->toBeGreaterThan(0);
-    });
-
-    test('analyzes trend', function () {
-        $service = app(AgentPerformanceService::class);
-        $user = User::factory()->create();
-
-        $trend = $service->analyzeTrend($user, 'month');
-
-        expect($trend['trajectory'])->toBeIn(['improving', 'declining', 'stable']);
-    });
-
-    test('calculates skill proficiency', function () {
-        $service = app(AgentPerformanceService::class);
-        $user = User::factory()->create();
-
-        $skills = $service->calculateSkillProficiency($user);
-
-        expect($skills)->toBeArray();
-    });
-
-    test('benchmarks agent', function () {
-        $service = app(AgentPerformanceService::class);
-        $user = User::factory()->create();
-
-        $benchmark = $service->benchmark($user);
-
-        expect($benchmark['percentile_rank'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(100);
-    });
-
-    test('generates coaching recommendations', function () {
-        $service = app(AgentPerformanceService::class);
-        $user = User::factory()->create();
-
-        $recommendations = $service->generateCoachingRecommendations($user);
-
-        expect($recommendations)->toBeArray();
-    });
-});
+// NOTE: A `describe('AgentPerformanceService', ...)` block previously lived here, testing a
+// `Modules\Helpdesk\Services\AgentPerformanceService` class that was never actually built (no
+// such file exists anywhere in the repo — `app(AgentPerformanceService::class)` threw
+// BindingResolutionException on every one of its 8 tests). Because this file's name
+// (`ServiceTests.php`) doesn't match PHPUnit's default `*Test.php` discovery suffix, the block
+// was silently excluded from the normal test run and never surfaced as a failure. The real,
+// live "agent talent management" feature (per-agent metrics/trend/skills/benchmarking, coaching
+// recommendations, SMART goals via `PerformanceGoal`, development plans) is
+// `Modules\Helpdesk\Services\AgentPerformanceAnalyticsService` behind `AgentPerformanceController`
+// (19 routed endpoints) plus `CustomerServiceAIController`'s coaching/skills/trends endpoints —
+// both fully tested by the real, passing `Modules/Helpdesk/tests/Feature/AgentPerformanceTest.php`.
+// The dead block testing the phantom class was removed rather than fixed in place.

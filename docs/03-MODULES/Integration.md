@@ -82,7 +82,7 @@ Les endpoints publics `v1/federation/*` (HMAC-signés, sans `auth:sanctum`) éta
 - **`WhbPartnerService`** — gère le cycle de vie complet d'une connexion WHB : génère des codes d'invitation à 8 caractères (charset évitant les caractères ambigus 0/O/1/I/L, TTL 24h), approbation/rejet/suspension, envoi et réception dans l'inbox.
 - **`WhbFederationService`** — découverte d'instance distante (`GET /.well-known/widehalo`), signature et vérification HMAC-SHA256 des requêtes (fenêtre anti-rejeu de 5 minutes), refresh de session.
 - **`WhbDataSerializerService`** — transformation des données locales vers/depuis le format d'échange WHB.
-- **`FirebaseService`**, **`SupabaseService`**, **`MinioService`** — intégrations d'infrastructure (push FCM, PostgREST/Storage Supabase, stockage compatible S3).
+- **`FirebaseService`**, **`SupabaseService`** — intégrations d'infrastructure (push FCM, PostgREST/Storage Supabase).
 - **`Connectors/`** — un connecteur PHP dédié par fournisseur : `OrangeMoneyConnector` (API Orange Money v2, paiement C2B par USSD/OTP, `initiatePayment`/`checkStatus`), `MtnMomoConnector` (MTN MoMo Open API — Collection + Disbursement), `WaveConnector`, `MPesaConnector`, `ShopifyConnector`, `WooCommerceConnector`, `JumiaConnector`, `GoogleWorkspaceConnector`, `ZapierConnector`.
 
 ## Permissions RBAC
