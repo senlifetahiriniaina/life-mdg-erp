@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Inventory\Http\Controllers\Api\BarcodeController;
 use Modules\Inventory\Http\Controllers\Api\CategoryController;
+use Modules\Inventory\Http\Controllers\Api\ChannelController;
 use Modules\Inventory\Http\Controllers\Api\CrossdockController;
 use Modules\Inventory\Http\Controllers\Api\CycleCountController;
 use Modules\Inventory\Http\Controllers\Api\DemandForecastController;
@@ -18,6 +19,7 @@ use Modules\Inventory\Http\Controllers\Api\ShipmentController;
 use Modules\Inventory\Http\Controllers\Api\StockMovementController;
 use Modules\Inventory\Http\Controllers\Api\SupplierController;
 use Modules\Inventory\Http\Controllers\Api\TransferOrderController;
+use Modules\Inventory\Http\Controllers\Api\UnitController;
 use Modules\Inventory\Http\Controllers\Api\ValuationController;
 use Modules\Inventory\Http\Controllers\Api\WarehouseController;
 use Modules\Inventory\Http\Controllers\Api\WavePickingController;
@@ -30,6 +32,15 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::post('sync/ecommerce/all', [EcommerceSyncController::class, 'syncAll']);
     });
     Route::get('sync/ecommerce/status', [EcommerceSyncController::class, 'status']);
+
+    // Marketplace channel connections (Amazon/eBay/etc. — distinct from the
+    // ecommerce sync above, which syncs products to an already-connected storefront)
+    Route::get('channels', [ChannelController::class, 'index']);
+    Route::get('channels/{id}/status', [ChannelController::class, 'status']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('channels/{type}/connect', [ChannelController::class, 'connect']);
+        Route::post('channels/{id}/sync', [ChannelController::class, 'sync']);
+    });
 
     // Product specific routes (complex analytics)
     Route::middleware('throttle:complex_get')->group(function () {
@@ -121,6 +132,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
     // Barcode routes
     Route::get('barcode/product/{barcode}', [BarcodeController::class, 'lookupProduct']);
     Route::get('barcode/location/{barcode}', [BarcodeController::class, 'lookupLocation']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('barcode/stock-movement', [BarcodeController::class, 'stockMovement']);
+    });
 
     // AI routes (expensive)
     Route::middleware('throttle:expensive')->group(function () {
@@ -171,12 +185,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::apiResource('categories', CategoryController::class)->only(['index', 'show'])->names('api.categories');
         Route::apiResource('warehouses', WarehouseController::class)->only(['index', 'show'])->names('api.warehouses');
         Route::apiResource('suppliers', SupplierController::class)->only(['index', 'show']);
+        Route::apiResource('units', UnitController::class)->only(['index', 'show']);
     });
     Route::middleware('throttle:create_post')->group(function () {
         Route::apiResource('products', ProductController::class)->only(['store', 'update', 'destroy'])->names('api.products');
         Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy'])->names('api.categories');
         Route::apiResource('warehouses', WarehouseController::class)->only(['store', 'update', 'destroy'])->names('api.warehouses');
         Route::apiResource('suppliers', SupplierController::class)->only(['store', 'update', 'destroy']);
+        Route::apiResource('units', UnitController::class)->only(['store', 'update', 'destroy']);
     });
 
     // Operational resources (shorter TTL: 5 minutes — these change frequently)
