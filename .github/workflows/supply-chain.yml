@@ -83,7 +83,7 @@ jobs:
           composer make-bom --output-format JSON --output-file sbom-php.cdx.json || true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
         continue-on-error: true
