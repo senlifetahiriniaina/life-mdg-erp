@@ -15,8 +15,43 @@ declare(strict_types=1);
 // exposed at POST/GET /api/v1/ai/anomalies* and DELETE /api/v1/ai/anomalies/{id}.
 // This file exercises that real, routed API instead.
 
+// Chantier 8.6 (AI): AiAnomalyController::resolveTenantId() now reads the
+// user's real `company_id` (dropping the client-controlled X-Tenant-Id header
+// fallback that was the actual cross-tenant leak — see CLAUDE.md), and
+// AiAnomalyDetectionService now queries the real `inventory_products` /
+// `inventory_stock` tables (the old `products`/`stock_quantity` names never
+// existed, so every call silently fell into the service's own catch block and
+// returned one canned demo anomaly per module regardless of real data). These
+// tests now seed a real understocked product for the acting user's company_id
+// instead of relying on that removed fallback demo data.
+function actingAsAdminWithCompany(): \App\Models\User
+{
+    $user = actingAsUser('admin');
+    $company = \App\Models\Company::factory()->create();
+    $user->forceFill(['company_id' => $company->id])->save();
+
+    return $user;
+}
+
+function seedLowStockAnomaly(int $companyId): void
+{
+    $warehouseId = \Illuminate\Support\Facades\DB::table('inventory_warehouses')->insertGetId([
+        'name' => 'Anomaly Test Warehouse', 'code' => 'ANOM-WH', 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $productId = \Illuminate\Support\Facades\DB::table('inventory_products')->insertGetId([
+        'name' => 'Anomaly Test Product', 'sku' => 'ANOM-' . uniqid(), 'tenant_id' => $companyId,
+        'is_active' => true, 'reorder_point' => 10, 'reorder_qty' => 5,
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    \Illuminate\Support\Facades\DB::table('inventory_stock')->insert([
+        'product_id' => $productId, 'warehouse_id' => $warehouseId, 'quantity' => 0,
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+}
+
 it('lists active anomalies across modules for the current tenant', function () {
-    actingAsUser('admin');
+    $user = actingAsAdminWithCompany();
+    seedLowStockAnomaly($user->company_id);
 
     $response = $this->getJson('/api/v1/ai/anomalies');
 
@@ -28,7 +63,8 @@ it('lists active anomalies across modules for the current tenant', function () {
 });
 
 it('detect endpoint returns the same active anomalies as the index endpoint', function () {
-    actingAsUser('admin');
+    $user = actingAsAdminWithCompany();
+    seedLowStockAnomaly($user->company_id);
 
     $detect = $this->postJson('/api/v1/ai/anomalies/detect');
     $index = $this->getJson('/api/v1/ai/anomalies');
@@ -56,7 +92,8 @@ it('anomalies are sorted with critical severity first', function () {
 });
 
 it('dismissing an anomaly removes it from the active list', function () {
-    actingAsUser('admin');
+    $user = actingAsAdminWithCompany();
+    seedLowStockAnomaly($user->company_id);
 
     $before = $this->getJson('/api/v1/ai/anomalies')->assertOk();
     $anomalies = $before->json('data');

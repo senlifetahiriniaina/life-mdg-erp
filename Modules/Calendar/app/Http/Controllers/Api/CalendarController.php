@@ -123,6 +123,20 @@ class CalendarController extends Controller
     }
 
     /**
+     * GET /api/v1/calendar/events/{event}
+     * Show a single event. Event/Show.vue self-fetches this — the method
+     * never existed at all despite the page calling it.
+     */
+    public function showEvent(CalendarEvent $event): JsonResponse
+    {
+        $this->authorize('view', $event);
+
+        $event->load(['attendees', 'reminders']);
+
+        return response()->json($this->formatEvent($event));
+    }
+
+    /**
      * POST /api/v1/calendar/events
      * Create a new event.
      */

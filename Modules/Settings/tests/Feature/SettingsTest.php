@@ -15,6 +15,7 @@ beforeEach(function () {
         test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
     }
     $this->user  = User::factory()->create(['company_id' => Company::factory()->create()->id]);
+    $this->user->givePermissionTo('settings.update');
     $this->token = $this->user->createToken('test')->plainTextToken;
 });
 

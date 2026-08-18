@@ -57,9 +57,15 @@ class IntegrationConnector extends Model
         return $query->where('status', 'active');
     }
 
-    public function scopeForTenant($query, int $tenantId)
+    /**
+     * tenant_id is a string(36) column (leftover UUID-tenant design, same
+     * pattern documented for Security's company_id columns) — accept
+     * int|string and always compare as string to avoid a silent type
+     * mismatch against $user->company_id (an int).
+     */
+    public function scopeForTenant($query, int|string $tenantId)
     {
-        return $query->where('tenant_id', $tenantId);
+        return $query->where('tenant_id', (string) $tenantId);
     }
 
     public function scopeByProvider($query, string $providerType)

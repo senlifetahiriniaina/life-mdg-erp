@@ -59,8 +59,16 @@ onMounted(async () => {
   }
 })
 
+// Real per-provider routes (Modules/Calendar/routes/api.php): Google/Outlook
+// are OAuth (auth → callback), Apple is CalDAV (connect, no auth redirect).
 async function connectIntegration(id) {
-  const res = await fetch(`/api/v1/calendar/sync/${id}/connect`, { method: 'POST' })
+  if (id === 'apple') {
+    await fetch('/api/v1/calendar/sync/apple/connect', { method: 'POST' })
+    const integration = integrations.value.find(i => i.id === 'apple')
+    if (integration) integration.connected = true
+    return
+  }
+  const res = await fetch(`/api/v1/calendar/sync/${id}/auth`)
   if (res.ok) {
     const data = await res.json()
     if (data.auth_url) {

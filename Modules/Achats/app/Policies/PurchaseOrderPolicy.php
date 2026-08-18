@@ -32,21 +32,24 @@ class PurchaseOrderPolicy
     }
 
     /**
-     * Allow managers/admins to approve purchase orders.
-     * In tests the user has no role, so we allow all authenticated users.
+     * Approving a PO is a financial approval step, not a routine warehouse
+     * action — gated on the real 'achats.purchase-order.approve' permission
+     * (ACHATS_EXTRA_PERMISSIONS in RolesAndPermissionsSeeder) rather than
+     * "any authenticated user". purchasing-manager/manager/admin all carry
+     * it; warehouse-operator (allowed through the route-level role: gate
+     * for read/receiving actions) deliberately does not.
      */
     public function approve(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return true;
+        return $user->can('achats.purchase-order.approve');
     }
 
     /**
-     * Allow managers/admins to reject purchase orders.
-     * In tests the user has no role, so we allow all authenticated users.
+     * Same reasoning as approve() above.
      */
     public function reject(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return true;
+        return $user->can('achats.purchase-order.reject');
     }
 
     /**

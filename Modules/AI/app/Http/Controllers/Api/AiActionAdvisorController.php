@@ -252,12 +252,17 @@ class AiActionAdvisorController extends Controller
 
     /**
      * Abort with 403 if the user does not have an admin/super-admin role.
+     *
+     * `users.role` is a legacy column that no real code path ever populates
+     * (real RBAC is spatie/laravel-permission — see
+     * `database/migrations/2026_08_17_000001_add_role_to_users_table.php`'s own
+     * docblock), so `$request->user()->role` was always empty and every admin
+     * endpoint below 403'd for real admins too. Fixed to check the real Spatie
+     * roles via `hasAnyRole()`, the same check used everywhere else in this app.
      */
     private function requireAdmin(Request $request): void
     {
-        $role = $request->user()->role ?? '';
-
-        if (!in_array($role, ['admin', 'super-admin', 'super_admin'], true)) {
+        if (!$request->user()->hasAnyRole(['admin', 'super-admin'])) {
             abort(403, 'Admin access required.');
         }
     }

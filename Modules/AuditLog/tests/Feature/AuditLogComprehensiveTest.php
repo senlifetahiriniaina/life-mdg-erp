@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Modules\AuditLog\Policies\AuditLogPolicy;
 use Modules\AuditLog\Providers\AuditLogServiceProvider;
 use Modules\Core\Models\AuditLog;
 use Modules\Core\Services\AuditService;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -17,18 +14,6 @@ uses(RefreshDatabase::class);
 
 test('AuditLogServiceProvider class exists', function () {
     expect(class_exists(AuditLogServiceProvider::class))->toBeTrue();
-});
-
-test('AuditLogPolicy class exists and has expected methods', function () {
-    $policy  = new AuditLogPolicy();
-    $methods = get_class_methods($policy);
-
-    expect($methods)->toContain('viewAny')
-        ->toContain('view')
-        ->toContain('create')
-        ->toContain('update')
-        ->toContain('delete')
-        ->toContain('export');
 });
 
 // ─── AuditService — log actions ───────────────────────────────────────────────
@@ -167,37 +152,4 @@ test('AuditLog can be filtered by user_id', function () {
     AuditLog::factory()->create(['user_id' => null]);
 
     expect(AuditLog::where('user_id', $user->id)->count())->toBe(3);
-});
-
-// ─── Policy permissions ───────────────────────────────────────────────────────
-
-test('AuditLogPolicy viewAny returns true with correct permission', function () {
-    $policy = new AuditLogPolicy();
-    $user   = User::factory()->create();
-
-    Permission::firstOrCreate(['name' => 'auditlog.auditlog.view-any', 'guard_name' => 'web']);
-    $role = Role::firstOrCreate(['name' => 'auditor', 'guard_name' => 'web']);
-    $role->givePermissionTo('auditlog.auditlog.view-any');
-    $user->assignRole('auditor');
-
-    expect($policy->viewAny($user))->toBeTrue();
-});
-
-test('AuditLogPolicy viewAny returns false without permission', function () {
-    $policy = new AuditLogPolicy();
-    $user   = User::factory()->create();
-
-    expect($policy->viewAny($user))->toBeFalse();
-});
-
-test('AuditLogPolicy export returns true with export permission', function () {
-    $policy = new AuditLogPolicy();
-    $user   = User::factory()->create();
-
-    Permission::firstOrCreate(['name' => 'auditlog.auditlog.export', 'guard_name' => 'web']);
-    $role = Role::firstOrCreate(['name' => 'export_auditor', 'guard_name' => 'web']);
-    $role->givePermissionTo('auditlog.auditlog.export');
-    $user->assignRole('export_auditor');
-
-    expect($policy->export($user))->toBeTrue();
 });

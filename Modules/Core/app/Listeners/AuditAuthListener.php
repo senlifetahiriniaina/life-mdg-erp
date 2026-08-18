@@ -24,6 +24,7 @@ class AuditAuthListener
 
             AuditLog::create([
                 'user_id' => $user->id,
+                'company_id' => $user->company_id ?? 0,
                 'user_name' => $user->name,
                 'user_role' => $user->getRoleNames()->first(),
                 'action' => 'login',
@@ -48,6 +49,7 @@ class AuditAuthListener
 
             AuditLog::create([
                 'user_id' => $user->id,
+                'company_id' => $user->company_id ?? 0,
                 'user_name' => $user->name,
                 'user_role' => $user->getRoleNames()->first(),
                 'action' => 'logout',
@@ -70,6 +72,7 @@ class AuditAuthListener
 
             AuditLog::create([
                 'user_id' => null,
+                'company_id' => 0,
                 'user_name' => $email,
                 'action' => 'login_failed',
                 'module' => 'Auth',

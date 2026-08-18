@@ -26,7 +26,7 @@ class CalendarPolicy
 
     public function update(User $user, Calendar $calendar): bool
     {
-        if ($user->hasAnyRole(['admin', 'super_admin'])) {
+        if ($user->hasAnyRole(['admin', 'super-admin'])) {
             return true;
         }
 
@@ -35,7 +35,7 @@ class CalendarPolicy
 
     public function delete(User $user, Calendar $calendar): bool
     {
-        if ($user->hasAnyRole(['admin', 'super_admin'])) {
+        if ($user->hasAnyRole(['admin', 'super-admin'])) {
             return true;
         }
 
@@ -44,11 +44,11 @@ class CalendarPolicy
 
     public function restore(User $user, Calendar $calendar): bool
     {
-        return $user->hasAnyRole(['admin', 'super_admin']);
+        return $user->hasAnyRole(['admin', 'super-admin']);
     }
 
     public function forceDelete(User $user, Calendar $calendar): bool
     {
-        return $user->hasRole('super_admin');
+        return $user->hasRole('super-admin');
     }
 }

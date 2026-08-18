@@ -8,24 +8,61 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AiNaturalLanguageSearchService
 {
     private const CACHE_TTL = 120;
+
+    /**
+     * Real `<module>_`-prefixed table names (confirmed against each module's own
+     * migrations), not the bare/generic table names this map used to carry —
+     * `DB::table($entity)` on the old names always 404'd into `executeSearch()`'s
+     * own catch block, silently returning empty results on every real search.
+     * POS/Ecommerce/Contracts/Assets are also dropped entirely: those modules are
+     * not part of Life MDG's 27-module scope (see CLAUDE.md) and none of their
+     * tables (`pos_orders`, `ecommerce_orders`, `contracts`, `assets`) exist
+     * anywhere in this repo's migrations.
+     */
     private const SUPPORTED_MODULES = [
-        'CRM'         => ['contacts', 'opportunities'],
-        'Accounting'  => ['invoices', 'journal_entries'],
-        'HR'          => ['employees', 'leave_requests'],
-        'Inventory'   => ['products', 'stock_movements'],
-        'Sales'       => ['orders', 'quotations'],
-        'POS'         => ['pos_orders', 'pos_sessions'],
-        'Achats'      => ['purchase_orders'],
-        'Projects'    => ['projects', 'tasks'],
-        'Ecommerce'   => ['ecommerce_orders', 'products'],
-        'Contracts'   => ['contracts'],
-        'Assets'      => ['assets'],
-        'Reporting'   => ['reports'],
+        'CRM'         => ['crm_contacts', 'crm_opportunities'],
+        'Accounting'  => ['acc_invoices', 'acc_journal_entries'],
+        'HR'          => ['hr_employees', 'hr_leave_requests'],
+        'Inventory'   => ['inventory_products', 'inventory_stock_movements'],
+        'Sales'       => ['sales_orders', 'sales_quotations'],
+        'Achats'      => ['achats_purchase_orders'],
+        'Projects'    => ['prj_projects', 'prj_tasks'],
+        'Reporting'   => ['report_definitions'],
     ];
+
+    /**
+     * Tenant scoping is genuinely inconsistent across these tables in this app
+     * (a documented, recurring issue — see CLAUDE.md's Chantier 8.x notes):
+     * some have a real, populated `tenant_id` (`inventory_products`,
+     * `sales_orders`, `sales_quotations`, `achats_purchase_orders`,
+     * `report_definitions`, `crm_contacts`), and several have none at all
+     * (`crm_opportunities`, `acc_invoices`, `acc_journal_entries`,
+     * `hr_employees`, `hr_leave_requests`, `inventory_stock_movements`,
+     * `prj_projects`, `prj_tasks`). Deliberately NOT falling back to
+     * `company_id` here even where a column of that name exists — on
+     * `crm_contacts` in particular, `company_id` is a foreign key to
+     * `Modules\CRM\Models\Company` (a CRM "customer's company" record), not
+     * this app's tenant-boundary `company_id` (see `App\Http\Middleware\
+     * InitializeTenancyFromAuthenticatedUser`) — a same-name column meaning a
+     * completely different thing, and filtering by it would silently return
+     * wrong-tenant data rather than the intended tenant's. Rather than guess
+     * per-table semantics this module has no authority over, the filter is
+     * applied only when the table has the real `tenant_id` column (which
+     * `executeSearch()`'s catch block would otherwise silently swallow into an
+     * empty result on every search — the exact failure mode this fix closes);
+     * tables with no `tenant_id` at all return company-wide results, a known,
+     * pre-existing gap in those other modules' own schemas that this AI-module
+     * fix cannot close on its own.
+     */
+    private function resolveTenantColumn(string $table): ?string
+    {
+        return Schema::hasColumn($table, 'tenant_id') ? 'tenant_id' : null;
+    }
 
     private string $apiKey;
     private string $model;
@@ -78,7 +115,12 @@ class AiNaturalLanguageSearchService
         }
 
         try {
-            $query = DB::table($entity)->where('tenant_id', $tenantId);
+            $query = DB::table($entity);
+
+            $tenantColumn = $this->resolveTenantColumn($entity);
+            if ($tenantColumn !== null) {
+                $query->where($tenantColumn, $tenantId);
+            }
 
             // Apply simple filters
             foreach (($parsedQuery['filters'] ?? []) as $filter) {

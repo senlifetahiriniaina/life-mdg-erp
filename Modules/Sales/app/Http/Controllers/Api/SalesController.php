@@ -20,6 +20,22 @@ class SalesController extends Controller
 {
     public function __construct(private readonly SalesService $service) {}
 
+    /**
+     * Chantier 8 (Sales) tenant leak fix: users.tenant_id is a phantom
+     * column, never populated by any real registration/onboarding path in
+     * this app (same finding already fixed for Setup/Reporting/Strategy
+     * this session) — every order/quotation was silently written with
+     * tenant_id = 1 and every listing defaulted to reading tenant 1's
+     * shared bucket. company_id is the real multi-tenant boundary column
+     * (see App\Http\Middleware\InitializeTenancyFromAuthenticatedUser).
+     * The SalesOrder/SalesQuotation models' own 'tenant_id' column name is
+     * unchanged — only the value written into it changes.
+     */
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()?->company_id ?? 0);
+    }
+
     // ─── Orders ────────────────────────────────────────────────────────────────
 
     /**
@@ -33,7 +49,7 @@ class SalesController extends Controller
     {
         abort_unless($request->user()->can('sales.read'), 403);
 
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $perPage  = min((int) ($request->per_page ?? 25), 100);
 
         $orders = SalesOrder::forTenant($tenantId)
@@ -78,7 +94,7 @@ class SalesController extends Controller
             'lines.*.tax_rate'        => 'nullable|numeric|min:0|max:100',
         ]);
 
-        $validated['tenant_id'] = $request->user()->tenant_id ?? 1;
+        $validated['tenant_id'] = $this->tenantId($request);
         $validated['created_by'] = $request->user()->id;
 
         $order = $this->service->createOrder($validated);
@@ -93,7 +109,9 @@ class SalesController extends Controller
     {
         abort_unless($request->user()->can('sales.read'), 403);
 
-        $order = SalesOrder::with(['lines', 'createdBy:id,name,email'])->findOrFail($id);
+        $order = SalesOrder::forTenant($this->tenantId($request))
+            ->with(['lines', 'createdBy:id,name,email'])
+            ->findOrFail($id);
 
         return response()->json($order);
     }
@@ -105,7 +123,7 @@ class SalesController extends Controller
     {
         abort_unless($request->user()->can('sales.update'), 403);
 
-        $order = SalesOrder::findOrFail($id);
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
 
         if (! $order->isEditable()) {
             return response()->json(['message' => 'Only draft orders can be updated.'], 422);
@@ -130,9 +148,11 @@ class SalesController extends Controller
      *
      * Transitions the order from draft to confirmed.
      */
-    public function confirmOrder(int $id): JsonResponse
+    public function confirmOrder(Request $request, int $id): JsonResponse
     {
-        $order = SalesOrder::findOrFail($id);
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
 
         try {
             $order = $this->service->confirmOrder($order);
@@ -150,7 +170,9 @@ class SalesController extends Controller
      */
     public function cancelOrder(Request $request, int $id): JsonResponse
     {
-        $order = SalesOrder::findOrFail($id);
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
 
         $validated = $request->validate([
             'reason' => 'required|string|max:1000',
@@ -177,7 +199,7 @@ class SalesController extends Controller
     {
         abort_unless($request->user()->can('sales.read'), 403);
 
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $perPage  = min((int) ($request->per_page ?? 25), 100);
 
         $quotations = SalesQuotation::forTenant($tenantId)
@@ -208,7 +230,7 @@ class SalesController extends Controller
             'notes'       => 'nullable|string|max:5000',
         ]);
 
-        $validated['tenant_id'] = $request->user()->tenant_id ?? 1;
+        $validated['tenant_id'] = $this->tenantId($request);
         $validated['created_by'] = $request->user()->id;
 
         $quotation = $this->service->createQuotation($validated);

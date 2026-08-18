@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Modules\API\Models\ApiKey;
 
 class ApiKeyController extends Controller
 {
@@ -22,6 +23,8 @@ class ApiKeyController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', ApiKey::class);
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'permissions' => 'nullable|array',
@@ -53,6 +56,12 @@ class ApiKeyController extends Controller
 
     public function revoke(Request $request, $id)
     {
+        // ApiKeyPolicy::delete() ignores $model entirely (role-only check, no
+        // ownership comparison) — a transient instance satisfies the policy's
+        // required 2-arg signature without an extra query for a role gate that
+        // doesn't need one.
+        $this->authorize('delete', new ApiKey());
+
         DB::table('api_keys')->where('id', $id)->where('tenant_id', $request->user()->id)->update(['revoked_at' => now()]);
         return response()->json(['message' => 'API key revoked']);
     }

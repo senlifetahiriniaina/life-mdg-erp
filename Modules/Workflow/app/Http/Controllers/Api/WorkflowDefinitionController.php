@@ -263,9 +263,18 @@ class WorkflowDefinitionController extends Controller
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * Chantier 8.6: previously fell back to $user->id when tenant_id was
+     * absent, scoping workflow chain definitions per-individual-user
+     * instead of per-company — no cross-tenant leak (authorizeTenant()
+     * below always compared against this same value), but colleagues at
+     * the same company couldn't see each other's automations. Aligned to
+     * company_id for consistency with every other tenant-boundary fix this
+     * session.
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()?->tenant_id ?? $request->user()?->id ?? 1);
+        return (int) ($request->user()?->company_id ?? 0);
     }
 
     private function authorizeTenant(Request $request, WorkflowChainDefinition $definition): void

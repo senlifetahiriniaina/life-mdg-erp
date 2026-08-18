@@ -71,6 +71,7 @@ trait RecordsActivity
 
             AuditLog::create([
                 'user_id' => $userId,
+                'company_id' => $user?->company_id ?? 0,
                 'user_name' => $user?->name ?? null,
                 // @phpstan-ignore-next-line function.alreadyNarrowedType
                 'user_role' => ($user !== null && method_exists($user, 'getRoleNames'))

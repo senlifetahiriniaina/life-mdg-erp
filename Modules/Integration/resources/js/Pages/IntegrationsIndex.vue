@@ -101,39 +101,36 @@
           </div>
         </TabPanel>
 
-        <!-- Webhooks -->
+        <!-- Webhooks — per-connector, not a standalone flat resource: the
+             real backend (Modules/Integration/routes/api.php) only exposes
+             POST connectors/{connector}/webhook (add), with no list/toggle/
+             delete-by-id endpoints for a webhook on its own. Selecting a
+             connector shows the webhooks already attached to it, added via
+             its own "Configurer" action, rather than inventing a flat CRUD
+             API this module doesn't have. -->
         <TabPanel header="Webhooks">
-          <div class="pt-4 space-y-4">
-            <div class="flex justify-end">
-              <Button v-if="canCreate" icon="pi pi-plus" label="Ajouter un webhook" outlined size="small" @click="addWebhook" />
+          <div class="pt-4 space-y-3">
+            <p class="text-sm text-surface-500">
+              Les webhooks sont rattachés à un connecteur. Ouvrez un connecteur actif
+              (onglet « Connecteurs actifs » → Configurer) pour consulter ou ajouter ses webhooks.
+            </p>
+            <div v-if="activeConnectors.length === 0" class="text-center py-10 text-surface-400">
+              <i class="pi pi-link text-4xl mb-3 block" />
+              Aucun connecteur actif pour le moment.
             </div>
-            <DataTable :value="webhooks" :loading="loading" class="p-datatable-sm" striped-rows>
-              <Column field="url" header="URL">
-                <template #body="{ data }">
-                  <span class="font-mono text-xs text-surface-700 dark:text-surface-300">{{ data.url }}</span>
-                </template>
-              </Column>
-              <Column field="events" header="Événements">
-                <template #body="{ data }">
-                  <div class="flex flex-wrap gap-1">
-                    <Tag v-for="ev in data.events" :key="ev" :value="ev" severity="secondary" class="text-xs" />
-                  </div>
-                </template>
-              </Column>
-              <Column field="active" header="Actif" style="width: 80px">
-                <template #body="{ data }">
-                  <ToggleSwitch v-model="data.active" @change="toggleWebhook(data)" />
-                </template>
-              </Column>
-              <Column header="Actions" style="width: 80px">
-                <template #body="{ data }">
-                  <Button icon="pi pi-trash" outlined severity="danger" size="small" @click="deleteWebhook(data)" />
-                </template>
-              </Column>
-              <template #empty>
-                <div class="text-center py-10 text-surface-400">Aucun webhook configuré.</div>
-              </template>
-            </DataTable>
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div
+                v-for="conn in activeConnectors"
+                :key="conn.id"
+                class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 flex items-center justify-between"
+              >
+                <div>
+                  <p class="font-semibold text-surface-900 dark:text-surface-50 text-sm">{{ conn.name }}</p>
+                  <p class="text-xs text-surface-400">{{ conn.category }}</p>
+                </div>
+                <Button label="Configurer" outlined size="small" @click="configureConnector(conn)" />
+              </div>
+            </div>
           </div>
         </TabPanel>
       </TabView>
@@ -148,11 +145,8 @@ import { Head, router, usePage} from '@inertiajs/vue3'
 import Button from 'primevue/button'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Skeleton from 'primevue/skeleton'
-import ToggleSwitch from 'primevue/toggleswitch'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
@@ -189,17 +183,9 @@ interface ConnectorTemplate {
   iconColor: string
 }
 
-interface Webhook {
-  id: number
-  url: string
-  events: string[]
-  active: boolean
-}
-
 const loading = ref(false)
 const activeTab = ref(0)
 const activeConnectors = ref<Connector[]>([])
-const webhooks = ref<Webhook[]>([])
 
 const connectorTemplates: ConnectorTemplate[] = [
   { id: 'orange_money', name: 'Orange Money', category: 'Mobile Money', description: 'Paiements mobiles UEMOA via Orange Money', icon: 'pi pi-mobile', iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
@@ -216,13 +202,9 @@ const isConnected = (templateId: string) =>
 const fetchConnectors = async () => {
   loading.value = true
   try {
-    const [connRes, webhookRes] = await Promise.all([
-      fetch('/api/v1/integration/connectors', { headers: { Accept: 'application/json' } }),
-      fetch('/api/v1/integration/webhooks', { headers: { Accept: 'application/json' } }),
-    ])
-    const [connData, webhookData] = await Promise.all([connRes.json(), webhookRes.json()])
+    const connRes = await fetch('/api/v1/integration/connectors', { headers: { Accept: 'application/json' } })
+    const connData = await connRes.json()
     activeConnectors.value = connData.data ?? []
-    webhooks.value = webhookData.data ?? []
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
@@ -235,18 +217,6 @@ const disconnectConnector = async (c: Connector) => {
   fetchConnectors()
 }
 const connectTemplate = (t: ConnectorTemplate) => router.visit(`/integration/connect/${t.id}`)
-const addWebhook = () => router.visit('/integration/webhooks/create')
-const toggleWebhook = async (w: Webhook) => {
-  await fetch(`/api/v1/integration/webhooks/${w.id}`, {
-    method: 'PATCH',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ active: w.active }),
-  })
-}
-const deleteWebhook = async (w: Webhook) => {
-  await fetch(`/api/v1/integration/webhooks/${w.id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
-  fetchConnectors()
-}
 
 onMounted(fetchConnectors)
 </script>

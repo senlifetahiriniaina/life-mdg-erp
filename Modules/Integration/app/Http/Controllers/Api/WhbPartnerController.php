@@ -150,6 +150,14 @@ class WhbPartnerController extends Controller
             'permissions.*.auto_accept'    => ['boolean'],
         ]);
 
+        $tenantId = $this->resolveTenantId($request);
+
+        /** @var WhbConnection|null $connection */
+        $connection = WhbConnection::forTenant($tenantId)->find($id);
+        if (! $connection) {
+            return response()->json(['error' => 'Connexion introuvable.'], 404);
+        }
+
         try {
             $connection = $this->partner->approveConnection(
                 $id,
@@ -173,6 +181,14 @@ class WhbPartnerController extends Controller
      */
     public function reject(Request $request, int $id): JsonResponse
     {
+        $tenantId = $this->resolveTenantId($request);
+
+        /** @var WhbConnection|null $connection */
+        $connection = WhbConnection::forTenant($tenantId)->find($id);
+        if (! $connection) {
+            return response()->json(['error' => 'Connexion introuvable.'], 404);
+        }
+
         try {
             $this->partner->rejectConnection($id);
 
@@ -189,6 +205,14 @@ class WhbPartnerController extends Controller
      */
     public function suspend(Request $request, int $id): JsonResponse
     {
+        $tenantId = $this->resolveTenantId($request);
+
+        /** @var WhbConnection|null $connection */
+        $connection = WhbConnection::forTenant($tenantId)->find($id);
+        if (! $connection) {
+            return response()->json(['error' => 'Connexion introuvable.'], 404);
+        }
+
         try {
             $this->partner->suspendConnection($id);
 

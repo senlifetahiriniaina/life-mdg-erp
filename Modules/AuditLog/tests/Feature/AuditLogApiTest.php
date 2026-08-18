@@ -32,6 +32,7 @@ function seedLogs(User $user, int $count = 5, string $module = 'CRM', string $ev
             'module'     => $module,
             'event_type' => $eventType,
             'user_id'    => $user->id,
+            'company_id' => $user->company_id ?? 0,
             'user_name'  => $user->name,
             'description'=> "Entry {$i}",
         ]);
@@ -114,6 +115,7 @@ test('GET /api/v1/audit-logs filters by date_from', function () {
         'module'     => 'Auth',
         'event_type' => 'login',
         'user_id'    => $user->id,
+        'company_id' => $user->company_id ?? 0,
         'user_name'  => $user->name,
         'created_at' => now()->subDays(10),
     ]);
@@ -140,6 +142,7 @@ test('GET /api/v1/audit-logs/{id} returns a single audit log entry', function ()
         'module'     => 'Inventory',
         'event_type' => 'model_created',
         'user_id'    => $user->id,
+        'company_id' => $user->company_id ?? 0,
         'user_name'  => $user->name,
     ]);
 

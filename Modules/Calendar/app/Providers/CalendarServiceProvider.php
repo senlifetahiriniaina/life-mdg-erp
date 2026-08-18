@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Modules\Calendar\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Calendar\Models\Calendar;
+use Modules\Calendar\Models\CalendarEvent;
+use Modules\Calendar\Policies\CalendarEventPolicy;
+use Modules\Calendar\Policies\CalendarPolicy;
 use Modules\Calendar\Services\AppleCalendarService;
 use Modules\Calendar\Services\CalendarService;
 use Modules\Calendar\Services\GoogleCalendarService;
@@ -28,7 +33,24 @@ class CalendarServiceProvider extends ServiceProvider
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
+        $this->registerPolicies();
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * Chantier 8.6: CalendarPolicy/CalendarEventPolicy were both fully and
+     * correctly written and already called via $this->authorize() in
+     * CalendarController (4 call sites), but never registered with the
+     * Gate — Modules-namespaced policies don't auto-discover the way
+     * App\Policies ones do (same precedent as Core/BI/HR/Payroll/Strategy).
+     * This was actively breaking every calendar/event update or delete:
+     * an unconditional AuthorizationException for every user, including
+     * admins, since the policy was invisible to the Gate.
+     */
+    private function registerPolicies(): void
+    {
+        Gate::policy(Calendar::class, CalendarPolicy::class);
+        Gate::policy(CalendarEvent::class, CalendarEventPolicy::class);
     }
 
     public function register(): void

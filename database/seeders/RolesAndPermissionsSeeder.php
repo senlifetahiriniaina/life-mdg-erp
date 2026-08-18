@@ -289,6 +289,22 @@ class RolesAndPermissionsSeeder extends Seeder
         'strategy.kpi.update', 'strategy.kpi.delete',
     ];
 
+    // Chantier 8 (Achats): PurchaseOrderPolicy::approve/reject were a
+    // hollowed-out no-op ("return true" for every ability, with a code
+    // comment admitting it was only that way for tests) -- gating a
+    // financial approval step on "any authenticated user" including
+    // warehouse-operator, which is the wrong business rule. 'approve'/
+    // 'reject' aren't in the generic ACTIONS list (view-any/view/create/
+    // update/delete only), so achats.purchase-order.{approve,reject} were
+    // never seeded anywhere -- same reasoning as LOGISTICS_EXTRA_PERMISSIONS'
+    // missing 'deliveryround' resource. purchasing-manager already gets
+    // these via its 'achats.' wildcard match below; manager/admin get them
+    // via $allPermissions; warehouse-operator (explicit in_array permission
+    // list, no achats.* at all) correctly does not.
+    private const ACHATS_EXTRA_PERMISSIONS = [
+        'achats.purchase-order.approve', 'achats.purchase-order.reject',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat', 'identity', 'zone'],
@@ -299,7 +315,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'projects'         => ['project', 'task'],
         'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
-        'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier'],
+        'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier', 'purchaseorderline'],
         'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'revenue_recognition', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario'],
         'helpdesk'         => ['ticket', 'team', 'agent-performance'],
         'bi'               => ['dashboard', 'kpi', 'report', 'bidatasource'],
@@ -395,6 +411,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::STRATEGY_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::ACHATS_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

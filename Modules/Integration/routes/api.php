@@ -57,7 +57,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])
     });
 
 // ── WideHalo Bridge — Partner management (authenticated) ─────────────────────
-Route::prefix('v1/whb')->middleware('auth:sanctum', 'session.security', 'tenancy.user')->name('whb.')->group(function () {
+// Chantier 8.6: this group had no module:/role: gate at all — any
+// authenticated user of any role could approve/reject/suspend federation
+// partner connections. Manages inter-company data-sharing, so admin-tier
+// only (mirrors the role tier this app already reserves for tenant-wide
+// integration/federation management, e.g. Core's superadmin/* group).
+Route::prefix('v1/whb')->middleware('auth:sanctum', 'session.security', 'tenancy.user', 'module:Integration', 'role:admin,super-admin')->name('whb.')->group(function () {
     Route::get('connections', [WhbPartnerController::class, 'index'])
         ->name('connections.index');
 

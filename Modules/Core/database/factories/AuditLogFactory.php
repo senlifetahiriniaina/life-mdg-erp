@@ -15,6 +15,7 @@ class AuditLogFactory extends Factory
     {
         return [
             'user_id' => null,
+            'company_id' => 0,
             'action' => $this->faker->randomElement(['created', 'updated', 'deleted', 'login', 'logout']),
             'subject_type' => null,
             'subject_id' => null,

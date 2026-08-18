@@ -33,15 +33,16 @@ class AiSearchController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * See `AiAnomalyController::resolveTenantId()` — same fix. `users.tenant_id` is
+     * never populated by the real registration flow, so this always fell through to
+     * the client-controlled `X-Tenant-Id` header (default 1), letting any
+     * authenticated user run NL search scoped to another tenant by forging that
+     * header. `company_id` is this app's real tenant boundary column; the header
+     * fallback is dropped entirely, not kept as a secondary path.
+     */
     private function resolveTenantId(Request $request): int
     {
-        /** @var \Illuminate\Contracts\Auth\Authenticatable|null $user */
-        $user = $request->user();
-
-        if ($user && isset($user->tenant_id)) {
-            return (int) $user->tenant_id;
-        }
-
-        return (int) $request->header('X-Tenant-Id', 1);
+        return (int) ($request->user()?->company_id ?? 0);
     }
 }

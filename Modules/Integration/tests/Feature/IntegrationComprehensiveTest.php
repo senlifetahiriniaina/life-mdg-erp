@@ -110,6 +110,14 @@ describe('IntegrationManager', function () {
 describe('Integration API - Connectors', function () {
     beforeEach(function () {
         $this->user = actingAsUser('admin');
+        // Chantier 8.6: IntegrationController/IntegrationConnectorPolicy now
+        // scope connectors by $user->company_id (fixing a real IDOR — see
+        // CLAUDE.md) instead of the connector-creator's own user id. Give
+        // the test user a real company_id (users.company_id is a real FK to
+        // companies) and create fixture connectors under that same tenant
+        // so the policy's ownership check passes.
+        $company = \App\Models\Company::factory()->create();
+        $this->user->forceFill(['company_id' => $company->id])->save();
     });
 
     test('can list connectors', function () {
@@ -130,7 +138,7 @@ describe('Integration API - Connectors', function () {
 
     test('can view a connector via API', function () {
         $connector = IntegrationConnector::factory()->create([
-            'tenant_id' => (string) $this->user->id,
+            'tenant_id' => (string) $this->user->company_id,
         ]);
 
         $this->actingAs($this->user, 'sanctum')
@@ -140,7 +148,7 @@ describe('Integration API - Connectors', function () {
 
     test('can activate a connector via API', function () {
         $connector = IntegrationConnector::factory()->create([
-            'tenant_id' => (string) $this->user->id,
+            'tenant_id' => (string) $this->user->company_id,
             'status'    => 'inactive',
         ]);
 
@@ -151,7 +159,7 @@ describe('Integration API - Connectors', function () {
 
     test('can add a webhook to a connector via API', function () {
         $connector = IntegrationConnector::factory()->create([
-            'tenant_id' => (string) $this->user->id,
+            'tenant_id' => (string) $this->user->company_id,
         ]);
 
         $this->actingAs($this->user, 'sanctum')
@@ -164,7 +172,7 @@ describe('Integration API - Connectors', function () {
 
     test('can dispatch to a connector via API', function () {
         $connector = IntegrationConnector::factory()->create([
-            'tenant_id' => (string) $this->user->id,
+            'tenant_id' => (string) $this->user->company_id,
         ]);
 
         $this->actingAs($this->user, 'sanctum')
@@ -177,7 +185,7 @@ describe('Integration API - Connectors', function () {
 
     test('can get connector logs via API', function () {
         $connector = IntegrationConnector::factory()->create([
-            'tenant_id' => (string) $this->user->id,
+            'tenant_id' => (string) $this->user->company_id,
         ]);
 
         $this->actingAs($this->user, 'sanctum')

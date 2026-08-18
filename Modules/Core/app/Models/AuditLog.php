@@ -15,6 +15,7 @@ use Modules\Core\Database\Factories\AuditLogFactory;
 /**
  * @property int $id
  * @property int|null $user_id
+ * @property int|null $company_id
  * @property string|null $user_name
  * @property string|null $user_role
  * @property string $action
@@ -41,6 +42,7 @@ class AuditLog extends Model
 
     protected $fillable = [
         'user_id',
+        'company_id',
         'user_name',
         'user_role',
         'action',

@@ -28,7 +28,7 @@ class IntegrationController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? $request->user()->id;
+        $tenantId = $request->user()->company_id ?? 0;
 
         $connectors = IntegrationConnector::forTenant($tenantId)
             ->with(['webhookEndpoints'])
@@ -49,7 +49,7 @@ class IntegrationController extends Controller
             'config'        => 'nullable|array',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? $request->user()->id;
+        $tenantId = $request->user()->company_id ?? 0;
 
         $connector = $this->integrationService->createConnector([
             'tenant_id'     => $tenantId,
@@ -68,6 +68,8 @@ class IntegrationController extends Controller
      */
     public function show(IntegrationConnector $connector): JsonResponse
     {
+        $this->authorize('view', $connector);
+
         return response()->json($connector->load(['webhookEndpoints', 'syncLogs']));
     }
 
@@ -77,6 +79,8 @@ class IntegrationController extends Controller
      */
     public function activate(IntegrationConnector $connector): JsonResponse
     {
+        $this->authorize('update', $connector);
+
         $connector = $this->integrationService->activateConnector($connector);
 
         return response()->json($connector);
@@ -88,6 +92,8 @@ class IntegrationController extends Controller
      */
     public function addWebhook(Request $request, IntegrationConnector $connector): JsonResponse
     {
+        $this->authorize('update', $connector);
+
         $validated = $request->validate([
             'url'             => 'required|url|max:500',
             'method'          => 'nullable|in:GET,POST,PUT,PATCH,DELETE',
@@ -116,6 +122,8 @@ class IntegrationController extends Controller
      */
     public function dispatch(Request $request, IntegrationConnector $connector): JsonResponse
     {
+        $this->authorize('update', $connector);
+
         $validated = $request->validate([
             'payload' => 'required|array',
         ]);
@@ -131,6 +139,8 @@ class IntegrationController extends Controller
      */
     public function logs(IntegrationConnector $connector): JsonResponse
     {
+        $this->authorize('view', $connector);
+
         $logs = $connector->syncLogs()->latest()->paginate(50);
 
         return response()->json($logs);
@@ -142,7 +152,7 @@ class IntegrationController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? $request->user()->id;
+        $tenantId = $request->user()->company_id ?? 0;
 
         $stats = $this->integrationService->getConnectorStats($tenantId);
 

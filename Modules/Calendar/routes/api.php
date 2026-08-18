@@ -28,6 +28,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
         // Events
         Route::get('events', [CalendarController::class, 'indexEvents'])->name('calendar.events.index');
         Route::post('events', [CalendarController::class, 'storeEvent'])->name('calendar.events.store');
+        Route::get('events/{event}', [CalendarController::class, 'showEvent'])->name('calendar.events.show');
         Route::put('events/{event}', [CalendarController::class, 'updateEvent'])->name('calendar.events.update');
         Route::delete('events/{event}', [CalendarController::class, 'destroyEvent'])->name('calendar.events.destroy');
 

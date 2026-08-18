@@ -36,6 +36,7 @@ class AuditLogApiController extends Controller
         ]);
 
         $query = AuditLog::query()
+            ->where('company_id', $this->companyId($request))
             ->with('user:id,name,email')
             ->orderByDesc('created_at');
 
@@ -53,7 +54,9 @@ class AuditLogApiController extends Controller
     {
         abort_unless($request->user()->can('auditlog.logs.view'), 403);
 
-        $log = AuditLog::with('user:id,name,email')->find($id);
+        $log = AuditLog::where('company_id', $this->companyId($request))
+            ->with('user:id,name,email')
+            ->find($id);
 
         if ($log === null) {
             return response()->json(['message' => 'Audit log entry not found'], 404);
@@ -71,18 +74,22 @@ class AuditLogApiController extends Controller
     {
         abort_unless($request->user()->can('auditlog.logs.view'), 403);
 
-        $today     = AuditLog::where('created_at', '>=', now()->startOfDay())->count();
-        $thisWeek  = AuditLog::where('created_at', '>=', now()->startOfWeek())->count();
-        $thisMonth = AuditLog::where('created_at', '>=', now()->startOfMonth())->count();
+        $companyId = $this->companyId($request);
 
-        $byModule = AuditLog::whereNotNull('module')
+        $today     = AuditLog::where('company_id', $companyId)->where('created_at', '>=', now()->startOfDay())->count();
+        $thisWeek  = AuditLog::where('company_id', $companyId)->where('created_at', '>=', now()->startOfWeek())->count();
+        $thisMonth = AuditLog::where('company_id', $companyId)->where('created_at', '>=', now()->startOfMonth())->count();
+
+        $byModule = AuditLog::where('company_id', $companyId)
+            ->whereNotNull('module')
             ->selectRaw('module, COUNT(*) as count')
             ->groupBy('module')
             ->orderByDesc('count')
             ->limit(10)
             ->pluck('count', 'module');
 
-        $byEventType = AuditLog::whereNotNull('event_type')
+        $byEventType = AuditLog::where('company_id', $companyId)
+            ->whereNotNull('event_type')
             ->selectRaw('event_type, COUNT(*) as count')
             ->groupBy('event_type')
             ->orderByDesc('count')
@@ -115,6 +122,7 @@ class AuditLogApiController extends Controller
         ]);
 
         $query = AuditLog::query()
+            ->where('company_id', $this->companyId($request))
             ->with('user:id,name,email')
             ->orderByDesc('created_at');
 
@@ -129,6 +137,17 @@ class AuditLogApiController extends Controller
     }
 
     // ─── Private Helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Resolve the requesting user's tenant boundary. company_id is the real
+     * multi-tenant column (users.tenant_id is a phantom field — see CLAUDE.md's
+     * repeated ID-space-mismatch findings elsewhere in this app) — never
+     * trust a client-supplied header/param for this.
+     */
+    private function companyId(Request $request): int
+    {
+        return $request->user()->company_id ?? 0;
+    }
 
     /**
      * Apply shared filter conditions to a query builder.

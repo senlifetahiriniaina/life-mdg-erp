@@ -4,86 +4,202 @@ import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 
 const { guidance } = useAiAssistant('Calendar', 'view_calendar')
-const events = ref([])
-const calendars = ref([])
-const loading = ref(true)
+
+const events        = ref([])
+const calendars     = ref([])
+const loading       = ref(true)
+const currentView   = ref('month') // month | week | day | agenda
+const currentDate   = ref(new Date())
+const showCreateModal = ref(false)
+const selectedDate  = ref(null)
+
+const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+const dayNames   = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
 onMounted(async () => {
   try {
     const [ev, cal] = await Promise.all([
-      fetch('/api/v1/calendar/events?per_page=50').then(r => r.json()).catch(() => ({ data: [] })),
+      fetch('/api/v1/calendar/events?per_page=200').then(r => r.json()).catch(() => ({ data: [] })),
       fetch('/api/v1/calendar/calendars').then(r => r.json()).catch(() => ({ data: [] })),
     ])
-    events.value = ev.data ?? []
+    events.value   = ev.data   ?? []
     calendars.value = cal.data ?? []
-  } finally { loading.value = false }
+  } finally {
+    loading.value = false
+  }
 })
 
-const todayEvents = computed(() => {
-  const today = new Date().toDateString()
-  return events.value.filter(e => new Date(e.start_at).toDateString() === today)
+const currentMonthLabel = computed(() => {
+  return `${monthNames[currentDate.value.getMonth()]} ${currentDate.value.getFullYear()}`
 })
 
-const upcomingEvents = computed(() =>
-  events.value.filter(e => new Date(e.start_at) >= new Date())
-    .sort((a,b) => new Date(a.start_at) - new Date(b.start_at)).slice(0,10)
-)
+const calendarDays = computed(() => {
+  const year  = currentDate.value.getFullYear()
+  const month = currentDate.value.getMonth()
+  const first = new Date(year, month, 1)
+  const last  = new Date(year, month + 1, 0)
+  // Start from Monday
+  const startDay = (first.getDay() + 6) % 7
+  const days = []
+  // Fill leading empty cells
+  for (let i = 0; i < startDay; i++) {
+    const d = new Date(year, month, -startDay + i + 1)
+    days.push({ date: d, current: false })
+  }
+  for (let d = 1; d <= last.getDate(); d++) {
+    days.push({ date: new Date(year, month, d), current: true })
+  }
+  // Fill trailing cells to complete last row
+  const remaining = 42 - days.length
+  for (let i = 1; i <= remaining; i++) {
+    days.push({ date: new Date(year, month + 1, i), current: false })
+  }
+  return days
+})
 
-const fmt = (dt, opts) => new Date(dt).toLocaleString('fr-FR', opts)
-const sourceIcon = (s) => ({ google:'🔵', outlook:'🟦', apple:'🍎', internal:'🗓' }[s] ?? '🗓')
+function eventsForDay(date) {
+  const ds = date.toDateString()
+  return events.value.filter(e => new Date(e.start_at).toDateString() === ds)
+}
+
+function isToday(date) {
+  return date.toDateString() === new Date().toDateString()
+}
+
+function prevMonth() {
+  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() - 1, 1)
+}
+function nextMonth() {
+  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() + 1, 1)
+}
+function goToday() {
+  currentDate.value = new Date()
+}
+
+function onDayClick(day) {
+  selectedDate.value = day.date
+  showCreateModal.value = true
+}
+
+function eventColor(ev) {
+  const colors = { work: '#6366f1', personal: '#10b981', holiday: '#f59e0b', deadline: '#ef4444' }
+  return colors[ev.type] ?? '#6366f1'
+}
 </script>
 
 <template>
-  <div class="p-6 space-y-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900">Calendrier</h1>
-    </div>
-    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <div class="bg-white rounded-lg shadow p-4">
-        <h2 class="text-sm font-semibold text-gray-700 mb-3">Mes calendriers</h2>
-        <ul class="space-y-2">
-          <li v-for="cal in calendars" :key="cal.id" class="flex items-center gap-2 text-sm">
-            <span :style="`background:${cal.color}`" class="w-3 h-3 rounded-full flex-shrink-0" />
-            <span class="truncate">{{ cal.name }}</span>
-            <span class="text-xs text-gray-400 ml-auto">{{ sourceIcon(cal.source) }}</span>
-          </li>
-          <li v-if="!calendars.length" class="text-gray-400 text-xs">Aucun calendrier</li>
-        </ul>
-      </div>
-      <div class="lg:col-span-3 space-y-4">
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h2 class="text-sm font-semibold text-blue-800 mb-2">
-            Aujourd'hui · {{ fmt(new Date(), {weekday:'long',day:'numeric',month:'long'}) }}
-          </h2>
-          <div v-if="loading" class="text-sm text-gray-400">Chargement…</div>
-          <ul v-else class="space-y-1">
-            <li v-for="e in todayEvents" :key="e.id" class="flex items-center gap-3 text-sm">
-              <span class="text-gray-500 w-12 text-right text-xs">{{ fmt(e.start_at,{hour:'2-digit',minute:'2-digit'}) }}</span>
-              <span class="border-l-2 pl-2 truncate" :style="`border-color:${e.color??'var(--halo-500)'}`">{{ e.title }}</span>
-            </li>
-            <li v-if="!todayEvents.length" class="text-gray-400 text-sm">Aucun événement aujourd'hui</li>
-          </ul>
+  <div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <h1 class="text-xl font-semibold text-gray-800">Calendrier</h1>
+        <div class="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+          <button v-for="v in ['month','week','day','agenda']" :key="v"
+            @click="currentView = v"
+            :class="['px-3 py-1 rounded text-sm font-medium transition', currentView === v ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-700']">
+            {{ { month: 'Mois', week: 'Semaine', day: 'Jour', agenda: 'Agenda' }[v] }}
+          </button>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
-          <h2 class="text-lg font-semibold mb-3">Prochains événements</h2>
-          <ul class="divide-y">
-            <li v-for="e in upcomingEvents" :key="e.id" class="py-2 flex items-start gap-3">
-              <div class="text-center w-10 flex-shrink-0">
-                <p class="text-xs text-gray-400">{{ fmt(e.start_at,{month:'short'}) }}</p>
-                <p class="text-lg font-bold leading-none">{{ new Date(e.start_at).getDate() }}</p>
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ e.title }}</p>
-                <p class="text-xs text-gray-500">
-                  {{ fmt(e.start_at,{hour:'2-digit',minute:'2-digit'}) }}
-                  <span v-if="e.location"> · 📍 {{ e.location }}</span>
-                  <span v-if="e.module_type" class="ml-1 px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{{ e.module_type }}</span>
-                </p>
-              </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button @click="goToday" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Aujourd'hui</button>
+        <div class="flex items-center gap-1">
+          <button @click="prevMonth" class="p-1.5 rounded-lg hover:bg-gray-100">&larr;</button>
+          <span class="text-sm font-medium w-40 text-center">{{ currentMonthLabel }}</span>
+          <button @click="nextMonth" class="p-1.5 rounded-lg hover:bg-gray-100">&rarr;</button>
+        </div>
+        <a href="/calendar/events/create"
+          class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+          + Événement
+        </a>
+      </div>
+    </div>
+
+    <div class="flex gap-6 p-6">
+      <!-- Sidebar calendars -->
+      <div class="w-56 flex-shrink-0">
+        <div class="bg-white rounded-xl border p-4">
+          <h3 class="text-sm font-semibold text-gray-600 mb-3">Mes calendriers</h3>
+          <div v-if="loading" class="space-y-2">
+            <div v-for="i in 3" :key="i" class="h-6 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <ul v-else class="space-y-1">
+            <li v-for="cal in calendars" :key="cal.id" class="flex items-center gap-2 text-sm text-gray-700 py-1">
+              <span class="w-3 h-3 rounded-full" :style="{ backgroundColor: cal.color || 'var(--halo-500)' }"></span>
+              {{ cal.name }}
             </li>
-            <li v-if="!upcomingEvents.length" class="py-6 text-center text-gray-400 text-sm">Aucun événement à venir</li>
+            <li v-if="!calendars.length" class="text-xs text-gray-400">Aucun calendrier</li>
           </ul>
+          <a href="/calendar/integrations"
+            class="mt-4 block text-xs text-indigo-600 hover:underline">
+            + Synchroniser Google/Outlook
+          </a>
+        </div>
+      </div>
+
+      <!-- Calendar grid -->
+      <div class="flex-1">
+        <div v-if="loading" class="bg-white rounded-xl border p-8 text-center text-gray-400">
+          Chargement...
+        </div>
+        <div v-else class="bg-white rounded-xl border overflow-hidden">
+          <!-- Day headers -->
+          <div class="grid grid-cols-7 border-b bg-gray-50">
+            <div v-for="day in dayNames" :key="day"
+              class="py-2 text-center text-xs font-semibold text-gray-500">
+              {{ day }}
+            </div>
+          </div>
+          <!-- Days grid -->
+          <div class="grid grid-cols-7">
+            <div v-for="(day, idx) in calendarDays" :key="idx"
+              @click="onDayClick(day)"
+              :class="['min-h-24 border-b border-r p-1 cursor-pointer hover:bg-gray-50 transition',
+                !day.current ? 'bg-gray-50' : '',
+                isToday(day.date) ? 'bg-indigo-50' : '']" role="button" tabindex="0" @keydown.enter.prevent="onDayClick(day)">
+              <!-- Day number -->
+              <span :class="['inline-flex items-center justify-center w-6 h-6 text-xs font-medium rounded-full mb-1',
+                isToday(day.date) ? 'bg-indigo-600 text-white' : day.current ? 'text-gray-700' : 'text-gray-400']">
+                {{ day.date.getDate() }}
+              </span>
+              <!-- Events -->
+              <div class="space-y-0.5">
+                <div v-for="ev in eventsForDay(day.date).slice(0, 3)" :key="ev.id"
+                  :style="{ backgroundColor: eventColor(ev) }"
+                  class="text-white text-xs rounded px-1 py-0.5 truncate">
+                  {{ ev.title || ev.name }}
+                </div>
+                <div v-if="eventsForDay(day.date).length > 3"
+                  class="text-xs text-gray-400">
+                  +{{ eventsForDay(day.date).length - 3 }} autres
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Panel -->
+      <div v-if="guidance" class="w-72 flex-shrink-0">
+        <AIAssistantPanel :guidance="guidance" />
+      </div>
+    </div>
+
+    <!-- Create event modal placeholder -->
+    <div v-if="showCreateModal"
+      class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl p-6 w-96 shadow-xl">
+        <h2 class="text-lg font-semibold mb-4">Nouvel événement</h2>
+        <p class="text-sm text-gray-500 mb-4">
+          Date : {{ selectedDate?.toLocaleDateString('fr-FR') }}
+        </p>
+        <div class="flex justify-end gap-3">
+          <button @click="showCreateModal = false"
+            class="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Annuler</button>
+          <a :href="`/calendar/events/create?date=${selectedDate?.toISOString().split('T')[0]}`"
+            class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            Créer
+          </a>
         </div>
       </div>
     </div>

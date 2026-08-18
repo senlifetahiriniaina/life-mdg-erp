@@ -21,7 +21,15 @@ use Modules\Workflow\Http\Controllers\Api\CodeNodeController;
 |
 */
 
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1')->group(function () {
+// Chantier 8.6: this whole group had no module:/role: gate at all — most
+// concerning, CodeNodeController::execute() (a sandboxed arbitrary code/
+// expression execution endpoint) was reachable by any authenticated user
+// of any role. role:manager,admin carries forward the tier the deleted
+// legacy block above used to require (the only role hint this file had),
+// applied uniformly since every route here mutates or executes workflow
+// definitions/code — none of it is pure read-only reporting that would
+// justify a looser tier.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Workflow', 'role:manager,admin'])->prefix('v1')->group(function () {
 
     // ─── DSL & Schema Endpoints (Phase 39) ────────────────────────────────────
 
@@ -108,73 +116,27 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
         Route::post('/executions/{execution}/retry', [WorkflowExecutionController::class, 'retry']);
     });
 
-    // ─── Legacy Workflow Engine / Builder / Task / Approval Routes ─────────────
-
-    Route::middleware(['module:Workflow', 'role:manager,admin'])->prefix('workflow')->group(function () {
-        // Workflow Management (engine/builder)
-        Route::post('workflows', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@create');
-        Route::get('workflows/{workflowId}', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@show');
-        Route::get('workflows/{workflowId}/canvas', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@getCanvas');
-        Route::put('workflows/{workflowId}', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@update');
-        Route::delete('workflows/{workflowId}', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@delete');
-        Route::post('workflows/{workflowId}/duplicate', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@duplicate');
-        Route::post('workflows/{workflowId}/publish', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@publish');
-        Route::post('workflows/{workflowId}/execute', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@execute');
-
-        // Workflow Steps
-        Route::post('workflows/{workflowId}/steps', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@addStep');
-        Route::put('workflows/{workflowId}/steps/{stepId}', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@updateStep');
-        Route::delete('workflows/{workflowId}/steps/{stepId}', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@removeStep');
-
-        // Workflow Triggers
-        Route::post('workflows/{workflowId}/triggers', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@addTrigger');
-        Route::delete('workflows/{workflowId}/triggers/{triggerId}', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@removeTrigger');
-
-        // Workflow Validation & Import/Export
-        Route::post('workflows/{workflowId}/validate', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@validate');
-        Route::get('workflows/{workflowId}/export', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@export');
-        Route::post('workflows/import', 'Modules\Workflow\Http\Controllers\Api\WorkflowController@import');
-
-        // Execution Management
-        Route::get('executions/{executionId}', 'Modules\Workflow\Http\Controllers\Api\ExecutionController@show');
-        Route::get('executions/{executionId}/status', 'Modules\Workflow\Http\Controllers\Api\ExecutionController@getStatus');
-        Route::post('executions/{executionId}/cancel', 'Modules\Workflow\Http\Controllers\Api\ExecutionController@cancel');
-        Route::get('workflows/{workflowId}/executions', 'Modules\Workflow\Http\Controllers\Api\ExecutionController@listByWorkflow');
-
-        // Task Management
-        Route::post('tasks', 'Modules\Workflow\Http\Controllers\Api\TaskController@create');
-        Route::get('tasks/{taskId}', 'Modules\Workflow\Http\Controllers\Api\TaskController@show');
-        Route::put('tasks/{taskId}', 'Modules\Workflow\Http\Controllers\Api\TaskController@update');
-        Route::delete('tasks/{taskId}', 'Modules\Workflow\Http\Controllers\Api\TaskController@delete');
-        Route::post('tasks/{taskId}/assign', 'Modules\Workflow\Http\Controllers\Api\TaskController@assign');
-        Route::post('tasks/{taskId}/status', 'Modules\Workflow\Http\Controllers\Api\TaskController@updateStatus');
-        Route::post('tasks/{taskId}/comments', 'Modules\Workflow\Http\Controllers\Api\TaskController@addComment');
-        Route::post('tasks/{taskId}/attachments', 'Modules\Workflow\Http\Controllers\Api\TaskController@addAttachment');
-
-        // Task Subtasks
-        Route::post('tasks/{taskId}/subtasks', 'Modules\Workflow\Http\Controllers\Api\TaskController@createSubtask');
-        Route::put('tasks/{taskId}/subtasks/{subtaskId}', 'Modules\Workflow\Http\Controllers\Api\TaskController@updateSubtask');
-        Route::delete('tasks/{taskId}/subtasks/{subtaskId}', 'Modules\Workflow\Http\Controllers\Api\TaskController@removeSubtask');
-
-        // Task Queries
-        Route::get('users/{userId}/tasks', 'Modules\Workflow\Http\Controllers\Api\TaskController@getUserTasks');
-        Route::get('tasks/overdue', 'Modules\Workflow\Http\Controllers\Api\TaskController@getOverdue');
-
-        // Approval Workflows
-        Route::post('approvals', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@create');
-        Route::get('approvals/{approvalId}', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@show');
-        Route::put('approvals/{approvalId}', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@update');
-        Route::delete('approvals/{approvalId}', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@delete');
-
-        // Approval Approvers
-        Route::post('approvals/{approvalId}/approvers', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@addApprover');
-        Route::post('approvals/{approvalId}/submit', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@submit');
-        Route::post('approvals/{approvalId}/escalate', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@escalate');
-
-        // Approval Queries
-        Route::get('users/{userId}/pending-approvals', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@getPending');
-        Route::get('approvals/statistics', 'Modules\Workflow\Http\Controllers\Api\ApprovalController@getStatistics');
-    });
+    // Chantier 8.6: the "Legacy Workflow Engine / Builder / Task / Approval
+    // Routes" block that used to live here (~34 routes) was deleted — a
+    // fully dead parallel subsystem, the same pattern as CRM's
+    // TerritoryManagementController / Logistics' wh_*/lgx_* / Achats'
+    // PurchaseApprovalChainService found elsewhere this session. 13 of its
+    // 14 distinct WorkflowController@* action names (create/getCanvas/
+    // delete/duplicate/publish/execute/addStep/updateStep/removeStep/
+    // addTrigger/removeTrigger/validate/export/import) do not exist on the
+    // real WorkflowController at all (its real methods are index/store/
+    // show/update/destroy/toggle/executions/trigger/dslParse/dslValidate/
+    // dslCreate/schema/actions/triggers — only `show` coincidentally
+    // overlapped in name). ExecutionController/TaskController/
+    // ApprovalController don't exist anywhere in Modules\Workflow at all
+    // (confirmed via `grep -rn "class ExecutionController\|class
+    // TaskController\|class ApprovalController"` across the whole repo —
+    // TaskController/ApprovalController only exist under Projects/Core,
+    // unrelated namespaces the string-based route action could never
+    // resolve to). Every one of these routes was a guaranteed fatal
+    // "action does not exist" error on the first hit. Task management and
+    // approval workflows are already real, live features in
+    // Modules/Projects and Modules/Validation respectively.
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────

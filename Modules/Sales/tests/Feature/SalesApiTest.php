@@ -23,7 +23,10 @@ function makeQuote(\App\Models\User $user, array $overrides = []): SalesQuotatio
     $svc = app(SalesService::class);
 
     return $svc->createQuotation(array_merge([
-        'tenant_id'  => $user->tenant_id ?? $user->id,
+        // Chantier 8 (Sales) tenant-leak fix: SalesController derives its
+        // tenant scope from users.company_id (real boundary column), not
+        // the phantom users.tenant_id — align fixtures the same way.
+        'tenant_id'  => $user->company_id ?? 0,
         'currency'   => 'XOF',
         'total'      => 50000,
         'created_by' => $user->id,
@@ -36,7 +39,10 @@ function makeSalesApiOrder(\App\Models\User $user, array $overrides = []): Sales
     $svc = app(SalesService::class);
 
     return $svc->createOrder(array_merge([
-        'tenant_id'  => $user->tenant_id ?? $user->id,
+        // Chantier 8 (Sales) tenant-leak fix: SalesController derives its
+        // tenant scope from users.company_id (real boundary column), not
+        // the phantom users.tenant_id — align fixtures the same way.
+        'tenant_id'  => $user->company_id ?? 0,
         'currency'   => 'XOF',
         'created_by' => $user->id,
         'lines'      => [

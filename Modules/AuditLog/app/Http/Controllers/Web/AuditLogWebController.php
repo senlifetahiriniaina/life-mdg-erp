@@ -19,7 +19,10 @@ class AuditLogWebController extends Controller
 
     public function index(Request $request): Response
     {
+        $companyId = $request->user()->company_id ?? 0;
+
         $query = AuditLog::query()
+            ->where('company_id', $companyId)
             ->with('user:id,name,email')
             ->orderByDesc('created_at');
 
@@ -55,7 +58,7 @@ class AuditLogWebController extends Controller
         $logs = $query->paginate(50)->withQueryString();
 
         // Stats for the current filters (no pagination)
-        $statsQuery = AuditLog::query();
+        $statsQuery = AuditLog::query()->where('company_id', $companyId);
         if ($request->filled('module')) {
             $statsQuery->where('module', $request->input('module'));
         }
@@ -72,7 +75,7 @@ class AuditLogWebController extends Controller
             $statsQuery->where('created_at', '<=', $request->input('date_to').' 23:59:59');
         }
 
-        $today = AuditLog::where('created_at', '>=', now()->startOfDay())->count();
+        $today = AuditLog::where('company_id', $companyId)->where('created_at', '>=', now()->startOfDay())->count();
 
         $byModule = (clone $statsQuery)
             ->whereNotNull('module')
@@ -87,8 +90,8 @@ class AuditLogWebController extends Controller
             ->orderByDesc('count')
             ->pluck('count', 'event_type');
 
-        $modules = AuditLog::whereNotNull('module')->distinct()->orderBy('module')->pluck('module');
-        $eventTypes = AuditLog::whereNotNull('event_type')->distinct()->orderBy('event_type')->pluck('event_type');
+        $modules = AuditLog::where('company_id', $companyId)->whereNotNull('module')->distinct()->orderBy('module')->pluck('module');
+        $eventTypes = AuditLog::where('company_id', $companyId)->whereNotNull('event_type')->distinct()->orderBy('event_type')->pluck('event_type');
 
         return Inertia::render('AuditLog/Index', [
             'logs' => $logs,

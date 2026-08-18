@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Modules\Calendar\Models\CalendarSyncToken;
 use Modules\Calendar\Services\CalendarService;
 
 class CalendarPageController extends Controller
@@ -35,26 +34,38 @@ class CalendarPageController extends Controller
 
     /**
      * GET /calendar/settings
-     * Calendar sync settings — renders Calendar/Settings.vue
+     * Calendar sync settings — Calendar/Settings.vue never existed anywhere
+     * in the repo (this route 500'd on every visit). Calendar/Integrations.vue
+     * already covers exactly this concept (Google/Outlook/Apple connect/
+     * disconnect/sync status) and is a fully self-fetching page (it calls
+     * GET sync/status itself, no server props needed) — so /calendar/settings
+     * renders the same real page rather than duplicating it with a second,
+     * near-identical component. /calendar/integrations (added alongside this
+     * fix) renders the identical page under its own, more discoverable URL.
      */
-    public function settings(Request $request): Response
+    public function settings(): Response
     {
-        $user   = $request->user();
-        $tokens = CalendarSyncToken::where('user_id', $user->id)
-            ->get()
-            ->keyBy('provider')
-            ->map(fn ($token) => [
-                'connected'      => true,
-                'last_synced_at' => $token->last_synced_at?->diffForHumans(),
-                'has_errors'     => ! empty($token->sync_errors),
-            ]);
+        return Inertia::render('Calendar/Integrations');
+    }
 
-        return Inertia::render('Calendar/Settings', [
-            'syncStatus' => [
-                'google'  => $tokens->get('google', ['connected' => false]),
-                'outlook' => $tokens->get('outlook', ['connected' => false]),
-                'apple'   => $tokens->get('apple', ['connected' => false]),
-            ],
-        ]);
+    /**
+     * GET /calendar/integrations
+     * Alias of settings() under a more discoverable URL — see settings()'s
+     * docblock. Kept as a distinct method (rather than reusing the route
+     * name) so both URLs read naturally in route listings.
+     */
+    public function integrations(): Response
+    {
+        return Inertia::render('Calendar/Integrations');
+    }
+
+    /**
+     * GET /calendar/teams
+     * Team availability calendar — renders Calendar/Teams.vue, a real,
+     * fully self-fetching page (GET hr/employees + GET calendar/events).
+     */
+    public function teams(): Response
+    {
+        return Inertia::render('Calendar/Teams');
     }
 }

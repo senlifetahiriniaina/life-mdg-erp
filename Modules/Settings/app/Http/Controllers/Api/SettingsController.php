@@ -62,6 +62,15 @@ class SettingsController extends Controller
      */
     public function update(Request $request, string $module, string $key): JsonResponse
     {
+        $tenantId = auth()?->user()?->company_id;
+        $setting  = Setting::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->where('module', $module)
+            ->where('key', $key)
+            ->first() ?? new Setting(['tenant_id' => $tenantId, 'module' => $module, 'key' => $key]);
+
+        $this->authorize('update', $setting);
+
         $validated = $request->validate([
             'value'      => ['required'],
             'value_type' => ['sometimes', 'in:string,integer,boolean,json,encrypted'],
@@ -77,10 +86,11 @@ class SettingsController extends Controller
             $this->service->set($module, $key, $validated['value']);
         }
 
-        // Optionally update meta fields
+        // Optionally update meta fields. Re-fetch: set()/setTyped() above may
+        // have just created the row via updateOrCreate(), so the pre-write
+        // $setting resolved for authorize() above may now be stale/missing.
         if (isset($validated['description']) || isset($validated['is_public'])) {
-            $tenantId = auth()?->user()?->company_id;
-            $setting  = Setting::withoutGlobalScopes()
+            $setting = Setting::withoutGlobalScopes()
                 ->where('tenant_id', $tenantId)
                 ->where('module', $module)
                 ->where('key', $key)

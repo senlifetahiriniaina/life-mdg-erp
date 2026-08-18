@@ -5,6 +5,7 @@ namespace Modules\API\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Modules\API\Models\ApiWebhook;
 
 class WebhookController extends Controller
 {
@@ -16,6 +17,8 @@ class WebhookController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', ApiWebhook::class);
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'url' => 'required|url',
@@ -37,6 +40,12 @@ class WebhookController extends Controller
 
     public function update(Request $request, $id)
     {
+        // WebhookPolicy::update()/delete() ignore $model entirely (role-only
+        // check, no ownership comparison) — a transient instance satisfies the
+        // policy's required 2-arg signature without an extra query for a role
+        // gate that doesn't need one.
+        $this->authorize('update', new ApiWebhook());
+
         $data = $request->validate(['name' => 'string', 'url' => 'url', 'events' => 'array', 'active' => 'boolean']);
         if (isset($data['events'])) {
             $data['events'] = json_encode($data['events']);
@@ -47,6 +56,8 @@ class WebhookController extends Controller
 
     public function destroy(Request $request, $id)
     {
+        $this->authorize('delete', new ApiWebhook());
+
         DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $request->user()->id)->delete();
         return response()->json(['message' => 'Webhook deleted']);
     }

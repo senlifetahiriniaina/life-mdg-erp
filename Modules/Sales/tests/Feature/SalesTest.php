@@ -10,7 +10,12 @@ use Modules\Sales\Services\SalesService;
 beforeEach(function () {
     $this->user    = actingAsUser('admin');
     $this->service = app(SalesService::class);
-    $this->tenantId = $this->user->tenant_id ?? 1;
+    // Chantier 8 (Sales) tenant-leak fix: SalesController now derives its
+    // tenant scope from users.company_id (the real multi-tenant boundary
+    // column), not the phantom users.tenant_id — align fixtures the same
+    // way so the API-backed assertions below (cancel/confirm through the
+    // real HTTP endpoints) see the same tenant the controller resolves.
+    $this->tenantId = $this->user->company_id ?? 0;
 });
 
 // ─── Orders ────────────────────────────────────────────────────────────────────

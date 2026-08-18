@@ -56,19 +56,19 @@ class AiAnomalyController extends Controller
         return response()->json(['message' => 'Anomaly dismissed.']);
     }
 
+    /**
+     * `users.tenant_id` is a real DB column but never in `App\Models\User::$fillable`
+     * and never populated by the real registration flow, so `isset()`/`method_exists()`
+     * on it was always false — every request fell through to the client-controlled
+     * `X-Tenant-Id` header (default 1), letting any authenticated user read/dismiss
+     * another tenant's anomalies by forging that header. `company_id` is this app's
+     * real tenant boundary column (see `App\Http\Middleware\
+     * InitializeTenancyFromAuthenticatedUser`'s docblock) — the header fallback is
+     * dropped entirely rather than kept as a secondary path, since that fallback was
+     * the actual vulnerability.
+     */
     private function resolveTenantId(Request $request): int
     {
-        /** @var \Illuminate\Contracts\Auth\Authenticatable|null $user */
-        $user = $request->user();
-
-        if ($user && method_exists($user, 'tenant_id')) {
-            return (int) $user->tenant_id;
-        }
-
-        if ($user && isset($user->tenant_id)) {
-            return (int) $user->tenant_id;
-        }
-
-        return (int) $request->header('X-Tenant-Id', 1);
+        return (int) ($request->user()?->company_id ?? 0);
     }
 }

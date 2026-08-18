@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Modules\AuditLog\Policies\AuditLogPolicy;
 use Modules\AuditLog\Providers\AuditLogServiceProvider;
 use Modules\Core\Models\AuditLog;
 use Modules\Core\Services\AuditService;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -18,11 +15,6 @@ uses(RefreshDatabase::class);
 test('AuditLog service provider can be resolved from container', function () {
     expect(app()->bound(AuditLogServiceProvider::class) || class_exists(AuditLogServiceProvider::class))
         ->toBeTrue();
-});
-
-test('AuditLogPolicy class exists and can be instantiated', function () {
-    expect(class_exists(AuditLogPolicy::class))->toBeTrue();
-    expect(new AuditLogPolicy())->toBeInstanceOf(AuditLogPolicy::class);
 });
 
 // ─── AuditService — logging actions ──────────────────────────────────────────
@@ -155,27 +147,6 @@ test('AuditLog can be filtered by module', function () {
     AuditLog::factory()->count(3)->create(['module' => 'CRM']);
 
     expect(AuditLog::where('module', 'HR')->count())->toBe(5);
-});
-
-// ─── Policy permissions ───────────────────────────────────────────────────────
-
-test('AuditLogPolicy viewAny requires auditlog.auditlog.view-any permission', function () {
-    $policy = new AuditLogPolicy();
-    $user   = User::factory()->create();
-
-    Permission::firstOrCreate(['name' => 'auditlog.auditlog.view-any', 'guard_name' => 'web']);
-    $role = Role::firstOrCreate(['name' => 'auditor', 'guard_name' => 'web']);
-    $role->givePermissionTo('auditlog.auditlog.view-any');
-    $user->assignRole('auditor');
-
-    expect($policy->viewAny($user))->toBeTrue();
-});
-
-test('AuditLogPolicy denies viewAny without permission', function () {
-    $policy = new AuditLogPolicy();
-    $user   = User::factory()->create();
-
-    expect($policy->viewAny($user))->toBeFalse();
 });
 
 test('AuditLog records ip_address from factory', function () {

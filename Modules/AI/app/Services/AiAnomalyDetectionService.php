@@ -56,14 +56,27 @@ class AiAnomalyDetectionService
     {
         $anomalies = [];
 
-        // Rule-based: products below reorder_point
+        // Rule-based: products below reorder_point.
+        // Real table is `inventory_products` (not bare `products`), and stock
+        // quantity lives on the separate `inventory_stock` table (per-warehouse
+        // rows), not a `stock_quantity` column on the product itself — this join
+        // sums quantity across all warehouses. `inventory_products.tenant_id` is
+        // a real, populated column (see `ProductController::store()`), unlike
+        // several other modules' phantom tenant_id columns in this app.
         try {
             /** @var \Illuminate\Database\Eloquent\Collection $products */
-            $products = \DB::table('products')
-                ->where('tenant_id', $tenantId)
-                ->where('is_active', true)
-                ->whereColumn('stock_quantity', '<=', 'reorder_point')
-                ->select(['id', 'name', 'stock_quantity', 'reorder_point'])
+            $products = \DB::table('inventory_products')
+                ->join('inventory_stock', 'inventory_stock.product_id', '=', 'inventory_products.id')
+                ->where('inventory_products.tenant_id', $tenantId)
+                ->where('inventory_products.is_active', true)
+                ->groupBy('inventory_products.id', 'inventory_products.name', 'inventory_products.reorder_point')
+                ->havingRaw('SUM(inventory_stock.quantity) <= inventory_products.reorder_point')
+                ->select([
+                    'inventory_products.id',
+                    'inventory_products.name',
+                    \DB::raw('SUM(inventory_stock.quantity) as stock_quantity'),
+                    'inventory_products.reorder_point',
+                ])
                 ->get();
 
             foreach ($products as $product) {
@@ -114,13 +127,21 @@ class AiAnomalyDetectionService
     {
         $anomalies = [];
 
-        // Rule-based: invoices overdue > 30 days
+        // Rule-based: invoices overdue > 30 days.
+        // Real table is `acc_invoices` (not bare `invoices`); its amount column
+        // is `total` (not `amount_total`), and it has no `unpaid` status value —
+        // real statuses are draft|posted|paid|cancelled (see
+        // `Modules\Accounting\Models\Invoice::scopeOverdue()`/`scopeUnpaid()`,
+        // which use the same `status != paid/cancelled` + `due_date` check below).
+        // `acc_invoices` has no tenant_id/company_id column at all in this app's
+        // shared-DB schema, so this check is necessarily company-wide until
+        // Accounting adds tenant scoping to that table — a documented gap here,
+        // not something this AI-module fix silently papers over.
         try {
-            $overdue = \DB::table('invoices')
-                ->where('tenant_id', $tenantId)
-                ->where('status', 'unpaid')
+            $overdue = \DB::table('acc_invoices')
+                ->whereNotIn('status', ['paid', 'cancelled'])
                 ->where('due_date', '<', now()->subDays(30)->toDateString())
-                ->select(['id', 'number', 'amount_total', 'due_date'])
+                ->select(['id', 'number', 'total', 'due_date'])
                 ->limit(10)
                 ->get();
 
@@ -133,7 +154,7 @@ class AiAnomalyDetectionService
                     description: sprintf(
                         'La facture %s d\'un montant de %.2f est impayée depuis plus de 30 jours.',
                         $invoice->number,
-                        (float) $invoice->amount_total
+                        (float) $invoice->total
                     ),
                     entityId:   (int) $invoice->id,
                     entityType: 'invoice',
@@ -167,33 +188,50 @@ class AiAnomalyDetectionService
     {
         $anomalies = [];
 
-        // Rule-based: employees without payslip this month
+        // Rule-based: employees without payslip this month.
+        // Real tables are `hr_employees` (not bare `employees`) and `payslips`
+        // (not bare `payslips` was already right, but its `period` column stores
+        // a full date — the first day of the pay period, see
+        // `PayrollIntegrationService::generatePayslip()` — not a 'Y-m' string,
+        // so this now matches on a month date-range instead of string equality.
+        // `hr_employees` has no `is_active` boolean (real column is the string
+        // `status`, default 'active') and its `full_name` column is never
+        // populated by real writes (computed on the fly by
+        // `Employee::getFullName()`), so the name is built from first/last name
+        // here instead. `hr_employees.tenant_id` is a documented phantom column
+        // (see CLAUDE.md's Chantier 8.3 Payroll notes — no real write path
+        // populates it, `EmployeeController::index()` itself has no tenant
+        // filter) — this check intentionally doesn't filter by it either, for
+        // the same reason and matching that same precedent, rather than
+        // silently returning zero rows forever.
         try {
-            $currentMonth = now()->format('Y-m');
+            $periodStart = now()->startOfMonth()->toDateString();
+            $periodEnd   = now()->endOfMonth()->toDateString();
 
-            $missing = \DB::table('employees')
-                ->where('employees.tenant_id', $tenantId)
-                ->where('employees.is_active', true)
-                ->whereNotExists(function ($query) use ($currentMonth) {
+            $missing = \DB::table('hr_employees')
+                ->where('hr_employees.status', 'active')
+                ->whereNotExists(function ($query) use ($periodStart, $periodEnd) {
                     $query->select(\DB::raw(1))
                         ->from('payslips')
-                        ->whereColumn('payslips.employee_id', 'employees.id')
-                        ->where('payslips.period', $currentMonth);
+                        ->whereColumn('payslips.employee_id', 'hr_employees.id')
+                        ->whereBetween('payslips.period', [$periodStart, $periodEnd]);
                 })
-                ->select(['employees.id', 'employees.full_name'])
+                ->select(['hr_employees.id', 'hr_employees.first_name', 'hr_employees.last_name'])
                 ->limit(10)
                 ->get();
 
             foreach ($missing as $employee) {
+                $fullName = trim($employee->first_name . ' ' . $employee->last_name);
+
                 $anomalies[] = $this->makeAnomaly(
                     module:     'HR',
                     type:       'missing_payslip',
                     severity:   'warning',
-                    title:      'Bulletin manquant: ' . $employee->full_name,
+                    title:      'Bulletin manquant: ' . $fullName,
                     description: sprintf(
                         'L\'employé "%s" n\'a pas de bulletin de salaire pour la période %s.',
-                        $employee->full_name,
-                        $currentMonth
+                        $fullName,
+                        now()->format('Y-m')
                     ),
                     entityId:   (int) $employee->id,
                     entityType: 'employee',

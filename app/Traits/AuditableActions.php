@@ -17,6 +17,7 @@ trait AuditableActions
                     if (isset($changedAttributes[$field])) {
                         AuditLog::create([
                             'user_id'      => auth()->id(),
+                            'company_id'   => auth()->user()?->company_id ?? 0,
                             'user_name'    => auth()->user()?->name,
                             'user_role'    => auth()->user()?->roles?->first()?->name,
                             'action'       => $model->getAuditAction($field),
@@ -40,6 +41,7 @@ trait AuditableActions
             if (auth()->check()) {
                 AuditLog::create([
                     'user_id'      => auth()->id(),
+                    'company_id'   => auth()->user()?->company_id ?? 0,
                     'user_name'    => auth()->user()?->name,
                     'user_role'    => auth()->user()?->roles?->first()?->name,
                     'action'       => 'deleted',

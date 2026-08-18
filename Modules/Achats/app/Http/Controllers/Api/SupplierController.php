@@ -2,6 +2,7 @@
 
 namespace Modules\Achats\Http\Controllers\Api;
 
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Modules\Achats\Http\Requests\StoreSupplierRequest;
@@ -17,6 +18,8 @@ use Modules\Achats\Services\SupplierService;
  */
 class SupplierController extends Controller
 {
+    use AuthorizesRequests;
+
     public function __construct(protected SupplierService $service) {}
 
     public function index(Request $request)
@@ -41,6 +44,8 @@ class SupplierController extends Controller
 
     public function store(StoreSupplierRequest $request)
     {
+        $this->authorize('create', Supplier::class);
+
         $data = $request->validated();
         $data['created_by'] = auth()->id();
 
@@ -56,6 +61,8 @@ class SupplierController extends Controller
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier)
     {
+        $this->authorize('update', $supplier);
+
         $updated = $this->service->updateSupplier($supplier, $request->validated());
 
         return new SupplierResource($updated);
@@ -63,6 +70,8 @@ class SupplierController extends Controller
 
     public function destroy(Supplier $supplier)
     {
+        $this->authorize('delete', $supplier);
+
         try {
             $this->service->deleteSupplier($supplier);
         } catch (\Exception $e) {
