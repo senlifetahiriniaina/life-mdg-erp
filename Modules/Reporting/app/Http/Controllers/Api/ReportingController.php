@@ -50,7 +50,7 @@ class ReportingController extends Controller
      */
     public function listReports(Request $request): JsonResponse
     {
-        $tenantId  = $request->user()->tenant_id ?? 1;
+        $tenantId  = $this->tenantId($request);
         $module    = $request->get('module');
         $type      = $request->get('report_type');
         $perPage   = min((int) ($request->get('per_page', 25)), 100);
@@ -82,7 +82,7 @@ class ReportingController extends Controller
      */
     public function storeReport(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $validated = $request->validate([
             'name'              => 'required|string|max:100',
@@ -119,7 +119,7 @@ class ReportingController extends Controller
      */
     public function showReport(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $report = ReportDefinition::visibleTo($tenantId)->findOrFail($id);
 
@@ -133,7 +133,7 @@ class ReportingController extends Controller
      */
     public function updateReport(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $report = ReportDefinition::forTenant($tenantId)->findOrFail($id);
 
@@ -160,7 +160,7 @@ class ReportingController extends Controller
      */
     public function destroyReport(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $report = ReportDefinition::forTenant($tenantId)->findOrFail($id);
 
@@ -185,7 +185,7 @@ class ReportingController extends Controller
     {
         $report = ReportDefinition::where('slug', $slug)->active()->firstOrFail();
 
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         if ($report->tenant_id !== null && $report->tenant_id !== $tenantId) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
@@ -204,7 +204,7 @@ class ReportingController extends Controller
      */
     public function runReport(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $report = ReportDefinition::active()
             ->visibleTo($tenantId)
@@ -230,7 +230,7 @@ class ReportingController extends Controller
      */
     public function listExecutions(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $perPage  = min((int) ($request->get('per_page', 25)), 100);
 
         // Verify tenant can see the report
@@ -251,7 +251,7 @@ class ReportingController extends Controller
      */
     public function showExecution(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $execution = ReportExecution::forTenant($tenantId)
             ->with('definition:id,name,slug,output_format')
@@ -268,7 +268,7 @@ class ReportingController extends Controller
      */
     public function downloadExecution(Request $request, int $id): StreamedResponse|JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $execution = ReportExecution::forTenant($tenantId)->findOrFail($id);
 
@@ -307,7 +307,7 @@ class ReportingController extends Controller
      */
     public function shareReport(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         // Only the tenant owner can share their own report
         $report = ReportDefinition::forTenant($tenantId)->findOrFail($id);
@@ -339,7 +339,7 @@ class ReportingController extends Controller
      */
     public function listSchedules(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $perPage  = min((int) ($request->get('per_page', 25)), 100);
 
         $schedules = ReportSchedule::forTenant($tenantId)
@@ -361,7 +361,7 @@ class ReportingController extends Controller
      */
     public function createSchedule(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $validated = $request->validate([
             'report_definition_id' => 'required|integer|exists:report_definitions,id',
@@ -396,7 +396,7 @@ class ReportingController extends Controller
      */
     public function ohadaBalanceSheet(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $period   = $request->get('period', now()->format('Y'));
         $currency = $request->get('currency', 'XOF');
 
@@ -412,7 +412,7 @@ class ReportingController extends Controller
      */
     public function ohadaIncomeStatement(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $period   = $request->get('period', now()->format('Y'));
         $currency = $request->get('currency', 'XOF');
 
@@ -427,7 +427,7 @@ class ReportingController extends Controller
      */
     public function ohadaTrialBalance(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $period   = $request->get('period', now()->format('Y-m'));
 
         $data = $this->ohada->generateTrialBalance($tenantId, $period);
@@ -442,7 +442,7 @@ class ReportingController extends Controller
      */
     public function ohadaJournal(Request $request): JsonResponse
     {
-        $tenantId    = $request->user()->tenant_id ?? 1;
+        $tenantId    = $this->tenantId($request);
         $journalType = $request->get('type', 'ventes');
         $period      = $request->get('period', now()->format('Y-m'));
 
@@ -457,7 +457,7 @@ class ReportingController extends Controller
      */
     public function ohadaAgedReceivables(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $asOf     = $request->get('as_of', now()->toDateString());
 
         $data = $this->ohada->generateAgedReceivables($tenantId, $asOf);
@@ -471,7 +471,7 @@ class ReportingController extends Controller
      */
     public function ohadaAgedPayables(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $asOf     = $request->get('as_of', now()->toDateString());
 
         $data = $this->ohada->generateAgedPayables($tenantId, $asOf);
@@ -485,7 +485,7 @@ class ReportingController extends Controller
      */
     public function ohadaTva(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $period   = $request->get('period', now()->format('Y-m'));
 
         $data = $this->ohada->generateTvaReport($tenantId, $period);
@@ -499,7 +499,7 @@ class ReportingController extends Controller
      */
     public function ohadaIs(Request $request): JsonResponse
     {
-        $tenantId   = $request->user()->tenant_id ?? 1;
+        $tenantId   = $this->tenantId($request);
         $fiscalYear = $request->get('fiscal_year', (string) (now()->year - 1));
 
         $data = $this->ohada->generateIsReport($tenantId, $fiscalYear);
@@ -517,7 +517,7 @@ class ReportingController extends Controller
      */
     public function nlQuery(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $validated = $request->validate([
             'query'   => 'required|string|max:500',
@@ -548,7 +548,7 @@ class ReportingController extends Controller
      */
     public function listSavedQueries(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $userId   = $request->user()->id;
         $perPage  = min((int) ($request->get('per_page', 25)), 100);
 
@@ -570,7 +570,7 @@ class ReportingController extends Controller
      */
     public function storeSavedQuery(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $validated = $request->validate([
             'name'        => 'required|string|max:150',
@@ -600,7 +600,7 @@ class ReportingController extends Controller
      */
     public function listDashboards(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $perPage  = min((int) ($request->get('per_page', 25)), 100);
 
         $items = Dashboard::forTenant($tenantId)
@@ -621,7 +621,7 @@ class ReportingController extends Controller
      */
     public function storeDashboard(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
 
         $validated = $request->validate([
             'name'        => 'required|string|max:150',
@@ -661,7 +661,7 @@ class ReportingController extends Controller
      */
     public function showDashboard(Request $request, int $id): JsonResponse
     {
-        $tenantId  = $request->user()->tenant_id ?? 1;
+        $tenantId  = $this->tenantId($request);
         $dashboard = Dashboard::forTenant($tenantId)->with('widgets')->findOrFail($id);
 
         $widgetsData = $this->dashboards->getDashboardWidgetsData($dashboard);
@@ -679,7 +679,7 @@ class ReportingController extends Controller
      */
     public function updateDashboard(Request $request, int $id): JsonResponse
     {
-        $tenantId  = $request->user()->tenant_id ?? 1;
+        $tenantId  = $this->tenantId($request);
         $dashboard = Dashboard::forTenant($tenantId)->findOrFail($id);
 
         $validated = $request->validate([
@@ -703,7 +703,7 @@ class ReportingController extends Controller
      */
     public function dashboardAiSummary(Request $request, int $id): JsonResponse
     {
-        $tenantId  = $request->user()->tenant_id ?? 1;
+        $tenantId  = $this->tenantId($request);
         $dashboard = Dashboard::forTenant($tenantId)->with('widgets')->findOrFail($id);
         $locale    = $request->get('locale', 'fr');
 
@@ -719,11 +719,37 @@ class ReportingController extends Controller
      */
     public function widgetData(Request $request, int $id): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 1;
+        $tenantId = $this->tenantId($request);
         $widget   = ReportWidget::forTenant($tenantId)->findOrFail($id);
 
         $data = $this->dashboards->getWidgetData($widget);
 
         return response()->json($data);
+    }
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Chantier 8 (Reporting): every method in this controller used to inline
+     * `$request->user()->tenant_id ?? 1` (~30 call sites). users.tenant_id is
+     * a real DB column (added defensively by an early migration) but is NOT
+     * in App\Models\User::$fillable and nothing in the real registration/
+     * onboarding flow ever populates it — it is always null in practice, so
+     * every company's users transparently shared the same tenant_id=1 bucket
+     * of report definitions, dashboards, schedules, executions, saved
+     * queries and shares. A real, live cross-tenant leak, not hypothetical.
+     *
+     * The real multi-tenant boundary column is users.company_id (confirmed
+     * via App\Http\Middleware\InitializeTenancyFromAuthenticatedUser's own
+     * docblock) — same ID-space mismatch bug pattern already fixed
+     * repeatedly elsewhere in this app (Setup's SetupController/
+     * OnboardingMetricsController, LeaveRequestPolicy, PayrollPolicy,
+     * TimesheetEntryPolicy, Security's company_id-type-mismatch policies).
+     * No header fallback (unlike Setup's now-fixed X-Company-ID exploit) —
+     * there never was one here.
+     */
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()?->company_id ?? 0);
     }
 }

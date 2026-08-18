@@ -14,7 +14,7 @@ class SignalController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = $this->tenantId($request);
 
         $query = StrategySignal::forTenant($tenantId)->active();
 
@@ -33,7 +33,7 @@ class SignalController extends Controller
 
     public function refresh(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'default');
+        $tenantId = $this->tenantId($request);
 
         $this->service->refreshSignals($tenantId);
 
@@ -54,5 +54,14 @@ class SignalController extends Controller
         $signal->update(['is_dismissed' => true]);
 
         return response()->json(['message' => 'Signal dismissed.', 'id' => $id]);
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', ...) — see
+     * StrategyPlanController::tenantId() for the full rationale.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

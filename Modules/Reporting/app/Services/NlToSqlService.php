@@ -7,6 +7,7 @@ namespace Modules\Reporting\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Modules\Reporting\Models\SavedQuery;
 
 /**
  * Natural Language to SQL Service
@@ -18,6 +19,41 @@ class NlToSqlService
 {
     private const MODEL = 'claude-opus-4-7';
     private const MAX_TOKENS = 500;
+
+    /**
+     * Chantier 8 (Reporting): ReportingController::nlQuery() — the only
+     * route reaching this service — called translate($query, $tenantId,
+     * $locale)/saveQuery(...), neither of which existed on this class at
+     * all: a guaranteed BadMethodCallException on every call to
+     * POST reporting/nl-query. Thin wrapper around the real, tested
+     * queryToSql(); folds the caller's resolved tenant id into the payload
+     * for its own record-keeping (the translation itself has no per-tenant
+     * data to leak — it only asks Claude to shape SQL against the schema).
+     */
+    public function translate(string $naturalLanguageQuery, int $tenantId, string $locale = 'fr'): array
+    {
+        $result = $this->queryToSql($naturalLanguageQuery, $locale);
+        $result['tenant_id'] = $tenantId;
+
+        return $result;
+    }
+
+    /**
+     * Persists a named NL/SQL query for later reuse from the saved-queries
+     * list. Called only when the caller supplied both a `save_as` name and
+     * a successfully translated `sql` (see ReportingController::nlQuery()).
+     */
+    public function saveQuery(string $name, string $queryText, int $tenantId, int $userId, string $queryType = 'nl'): SavedQuery
+    {
+        return SavedQuery::create([
+            'tenant_id'   => $tenantId,
+            'name'        => $name,
+            'query_text'  => $queryText,
+            'query_type'  => $queryType,
+            'created_by'  => $userId,
+            'is_shared'   => false,
+        ]);
+    }
 
     /**
      * Convert natural language query to SQL

@@ -35,7 +35,7 @@ class StrategyPageController extends Controller
      */
     public function index(Request $request): Response
     {
-        $tenantId = (string) ($request->user()->tenant_id ?? 'default');
+        $tenantId = $this->tenantId($request);
 
         $ratios       = $this->ratioService->allRatiosWithStatus($tenantId);
         $activePlan   = StrategyPlan::forTenant($tenantId)->active()->with('pillars')->first();
@@ -69,7 +69,7 @@ class StrategyPageController extends Controller
      */
     public function plans(Request $request): Response
     {
-        $tenantId = (string) ($request->user()->tenant_id ?? 'default');
+        $tenantId = $this->tenantId($request);
 
         $plans = StrategyPlan::forTenant($tenantId)
             ->with(['pillars', 'objectives'])
@@ -90,7 +90,7 @@ class StrategyPageController extends Controller
      */
     public function planShow(Request $request, int $id): Response
     {
-        $tenantId = (string) ($request->user()->tenant_id ?? 'default');
+        $tenantId = $this->tenantId($request);
 
         $plan = StrategyPlan::forTenant($tenantId)
             ->with(['pillars', 'objectives.keyResults'])
@@ -111,7 +111,7 @@ class StrategyPageController extends Controller
      */
     public function ratios(Request $request): Response
     {
-        $tenantId = (string) ($request->user()->tenant_id ?? 'default');
+        $tenantId = $this->tenantId($request);
         $country  = $request->input('country', 'WW');
         $industry = $request->input('industry', 'general');
         $module   = $request->input('module');
@@ -171,7 +171,7 @@ class StrategyPageController extends Controller
      */
     public function objectives(Request $request): Response
     {
-        $tenantId  = (string) ($request->user()->tenant_id ?? 'default');
+        $tenantId  = $this->tenantId($request);
         $planId    = $request->integer('plan_id');
 
         $plans = StrategyPlan::forTenant($tenantId)->active()->get(['id', 'name']);
@@ -185,5 +185,30 @@ class StrategyPageController extends Controller
             'selectedPlanId' => $planId ?: $plans->first()?->id,
             'okrTree'        => $okrTree,
         ]);
+    }
+
+    /**
+     * GET /strategy/cascade — OKR alignment cascade map.
+     *
+     * Modules/Strategy/resources/js/Pages/Cascade/Index.vue is a real,
+     * complete, already-working page (self-fetches GET /api/v1/strategy/cascade)
+     * that had zero web route anywhere — this is the quick-win wiring for it,
+     * no new UI work needed. No server-side props: the page is self-fetching.
+     */
+    public function cascade(): Response
+    {
+        return Inertia::render('Strategy/Cascade/Index');
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->user()->tenant_id inlined at
+     * every call site — extracted into a helper matching the API controllers'
+     * fix for consistency. Already used the correct, non-client-controlled
+     * users.tenant_id column (no header/query fallback existed here), so this
+     * is a pure refactor, not a security fix.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

@@ -32,6 +32,8 @@ class OkrController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', StrategyObjective::class);
+
         $validated = $request->validate([
             'plan_id'         => 'required|exists:strategy_plans,id',
             'pillar_id'       => 'nullable|exists:strategy_pillars,id',
@@ -56,6 +58,10 @@ class OkrController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
+        $objective = StrategyObjective::findOrFail($id);
+
+        $this->authorize('update', $objective);
+
         $validated = $request->validate([
             'title'           => 'sometimes|string|max:255',
             'description'     => 'nullable|string',
@@ -68,7 +74,6 @@ class OkrController extends Controller
             'status'          => 'nullable|in:draft,active,at_risk,behind,completed,cancelled',
         ]);
 
-        $objective = StrategyObjective::findOrFail($id);
         $objective->update($validated);
 
         return response()->json($objective->fresh());
@@ -76,13 +81,19 @@ class OkrController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        StrategyObjective::findOrFail($id)->delete();
+        $objective = StrategyObjective::findOrFail($id);
+
+        $this->authorize('delete', $objective);
+
+        $objective->delete();
 
         return response()->json(['message' => 'Objective deleted.']);
     }
 
     public function cascade(Request $request, int $id): JsonResponse
     {
+        $this->authorize('create', StrategyObjective::class);
+
         $validated = $request->validate([
             'title'      => 'required|string|max:255',
             'level'      => 'required|in:vision,mission,strategic,annual,quarterly,team,individual',
@@ -97,7 +108,7 @@ class OkrController extends Controller
 
     public function tree(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = (string) ($request->user()?->tenant_id ?? 'default');
         $planId   = $request->filled('plan_id') ? $request->integer('plan_id') : null;
 
         $tree = $this->service->getOkrTree($tenantId, $planId);

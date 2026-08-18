@@ -15,7 +15,7 @@ class ScenarioController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId  = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId  = $this->tenantId($request);
         $scenarios = StrategyScenario::where('tenant_id', $tenantId)
             ->withCount('assumptions')
             ->orderBy('created_at', 'desc')
@@ -35,7 +35,7 @@ class ScenarioController extends Controller
             'status'       => 'nullable|in:draft,active,archived',
         ]);
 
-        $tenantId = $request->header('X-Tenant-Id', 'default');
+        $tenantId = $this->tenantId($request);
         $userId   = $request->user()->id;
 
         $scenario = $this->service->createScenario($tenantId, $validated, $userId);
@@ -113,5 +113,14 @@ class ScenarioController extends Controller
         $comparison = $this->service->compareScenarios($request->input('scenario_ids'));
 
         return response()->json($comparison);
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', ...) — see
+     * StrategyPlanController::tenantId() for the full rationale.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

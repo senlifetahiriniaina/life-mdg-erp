@@ -17,7 +17,7 @@ class StrategyAdvisorController extends Controller
             'plan_id' => 'required|integer|exists:strategy_plans,id',
         ]);
 
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = $this->tenantId($request);
         $insights = $this->advisor->getInsights($tenantId, $request->integer('plan_id'));
 
         return response()->json($insights);
@@ -29,7 +29,7 @@ class StrategyAdvisorController extends Controller
             'context' => 'required|string|max:1000',
         ]);
 
-        $tenantId       = $request->header('X-Tenant-Id', 'default');
+        $tenantId       = $this->tenantId($request);
         $recommendations = $this->advisor->getRecommendations($tenantId, $request->input('context'));
 
         return response()->json($recommendations);
@@ -78,5 +78,14 @@ class StrategyAdvisorController extends Controller
         );
 
         return response()->json($result);
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', ...) — see
+     * StrategyPlanController::tenantId() for the full rationale.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

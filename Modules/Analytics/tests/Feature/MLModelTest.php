@@ -8,6 +8,7 @@ use Modules\Analytics\Models\ABTestRun;
 use Modules\Analytics\Models\MLModel;
 use Modules\Analytics\Models\MLModelVersion;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class MLModelTest extends TestCase
@@ -26,6 +27,14 @@ class MLModelTest extends TestCase
             Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
+
+        // Modules/Analytics/routes/api.php's v1/analytics group is gated by the
+        // `role:` middleware (Chantier 8's Analytics pass) on top of the
+        // per-resource permissions granted above — assign a role so the route
+        // itself is reachable; the Policy checks above still enforce the real
+        // per-permission/per-company authorization.
+        Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        $this->user->assignRole('employee');
     }
 
     public function test_list_ml_models(): void

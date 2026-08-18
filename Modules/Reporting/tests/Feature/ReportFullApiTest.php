@@ -13,9 +13,20 @@ uses(RefreshDatabase::class);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Chantier 8 (Reporting): ReportingController::tenantId() now resolves the
+ * tenant from the authenticated user's real multi-tenant boundary column
+ * (users.company_id), not the never-populated users.tenant_id — give the
+ * test user a real Company row and match it (users.company_id has a real
+ * FK to companies.id, so a bare literal id would violate the constraint).
+ */
 function makeReportingUser(string $role = 'admin'): User
 {
-    return actingAsUser($role);
+    $user = actingAsUser($role);
+    $company = \App\Models\Company::factory()->create();
+    $user->update(['company_id' => $company->id]);
+
+    return $user->fresh();
 }
 
 function tenantReport(int $tenantId, array $overrides = []): ReportDefinition
@@ -88,7 +99,7 @@ test('authenticated user can list reports', function () {
 
 test('list reports filters by module', function () {
     $user = makeReportingUser();
-    $tid  = $user->tenant_id ?? $user->id;
+    $tid  = $user->company_id;
 
     tenantReport($tid, ['module' => 'HR', 'slug' => 'hr-' . uniqid()]);
     tenantReport($tid, ['module' => 'Sales', 'slug' => 'sales-' . uniqid()]);
@@ -103,7 +114,7 @@ test('list reports filters by module', function () {
 
 test('list reports filters by report_type', function () {
     $user = makeReportingUser();
-    $tid  = $user->tenant_id ?? $user->id;
+    $tid  = $user->company_id;
 
     tenantReport($tid, ['report_type' => 'chart', 'slug' => 'chart-' . uniqid()]);
     tenantReport($tid, ['report_type' => 'pivot', 'slug' => 'pivot-' . uniqid()]);
@@ -186,7 +197,7 @@ test('created report is stored in database', function () {
 
 test('can show a report definition by ID', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid);
 
     $this->getJson("/api/v1/reporting/reports/{$report->id}")
@@ -205,7 +216,7 @@ test('show returns 404 for non-existent report', function () {
 
 test('can update a tenant-owned report via PUT', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid);
 
     $this->putJson("/api/v1/reporting/reports/{$report->id}", [
@@ -237,7 +248,7 @@ test('cannot update a report belonging to another tenant', function () {
 
 test('can delete a tenant-owned report', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid);
 
     $this->deleteJson("/api/v1/reporting/reports/{$report->id}")
@@ -249,7 +260,7 @@ test('can delete a tenant-owned report', function () {
 
 test('cannot delete a system report', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid, ['is_system' => true]);
 
     $this->deleteJson("/api/v1/reporting/reports/{$report->id}")
@@ -271,7 +282,7 @@ test('cannot delete a report belonging to another tenant', function () {
 
 test('POST /reporting/reports/{id}/run creates a ReportExecution', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid, ['query_template' => 'SELECT 42 AS val']);
 
     $response = $this->postJson("/api/v1/reporting/reports/{$report->id}/run")
@@ -286,7 +297,7 @@ test('POST /reporting/reports/{id}/run creates a ReportExecution', function () {
 
 test('run report returns completed status for valid query', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid, ['query_template' => 'SELECT 1 AS n']);
 
     $this->postJson("/api/v1/reporting/reports/{$report->id}/run")
@@ -306,7 +317,7 @@ test('cannot run a report from another tenant', function () {
 
 test('GET /reporting/reports/{id}/executions lists executions for a report', function () {
     $user    = makeReportingUser();
-    $tid     = $user->tenant_id ?? $user->id;
+    $tid     = $user->company_id;
     $report  = tenantReport($tid, ['query_template' => 'SELECT 1']);
     $service = app(ReportingService::class);
 
@@ -322,7 +333,7 @@ test('GET /reporting/reports/{id}/executions lists executions for a report', fun
 
 test('execution history is tenant-isolated', function () {
     $user    = makeReportingUser();
-    $tid     = $user->tenant_id ?? $user->id;
+    $tid     = $user->company_id;
     $report  = tenantReport($tid, ['query_template' => 'SELECT 1']);
     $service = app(ReportingService::class);
     $service->execute($report, [], $user);
@@ -338,7 +349,7 @@ test('execution history is tenant-isolated', function () {
 
 test('GET /reporting/executions/{id} returns execution with definition', function () {
     $user    = makeReportingUser();
-    $tid     = $user->tenant_id ?? $user->id;
+    $tid     = $user->company_id;
     $report  = tenantReport($tid, ['query_template' => 'SELECT 5 AS x']);
     $service = app(ReportingService::class);
 
@@ -351,7 +362,7 @@ test('GET /reporting/executions/{id} returns execution with definition', functio
 
 test('cannot access execution belonging to another tenant', function () {
     $user    = makeReportingUser();
-    $tid     = $user->tenant_id ?? $user->id;
+    $tid     = $user->company_id;
 
     // Create execution for another tenant manually
     $report = tenantReport(99999, ['query_template' => 'SELECT 1']);
@@ -372,7 +383,7 @@ test('cannot access execution belonging to another tenant', function () {
 
 test('can share a report with another user', function () {
     $owner  = makeReportingUser();
-    $tid    = $owner->tenant_id ?? $owner->id;
+    $tid    = $owner->company_id;
     $report = tenantReport($tid);
 
     // Create a second user to share with
@@ -395,7 +406,7 @@ test('can share a report with another user', function () {
 
 test('share report with edit permission is stored correctly', function () {
     $owner  = makeReportingUser();
-    $tid    = $owner->tenant_id ?? $owner->id;
+    $tid    = $owner->company_id;
     $report = tenantReport($tid);
 
     \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
@@ -411,7 +422,7 @@ test('share report with edit permission is stored correctly', function () {
 
 test('share requires valid user id', function () {
     $user   = makeReportingUser();
-    $tid    = $user->tenant_id ?? $user->id;
+    $tid    = $user->company_id;
     $report = tenantReport($tid);
 
     $this->postJson("/api/v1/reporting/reports/{$report->id}/share", [
@@ -474,7 +485,7 @@ test('ReportShare canEdit returns false for view permission', function () {
 
 test('tenant A cannot see tenant B reports in listing', function () {
     $user = makeReportingUser();
-    $tid  = $user->tenant_id ?? $user->id;
+    $tid  = $user->company_id;
 
     // Tenant A's own report
     $myReport    = tenantReport($tid, ['slug' => 'mine-' . uniqid()]);
@@ -491,7 +502,7 @@ test('tenant A cannot see tenant B reports in listing', function () {
 
 test('forTenant scope excludes global null-tenant reports', function () {
     $user = makeReportingUser();
-    $tid  = $user->tenant_id ?? $user->id;
+    $tid  = $user->company_id;
 
     $globalRep  = globalReport();
     $tenantRep  = tenantReport($tid);

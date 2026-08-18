@@ -35,7 +35,7 @@ class DashboardService
         $cacheKey = "widget_data:{$widget->id}:" . md5(json_encode($widget->data_source ?? []));
 
         $data = Cache::remember($cacheKey, $widget->refresh_interval_seconds ?? self::CACHE_TTL, function () use ($widget) {
-            return $this->resolveDataSource($widget->data_source ?? []);
+            return $this->resolveDataSource($widget->data_source ?? [], $widget->tenant_id);
         });
 
         return [
@@ -149,9 +149,17 @@ class DashboardService
      * Resolves a widget's data_source config to actual data.
      * Dispatches to module-specific resolvers.
      *
+     * Chantier 8 (Reporting): $tenantId is now the widget's own tenant_id
+     * column, passed explicitly by getWidgetData() — every widget template
+     * (getDefaultWidgetTemplates()/getDashboardTemplates()) sets data_source
+     * to just {module, query}, never {..., params: {tenant_id}}, so the old
+     * `$params['tenant_id'] ?? 1` fallback was unconditionally reached on
+     * every real widget: every dashboard for every tenant was silently
+     * showing tenant 1's Sales/Inventory/Accounting/HR/CRM data.
+     *
      * @param array{module: string, query: string, params?: array} $dataSource
      */
-    private function resolveDataSource(array $dataSource): mixed
+    private function resolveDataSource(array $dataSource, int $tenantId): mixed
     {
         $module = $dataSource['module'] ?? 'Reporting';
         $query  = $dataSource['query']  ?? '';
@@ -159,12 +167,12 @@ class DashboardService
 
         try {
             return match ($module) {
-                'Sales'       => $this->resolveSalesData($query, $params),
-                'Inventory'   => $this->resolveInventoryData($query, $params),
-                'Accounting'  => $this->resolveAccountingData($query, $params),
-                'HR'          => $this->resolveHrData($query, $params),
-                'CRM'         => $this->resolveCrmData($query, $params),
-                default       => $this->resolveGenericData($query, $params),
+                'Sales'       => $this->resolveSalesData($query, $params, $tenantId),
+                'Inventory'   => $this->resolveInventoryData($query, $params, $tenantId),
+                'Accounting'  => $this->resolveAccountingData($query, $params, $tenantId),
+                'HR'          => $this->resolveHrData($query, $params, $tenantId),
+                'CRM'         => $this->resolveCrmData($query, $params, $tenantId),
+                default       => $this->resolveGenericData($query, $params, $tenantId),
             };
         } catch (\Exception $e) {
             Log::warning("DashboardService: data resolution failed for {$module}/{$query}", [
@@ -174,11 +182,11 @@ class DashboardService
         }
     }
 
-    private function resolveSalesData(string $query, array $params): mixed
+    private function resolveSalesData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'monthly_revenue' => DB::table('sales_orders')
-                ->where('tenant_id', $params['tenant_id'] ?? 1)
+                ->where('tenant_id', $tenantId)
                 ->where('status', 'confirmed')
                 ->whereYear('order_date', now()->year)
                 ->selectRaw('MONTH(order_date) as month, SUM(total_amount) as revenue')
@@ -190,7 +198,7 @@ class DashboardService
             'top_products' => DB::table('sales_order_lines as sol')
                 ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
                 ->join('products as p', 'p.id', '=', 'sol.product_id')
-                ->where('so.tenant_id', $params['tenant_id'] ?? 1)
+                ->where('so.tenant_id', $tenantId)
                 ->whereDate('so.order_date', '>=', now()->startOfMonth())
                 ->selectRaw('p.name, SUM(sol.quantity) as qty, SUM(sol.total_price) as revenue')
                 ->groupBy('p.id', 'p.name')
@@ -201,7 +209,7 @@ class DashboardService
 
             'kpi_revenue_month' => [
                 'value'  => DB::table('sales_orders')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->whereDate('order_date', '>=', now()->startOfMonth())
                     ->sum('total_amount'),
                 'label'  => 'CA ce mois',
@@ -212,11 +220,11 @@ class DashboardService
         };
     }
 
-    private function resolveInventoryData(string $query, array $params): mixed
+    private function resolveInventoryData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'low_stock' => DB::table('products')
-                ->where('tenant_id', $params['tenant_id'] ?? 1)
+                ->where('tenant_id', $tenantId)
                 ->whereColumn('stock_qty', '<=', 'reorder_point')
                 ->where('reorder_point', '>', 0)
                 ->select('id', 'name', 'sku', 'stock_qty', 'reorder_point')
@@ -227,7 +235,7 @@ class DashboardService
 
             'kpi_stock_value' => [
                 'value'  => DB::table('products')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->selectRaw('SUM(stock_qty * cost_price)')
                     ->value(DB::raw('SUM(stock_qty * cost_price)')),
                 'label'  => 'Valeur du stock',
@@ -236,7 +244,7 @@ class DashboardService
 
             'kpi_stockout_count' => [
                 'value'  => DB::table('products')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->where('stock_qty', '<=', 0)
                     ->count(),
                 'label'  => 'Produits en rupture',
@@ -247,12 +255,12 @@ class DashboardService
         };
     }
 
-    private function resolveAccountingData(string $query, array $params): mixed
+    private function resolveAccountingData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'kpi_outstanding_receivables' => [
                 'value'  => DB::table('invoices')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->whereIn('status', ['sent', 'partial', 'overdue'])
                     ->selectRaw('SUM(total_amount - COALESCE(paid_amount, 0))')
                     ->value(DB::raw('SUM(total_amount - COALESCE(paid_amount, 0))')),
@@ -262,7 +270,7 @@ class DashboardService
 
             'kpi_outstanding_payables' => [
                 'value'  => DB::table('supplier_invoices')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->whereIn('status', ['received', 'partial', 'overdue'])
                     ->selectRaw('SUM(total_amount - COALESCE(paid_amount, 0))')
                     ->value(DB::raw('SUM(total_amount - COALESCE(paid_amount, 0))')),
@@ -274,12 +282,12 @@ class DashboardService
         };
     }
 
-    private function resolveHrData(string $query, array $params): mixed
+    private function resolveHrData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'kpi_headcount' => [
                 'value'  => DB::table('employees')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->where('status', 'active')
                     ->count(),
                 'label'  => 'Effectif actif',
@@ -288,7 +296,7 @@ class DashboardService
 
             'kpi_pending_leaves' => [
                 'value'  => DB::table('leave_requests')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->where('status', 'pending')
                     ->count(),
                 'label'  => 'Congés en attente',
@@ -299,12 +307,12 @@ class DashboardService
         };
     }
 
-    private function resolveCrmData(string $query, array $params): mixed
+    private function resolveCrmData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'kpi_active_leads' => [
                 'value'  => DB::table('leads')
-                    ->where('tenant_id', $params['tenant_id'] ?? 1)
+                    ->where('tenant_id', $tenantId)
                     ->whereNotIn('status', ['lost', 'converted'])
                     ->count(),
                 'label'  => 'Leads actifs',
@@ -315,7 +323,7 @@ class DashboardService
         };
     }
 
-    private function resolveGenericData(string $query, array $params): mixed
+    private function resolveGenericData(string $query, array $params, int $tenantId): mixed
     {
         if (empty($query)) {
             return [];
@@ -323,7 +331,6 @@ class DashboardService
 
         // Allow simple SELECT queries passed directly as data_source.query
         if (preg_match('/^\s*SELECT\s/i', $query)) {
-            $tenantId = $params['tenant_id'] ?? 1;
             return DB::select($query . ' LIMIT 100', ['tenant_id' => $tenantId]);
         }
 

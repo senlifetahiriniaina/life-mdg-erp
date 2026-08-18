@@ -3,7 +3,14 @@
 namespace Modules\Strategy\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Strategy\Models\Ratio;
+use Modules\Strategy\Models\StrategyKpi;
+use Modules\Strategy\Models\StrategyObjective;
+use Modules\Strategy\Policies\RatioPolicy;
+use Modules\Strategy\Policies\StrategyKpiPolicy;
+use Modules\Strategy\Policies\StrategyObjectivePolicy;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -26,7 +33,25 @@ class StrategyServiceProvider extends ServiceProvider
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
+        $this->registerPolicies();
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+    }
+
+    /**
+     * Chantier 8.6: RatioPolicy/StrategyKpiPolicy/StrategyObjectivePolicy were
+     * all fully and correctly written but never registered with the Gate —
+     * Modules-namespaced policies don't auto-discover the way App\Policies
+     * ones do (same precedent as Core/BI/HR/Payroll). This was actively
+     * breaking StrategyObjectiveLinkController's 7 endpoints, all of which
+     * call $this->authorize(...) against StrategyObjective: an unconditional
+     * 403 for every non-super-admin user, since Gate::before only bypasses
+     * for super-admin and the policy itself was invisible to the Gate.
+     */
+    private function registerPolicies(): void
+    {
+        Gate::policy(Ratio::class, RatioPolicy::class);
+        Gate::policy(StrategyKpi::class, StrategyKpiPolicy::class);
+        Gate::policy(StrategyObjective::class, StrategyObjectivePolicy::class);
     }
 
     /**

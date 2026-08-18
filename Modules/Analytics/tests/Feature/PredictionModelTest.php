@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\User;
 use Modules\Analytics\Models\PredictionModel;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PredictionModelTest extends TestCase
@@ -31,6 +32,14 @@ class PredictionModelTest extends TestCase
             Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
+
+        // Modules/Analytics/routes/api.php's v1/analytics group is gated by the
+        // `role:` middleware (Chantier 8's Analytics pass) on top of the
+        // per-resource permissions granted above — assign a role so the route
+        // itself is reachable; the Policy checks above still enforce the real
+        // per-permission/per-company authorization.
+        Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        $this->user->assignRole('employee');
     }
 
     public function test_list_prediction_models(): void

@@ -15,7 +15,7 @@ class RitualController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = $this->tenantId($request);
 
         $rituals = StrategyRitual::where('tenant_id', $tenantId)
             ->withCount('sessions')
@@ -38,7 +38,7 @@ class RitualController extends Controller
             'is_active'      => 'nullable|boolean',
         ]);
 
-        $tenantId = $request->header('X-Tenant-Id', 'default');
+        $tenantId = $this->tenantId($request);
         $ritual   = $this->service->createRitual($tenantId, $validated);
 
         return response()->json($ritual, 201);
@@ -97,11 +97,20 @@ class RitualController extends Controller
 
     public function upcoming(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = $this->tenantId($request);
         $days     = $request->integer('days', 30);
 
         $sessions = $this->service->getUpcoming($tenantId, $days);
 
         return response()->json($sessions);
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', ...) — see
+     * StrategyPlanController::tenantId() for the full rationale.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

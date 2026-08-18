@@ -7,6 +7,7 @@ use App\Models\User;
 use Modules\Analytics\Models\Recommendation;
 use Modules\Analytics\Models\RecommendationModel;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class RecommendationTest extends TestCase
@@ -33,6 +34,14 @@ class RecommendationTest extends TestCase
             Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             $this->user->givePermissionTo($perm);
         }
+
+        // Modules/Analytics/routes/api.php's v1/analytics group is gated by the
+        // `role:` middleware (Chantier 8's Analytics pass) on top of the
+        // per-resource permissions granted above — assign a role so the route
+        // itself is reachable; the Policy checks above still enforce the real
+        // per-permission/per-company authorization.
+        Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        $this->user->assignRole('employee');
 
         $this->recommendationModel = RecommendationModel::factory()
             ->for($this->company)

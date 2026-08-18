@@ -7,7 +7,7 @@ use Modules\Analytics\Http\Controllers\PredictionController;
 use Modules\Analytics\Http\Controllers\RecommendationController;
 
 // ── Phase 41 : Moteur de prévision IA ──────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/forecasting')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Analytics', 'role:employee,inventory-analyst,manager,admin'])->prefix('v1/forecasting')->group(function () {
     // Modèles de prévision
     Route::get('models', [ForecastingController::class, 'indexModels']);
     Route::post('models', [ForecastingController::class, 'storeModel']);
@@ -46,7 +46,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     Route::get('hr', [ForecastingController::class, 'hrForecast']);
 });
 
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/analytics')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Analytics', 'role:employee,inventory-analyst,manager,admin'])->prefix('v1/analytics')->group(function () {
     // Prediction Models (5 endpoints)
     Route::apiResource('predictions', PredictionController::class)
         ->parameters(['predictions' => 'prediction_model']);
@@ -58,7 +58,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     // recommendations/{recommendation} — otherwise the wildcard route
     // greedily matches "for-user" as a model id and 404s on binding failure.
     Route::get('recommendations/for-user', [RecommendationController::class, 'forUser']);
-    Route::apiResource('recommendations', RecommendationController::class);
+    // NOTE: Recommendations are ML-generated, not hand-edited/deleted via generic
+    // REST verbs — act()/dismiss() below already cover the real user actions, so
+    // the apiResource is restricted to index/store/show. Registering update/destroy
+    // here would 500 with "Call to undefined method" since the controller never
+    // implemented them.
+    Route::apiResource('recommendations', RecommendationController::class)->only(['index', 'store', 'show']);
     Route::post('recommendations/{recommendation}/act', [RecommendationController::class, 'act']);
     Route::post('recommendations/{recommendation}/dismiss', [RecommendationController::class, 'dismiss']);
 

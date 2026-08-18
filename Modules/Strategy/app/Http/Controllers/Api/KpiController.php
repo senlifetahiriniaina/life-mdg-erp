@@ -14,7 +14,7 @@ class KpiController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = $this->tenantId($request);
 
         $kpis = StrategyKpi::forTenant($tenantId)
             ->with('latest')
@@ -26,6 +26,8 @@ class KpiController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', StrategyKpi::class);
+
         $validated = $request->validate([
             'name'               => 'required|string|max:255',
             'description'        => 'nullable|string',
@@ -43,7 +45,7 @@ class KpiController extends Controller
             'is_public'          => 'nullable|boolean',
         ]);
 
-        $tenantId = $request->header('X-Tenant-Id', 'default');
+        $tenantId = $this->tenantId($request);
         $validated['tenant_id'] = $tenantId;
 
         $kpi = StrategyKpi::create($validated);
@@ -53,6 +55,10 @@ class KpiController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
+        $kpi = StrategyKpi::findOrFail($id);
+
+        $this->authorize('update', $kpi);
+
         $validated = $request->validate([
             'name'               => 'sometimes|string|max:255',
             'description'        => 'nullable|string',
@@ -65,7 +71,6 @@ class KpiController extends Controller
             'frequency'          => 'nullable|in:realtime,daily,weekly,monthly',
         ]);
 
-        $kpi = StrategyKpi::findOrFail($id);
         $kpi->update($validated);
 
         return response()->json($kpi->fresh());
@@ -73,7 +78,11 @@ class KpiController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        StrategyKpi::findOrFail($id)->delete();
+        $kpi = StrategyKpi::findOrFail($id);
+
+        $this->authorize('delete', $kpi);
+
+        $kpi->delete();
 
         return response()->json(['message' => 'KPI deleted.']);
     }
@@ -97,5 +106,14 @@ class KpiController extends Controller
     public function sources(): JsonResponse
     {
         return response()->json($this->service->getAvailableSources());
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', ...) — see
+     * StrategyPlanController::tenantId() for the full rationale.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

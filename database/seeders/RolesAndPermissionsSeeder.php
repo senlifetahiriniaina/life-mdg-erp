@@ -275,6 +275,20 @@ class RolesAndPermissionsSeeder extends Seeder
         'core.customfield.export', 'core.customfield.archive',
     ];
 
+    // Chantier 8.6 (Strategy): StrategyKpiPolicy checks strategy.kpi.{create,
+    // update,delete} (StrategyKpiPolicy::create/update/delete) -- 'kpi' isn't
+    // in MODULES['strategy'] at all (only ratio/objective/plan), so it was
+    // never seeded and every non-admin/non-finance-manager KPI mutation
+    // silently failed. RatioPolicy's strategy.ratio.* and
+    // StrategyObjectivePolicy's strategy.objective.* are already covered by
+    // MODULES['strategy'] => ['ratio', 'objective', 'plan'] below, so only
+    // 'kpi' needs an extra block here, same reasoning as
+    // LOGISTICS_EXTRA_PERMISSIONS' single missing 'deliveryround' resource.
+    private const STRATEGY_EXTRA_PERMISSIONS = [
+        'strategy.kpi.view-any', 'strategy.kpi.view', 'strategy.kpi.create',
+        'strategy.kpi.update', 'strategy.kpi.delete',
+    ];
+
     private const MODULES = [
         'crm'              => ['contact', 'lead', 'opportunity', 'account', 'activity', 'pipeline'],
         'security'         => ['incident', 'audit', 'compliance', 'encryption', 'threat', 'identity', 'zone'],
@@ -377,6 +391,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::AUDITLOG_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::STRATEGY_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

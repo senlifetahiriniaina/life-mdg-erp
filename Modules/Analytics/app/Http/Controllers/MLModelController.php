@@ -81,6 +81,8 @@ class MLModelController extends Controller
 
     public function versions(Request $request, MLModel $mlModel): JsonResponse
     {
+        $this->authorize('view', $mlModel);
+
         $versions = $mlModel->versions()
             ->with(['metrics', 'createdBy'])
             ->orderByDesc('created_at')
@@ -142,6 +144,8 @@ class MLModelController extends Controller
 
     public function abTests(Request $request, MLModel $mlModel): JsonResponse
     {
+        $this->authorize('view', $mlModel);
+
         $query = $mlModel->abTests()
             ->with(['controlVersion', 'variantVersion', 'createdBy']);
 

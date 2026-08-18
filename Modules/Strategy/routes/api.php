@@ -12,7 +12,13 @@ use Modules\Strategy\Http\Controllers\Api\StrategyObjectiveLinkController;
 use Modules\Strategy\Http\Controllers\Api\RatioController;
 use Modules\Strategy\Http\Controllers\Api\CascadeController;
 
-Route::prefix('v1/strategy')->middleware('auth:sanctum', 'session.security', 'tenancy.user')->group(function () {
+// Chantier 8.6: this entire group had no module:/role: gate at all — only
+// auth:sanctum, session.security, tenancy.user — the same RBAC hole already
+// fixed in Inventory/Logistics/HR/Setup/etc. `finance-manager` is the role
+// that actually wildcard-matches every `strategy.*` permission in the
+// seeder; `employee`/`manager`/`admin` get every non-delete/every permission
+// respectively by this app's broad role design (see RolesAndPermissionsSeeder).
+Route::prefix('v1/strategy')->middleware('auth:sanctum', 'session.security', 'tenancy.user', 'module:Strategy', 'role:employee,finance-manager,manager,admin')->group(function () {
     // Plans
     Route::apiResource('plans', StrategyPlanController::class);
     Route::get('plans/{id}/tree', [StrategyPlanController::class, 'tree']);
@@ -90,7 +96,7 @@ Route::prefix('v1/strategy')->middleware('auth:sanctum', 'session.security', 'te
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/strategy')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Strategy', 'role:employee,finance-manager,manager,admin'])->prefix('v1/strategy')->group(function () {
     Route::post('ai/assist', [\Modules\Strategy\Http\Controllers\Api\StrategyAiAssistController::class, 'assist'])
         ->name('strategy.ai.assist');
 });

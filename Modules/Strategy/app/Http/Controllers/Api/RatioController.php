@@ -28,7 +28,7 @@ class RatioController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->user()?->tenant_id ?? 'default';
+        $tenantId = $this->tenantId($request);
         $all      = $this->ratioService->allRatiosWithStatus($tenantId);
 
         // Flatten to array with module key
@@ -54,7 +54,7 @@ class RatioController extends Controller
      */
     public function byModule(Request $request, string $module): JsonResponse
     {
-        $tenantId = $request->user()?->tenant_id ?? 'default';
+        $tenantId = $this->tenantId($request);
         $ratios   = $this->ratioService->ratiosForModule(ucfirst($module), $tenantId);
 
         return response()->json([
@@ -106,7 +106,7 @@ class RatioController extends Controller
      */
     public function aiRecommend(Request $request): JsonResponse
     {
-        $tenantId  = $request->user()?->tenant_id ?? 'default';
+        $tenantId  = $this->tenantId($request);
         $locale    = $request->input('locale', 'fr');
         $context   = $request->input('context', []);
 
@@ -122,7 +122,7 @@ class RatioController extends Controller
      */
     public function alerts(Request $request): JsonResponse
     {
-        $tenantId = $request->user()?->tenant_id ?? 'default';
+        $tenantId = $this->tenantId($request);
 
         $alerts = StrategicAlert::forTenant($tenantId)
             ->active()
@@ -163,5 +163,17 @@ class RatioController extends Controller
         }
 
         return $alerts;
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): already used $request->user()?->tenant_id (the
+     * correct, non-client-controlled column) before this pass — extracted into
+     * the same private helper as the other Strategy controllers for
+     * consistency. See StrategyPlanController::tenantId() for the full
+     * rationale on why this column (not X-Tenant-Id) is the right source.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

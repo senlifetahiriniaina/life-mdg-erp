@@ -52,6 +52,20 @@ function createObjective(StrategyPlan $plan, array $overrides = []): StrategyObj
 describe('GET /api/v1/strategy/cascade', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+
+        // Chantier 8.6: the v1/strategy route group now carries a
+        // module:Strategy + role: gate (previously ungated) -- a bare
+        // User::factory()->create() has no role at all and 403s before ever
+        // reaching the controller. Seed the real permission set (same
+        // seed-guard pattern as Setup/HR/Logistics's identical fixes) so
+        // 'employee' carries its real, broad permission set rather than an
+        // empty ad-hoc role.
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        $this->user->assignRole('employee');
+
         $this->actingAs($this->user);
         $this->plan = createPlan($this->user);
     });

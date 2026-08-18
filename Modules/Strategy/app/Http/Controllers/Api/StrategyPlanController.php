@@ -14,7 +14,7 @@ class StrategyPlanController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'));
+        $tenantId = $this->tenantId($request);
 
         $plans = StrategyPlan::forTenant($tenantId)
             ->withCount('objectives')
@@ -36,7 +36,7 @@ class StrategyPlanController extends Controller
             'status'       => 'nullable|in:draft,active,archived',
         ]);
 
-        $tenantId = $request->header('X-Tenant-Id', 'default');
+        $tenantId = $this->tenantId($request);
         $userId   = $request->user()->id;
 
         $plan = $this->service->createPlan($tenantId, $validated, $userId);
@@ -111,5 +111,19 @@ class StrategyPlanController extends Controller
                 'avg_progress'        => round($plan->objectives->avg('progress') ?? 0, 2),
             ],
         ]);
+    }
+
+    /**
+     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'))
+     * — a client-controlled header/query param that let any authenticated user
+     * pass X-Tenant-Id: <victim-tenant> to read/write another company's plans.
+     * The real multi-tenant boundary column is users.tenant_id (string, nullable
+     * — see App\Http\Middleware\InitializeTenancyFromAuthenticatedUser's own
+     * docblock), same fix already applied to Setup's identical bug. No
+     * client-supplied fallback is kept.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
     }
 }

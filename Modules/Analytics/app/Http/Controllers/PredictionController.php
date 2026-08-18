@@ -104,6 +104,8 @@ class PredictionController extends Controller
 
     public function results(Request $request, PredictionModel $predictionModel): JsonResponse
     {
+        $this->authorize('view', $predictionModel);
+
         $query = $predictionModel->results()
             ->with(['predictable']);
 

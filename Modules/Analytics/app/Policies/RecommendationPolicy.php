@@ -19,6 +19,12 @@ class RecommendationPolicy
             || $user->hasRole('admin');
     }
 
+    public function create(User $user): bool
+    {
+        return $user->hasPermissionTo('analytics.recommendation.create')
+            || $user->hasRole('admin');
+    }
+
     public function act(User $user, Recommendation $recommendation): bool
     {
         return $recommendation->status === 'pending'

@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed} from 'vue'
-import { Head, router, usePage} from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import DataTable from 'primevue/datatable'
@@ -128,10 +128,10 @@ import Tag from 'primevue/tag'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const { guidance } = useAiAssistant('Reporting', 'view_dashboard')
 
-const page = usePage()
 const { isAdmin, isElevated } = useRoleAccess()
 const canManage = computed(() => isElevated.value)
 const canCreate = computed(() => canManage.value)
@@ -152,11 +152,14 @@ const loading = ref(false)
 const reports = ref<Report[]>([])
 const filters = reactive({ module: null as string | null })
 
+// Chantier 8 (Reporting): `slug` maps 1:1 onto ReportTemplateSeeder's real,
+// seeded system report slugs (bilan-syscohada-mensuel, etat-des-stocks,
+// balance-agee-clients, synthese-ventes-mensuelle) — see runQuickReport().
 const quickReports = [
-  { id: 'sales_monthly', label: 'Ventes du mois', description: 'CA et commandes du mois en cours', icon: 'pi pi-chart-line', iconBg: 'bg-green-50 dark:bg-green-900/30', iconColor: 'text-green-600' },
-  { id: 'stock_valuation', label: 'Valorisation du stock', description: 'Valeur actuelle de l\'inventaire', icon: 'pi pi-box', iconBg: 'bg-blue-50 dark:bg-blue-900/30', iconColor: 'text-blue-600' },
-  { id: 'aged_receivables', label: 'Balance âgée clients', description: 'Créances en attente par ancienneté', icon: 'pi pi-wallet', iconBg: 'bg-orange-50 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
-  { id: 'ohada_balance', label: 'Bilan OHADA', description: 'Bilan comptable conforme OHADA/SYSCOHADA', icon: 'pi pi-file', iconBg: 'bg-violet-50 dark:bg-violet-900/30', iconColor: 'text-violet-600' },
+  { id: 'sales_monthly', slug: 'synthese-ventes-mensuelle', label: 'Ventes du mois', description: 'CA et commandes du mois en cours', icon: 'pi pi-chart-line', iconBg: 'bg-green-50 dark:bg-green-900/30', iconColor: 'text-green-600' },
+  { id: 'stock_valuation', slug: 'etat-des-stocks', label: 'Valorisation du stock', description: 'Valeur actuelle de l\'inventaire', icon: 'pi pi-box', iconBg: 'bg-blue-50 dark:bg-blue-900/30', iconColor: 'text-blue-600' },
+  { id: 'aged_receivables', slug: 'balance-agee-clients', label: 'Balance âgée clients', description: 'Créances en attente par ancienneté', icon: 'pi pi-wallet', iconBg: 'bg-orange-50 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
+  { id: 'ohada_balance', slug: 'bilan-syscohada-mensuel', label: 'Bilan OHADA', description: 'Bilan comptable conforme OHADA/SYSCOHADA', icon: 'pi pi-file', iconBg: 'bg-violet-50 dark:bg-violet-900/30', iconColor: 'text-violet-600' },
 ]
 
 const moduleOptions = [
@@ -182,13 +185,26 @@ const fetchReports = async () => {
   }
 }
 
+// Chantier 8 (Reporting): this used to POST /api/v1/reporting/generate,
+// which never existed anywhere in Modules/Reporting/routes/api.php — every
+// quick-report tile 404'd. The real, routed analog is
+// POST reporting/reports/{slug}/execute (ReportingController::executeReport),
+// and each quick report's slug maps onto a real, seeded ReportTemplateSeeder
+// system report (see quickReports above).
+const csrfToken = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+
 const runQuickReport = async (quick: typeof quickReports[0]) => {
-  await fetch('/api/v1/reporting/generate', {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ report_type: quick.id }),
-  })
-  fetchReports()
+  try {
+    await fetch(`/api/v1/reporting/reports/${quick.slug}/execute`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+      body: JSON.stringify({ parameters: {} }),
+    })
+  } catch (e) {
+    console.error('Erreur exécution rapport rapide', e)
+  } finally {
+    fetchReports()
+  }
 }
 
 const createReport = () => router.visit('/reporting/create')

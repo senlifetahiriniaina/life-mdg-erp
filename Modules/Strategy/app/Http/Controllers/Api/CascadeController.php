@@ -28,7 +28,7 @@ class CascadeController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->user()?->tenant_id ?? 'default';
+        $tenantId = $this->tenantId($request);
         $planId   = $request->query('plan_id');
 
         $map = $this->cascadeService->getCascadeMap($tenantId);
@@ -49,6 +49,18 @@ class CascadeController extends Controller
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Chantier 8.6 (Strategy): already used $request->user()?->tenant_id (the
+     * correct, non-client-controlled column) before this pass — extracted into
+     * the same private helper as the other Strategy controllers for
+     * consistency. See StrategyPlanController::tenantId() for the full
+     * rationale on why this column (not X-Tenant-Id) is the right source.
+     */
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->tenant_id ?? 'default');
+    }
 
     /**
      * Recursively filter tree nodes to only include those belonging to a plan.

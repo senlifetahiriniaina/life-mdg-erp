@@ -35,7 +35,11 @@ class ReportingService
     public function execute(ReportDefinition $report, array $params, User $user): ReportExecution
     {
         $execution = ReportExecution::create([
-            'tenant_id'            => $user->tenant_id ?? 1,
+            // Chantier 8 (Reporting): was $user->tenant_id ?? 1 — users.tenant_id
+            // is never populated in practice (see ReportingController::tenantId()'s
+            // docblock), so every execution was silently attributed to tenant 1.
+            // company_id is the real multi-tenant boundary column.
+            'tenant_id'            => $user->company_id ?? 0,
             'report_definition_id' => $report->id,
             'executed_by'          => $user->id,
             'parameters'           => $params,
@@ -73,7 +77,7 @@ class ReportingService
     public function schedule(ReportDefinition $report, array $config): ReportSchedule
     {
         return ReportSchedule::create([
-            'tenant_id'            => $report->tenant_id ?? ($config['tenant_id'] ?? 1),
+            'tenant_id'            => $report->tenant_id ?? ($config['tenant_id'] ?? 0),
             'report_definition_id' => $report->id,
             'name'                 => $config['name'] ?? $report->name,
             'frequency'            => $config['frequency'] ?? 'daily',
@@ -95,8 +99,10 @@ class ReportingService
     {
         $template = $report->query_template;
 
-        // Always inject tenant_id automatically for multi-tenant safety
-        $tenantId = $user->tenant_id ?? 1;
+        // Always inject tenant_id automatically for multi-tenant safety.
+        // Chantier 8 (Reporting): was $user->tenant_id ?? 1 — see
+        // ReportingController::tenantId()'s docblock.
+        $tenantId = $user->company_id ?? 0;
 
         // Replace {{tenant_id}} placeholder
         $template = str_replace('{{tenant_id}}', '?', $template, $count);

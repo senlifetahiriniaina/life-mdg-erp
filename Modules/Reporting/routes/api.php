@@ -6,7 +6,15 @@ use Illuminate\Support\Facades\Route;
 use Modules\Reporting\Http\Controllers\Api\ReportingController;
 // Note: all routes handled by a single controller — OHADA, NL-SQL, Dashboards, Widgets
 
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Reporting'])->prefix('v1')->group(function () {
+// Chantier 8 (Reporting): the module gate had no role tier at all — any
+// authenticated user of any module-enabled tenant could reach every
+// endpoint. employee/manager/admin are the only roles the real seeder
+// (RolesAndPermissionsSeeder) grants `reporting.*` permissions to (no
+// specialised role — finance-manager, sales-manager, inventory-analyst —
+// is seeded with `reporting.*`, only `bi.`/`accounting.`/`crm.`/
+// `inventory.`/`analytics.` prefixes), so this gate matches what's
+// actually granted rather than inventing new seeder permissions.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Reporting', 'role:employee,manager,admin'])->prefix('v1')->group(function () {
 
     // ─── Report Definitions (CRUD) ─────────────────────────────────────────────
     Route::get('reporting/reports', [ReportingController::class, 'listReports'])

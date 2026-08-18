@@ -35,6 +35,8 @@ class RecommendationController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Recommendation::class);
+
         $validated = $request->validate([
             'recommendation_model_id' => 'required|exists:recommendation_models,id',
             'recipient_type' => 'required|string',
