@@ -3,60 +3,31 @@
 namespace Modules\Projects\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use App\Models\User;
+use Modules\Projects\Models\Project;
 use Modules\Projects\Models\ProjectRisk;
 
 class ProjectRiskFactory extends Factory
 {
     protected $model = ProjectRisk::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
+        $level = fake()->randomElement(['low', 'medium', 'high']);
+        $scoreMap = ['low' => 1, 'medium' => 2, 'high' => 3];
+
         return [
-                        'project_id' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'probability' => fake()->word(),
-            'impact' => fake()->word(),
-            'probability_score' => fake()->word(),
-            'impact_score' => fake()->word(),
-            'mitigation_plan' => fake()->word(),
-            'owner_id' => fake()->word(),
-            'due_date' => fake()->dateTime(),
-            'name' => fake()->word(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'project_id' => Project::factory(),
+            'title' => fake()->sentence(6),
+            'description' => fake()->optional()->paragraph(),
+            'status' => fake()->randomElement(['open', 'in_review', 'mitigated', 'closed']),
+            'probability' => $level,
+            'impact' => $level,
+            'probability_score' => $scoreMap[$level],
+            'impact_score' => $scoreMap[$level],
+            'mitigation_plan' => fake()->optional()->sentence(),
+            'owner_id' => User::factory(),
+            'due_date' => fake()->optional()->dateTimeBetween('now', '+6 months'),
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
     }
 }

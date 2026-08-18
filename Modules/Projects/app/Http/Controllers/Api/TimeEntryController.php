@@ -28,6 +28,14 @@ use Modules\Projects\Models\Task;
  * storage — ProjectTeamController only supports create+list+stop for time
  * logs, not show/update/destroy of an individual entry, so this
  * task-scoped CRUD is real, additive functionality, not a duplicate.
+ *
+ * Every method below must type-hint every route-bound model
+ * (Project $project included, even where the body never reads it) —
+ * omitting one causes Laravel's implicit route-model binding to fail to
+ * resolve any of the others on this 3-segment
+ * projects/{project}/tasks/{task}/time-entries/{timeEntry} route, throwing
+ * a raw TypeError instead of a 404. Confirmed empirically while fixing the
+ * broken TimeLog model bug above.
  */
 class TimeEntryController extends Controller
 {
@@ -36,7 +44,7 @@ class TimeEntryController extends Controller
      *
      * @urlParam task int required The task ID. Example: 1
      */
-    public function index(Request $request, Task $task): JsonResponse
+    public function index(Request $request, Project $project, Task $task): JsonResponse
     {
         $entries = ProjectTimeLog::with('user:id,name,email')
             ->where('task_id', $task->id)
@@ -86,7 +94,7 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function show(Task $task, ProjectTimeLog $timeEntry): JsonResponse
+    public function show(Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
@@ -101,7 +109,7 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function update(Request $request, Task $task, ProjectTimeLog $timeEntry): JsonResponse
+    public function update(Request $request, Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
@@ -131,7 +139,7 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function destroy(Request $request, Task $task, ProjectTimeLog $timeEntry): JsonResponse
+    public function destroy(Request $request, Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
         if ($timeEntry->task_id !== $task->id) {
             abort(404);

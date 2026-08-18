@@ -4,40 +4,22 @@ namespace Modules\Projects\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Projects\Models\Milestone;
+use Modules\Projects\Models\Project;
 
 class MilestoneFactory extends Factory
 {
     protected $model = Milestone::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
+        $isReached = fake()->boolean(40);
+
         return [
-                        'project_id' => fake()->word(),
-            'name' => fake()->word(),
-            'due_date' => fake()->dateTime(),
-            'is_reached' => fake()->word(),
-            'reached_at' => fake()->word(),
+            'project_id' => Project::factory(),
+            'name' => fake()->sentence(3),
+            'due_date' => fake()->dateTimeBetween('-1 month', '+3 months'),
+            'is_reached' => $isReached,
+            'reached_at' => $isReached ? fake()->dateTimeBetween('-1 month', 'now') : null,
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
     }
 }

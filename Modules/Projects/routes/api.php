@@ -191,7 +191,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 // (ProjectAdvancedController::index/store/show/gantt/storeTask/updateTask are
 // deliberately NOT routed here — they collide with the already-active
 // ProjectController/GanttController/TaskController on the same paths.)
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/projects')->group(function () {
+// Chantier 8.4: was missing module:Projects/role: gating entirely — every
+// other Projects route group has it. Any authenticated user of any
+// tenant/role could read any project's budget/KPI/risk data.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Projects', 'role:employee,manager,admin'])->prefix('v1/projects')->group(function () {
     // Static "portfolio/..." routes MUST be registered before "{id}/..." below,
     // otherwise {id} greedily captures "portfolio" as a project id.
     Route::get('portfolio/kpis', [\Modules\Projects\Http\Controllers\Api\ProjectAdvancedController::class, 'portfolioKpis'])

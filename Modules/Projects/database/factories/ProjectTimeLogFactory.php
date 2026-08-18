@@ -3,45 +3,30 @@
 namespace Modules\Projects\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use App\Models\User;
+use Modules\Projects\Models\Project;
 use Modules\Projects\Models\ProjectTimeLog;
+use Modules\Projects\Models\Task;
 
 class ProjectTimeLogFactory extends Factory
 {
     protected $model = ProjectTimeLog::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
+        $startedAt = fake()->dateTimeBetween('-1 month', 'now');
+        $durationMinutes = fake()->numberBetween(15, 480);
+
         return [
-                        'project_id' => fake()->word(),
-            'task_id' => fake()->word(),
-            'user_id' => fake()->word(),
-            'started_at' => fake()->word(),
-            'ended_at' => fake()->word(),
-            'duration_minutes' => fake()->word(),
-            'description' => fake()->text(),
-            'billable' => fake()->word(),
-            'hourly_rate' => fake()->word(),
+            'project_id' => Project::factory(),
+            'task_id' => Task::factory(),
+            'user_id' => User::factory(),
+            'started_at' => $startedAt,
+            'ended_at' => (clone $startedAt)->modify("+{$durationMinutes} minutes"),
+            'duration_minutes' => $durationMinutes,
+            'description' => fake()->optional()->sentence(),
+            'billable' => fake()->boolean(60),
+            'hourly_rate' => fake()->randomFloat(2, 10, 150),
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
     }
 }
