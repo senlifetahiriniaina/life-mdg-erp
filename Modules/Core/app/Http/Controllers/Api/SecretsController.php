@@ -106,6 +106,14 @@ class SecretsController extends Controller
     public function show(Request $request, string $name): JsonResponse
     {
         try {
+            // Chantier 10: canAccessSecret() existed (admin/super-admin bypass,
+            // else an explicit SecretAccessGrant with the 'read' scope) but was
+            // never called by this controller — wired in now, on top of the
+            // route-level role: gate added the same pass.
+            if (!$this->accessControl->canAccessSecret($request->user()?->id, $name, 'read')) {
+                return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            }
+
             $value = $this->secretsService->retrieveSecret($name);
 
             return response()->json([
@@ -178,6 +186,10 @@ class SecretsController extends Controller
     public function rotate(Request $request, string $name): JsonResponse
     {
         try {
+            if (!$this->accessControl->canAccessSecret($request->user()?->id, $name, 'rotate')) {
+                return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            }
+
             $validated = $request->validate([
                 'new_value' => 'nullable|string',
             ]);
@@ -224,6 +236,10 @@ class SecretsController extends Controller
     public function destroy(Request $request, string $name): JsonResponse
     {
         try {
+            if (!$this->accessControl->canAccessSecret($request->user()?->id, $name, 'revoke')) {
+                return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            }
+
             $this->secretsService->revokeSecret($name);
 
             return response()->json([

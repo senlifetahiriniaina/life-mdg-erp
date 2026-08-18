@@ -24,7 +24,13 @@ class WorkflowScheduleController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->user()?->tenant_id ?? 1;
+        // Chantier 10: was $request->user()?->tenant_id ?? 1 — the
+        // well-documented phantom column, collapsing every tenant's
+        // scheduled flows into one shared bucket. Fixed to the real tenant
+        // boundary column, company_id (automation_flows.tenant_id is a real
+        // integer column, unlike Security/Integration/Secrets' string(36)
+        // leftover — no cast needed here).
+        $tenantId = (int) ($request->user()?->company_id ?? 0);
 
         $flows = AutomationFlow::query()
             ->where('tenant_id', $tenantId)

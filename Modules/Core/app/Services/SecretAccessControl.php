@@ -57,11 +57,13 @@ class SecretAccessControl
                 return true;
             }
 
-            // Secrets stored by a user with no explicit tenant_id land under
-            // the string 'default' (SecretsService::getTenantId()'s own
-            // fallback) — mirror that here, or a null tenant_id would never
-            // match and every such secret would be invisible to its owner.
-            $tenantId = $user->tenant_id ?? 'default';
+            // Chantier 10: SecretsService::getTenantId() no longer resolves
+            // to the phantom 'default' string via a spoofable X-Tenant-ID
+            // header — it resolves to the real tenant boundary, company_id
+            // (cast to string, since core_secrets.tenant_id is string(36)).
+            // Mirrored here so lookups match what secrets are actually
+            // stored under.
+            $tenantId = (string) ($user->company_id ?? '0');
 
             // Get secret
             $secret = Secret::where('tenant_id', $tenantId)
@@ -242,8 +244,8 @@ class SecretAccessControl
                 return collect();
             }
 
-            // Same 'default'-fallback mismatch as canAccessSecret() above.
-            $tenantId = $user->tenant_id ?? 'default';
+            // Chantier 10: same phantom-tenant_id fix as canAccessSecret() above.
+            $tenantId = (string) ($user->company_id ?? '0');
 
             // Get explicit grants
             $secretIds = SecretAccessGrant::where('user_id', $userId)
@@ -492,10 +494,13 @@ class SecretAccessControl
     /**
      * Get the current tenant ID
      *
+     * Chantier 10: same client-controlled-header-fallback cross-tenant bug
+     * fixed in SecretsService::getTenantId() — fixed identically here.
+     *
      * @return string
      */
     private function getTenantId(): string
     {
-        return auth()->user()?->tenant_id ?? request()->header('X-Tenant-ID', 'default');
+        return (string) (auth()->user()?->company_id ?? '0');
     }
 }

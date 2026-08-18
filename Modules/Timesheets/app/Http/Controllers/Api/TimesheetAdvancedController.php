@@ -134,7 +134,12 @@ class TimesheetAdvancedController extends Controller
         abort_unless($employeeId, 422, 'This user has no linked employee record.');
 
         $period = TimesheetPeriod::create([
-            'tenant_id'    => $request->user()?->tenant_id,
+            // Chantier 10: was $request->user()?->tenant_id — the phantom
+            // column (real, migrated, never in User::$fillable, never
+            // populated by the real registration flow) that has caused real
+            // cross-tenant leaks fixed repeatedly this session. The real
+            // tenant boundary is users.company_id.
+            'tenant_id'    => $request->user()?->company_id,
             'employee_id'  => $employeeId,
             'period_start' => $validated['period_start'],
             'period_end'   => $validated['period_end'],
@@ -201,7 +206,8 @@ class TimesheetAdvancedController extends Controller
         $period = TimesheetPeriod::firstOrCreate(
             ['employee_id' => $employeeId, 'period_start' => $weekStart],
             [
-                'tenant_id'      => $request->user()?->tenant_id ?? 1,
+                // Chantier 10: phantom-column fix, see storeSheet() above.
+                'tenant_id'      => $request->user()?->company_id ?? 0,
                 'period_end'     => $weekEnd,
                 'total_hours'    => 0,
                 'billable_hours' => 0,
@@ -384,7 +390,8 @@ class TimesheetAdvancedController extends Controller
     {
         $from     = $request->query('from', now()->startOfMonth()->format('Y-m-d'));
         $to       = $request->query('to',   now()->endOfMonth()->format('Y-m-d'));
-        $tenantId = $request->user()?->tenant_id ?? 1;
+        // Chantier 10: phantom-column fix, see storeSheet() above.
+        $tenantId = $request->user()?->company_id ?? 0;
 
         try {
             $stats = TimesheetEntry::where('tenant_id', $tenantId)
@@ -433,7 +440,12 @@ class TimesheetAdvancedController extends Controller
     public function revenueRecognition(Request $request): JsonResponse
     {
         $period    = $request->query('period', now()->format('Y-m'));
-        $companyId = (int) $request->query('company_id', $request->user()?->tenant_id ?? 1);
+        // Chantier 10: was client-controlled — any authenticated user could
+        // pass ?company_id=<victim> to read another company's revenue
+        // recognition data (an IDOR on top of the same phantom-column bug
+        // fixed elsewhere in this file). Dropped the query override; the
+        // caller's own company_id is now the only source.
+        $companyId = (int) ($request->user()?->company_id ?? 0);
 
         $data = $this->billingService->getRevenueRecognition($companyId, $period);
 

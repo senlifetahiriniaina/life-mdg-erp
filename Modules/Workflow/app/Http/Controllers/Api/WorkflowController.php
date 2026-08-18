@@ -404,9 +404,16 @@ class WorkflowController extends Controller
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * Chantier 10: was `$request->user()->tenant_id ?? $request->user()->id ?? 1`
+     * — the phantom tenant_id column, collapsing every tenant's workflow
+     * definitions into a shared bucket keyed by whichever user happened to
+     * hit the endpoint first (or literal tenant 1). Fixed to the real
+     * tenant boundary, company_id.
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()->tenant_id ?? $request->user()->id ?? 1);
+        return (int) ($request->user()->company_id ?? 0);
     }
 
     private function moduleFromTrigger(string $triggerKey): string

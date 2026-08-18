@@ -27,7 +27,15 @@ class AdminModulesController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        // Chantier 10: was `tenant_id ?? 'default'` — the phantom tenant_id
+        // column (see SetupController::tenantId()'s docblock in this same
+        // module for the full "Chantier 10 correction" reasoning — a repo-
+        // wide grep of every user-creation path confirms tenant_id is never
+        // populated), so every admin landed in the same shared 'default'
+        // module-config bucket regardless of real company. Fixed to the
+        // real tenant boundary, company_id (cast to string —
+        // ModuleManagerService keys on a string tenant id).
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $modules = $this->moduleManager->getAll($tenantId);
 
@@ -47,7 +55,15 @@ class AdminModulesController extends Controller
             'is_active' => 'required|boolean',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        // Chantier 10: was `tenant_id ?? 'default'` — the phantom tenant_id
+        // column (see SetupController::tenantId()'s docblock in this same
+        // module for the full "Chantier 10 correction" reasoning — a repo-
+        // wide grep of every user-creation path confirms tenant_id is never
+        // populated), so every admin landed in the same shared 'default'
+        // module-config bucket regardless of real company. Fixed to the
+        // real tenant boundary, company_id (cast to string —
+        // ModuleManagerService keys on a string tenant id).
+        $tenantId = (string) ($request->user()->company_id ?? 0);
         $userId   = $request->user()->id;
 
         try {
@@ -89,7 +105,15 @@ class AdminModulesController extends Controller
             'action'    => 'required|in:activate,deactivate',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        // Chantier 10: was `tenant_id ?? 'default'` — the phantom tenant_id
+        // column (see SetupController::tenantId()'s docblock in this same
+        // module for the full "Chantier 10 correction" reasoning — a repo-
+        // wide grep of every user-creation path confirms tenant_id is never
+        // populated), so every admin landed in the same shared 'default'
+        // module-config bucket regardless of real company. Fixed to the
+        // real tenant boundary, company_id (cast to string —
+        // ModuleManagerService keys on a string tenant id).
+        $tenantId = (string) ($request->user()->company_id ?? 0);
         $userId   = $request->user()->id;
 
         try {

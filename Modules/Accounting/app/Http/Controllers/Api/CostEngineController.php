@@ -308,8 +308,12 @@ class CostEngineController extends Controller
 
     private function resolveTenantId(Request $request): int
     {
-        // Multi-tenant: resolve from user's tenant or query param for super-admin
-        $user = $request->user();
-        return (int) ($user?->tenant_id ?? $request->query('tenant_id', 1));
+        // Chantier 10 fix: this previously fell back to a client-controlled ?tenant_id=
+        // query parameter (default 1) whenever the phantom users.tenant_id column was null
+        // (the common case) — any authenticated user could read/write another tenant's cost
+        // engine data just by changing the query string. company_id is the real tenant
+        // boundary column (see App\Http\Middleware\InitializeTenancyFromAuthenticatedUser),
+        // and there is no legitimate client-supplied override.
+        return (int) ($request->user()?->company_id ?? 0);
     }
 }

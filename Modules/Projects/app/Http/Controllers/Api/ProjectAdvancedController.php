@@ -7,10 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\DB;
-use Modules\Projects\Models\Project;
 use Modules\Projects\Models\ProjectRisk;
-use Modules\Projects\Models\ProjectTask;
 use Modules\Projects\Services\GanttService;
 use Modules\Projects\Services\ProjectBudgetService;
 use Modules\Projects\Services\ProjectKpiService;
@@ -18,16 +15,11 @@ use Modules\Projects\Services\ProjectKpiService;
 /**
  * ProjectAdvancedController — Phase 49 advanced project management endpoints.
  *
- * Routes:
- *   GET    /api/v1/projects                    — list
- *   POST   /api/v1/projects                    — create
- *   GET    /api/v1/projects/{id}               — detail
- *   GET    /api/v1/projects/{id}/gantt         — Gantt data
+ * Routes actually registered (routes/api.php — see the class-level comment
+ * below for what was deliberately removed and why):
  *   GET    /api/v1/projects/{id}/budget        — budget + EVM
  *   GET    /api/v1/projects/{id}/kpis          — project KPIs
  *   GET    /api/v1/projects/{id}/risks         — risks
- *   POST   /api/v1/projects/{id}/tasks         — create task
- *   PUT    /api/v1/projects/{id}/tasks/{taskId}— update task
  *   GET    /api/v1/projects/portfolio/kpis     — portfolio KPIs
  *   GET    /api/v1/projects/portfolio/timeline — portfolio timeline
  *   GET    /api/v1/projects/portfolio/resources— resource heatmap
@@ -41,110 +33,24 @@ class ProjectAdvancedController extends Controller
     ) {}
 
     // -------------------------------------------------------------------------
-    // Project CRUD
+    // Chantier 10: index()/store()/show()/gantt()/storeTask()/updateTask()
+    // were deleted from this controller. routes/api.php's own comment already
+    // documented they were deliberately never routed (they collide with the
+    // real, live ProjectController/TaskController/GanttController on the
+    // same paths), so they were 100% dead code — and dead code, not just
+    // redundant: store() wrote tenant_id from
+    // $request->user()?->tenant_id ?? $request->header('X-Tenant-ID', 1), the
+    // same client-controlled-header IDOR pattern already fixed elsewhere in
+    // this app (Setup's original 8.5sv vulnerability), and index()'s
+    // tenant_id filter was entirely client-supplied with no scoping to the
+    // caller's own company at all. Left as dead code it was a landmine for
+    // whoever next un-collided the routes without re-auditing it; deleted
+    // instead, matching this session's established dead-code-with-real-bugs
+    // precedent (CRM's TerritoryManagementController, Logistics' wh_*/lgx_*,
+    // Achats' PurchaseApprovalChainService, Workflow's legacy route block).
+    // The real CRUD (ProjectController::index/store/show/update/destroy,
+    // TaskController::store/update) is unaffected and remains the only path.
     // -------------------------------------------------------------------------
-
-    /**
-     * GET /api/v1/projects
-     * Filter by: status, type, client_id
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $query = Project::query()->with(['milestones', 'teamMembers']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-        if ($request->filled('client_id')) {
-            $query->byClient((int) $request->client_id);
-        }
-
-        // Tenant isolation
-        if ($request->filled('tenant_id')) {
-            $query->where('tenant_id', $request->tenant_id);
-        }
-
-        $projects = $query->orderByDesc('created_at')->paginate(20);
-
-        return response()->json([
-            'data' => $projects->items(),
-            'meta' => [
-                'total'        => $projects->total(),
-                'current_page' => $projects->currentPage(),
-                'last_page'    => $projects->lastPage(),
-            ],
-        ]);
-    }
-
-    /**
-     * POST /api/v1/projects
-     */
-    public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'name'           => 'required|string|max:255',
-            'description'    => 'nullable|string',
-            'status'         => 'nullable|string|in:draft,active,in_progress,completed,cancelled,on_hold',
-            'type'           => 'nullable|string',
-            'start_date'     => 'nullable|date',
-            'end_date'       => 'nullable|date|after_or_equal:start_date',
-            'budget'         => 'nullable|numeric|min:0',
-            'contract_value' => 'nullable|numeric|min:0',
-            'currency'       => 'nullable|string|size:3',
-            'client_id'      => 'nullable|integer',
-            'is_billable'    => 'nullable|boolean',
-        ]);
-
-        $validated['owner_id']  = $request->user()?->id ?? 1;
-        $validated['tenant_id'] = $request->user()?->tenant_id ?? $request->header('X-Tenant-ID', 1);
-        $validated['currency']  ??= 'XOF';
-        $validated['status']    ??= 'draft';
-
-        $project = Project::create($validated);
-
-        return response()->json([
-            'data'    => $project->fresh(),
-            'message' => 'Project created successfully',
-        ], 201);
-    }
-
-    /**
-     * GET /api/v1/projects/{id}
-     */
-    public function show(int $id): JsonResponse
-    {
-        $project = Project::with(['milestones', 'tasks', 'teamMembers', 'risks', 'budgetLines'])
-            ->find($id);
-
-        if (! $project) {
-            return response()->json(['error' => 'Project not found'], 404);
-        }
-
-        return response()->json([
-            'data' => array_merge($project->toArray(), [
-                'health_color'    => $project->health_color,
-                'completion_rate' => $project->completion_rate,
-                'budget_variance' => $project->budget_variance,
-            ]),
-        ]);
-    }
-
-    // -------------------------------------------------------------------------
-    // Gantt
-    // -------------------------------------------------------------------------
-
-    /**
-     * GET /api/v1/projects/{id}/gantt
-     */
-    public function gantt(int $id): JsonResponse
-    {
-        $data = $this->ganttService->getGanttData($id);
-
-        return response()->json(['data' => $data]);
-    }
 
     // -------------------------------------------------------------------------
     // Budget & EVM
@@ -212,81 +118,15 @@ class ProjectAdvancedController extends Controller
     }
 
     // -------------------------------------------------------------------------
-    // Tasks
+    // Chantier 10: storeTask()/updateTask() were deleted — beyond being
+    // unreachable dead code (see the class-level note above), both called
+    // ProjectTask::create()/ProjectTask::where(...), a model Chantier 8.4
+    // already deleted outright ("100% redundant — duplicate of Task"). These
+    // two methods were referencing a class that has not existed in this repo
+    // since that chantier — guaranteed fatal Error::class-not-found, not
+    // just unreachable. The real path is TaskController::store()/update()
+    // (project-scoped via projects/{project}/tasks and tasks/{task}).
     // -------------------------------------------------------------------------
-
-    /**
-     * POST /api/v1/projects/{id}/tasks
-     */
-    public function storeTask(Request $request, int $id): JsonResponse
-    {
-        $validated = $request->validate([
-            'title'           => 'required|string|max:255',
-            'description'     => 'nullable|string',
-            'status'          => 'nullable|string',
-            'priority'        => 'nullable|string|in:low,medium,high,urgent',
-            'type'            => 'nullable|string',
-            'milestone_id'    => 'nullable|integer',
-            'assignee_id'     => 'nullable|integer',
-            'start_date'      => 'nullable|date',
-            'due_date'        => 'nullable|date',
-            'estimated_hours' => 'nullable|integer|min:0',
-            'dependencies'    => 'nullable|array',
-            'is_critical_path'=> 'nullable|boolean',
-        ]);
-
-        $validated['project_id'] = $id;
-        $validated['created_by'] = $request->user()?->id ?? 1;
-        $validated['status']     ??= 'todo';
-        $validated['priority']   ??= 'medium';
-
-        $task = ProjectTask::create($validated);
-
-        return response()->json([
-            'data'    => array_merge($task->toArray(), [
-                'status_color' => $task->status_color,
-                'duration_days'=> $task->duration_days,
-            ]),
-            'message' => 'Task created successfully',
-        ], 201);
-    }
-
-    /**
-     * PUT /api/v1/projects/{id}/tasks/{taskId}
-     */
-    public function updateTask(Request $request, int $id, int $taskId): JsonResponse
-    {
-        $task = ProjectTask::where('project_id', $id)->find($taskId);
-
-        if (! $task) {
-            return response()->json(['error' => 'Task not found'], 404);
-        }
-
-        $validated = $request->validate([
-            'title'           => 'sometimes|string|max:255',
-            'description'     => 'nullable|string',
-            'status'          => 'sometimes|string',
-            'priority'        => 'sometimes|string|in:low,medium,high,urgent',
-            'milestone_id'    => 'nullable|integer',
-            'assignee_id'     => 'nullable|integer',
-            'start_date'      => 'nullable|date',
-            'due_date'        => 'nullable|date',
-            'estimated_hours' => 'nullable|integer|min:0',
-            'logged_hours'    => 'nullable|integer|min:0',
-            'dependencies'    => 'nullable|array',
-            'is_critical_path'=> 'nullable|boolean',
-        ]);
-
-        $task->update($validated);
-
-        return response()->json([
-            'data'    => array_merge($task->fresh()->toArray(), [
-                'status_color' => $task->status_color,
-                'duration_days'=> $task->duration_days,
-            ]),
-            'message' => 'Task updated successfully',
-        ]);
-    }
 
     // -------------------------------------------------------------------------
     // Portfolio
@@ -297,7 +137,15 @@ class ProjectAdvancedController extends Controller
      */
     public function portfolioKpis(Request $request): JsonResponse
     {
-        $companyId = (int) $request->query('company_id', $request->user()?->tenant_id ?? 1);
+        // Chantier 10: was $request->user()?->tenant_id ?? 1 with a
+        // client-controlled ?company_id= query override on top — any
+        // authenticated user could pass ?company_id=<victim> to read another
+        // company's portfolio KPIs. tenant_id is also the well-documented
+        // phantom column (never populated by the real registration flow).
+        // Dropped the query override; company_id (the real tenant boundary,
+        // now a real column on prj_projects — see the Chantier 10 migration)
+        // is the only source.
+        $companyId = (int) ($request->user()?->company_id ?? 0);
         $kpis      = $this->kpiService->getPortfolioKpis($companyId);
 
         return response()->json(['data' => $kpis]);
@@ -305,20 +153,35 @@ class ProjectAdvancedController extends Controller
 
     /**
      * GET /api/v1/projects/portfolio/timeline
+     *
+     * Chantier 10: GanttService::getTimelineOverview() did not exist —
+     * guaranteed fatal Error on every call to this routed endpoint, not a
+     * hypothetical gap. Built for real, scoped to the caller's own company's
+     * active projects, using the same real schedule-performance shape
+     * ProjectKpiService already computes per project.
      */
     public function portfolioTimeline(Request $request): JsonResponse
     {
-        $data = $this->ganttService->getTimelineOverview();
+        $companyId = (int) ($request->user()?->company_id ?? 0);
+        $data      = $this->ganttService->getTimelineOverview($companyId);
 
         return response()->json(['data' => $data]);
     }
 
     /**
      * GET /api/v1/projects/portfolio/resources
+     *
+     * Chantier 10: GanttService::getResourceHeatmap() did not exist —
+     * guaranteed fatal Error on every call to this routed endpoint, not a
+     * hypothetical gap. Built for real: per-member logged-vs-capacity hours
+     * across the caller's own company's active projects, using the same
+     * team-member/timesheet tables ProjectKpiService::getTeamUtilization()
+     * already reads for a single project.
      */
     public function portfolioResources(Request $request): JsonResponse
     {
-        $data = $this->ganttService->getResourceHeatmap();
+        $companyId = (int) ($request->user()?->company_id ?? 0);
+        $data      = $this->ganttService->getResourceHeatmap($companyId);
 
         return response()->json(['data' => $data]);
     }

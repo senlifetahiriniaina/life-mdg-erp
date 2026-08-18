@@ -308,14 +308,14 @@ class OnboardingMetricsController extends Controller
     // -----------------------------------------------------------------------
 
     /**
-     * Chantier 8.5: same cross-tenant fix as SetupController::tenantId() —
-     * was $request->user()?->company_id with a client-controlled
-     * X-Company-ID header fallback. Real boundary column is
-     * users.tenant_id.
+     * Chantier 10: same phantom-column correction as
+     * SetupController::tenantId() — users.tenant_id is never populated by
+     * any real user-creation path in this app; switched to users.company_id,
+     * the real tenant boundary column, with no header fallback.
      */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()?->tenant_id ?? 0);
+        return (int) ($request->user()?->company_id ?? 0);
     }
 
     private function findSessionForTenant(Request $request, int $id): ?OnboardingSession

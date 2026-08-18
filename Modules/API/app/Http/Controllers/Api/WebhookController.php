@@ -9,9 +9,19 @@ use Modules\API\Models\ApiWebhook;
 
 class WebhookController extends Controller
 {
+    /**
+     * Chantier 10: same fix as ApiKeyController::tenantId() — every scoping
+     * site here used the acting user's own id, not the real company_id
+     * tenant boundary.
+     */
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()->company_id ?? 0);
+    }
+
     public function index(Request $request)
     {
-        $hooks = DB::table('api_webhooks')->where('tenant_id', $request->user()->id)->orderByDesc('created_at')->get();
+        $hooks = DB::table('api_webhooks')->where('tenant_id', $this->tenantId($request))->orderByDesc('created_at')->get();
         return response()->json(['data' => $hooks]);
     }
 
@@ -26,7 +36,7 @@ class WebhookController extends Controller
             'secret' => 'nullable|string',
         ]);
         $id = DB::table('api_webhooks')->insertGetId([
-            'tenant_id' => $request->user()->id,
+            'tenant_id' => $this->tenantId($request),
             'name' => $data['name'],
             'url' => $data['url'],
             'secret' => $data['secret'] ?? null,
@@ -50,7 +60,7 @@ class WebhookController extends Controller
         if (isset($data['events'])) {
             $data['events'] = json_encode($data['events']);
         }
-        DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $request->user()->id)->update($data + ['updated_at' => now()]);
+        DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $this->tenantId($request))->update($data + ['updated_at' => now()]);
         return response()->json(['message' => 'Webhook updated']);
     }
 
@@ -58,13 +68,13 @@ class WebhookController extends Controller
     {
         $this->authorize('delete', new ApiWebhook());
 
-        DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $request->user()->id)->delete();
+        DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $this->tenantId($request))->delete();
         return response()->json(['message' => 'Webhook deleted']);
     }
 
     public function test(Request $request, $id)
     {
-        $hook = DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $request->user()->id)->first();
+        $hook = DB::table('api_webhooks')->where('id', $id)->where('tenant_id', $this->tenantId($request))->first();
         abort_if(!$hook, 404);
         // Fire a test event
         return response()->json(['message' => 'Test webhook dispatched', 'url' => $hook->url]);

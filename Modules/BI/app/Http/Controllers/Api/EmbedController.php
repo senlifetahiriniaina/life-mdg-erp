@@ -53,16 +53,37 @@ class EmbedController extends Controller
         ]);
 
         // Ensure the dashboard belongs to the same tenant
+        //
+        // Chantier 10: was `isset($dashboard->tenant_id) && $dashboard->tenant_id
+        // !== ($user->tenant_id ?? $dashboard->tenant_id)`. Two compounding bugs:
+        // (1) $user->tenant_id is the phantom users.tenant_id column documented
+        // repeatedly elsewhere in CLAUDE.md — never populated for real users — so
+        // the `?? $dashboard->tenant_id` fallback made the comparison always
+        // `$dashboard->tenant_id !== $dashboard->tenant_id`, permanently false;
+        // (2) bi_dashboards.tenant_id is itself a dead scaffold column (real in
+        // the DB, but never in Dashboard::$fillable and never written by
+        // DashboardController::store()), so `isset($dashboard->tenant_id)` is
+        // itself always false in practice — the whole guard never even reached
+        // the comparison. Net effect: any authenticated BI manager/admin could
+        // mint an embed token for any dashboard by id, tenant boundary or not.
+        // `bi_dashboards` has no real company_id column either (confirmed via
+        // Schema::getColumnListing()), so there is no tenant/company boundary
+        // column to compare against at all — adding one is a schema change out
+        // of scope for this pass (documented here, not silently built). The
+        // bounded fix: enforce the same ownership boundary this app's
+        // BaseErpPolicy-based DashboardPolicy already uses for mutations
+        // elsewhere (admin/manager role, or the dashboard's own owner, or an
+        // explicitly public dashboard) instead of a tenant check that could
+        // never actually fire.
         $dashboard = Dashboard::findOrFail($data['dashboard_id']);
-        // tenant_id guard — if tenant_id exists on dashboard, verify match
-        if (
-            isset($dashboard->tenant_id)
-            && $dashboard->tenant_id !== ($user->tenant_id ?? $dashboard->tenant_id)
-        ) {
+        $isOwnerOrAdmin = $user->hasAnyRole(['super-admin', 'admin', 'manager'])
+            || (int) $dashboard->user_id === (int) $user->id
+            || (bool) $dashboard->is_public;
+        if (! $isOwnerOrAdmin) {
             return response()->json(['message' => 'Dashboard not found.'], 404);
         }
 
-        $tenantId = $user->tenant_id ?? 0;
+        $tenantId = $user->company_id ?? 0;
         $result   = $this->embedService->generateEmbedToken(
             dashboardId:    $data['dashboard_id'],
             tenantId:       $tenantId,

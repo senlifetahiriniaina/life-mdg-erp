@@ -53,7 +53,7 @@ class Opportunity extends Model
     protected array $auditableFields = ['status', 'stage', 'probability', 'amount', 'closed_at'];
 
     protected $fillable = [
-        'pipeline_id', 'account_id', 'contact_id', 'owner_id', 'territory_id', 'name',
+        'tenant_id', 'pipeline_id', 'account_id', 'contact_id', 'owner_id', 'territory_id', 'name',
         'stage', 'probability', 'amount', 'currency', 'expected_close_date',
         'title', 'lost_reason',
         'status', 'description', 'custom_fields', 'closed_at',

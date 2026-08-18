@@ -15,6 +15,7 @@ use Modules\Workflow\Services\Actions\InventoryAccountingActionHandler;
 use Modules\Workflow\Services\Actions\NotificationActionHandler;
 use Modules\Workflow\Services\Actions\SalesManufacturingActionHandler;
 use Modules\Workflow\Services\Actions\Phase52ActionHandler;
+use Modules\Workflow\Services\Actions\HrPayrollActionHandler;
 
 /**
  * WorkflowEngineService — Phase 39 CRM→Sales→Manufacturing Chain
@@ -283,11 +284,26 @@ class WorkflowEngineService
             // ── Notifications & approvals ────────────────────────────────────────
             'notify'        => app(NotificationActionHandler::class)->dispatch($method, $params, $context),
             'approval'      => app(NotificationActionHandler::class)->dispatch($method, $params, $context),
+            // ── HR→Payroll chain (WF-010 to WF-015) ─────────────────────────────
+            // Chantier 10: 'hr'/'it' had no case at all here (silently fell to
+            // the `default` "unknown action module" branch — HrPayrollActionHandler
+            // was only ever reachable via 2 controllers that hardcoded it
+            // directly, bypassing this dispatcher, so a real trigger-based
+            // hr.*/it.* action never actually ran). 'payroll' is split: the 4
+            // action keys HrPayrollActionHandler actually implements
+            // (adjust_for_leave/add_overtime/enroll_new_employee/
+            // calculate_final_settlement) go there; everything else (e.g.
+            // payroll.generate_run/payroll.approve_payslip) keeps going to
+            // Phase52ActionHandler as before.
+            'hr'            => app(HrPayrollActionHandler::class)->dispatch($actionKey, $params, $context),
+            'it'            => app(HrPayrollActionHandler::class)->dispatch($actionKey, $params, $context),
+            'payroll'       => in_array($method, ['adjust_for_leave', 'add_overtime', 'enroll_new_employee', 'calculate_final_settlement'], true)
+                ? app(HrPayrollActionHandler::class)->dispatch($actionKey, $params, $context)
+                : $this->dispatchPhase52($module, $method, $params, $context),
             // ── Phase-52 new modules ──────────────────────────────────────────────
             'assets'         => $this->dispatchPhase52($module, $method, $params, $context),
             'contracts'      => $this->dispatchPhase52($module, $method, $params, $context),
             'sms'            => $this->dispatchPhase52($module, $method, $params, $context),
-            'payroll'        => $this->dispatchPhase52($module, $method, $params, $context),
             'customerservice'=> $this->dispatchPhase52($module, $method, $params, $context),
             'auditlog'       => $this->dispatchPhase52($module, $method, $params, $context),
             'notes'          => $this->dispatchPhase52($module, $method, $params, $context),

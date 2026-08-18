@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Modules\Projects\Services;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Modules\Projects\Models\Project;
+use Modules\Projects\Models\ProjectTeamMember;
 use Modules\Projects\Models\Task;
 use Modules\Projects\Models\TaskDependency;
 
@@ -150,6 +152,100 @@ class GanttService
         }
 
         return $critical;
+    }
+
+    /**
+     * Cross-project timeline overview for a company's active projects.
+     *
+     * Chantier 10: routed via ProjectAdvancedController::portfolioTimeline()
+     * (GET /api/v1/projects/portfolio/timeline), which called a method that
+     * did not exist on this service at all — a guaranteed fatal Error on
+     * every real call. Built for real rather than stubbed.
+     *
+     * @return array{projects: array<int, mixed>, project_count: int}
+     */
+    public function getTimelineOverview(int $companyId): array
+    {
+        $projects = Project::where('company_id', $companyId)
+            ->whereIn('status', ['active', 'in_progress'])
+            ->orderBy('start_date')
+            ->get(['id', 'name', 'status', 'start_date', 'end_date']);
+
+        $timeline = $projects->map(function (Project $project) {
+            $totalTasks = Task::where('project_id', $project->id)->count();
+            $doneTasks  = Task::where('project_id', $project->id)->where('status', 'done')->count();
+
+            return [
+                'project_id'     => $project->id,
+                'name'           => $project->name,
+                'status'         => $project->status,
+                'start_date'     => $project->start_date?->toDateString(),
+                'end_date'       => $project->end_date?->toDateString(),
+                'completion_pct' => $totalTasks > 0 ? round($doneTasks / $totalTasks * 100, 1) : 0.0,
+            ];
+        })->values()->toArray();
+
+        return [
+            'projects'      => $timeline,
+            'project_count' => count($timeline),
+        ];
+    }
+
+    /**
+     * Per-member logged-vs-capacity hours across a company's active
+     * projects.
+     *
+     * Chantier 10: routed via ProjectAdvancedController::portfolioResources()
+     * (GET /api/v1/projects/portfolio/resources), which called a method that
+     * did not exist on this service at all — a guaranteed fatal Error on
+     * every real call. Built for real rather than stubbed. Timesheet hours
+     * are best-effort (wrapped defensively, matching ProjectKpiService's own
+     * fallback-first pattern for the same underlying table) since ts_*
+     * timesheet linkage is not this service's core responsibility.
+     *
+     * @return array{members: array<int, mixed>, member_count: int}
+     */
+    public function getResourceHeatmap(int $companyId): array
+    {
+        $projectIds = Project::where('company_id', $companyId)
+            ->whereIn('status', ['active', 'in_progress'])
+            ->pluck('id');
+
+        $members = ProjectTeamMember::whereIn('project_id', $projectIds)
+            ->whereNull('left_at')
+            ->with('user:id,name')
+            ->get()
+            ->groupBy('user_id');
+
+        $capacityHours = 8 * 22; // one member's monthly capacity (22 working days x 8h)
+
+        $heatmap = $members->map(function ($rows, $userId) use ($capacityHours) {
+            $loggedHours = 0.0;
+            try {
+                $loggedHours = (float) DB::table('ts_timesheets')
+                    ->whereIn('project_id', $rows->pluck('project_id'))
+                    ->where('user_id', $userId)
+                    ->whereMonth('work_date', now()->month)
+                    ->sum('hours_logged');
+            } catch (\Exception) {
+                // ts_timesheets is a best-effort, possibly-absent source —
+                // degrade to 0 logged hours rather than fail the endpoint.
+            }
+
+            return [
+                'user_id'         => (int) $userId,
+                'name'            => $rows->first()?->user?->name ?? 'Unknown',
+                'project_count'   => $rows->count(),
+                'logged_hours'    => round($loggedHours, 1),
+                'capacity_hours'  => (float) $capacityHours,
+                'utilization_pct' => $capacityHours > 0 ? round($loggedHours / $capacityHours * 100, 1) : 0.0,
+            ];
+        })->values()->toArray();
+
+        return [
+            'members'      => $heatmap,
+            'member_count' => count($heatmap),
+        ];
     }
 
     /**

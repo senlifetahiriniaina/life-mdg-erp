@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Workflow\Models\WorkflowChainDefinition;
 use Modules\Workflow\Models\WorkflowChainExecution;
-use Modules\Workflow\Services\Actions\HrPayrollActionHandler;
+use Modules\Workflow\Services\WorkflowEngineService;
 
 /**
  * @group Workflow Chain Definitions
@@ -198,7 +198,12 @@ class WorkflowDefinitionController extends Controller
 
         $context  = $request->input('context', []);
         $actions  = is_array($definition->actions) ? $definition->actions : json_decode($definition->actions, true) ?? [];
-        $handler  = app(HrPayrollActionHandler::class);
+        // Chantier 10: this used to hardcode HrPayrollActionHandler regardless
+        // of the action's real module prefix, so dry-running any non-payroll/
+        // hr/it chain (crm.*, achats.*, notify.*, ...) silently returned
+        // "unknown_action" for every step. WorkflowEngineService::executeAction()
+        // is the real, module-aware dispatcher every other execution path uses.
+        $engine   = app(WorkflowEngineService::class);
         $results  = [];
         $allOk    = true;
 
@@ -208,7 +213,7 @@ class WorkflowDefinitionController extends Controller
 
             $start  = microtime(true);
             try {
-                $result = $handler->dispatch($key, $params, $context);
+                $result = $engine->executeAction($key, $params, $context);
             } catch (\Throwable $e) {
                 $result = ['status' => 'error', 'reason' => $e->getMessage()];
             }

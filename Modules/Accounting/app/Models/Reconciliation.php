@@ -8,7 +8,6 @@ use App\Traits\AuditableActions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Reconciliation extends Model
 {
@@ -76,20 +75,15 @@ class Reconciliation extends Model
         return $this->belongsTo(\App\Models\User::class, 'rejected_by_id');
     }
 
-    public function matches(): HasMany
-    {
-        return $this->hasMany(ReconciliationMatch::class);
-    }
-
-    public function outstandingItems(): HasMany
-    {
-        return $this->hasMany(OutstandingItem::class);
-    }
-
-    public function exceptions(): HasMany
-    {
-        return $this->hasMany(ReconciliationException::class);
-    }
+    // NOTE (Chantier 10 audit): this model previously declared matches()/outstandingItems()/
+    // exceptions() HasMany relations pointing at ReconciliationMatch/OutstandingItem/
+    // ReconciliationException — none of these 3 classes exist anywhere in the repo and none
+    // were ever migrated as tables, so any call to $reconciliation->matches (etc.) was a
+    // guaranteed "class not found" fatal error. ReconciliationController's own
+    // outstandingItems()/exceptions() endpoints never actually used these relations (they
+    // return a hardcoded empty array + explanatory message instead), so removing the dead
+    // relations changes no observable behavior. Real bank-transaction matching lives on
+    // BankTransaction (see BankReconciliationService), not here.
 
     public function isBalanced(): bool
     {

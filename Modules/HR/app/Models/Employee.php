@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\HR\Database\Factories\EmployeeFactory;
 use Modules\HR\Services\BankDetailsMaskingService;
 use Modules\Helpdesk\Traits\HelpdeskLinkable;
+use Modules\Timesheets\Models\TimesheetEntry;
 
 class Employee extends Model
 {
@@ -189,6 +190,16 @@ class Employee extends Model
     public function compensations()
     {
         return $this->hasMany(EmployeeCompensation::class, 'employee_id');
+    }
+
+    /**
+     * Chantier 10: added while wiring Modules\Workflow's HrPayrollActionHandler
+     * ::addOvertime() onto real TimesheetEntry rows — TimesheetEntry::employee()
+     * already had the inverse belongsTo, but Employee had no hasMany back.
+     */
+    public function timesheetEntries()
+    {
+        return $this->hasMany(TimesheetEntry::class, 'employee_id');
     }
 
     public function scopeActive($query)

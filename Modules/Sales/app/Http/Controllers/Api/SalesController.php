@@ -222,6 +222,8 @@ class SalesController extends Controller
      */
     public function storeQuotation(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403);
+
         $validated = $request->validate([
             'contact_id'  => 'nullable|integer',
             'currency'    => 'nullable|string|size:3',
@@ -240,10 +242,19 @@ class SalesController extends Controller
 
     /**
      * Get a single quotation with its lines.
+     *
+     * Chantier 10 fix: this endpoint (and every other quotation endpoint below it) had zero
+     * permission check and zero tenant scoping at all — SalesQuotation::findOrFail($id) let
+     * any authenticated user of any tenant view, edit, send, or convert any other tenant's
+     * quotation by guessing its id, unlike the sibling order endpoints above (which already
+     * correctly used forTenant()+abort_unless since Chantier 8.5-light). Fixed to match.
      */
-    public function showQuotation(int $id): JsonResponse
+    public function showQuotation(Request $request, int $id): JsonResponse
     {
-        $quotation = SalesQuotation::with(['createdBy:id,name,email', 'convertedOrder:id,reference,status'])
+        abort_unless($request->user()->can('sales.read'), 403);
+
+        $quotation = SalesQuotation::forTenant($this->tenantId($request))
+            ->with(['createdBy:id,name,email', 'convertedOrder:id,reference,status'])
             ->findOrFail($id);
 
         return response()->json($quotation);
@@ -260,7 +271,9 @@ class SalesController extends Controller
      */
     public function updateQuotation(Request $request, int $id): JsonResponse
     {
-        $quotation = SalesQuotation::findOrFail($id);
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $quotation = SalesQuotation::forTenant($this->tenantId($request))->findOrFail($id);
 
         if ($quotation->status !== 'draft') {
             return response()->json(['message' => 'Only draft quotations can be updated.'], 422);
@@ -282,9 +295,11 @@ class SalesController extends Controller
     /**
      * Mark a quotation as sent (draft → sent).
      */
-    public function sendQuotation(int $id): JsonResponse
+    public function sendQuotation(Request $request, int $id): JsonResponse
     {
-        $quotation = SalesQuotation::findOrFail($id);
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $quotation = SalesQuotation::forTenant($this->tenantId($request))->findOrFail($id);
 
         if ($quotation->status !== 'draft') {
             return response()->json(['message' => 'Only draft quotations can be marked as sent.'], 422);
@@ -298,9 +313,11 @@ class SalesController extends Controller
     /**
      * Convert a quotation into a sales order.
      */
-    public function convertQuotation(int $id): JsonResponse
+    public function convertQuotation(Request $request, int $id): JsonResponse
     {
-        $quotation = SalesQuotation::findOrFail($id);
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $quotation = SalesQuotation::forTenant($this->tenantId($request))->findOrFail($id);
 
         try {
             $order = $this->service->convertQuotationToOrder($quotation);
@@ -323,7 +340,9 @@ class SalesController extends Controller
      */
     public function updateOrderStatus(Request $request, int $id): JsonResponse
     {
-        $order = SalesOrder::findOrFail($id);
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
 
         $validated = $request->validate([
             'status' => 'required|string|in:confirmed,cancelled,processing,shipped,delivered',

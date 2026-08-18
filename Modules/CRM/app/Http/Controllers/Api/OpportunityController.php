@@ -132,6 +132,11 @@ class OpportunityController extends Controller
 
         $opportunity = Opportunity::create(array_merge($validated, [
             'owner_id' => $request->user()->id,
+            // Chantier 10: crm_opportunities.tenant_id previously didn't exist at all (see the
+            // migration that added it) — every real opportunity was created with no tenant
+            // marker, which is why CRMForecastingService's tenant_id filters have always been
+            // effectively broken. Populated from company_id, the app's real tenant boundary.
+            'tenant_id' => $request->user()->company_id,
         ]));
 
         return response()->json($opportunity->load('account', 'contact', 'owner', 'pipeline'), 201);

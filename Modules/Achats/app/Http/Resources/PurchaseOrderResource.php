@@ -34,6 +34,25 @@ class PurchaseOrderResource extends JsonResource
             'rejecter_name' => $this->rejecter?->name,
             'rejected_at' => $this->rejected_at?->toIso8601String(),
             'lines_count' => $this->lines()->count(),
+            // Chantier 10: PurchaseOrders/Form.vue's edit mode does
+            // Object.assign(form.value, data) against this resource's
+            // response, expecting a real `lines` array to pre-fill the
+            // line-items table — this key never existed at all (only the
+            // count did), so editing a PO always started from a blank line
+            // list. Combined with PurchaseOrderController::update()'s new
+            // delete-and-recreate-lines behavior, omitting this would have
+            // made every edit silently wipe the PO's real lines instead of
+            // just failing to show them.
+            'lines' => $this->whenLoaded('lines', fn () => $this->lines->map(fn ($line) => [
+                'id' => $line->id,
+                'product_id' => $line->product_id,
+                'description' => $line->description,
+                'quantity' => (float) $line->quantity,
+                'unit' => $line->unit,
+                'unit_price' => (float) $line->unit_price,
+                'tax_rate' => (float) $line->tax_rate,
+                'line_total' => (float) $line->line_total,
+            ])),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

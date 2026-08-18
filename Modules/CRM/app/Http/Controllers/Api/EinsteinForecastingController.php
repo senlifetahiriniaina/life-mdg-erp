@@ -29,7 +29,8 @@ class EinsteinForecastingController extends Controller
 
         $forecast = $this->forecastingService->generateWeightedForecast(
             $request->input('timeframe'),
-            $request->boolean('include_probability', true)
+            $request->boolean('include_probability', true),
+            $request->user()->company_id
         );
 
         return response()->json($forecast);
@@ -39,8 +40,8 @@ class EinsteinForecastingController extends Controller
     {
         $this->authorize('viewAny', Opportunity::class);
 
-        $repId = $request->input('rep_id');
-        $forecast = $this->forecastingService->forecastByRepresentative($repId);
+        $repId = $request->filled('rep_id') ? (int) $request->input('rep_id') : null;
+        $forecast = $this->forecastingService->forecastByRepresentative($repId, $request->user()->company_id);
 
         return response()->json($forecast);
     }
@@ -59,7 +60,7 @@ class EinsteinForecastingController extends Controller
     {
         $this->authorize('viewAny', Opportunity::class);
 
-        $confidenceAnalysis = $this->forecastingService->analyzeConfidence();
+        $confidenceAnalysis = $this->forecastingService->analyzeConfidence($request->user()->company_id);
 
         return response()->json([
             'high_confidence_deals' => $confidenceAnalysis['high'],
@@ -74,7 +75,7 @@ class EinsteinForecastingController extends Controller
     {
         $this->authorize('viewAny', Opportunity::class);
 
-        $metrics = $this->forecastingService->calculateForecastMetrics();
+        $metrics = $this->forecastingService->calculateForecastMetrics($request->user()->company_id);
 
         return response()->json([
             'accuracy_rate' => $metrics['accuracy'],
@@ -98,7 +99,8 @@ class EinsteinForecastingController extends Controller
         $adjusted = $this->forecastingService->adjustForecast(
             $request->input('adjustment_type'),
             (float) $request->input('adjustment_factor'),
-            $request->input('reason')
+            $request->input('reason'),
+            $request->user()->company_id
         );
 
         return response()->json([

@@ -43,7 +43,7 @@ class Project extends Model
     protected $table = 'prj_projects';
 
     protected $fillable = [
-        'owner_id', 'name', 'code', 'description', 'status',
+        'owner_id', 'company_id', 'name', 'code', 'description', 'status',
         'start_date', 'end_date', 'budget', 'currency', 'color', 'is_billable',
     ];
 

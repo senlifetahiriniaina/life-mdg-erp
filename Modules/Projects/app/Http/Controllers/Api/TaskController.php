@@ -18,7 +18,15 @@ class TaskController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        // Chantier 10: scoped via the parent project's company_id, same
+        // graceful "only enforce when the caller has a real company_id"
+        // guard as ProjectController::index() — a task has no company_id
+        // of its own, it belongs to a project, which does.
         $query = Task::query()
+            ->when(
+                $request->user()?->company_id,
+                fn ($q, $companyId) => $q->whereHas('project', fn ($p) => $p->where('company_id', $companyId))
+            )
             ->when($request->project_id, fn ($q, $v) => $q->where('project_id', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->assignee_id, fn ($q, $v) => $q->where('assignee_id', $v));
@@ -45,9 +53,10 @@ class TaskController extends Controller
         return response()->json($task->load('project', 'assignee'), 201);
     }
 
-    public function show(Task $task): JsonResponse
+    public function show(Request $request, Task $task): JsonResponse
     {
         $this->authorize('view', $task);
+        $this->assertSameCompany($request, $task);
 
         return response()->json($task->load('project', 'assignee'));
     }
@@ -55,6 +64,7 @@ class TaskController extends Controller
     public function update(Request $request, Task $task): JsonResponse
     {
         $this->authorize('update', $task);
+        $this->assertSameCompany($request, $task);
         $validated = $request->validate([
             'project_id' => ['sometimes', 'exists:prj_projects,id'],
             'title' => ['sometimes', 'string', 'max:255'],
@@ -70,11 +80,27 @@ class TaskController extends Controller
         return response()->json($task->fresh(['project', 'assignee']));
     }
 
-    public function destroy(Task $task): JsonResponse
+    public function destroy(Request $request, Task $task): JsonResponse
     {
         $this->authorize('delete', $task);
+        $this->assertSameCompany($request, $task);
         $task->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Chantier 10: same guard as ProjectController::assertSameCompany(),
+     * applied via the task's parent project.
+     */
+    private function assertSameCompany(Request $request, Task $task): void
+    {
+        $userCompanyId = $request->user()?->company_id;
+        $projectCompanyId = $task->project?->company_id;
+
+        if ($userCompanyId !== null && $projectCompanyId !== null
+            && (int) $projectCompanyId !== (int) $userCompanyId) {
+            abort(404);
+        }
     }
 }

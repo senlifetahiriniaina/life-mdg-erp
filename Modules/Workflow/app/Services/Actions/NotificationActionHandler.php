@@ -406,6 +406,18 @@ class NotificationActionHandler
      */
     private function resolveRecipients(array $targets, int $tenantId): array
     {
+        // Chantier 10: this and the two sibling resolve*() helpers below used
+        // to filter on `users.tenant_id` with an `orWhereNull('users.tenant_id')`
+        // fallback — since that column is the phantom tenant_id (real,
+        // migrated, never populated by any real registration/onboarding
+        // path, same bug pattern fixed repeatedly this session), the
+        // orWhereNull clause was unconditionally true for every user,
+        // meaning a role-addressed notification (e.g. "to: payroll-officer")
+        // was actually broadcast to that role across ALL tenants, not just
+        // the triggering one — a real cross-tenant notification leak. Fixed
+        // to filter on the real tenant boundary column, `users.company_id`,
+        // with no fallback (matching the fix already applied to Setup/
+        // Reporting/Strategy/AI/Sales/etc.).
         $emails = [];
 
         foreach ($targets as $target) {
@@ -417,10 +429,7 @@ class NotificationActionHandler
                     ->join('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
                     ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
                     ->where('roles.name', $target)
-                    ->where(function ($q) use ($tenantId) {
-                        $q->where('users.tenant_id', $tenantId)
-                          ->orWhereNull('users.tenant_id');
-                    })
+                    ->where('users.company_id', $tenantId)
                     ->pluck('users.email')
                     ->toArray();
 
@@ -449,10 +458,7 @@ class NotificationActionHandler
                     ->join('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
                     ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
                     ->where('roles.name', $target)
-                    ->where(function ($q) use ($tenantId) {
-                        $q->where('users.tenant_id', $tenantId)
-                          ->orWhereNull('users.tenant_id');
-                    })
+                    ->where('users.company_id', $tenantId)
                     ->pluck('users.id')
                     ->toArray();
 
@@ -483,10 +489,7 @@ class NotificationActionHandler
                     ->join('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
                     ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
                     ->where('roles.name', $target)
-                    ->where(function ($q) use ($tenantId) {
-                        $q->where('users.tenant_id', $tenantId)
-                          ->orWhereNull('users.tenant_id');
-                    })
+                    ->where('users.company_id', $tenantId)
                     ->whereNotNull('users.phone')
                     ->pluck('users.phone')
                     ->toArray();

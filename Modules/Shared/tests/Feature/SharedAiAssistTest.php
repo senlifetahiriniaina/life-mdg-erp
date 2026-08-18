@@ -16,7 +16,18 @@ uses(RefreshDatabase::class);
  */
 
 beforeEach(function () {
-    $this->user = User::factory()->create(['role' => 'employee']);
+    // Chantier 10: 'role' is the phantom column (never read by real RBAC —
+    // Spatie roles are). Modules/Shared/routes/api.php gained a real
+    // module:/role: gate (previously had NO middleware at all on this
+    // group, not even auth:sanctum — see CLAUDE.md's Settings/Shared note),
+    // so a user with no real assigned role now 403s before reaching the
+    // controller at all.
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
+    \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+    $this->user = User::factory()->create();
+    $this->user->assignRole('employee');
     $this->actingAs($this->user);
 
     $this->mock(AiContextualAssistantService::class, function ($mock) {

@@ -28,7 +28,18 @@ class ProjectController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Chantier 10: Project never had any per-company scoping at all
+        // (company_id didn't exist as a column until this chantier). Now
+        // that it does and store() populates it, scope the list here too —
+        // any employee/manager of any company could otherwise list every
+        // other company's projects. Guarded with when(): a caller with no
+        // company_id (pre-chantier data, or a not-yet-provisioned user)
+        // still sees the unscoped set rather than an empty list, matching
+        // this app's established graceful-degradation pattern for the
+        // ongoing users.company_id rollout (InitializeTenancyFromAuthenticatedUser
+        // does the same "only scope when present" thing).
         $query = Project::with('owner')
+            ->when($request->user()?->company_id, fn ($q, $companyId) => $q->where('company_id', $companyId))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->owner_id, fn ($q, $v) => $q->where('owner_id', $v));
 
@@ -67,8 +78,15 @@ class ProjectController extends Controller
             'is_billable' => ['nullable', 'boolean'],
         ]);
 
+        // Chantier 10: company_id wasn't populated anywhere on Project at all
+        // (the column didn't even exist until this chantier's migration) —
+        // set it here so it flows through to index/show/update/destroy's
+        // scoping below and to the portfolio endpoints
+        // (ProjectAdvancedController::portfolioKpis/portfolioTimeline/
+        // portfolioResources).
         $project = Project::create(array_merge($validated, [
-            'owner_id' => $request->user()->id,
+            'owner_id'   => $request->user()->id,
+            'company_id' => $request->user()->company_id,
         ]));
 
         return response()->json($project->load('owner'), 201);
@@ -85,9 +103,10 @@ class ProjectController extends Controller
      * @response 403 scenario="Unauthorized" {"message": "This action is unauthorized."}
      * @response 404 scenario="Not found" {"message": "Not found."}
      */
-    public function show(Project $project): JsonResponse
+    public function show(Request $request, Project $project): JsonResponse
     {
         $this->authorize('view', $project);
+        $this->assertSameCompany($request, $project);
 
         return response()->json(
             $project->load('owner', 'members', 'milestones')
@@ -120,6 +139,7 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project): JsonResponse
     {
         $this->authorize('update', $project);
+        $this->assertSameCompany($request, $project);
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'code' => ['sometimes', 'nullable', 'string', 'max:50', 'unique:prj_projects,code,'.$project->id],
@@ -148,11 +168,29 @@ class ProjectController extends Controller
      * @response 403 scenario="Unauthorized" {"message": "This action is unauthorized."}
      * @response 404 scenario="Not found" {"message": "Not found."}
      */
-    public function destroy(Project $project): JsonResponse
+    public function destroy(Request $request, Project $project): JsonResponse
     {
         $this->authorize('delete', $project);
+        $this->assertSameCompany($request, $project);
         $project->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Chantier 10: 404s (not 403 — avoids confirming another company's
+     * project id even exists) when both the caller and the project carry a
+     * real company_id and they don't match. Deliberately a no-op when
+     * either side is null (pre-chantier data / not-yet-provisioned user),
+     * matching index()'s same graceful-degradation guard above.
+     */
+    private function assertSameCompany(Request $request, Project $project): void
+    {
+        $userCompanyId = $request->user()?->company_id;
+
+        if ($userCompanyId !== null && $project->company_id !== null
+            && (int) $project->company_id !== (int) $userCompanyId) {
+            abort(404);
+        }
     }
 }

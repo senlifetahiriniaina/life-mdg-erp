@@ -205,7 +205,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::apiResource('rmas', RmaController::class)->only(['index', 'show']);
     });
     Route::middleware('throttle:create_post')->group(function () {
-        Route::apiResource('stock-movements', StockMovementController::class)->only(['store', 'update', 'destroy']);
+        // Chantier 10: stock-movements previously registered update/destroy
+        // against StockMovementController methods that didn't exist (fatal
+        // "call to undefined method" on every PUT/DELETE) — a stock movement
+        // is an immutable audit-trail fact in this design, so those verbs
+        // were dropped rather than stubbed; only 'store' is real.
+        Route::apiResource('stock-movements', StockMovementController::class)->only(['store']);
         Route::apiResource('lots', LotTrackingController::class)->only(['store', 'update', 'destroy']);
         Route::apiResource('picking-orders', PickingOrderController::class)->only(['store', 'update', 'destroy']);
         Route::apiResource('shipments', ShipmentController::class)->only(['store', 'update', 'destroy']);

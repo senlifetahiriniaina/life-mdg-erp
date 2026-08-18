@@ -25,7 +25,7 @@ class ExpensesController extends Controller
         $expenses = Expense::query()
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->employee_id, fn ($q) => $q->where('employee_id', $request->employee_id))
-            ->orderByDesc('date')
+            ->orderByDesc('expense_date')
             ->paginate(25);
 
         return response()->json($expenses);
@@ -33,7 +33,7 @@ class ExpensesController extends Controller
 
     public function show(Expense $expense): JsonResponse
     {
-        return response()->json(['data' => $expense->load('lines')]);
+        return response()->json(['data' => $expense]);
     }
 
     public function store(Request $request): JsonResponse
@@ -46,6 +46,11 @@ class ExpensesController extends Controller
             'category'     => 'nullable|string|max:50',
             'description'  => 'nullable|string',
         ]);
+
+        // Expense::$fillable uses expense_date, not date — mapped explicitly here so the
+        // submitted date is actually persisted instead of silently dropped by mass-assignment.
+        $validated['expense_date'] = $validated['date'];
+        unset($validated['date']);
 
         $expense = Expense::create($validated);
 
@@ -84,7 +89,7 @@ class ExpensesController extends Controller
     /** GET /expenses/category/{category} */
     public function byCategory(string $category): JsonResponse
     {
-        $expenses = Expense::where('category', $category)->orderByDesc('date')->paginate(25);
+        $expenses = Expense::where('category', $category)->orderByDesc('expense_date')->paginate(25);
 
         return response()->json(['data' => $expenses, 'category' => $category]);
     }
@@ -95,12 +100,12 @@ class ExpensesController extends Controller
         $from = $request->query('from', now()->startOfMonth()->toDateString());
         $to   = $request->query('to',   now()->toDateString());
 
-        $byCategory = Expense::whereBetween('date', [$from, $to])
+        $byCategory = Expense::whereBetween('expense_date', [$from, $to])
             ->selectRaw('category, SUM(amount) as total, COUNT(*) as count')
             ->groupBy('category')
             ->get();
 
-        $total = Expense::whereBetween('date', [$from, $to])->sum('amount');
+        $total = Expense::whereBetween('expense_date', [$from, $to])->sum('amount');
 
         return response()->json([
             'data' => [
@@ -154,6 +159,39 @@ class ExpensesController extends Controller
         return response()->json($expense->fresh());
     }
 
+    /** POST /expenses/{expense}/reject */
+    public function reject(Request $request, Expense $expense): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $expense->update([
+            'status'           => 'rejected',
+            'rejected_reason'  => $validated['reason'] ?? null,
+        ]);
+
+        return response()->json($expense->fresh());
+    }
+
+    /** POST /expenses/by-period */
+    public function byPeriod(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'period_start' => 'required|date',
+            'period_end'   => 'required|date|after_or_equal:period_start',
+        ]);
+
+        $expenses = Expense::whereBetween('expense_date', [$validated['period_start'], $validated['period_end']])
+            ->orderByDesc('expense_date')
+            ->paginate(25);
+
+        return response()->json([
+            'data'   => $expenses,
+            'period' => $validated,
+        ]);
+    }
+
     /** POST /expense-reports */
     public function createReport(Request $request): JsonResponse
     {
@@ -197,6 +235,14 @@ class ExpensesController extends Controller
     public function submitReport(ExpenseReport $report): JsonResponse
     {
         $this->service->submit($report);
+
+        return response()->json($report->fresh());
+    }
+
+    /** POST /expense-reports/{report}/approve */
+    public function approveReport(ExpenseReport $report): JsonResponse
+    {
+        $this->service->approve($report);
 
         return response()->json($report->fresh());
     }

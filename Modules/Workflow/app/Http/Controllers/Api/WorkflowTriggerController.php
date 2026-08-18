@@ -58,7 +58,9 @@ class WorkflowTriggerController extends Controller
             'payload' => 'sometimes|array',
         ]);
 
-        $tenantId = $request->user()?->tenant_id ?? 1;
+        // Chantier 10: was $request->user()?->tenant_id ?? 1 — the phantom
+        // tenant_id column, same fix pattern as WorkflowController::tenantId().
+        $tenantId = (int) ($request->user()?->company_id ?? 0);
 
         $execution = $this->engine->triggerByKey(
             $validated['key'],

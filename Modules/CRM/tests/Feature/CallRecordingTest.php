@@ -13,6 +13,7 @@ use Modules\CRM\Jobs\SummarizeCallJob;
 use Modules\CRM\Models\CallLog;
 use Modules\CRM\Models\CallRecording;
 use Modules\CRM\Services\VoipService;
+use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
@@ -196,13 +197,25 @@ test('save_call_log_updates_outcome', function () {
 test('summarize_endpoint_dispatches_job', function () {
     Queue::fake();
 
-    $user    = User::factory()->create();
+    // Chantier 10 fix: CallRecordingController::summarize() now authorizes via
+    // CallRecordingPolicy against crm.call-recording.summarize + a company_id tenant match —
+    // this permission string is new in this chantier and not yet in RolesAndPermissionsSeeder
+    // (a documented Phase B follow-up), so it's created directly here rather than via the
+    // central seeder.
+    Permission::firstOrCreate(['name' => 'crm.call-recording.summarize', 'guard_name' => 'web']);
+
+    // users.company_id is a real foreign key onto companies — a bare literal id would violate
+    // the FK constraint under RefreshDatabase's fresh schema.
+    $companyId = \App\Models\Company::factory()->create()->id;
+
+    $user = User::factory()->create(['company_id' => $companyId]);
+    $user->givePermissionTo('crm.call-recording.summarize');
     $callLog = makeCallLog(['user_id' => $user->id]);
 
     CallRecording::create([
         'call_id'    => $callLog->id,
         'status'     => CallRecording::STATUS_PROCESSING,
-        'company_id' => 1,
+        'company_id' => $companyId,
     ]);
 
     $this->actingAs($user, 'sanctum')

@@ -375,12 +375,27 @@ class WhbPartnerController extends Controller
 
     /**
      * Resolve the current tenant ID from the authenticated user.
+     *
+     * Chantier 10: was `$user->tenant_id ?? $user->id` — the phantom
+     * tenant_id column, falling through to the user's own id. Every
+     * `forTenant($tenantId)` call on this controller (index/store/show/
+     * approve/reject/suspend/exchanges — this is the ONE shared helper all
+     * of them call) scoped `WhbConnection::local_tenant_id` to a fake
+     * per-user "tenant" instead of the real company, meaning admin A could
+     * never see/act on a federation-partner connection admin B (same real
+     * company) created — a functional collaboration bug, not a
+     * cross-tenant leak (no shared/guessable fallback), but the earlier
+     * Chantier 8.5-light fix that added forTenant() scoping to approve/
+     * reject/suspend never actually closed this because the helper itself
+     * was still broken. Fixed to the real tenant boundary, company_id (cast
+     * to string — local_tenant_id is a string(36) column, the same leftover
+     * UUID-tenant-design pattern already documented for Security/Secrets).
      */
     private function resolveTenantId(Request $request): string
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        return (string) ($user->tenant_id ?? $user->id);
+        return (string) ($user->company_id ?? 0);
     }
 }

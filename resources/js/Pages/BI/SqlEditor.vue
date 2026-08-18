@@ -180,7 +180,13 @@ const runQuery = async () => {
   hasRun.value  = true
   const t0 = Date.now()
   try {
-    const res = await fetch('/api/v1/bi/queries/run', {
+    // Chantier 10: was '/api/v1/bi/queries/run' — a flat URL that has never
+    // existed as a route (the real endpoints are POST bi/queries/{query}/run,
+    // which runs an already-saved query by id, and POST bi/queries/run-raw,
+    // which runs arbitrary ad-hoc SQL text — the shape this editor actually
+    // sends). Every "Exécuter" click 404'd. Repointed to the real run-raw
+    // endpoint (admin/manager only, matching this page's own route gate).
+    const res = await fetch('/api/v1/bi/queries/run-raw', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ sql: sqlCode.value, datasource: selectedDatasource.value }),

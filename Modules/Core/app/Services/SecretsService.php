@@ -551,9 +551,24 @@ class SecretsService
      *
      * @return string
      */
+    /**
+     * Chantier 10: used to resolve `auth()->user()?->tenant_id ?? request()
+     * ->header('X-Tenant-ID', 'default')` — `tenant_id` is the well-documented
+     * phantom column (real, migrated, never populated by any real
+     * registration/onboarding path), so this reached the client-controlled
+     * header fallback on effectively every real request. Any authenticated
+     * user could set `X-Tenant-ID: <victim-tenant>` to read/create/rotate/
+     * revoke another tenant's secrets in this AES-256-CBC vault — confirmed
+     * live/reachable (`/api/v1/secrets/*`, real routes registered via
+     * `RouteServiceProvider::mapSecretsRoutes()`). Fixed to the real tenant
+     * boundary column, `company_id`, no header fallback — same pattern
+     * already applied repeatedly this session (Setup/AI/Sales/etc.). Cast
+     * to string since `core_secrets.tenant_id` is a `string(36)` column
+     * (leftover UUID-tenant design, same as Security/Integration's models).
+     */
     private function getTenantId(): string
     {
-        return auth()->user()?->tenant_id ?? request()->header('X-Tenant-ID', 'default');
+        return (string) (auth()->user()?->company_id ?? '0');
     }
 
     /**

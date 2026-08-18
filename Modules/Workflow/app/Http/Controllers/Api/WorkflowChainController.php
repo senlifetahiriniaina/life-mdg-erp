@@ -258,8 +258,11 @@ class WorkflowChainController extends Controller
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * Chantier 10: same phantom-tenant_id fix as WorkflowController::tenantId().
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()->tenant_id ?? $request->user()->id ?? 1);
+        return (int) ($request->user()->company_id ?? 0);
     }
 }

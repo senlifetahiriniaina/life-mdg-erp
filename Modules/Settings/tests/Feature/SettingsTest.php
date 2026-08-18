@@ -16,6 +16,13 @@ beforeEach(function () {
     }
     $this->user  = User::factory()->create(['company_id' => Company::factory()->create()->id]);
     $this->user->givePermissionTo('settings.update');
+    // Chantier 10: Modules/Settings/routes/api.php gained a route-level
+    // module:/role: gate (previously had neither at all, one of the two
+    // modules CLAUDE.md explicitly flagged) — a plain permission grant with
+    // no real Spatie role now 403s before SettingsController's own
+    // authorize() checks are ever reached.
+    \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $this->user->assignRole('admin');
     $this->token = $this->user->createToken('test')->plainTextToken;
 });
 

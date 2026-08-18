@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Workflow\Services\Actions;
 
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Modules\HR\Models\Employee;
+use Modules\HR\Models\EmployeeCompensation;
 
 /**
  * HR → Payroll Action Handler
@@ -13,9 +17,24 @@ use Illuminate\Support\Facades\Log;
  * Handles all actions in the HR→Payroll workflow chain (WF-010 to WF-015).
  * Each method is invoked by WorkflowEngineService when the corresponding
  * action_key is matched during workflow execution.
+ *
+ * Chantier 10: every method below used to only Log::info()/warning() and
+ * return a computed-but-never-persisted payload, each with a "TODO: persist
+ * to <table that doesn't exist>" comment. Investigated what each concept's
+ * real backing is in this app and wired directly onto it — see each
+ * method's own docblock. Two (createDisciplinaryRecord, and the granular
+ * per-adjustment ledger `adjustForLeave` used to imagine) genuinely have no
+ * real backing anywhere in the app; per this chantier's constraints those
+ * are left as documented gaps rather than inventing new tables/business
+ * logic, with the TODO comment rewritten to explain why.
  */
 class HrPayrollActionHandler
 {
+    public function __construct(
+        private readonly NotificationActionHandler $notifier,
+    ) {
+    }
+
     // ─── Payroll Actions ───────────────────────────────────────────────────────
 
     /**
@@ -25,6 +44,20 @@ class HrPayrollActionHandler
      * - Paid leave (congé payé)    : no deduction, flag leave days in payslip
      * - Unpaid leave (congé sans solde) : deduct daily_rate × days
      * - Sick leave (maladie)       : depends on company policy (default: 3-day grace, then unpaid)
+     *
+     * Chantier 10: this used to compute a preview and then just log it
+     * ("TODO: persist to payroll_adjustments table" — a table that never
+     * existed anywhere in the app). No separate ledger is needed: the real
+     * source of truth is already persisted — the employee's own approved
+     * Modules\HR\Models\LeaveRequest record that triggered this action in
+     * the first place. Modules\Payroll\Services\PayrollIntegrationService::
+     * calculateDeductions() now reads approved LeaveRequests directly for
+     * the payslip's period (same unpaid/sick-minus-grace-days rule applied
+     * here) at payslip-generation time, so nothing further needs to be
+     * written here. This method's job is only to compute an immediate
+     * preview for whoever approved the leave and notify them of the
+     * expected impact — the actual payroll-time calculation is owned by
+     * PayrollIntegrationService, not duplicated here.
      *
      * @param array<string,mixed> $params  Workflow action params (e.g. grace_days for sick)
      * @param array<string,mixed> $context employee_id, leave_type (paid|unpaid|sick), days, period
@@ -81,7 +114,18 @@ class HrPayrollActionHandler
 
         Log::info('[WF-010] payroll.adjust_for_leave', $adjustment);
 
-        // TODO: persist to payroll_adjustments table (Modules/HR/Payroll)
+        if ($deduction > 0) {
+            $this->notifier->sendInAppNotification(
+                [
+                    'title_template' => 'Impact paie — congé employé #{{employee_id}}',
+                    'body_template'  => '{{note}} Cet ajustement sera appliqué automatiquement à la génération du bulletin de paie {{period}}.',
+                    'type'           => 'info',
+                    'module'         => 'Payroll',
+                ],
+                array_merge($context, $adjustment, ['to' => 'payroll-officer']),
+            );
+        }
+
         return ['status' => 'success', 'adjustment' => $adjustment];
     }
 
@@ -89,6 +133,21 @@ class HrPayrollActionHandler
      * action: payroll.add_overtime
      *
      * Add validated overtime hours to the current payroll period.
+     *
+     * Chantier 10: used to log-and-drop ("TODO: persist to payroll_overtime
+     * table" — never existed). The real, live overtime data source in this
+     * app is Modules\Timesheets\Models\TimesheetEntry — PayrollIntegrationService
+     * ::calculateOvertime() already sums approved entries' hours_worked
+     * beyond 160h/month for the period at payslip-generation time (see that
+     * method's own docblock). This action represents already-validated
+     * overtime (e.g. approved by a manager upstream in the workflow chain)
+     * — persisting it as a real, approved TimesheetEntry feeds it into that
+     * existing calculation instead of inventing a parallel ledger.
+     * rate_multiplier is recorded on the entry's description for audit
+     * purposes but not applied as a distinct per-entry rate:
+     * calculateOvertime() already applies one flat 1.5x multiplier to ALL
+     * overtime hours in the app (a pre-existing, established behavior, not
+     * something this fix should special-case per request).
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $context  employee_id, hours, rate_multiplier (1.25|1.5|2.0), period
@@ -124,9 +183,34 @@ class HrPayrollActionHandler
             'applied_at'      => now()->toIso8601String(),
         ];
 
+        $employee = Employee::find($employeeId);
+        $entry    = null;
+
+        if ($employee) {
+            try {
+                $entryDate = Carbon::parse($period . '-01')->endOfMonth();
+
+                $entry = $employee->timesheetEntries()->create([
+                    'tenant_id'    => $employee->user?->tenant_id,
+                    'entry_date'   => $entryDate->toDateString(),
+                    'hours_worked' => $hours,
+                    'status'       => 'approved',
+                    'description'  => "Heures supplémentaires validées (workflow WF-012, x{$rateMultiplier})",
+                    'hourly_rate'  => $hourlyRate,
+                    'approved_at'  => now(),
+                ]);
+
+                $record['timesheet_entry_id'] = $entry->id;
+            } catch (\Throwable $e) {
+                Log::error('[WF-012] payroll.add_overtime: failed to persist TimesheetEntry', [
+                    'employee_id' => $employeeId,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
+
         Log::info('[WF-012] payroll.add_overtime', $record);
 
-        // TODO: persist to payroll_overtime table
         return ['status' => 'success', 'overtime' => $record];
     }
 
@@ -134,6 +218,20 @@ class HrPayrollActionHandler
      * action: payroll.enroll_new_employee
      *
      * Create payroll record when onboarding is completed.
+     *
+     * Chantier 10: used to log-and-drop ("TODO: persist to payroll_profiles
+     * table" — never existed). The real per-employee salary source this app
+     * actually reads at payslip time is Modules\HR\Models\EmployeeCompensation
+     * (see PayrollIntegrationService::getCurrentCompensation() /
+     * Modules\HR\Services\CompensationService) — creates the employee's
+     * first compensation record there instead of a separate, redundant
+     * "payroll profile" concept. payment_method has no real column
+     * anywhere in this app (EmployeeCompensation has no payment-method
+     * field, and no mobile-money/bank-transfer payout integration exists
+     * for payroll yet) — kept in the returned payload for the caller/
+     * notification but not persisted, since inventing a payout-method
+     * column with no consumer would be the same "table nothing reads"
+     * problem this fix is closing elsewhere.
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $context  employee_id, salary, payment_method (bank|mobile_money), start_date
@@ -167,9 +265,30 @@ class HrPayrollActionHandler
             'enrolled_at'    => now()->toIso8601String(),
         ];
 
+        $employee = Employee::find($employeeId);
+
+        if ($employee) {
+            try {
+                $compensation = EmployeeCompensation::create([
+                    'employee_id'     => $employee->id,
+                    'base_salary'     => round($salary, 2),
+                    'currency'        => $currency,
+                    'total_compensation' => round($salary, 2),
+                    'effective_date'  => $startDate,
+                    'notes'           => "Enrôlement initial (workflow WF-011, moyen de paiement: {$paymentMethod})",
+                ]);
+
+                $enrollment['employee_compensation_id'] = $compensation->id;
+            } catch (\Throwable $e) {
+                Log::error('[WF-011] payroll.enroll_new_employee: failed to persist EmployeeCompensation', [
+                    'employee_id' => $employeeId,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
+
         Log::info('[WF-011] payroll.enroll_new_employee', $enrollment);
 
-        // TODO: persist to payroll_profiles table
         return ['status' => 'success', 'enrollment' => $enrollment];
     }
 
@@ -220,6 +339,19 @@ class HrPayrollActionHandler
      *
      * Record a disciplinary action (avertissement, mise en demeure, etc.).
      *
+     * Chantier 10 — genuinely no real backing exists for this concept
+     * anywhere in this app. Confirmed via a repo-wide grep: no
+     * "disciplinary"/"warning"/"misconduct" model, table, migration,
+     * controller, or Vue page exists in Modules/HR or anywhere else — this
+     * is a real, standalone HR feature (issuing and tracking formal
+     * warnings, with severity levels and an issuing manager) that was never
+     * built in this app's "basique" HR scope (see CLAUDE.md's HR scope
+     * note — recruitment/360°-review/training/succession were explicitly
+     * cut, and disciplinary records were never part of the kept model
+     * list either). Per this chantier's constraints, inventing a new
+     * table/model for it is out of scope for a wiring pass — left as a
+     * documented product-decision gap rather than built silently.
+     *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $context  employee_id, type, reason, severity, issued_by
      *
@@ -248,14 +380,26 @@ class HrPayrollActionHandler
 
         Log::info('[HR] hr.create_disciplinary_record', $record);
 
-        // TODO: persist to hr_disciplinary_records table
-        return ['status' => 'success', 'disciplinary_record' => $record];
+        // Not persisted — no disciplinary-record model/table exists anywhere
+        // in this app's HR "basique" scope. See this method's docblock:
+        // this is a documented product-decision gap (build a real feature,
+        // or drop the action from the workflow chain), not a wiring bug.
+        return ['status' => 'success', 'disciplinary_record' => $record, 'persisted' => false];
     }
 
     /**
      * action: hr.notify_contract_expiry
      *
      * Send contract expiry alerts at 30, 15, and 7 days before expiry.
+     *
+     * Chantier 10: used to only Log::warning() ("TODO: dispatch notification
+     * via Modules/Messaging" — that module is explicitly out of this app's
+     * 27-module scope, see CLAUDE.md's Scope section: Messaging was one of
+     * the modules intentionally left out of the WideHalo extraction).
+     * Dispatches a real in-app notification instead, via the same
+     * NotificationActionHandler every 'notify.*' workflow action already
+     * uses (writes to the real `notifications` table, no excluded module
+     * involved).
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $context  employee_id, contract_id, expiry_date, days_until_expiry
@@ -297,8 +441,23 @@ class HrPayrollActionHandler
 
         Log::warning('[WF-013] hr.notify_contract_expiry', $notification);
 
-        // TODO: dispatch notification via Modules/Messaging
-        return ['status' => 'success', 'notification' => $notification];
+        $employee = Employee::find($employeeId);
+        $targets  = ['hr-manager'];
+        if ($employee?->user_id) {
+            $targets[] = $employee->user_id;
+        }
+
+        $dispatchResult = $this->notifier->sendInAppNotification(
+            [
+                'title_template' => 'Expiration de contrat — {{days_remaining}} jour(s)',
+                'body_template'  => '{{message}}',
+                'type'           => $urgency === 'critical' ? 'error' : $urgency,
+                'module'         => 'HR',
+            ],
+            array_merge($context, $notification, ['to' => $targets]),
+        );
+
+        return ['status' => 'success', 'notification' => $notification, 'dispatch' => $dispatchResult];
     }
 
     // ─── IT Provisioning Actions ───────────────────────────────────────────────
@@ -307,6 +466,22 @@ class HrPayrollActionHandler
      * action: it.provision_access
      *
      * Create user account, assign roles, and set permissions for new employee.
+     *
+     * Chantier 10: used to log-and-drop ("TODO: call Security module to
+     * create user account with RBAC roles" — there is no separate
+     * "Security module account service"; user accounts + spatie/
+     * laravel-permission roles live on the real, single App\Models\User
+     * model everywhere else in this app). Creates (or reuses) the real
+     * User account, links it to the Employee record, and assigns a real
+     * seeded role via Spatie's assignRole() — role_template is mapped to
+     * the closest real role name from database/seeders/
+     * RolesAndPermissionsSeeder.php (employee/manager/accountant all match
+     * 1:1; it_admin maps to the real 'system-admin' role, since no
+     * 'it-admin' role is seeded). The granular $rolePermissions/
+     * $defaultRoles list below is kept as an informational hint in the
+     * response payload only — RBAC in this app is enforced by seeded
+     * role→permission assignments, not by handing out ad-hoc permission
+     * lists per provisioning call.
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $context  employee_id, department, role_template, email
@@ -324,7 +499,8 @@ class HrPayrollActionHandler
             return ['status' => 'skipped', 'reason' => 'invalid_context'];
         }
 
-        // Role template → permissions mapping (simplified)
+        // Role template → permissions mapping (simplified, informational only —
+        // see docblock above for why RBAC enforcement itself is via assignRole()).
         $rolePermissions = $params['role_permissions'] ?? [];
         $defaultRoles = [
             'employee'    => ['view_own_payslips', 'view_own_leaves', 'submit_timesheets'],
@@ -337,19 +513,75 @@ class HrPayrollActionHandler
             ?? $defaultRoles[$roleTemplate]
             ?? $defaultRoles['employee'];
 
+        // Real seeded role name (RolesAndPermissionsSeeder.php) — it_admin has
+        // no seeded 'it-admin' role, so it maps to the closest real
+        // administrative role, 'system-admin'.
+        $realRole = match ($roleTemplate) {
+            'manager'    => 'manager',
+            'accountant' => 'accountant',
+            'it_admin'   => 'system-admin',
+            default      => 'employee',
+        };
+
+        $employee = Employee::find($employeeId);
+        $account  = false;
+        $userId   = null;
+
+        if ($employee) {
+            $resolvedEmail = $email ?: $employee->email;
+            $user = $employee->user;
+
+            if (! $user && $resolvedEmail) {
+                $user = User::where('email', $resolvedEmail)->first();
+            }
+
+            try {
+                if (! $user && $resolvedEmail) {
+                    $user = User::create([
+                        'name'      => trim("{$employee->first_name} {$employee->last_name}"),
+                        'first_name'=> $employee->first_name,
+                        'last_name' => $employee->last_name,
+                        'email'     => $resolvedEmail,
+                        'password'  => Hash::make(str()->random(24)),
+                        'is_active' => true,
+                    ]);
+
+                    $employee->update(['user_id' => $user->id]);
+                }
+
+                if ($user) {
+                    $user->is_active = true;
+                    $user->save();
+
+                    if (! $user->hasRole($realRole)) {
+                        $user->assignRole($realRole);
+                    }
+
+                    $account = true;
+                    $userId  = $user->id;
+                }
+            } catch (\Throwable $e) {
+                Log::error('[WF-011] it.provision_access: failed to create/update User account', [
+                    'employee_id' => $employeeId,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
+
         $provisioning = [
             'employee_id'          => $employeeId,
+            'user_id'               => $userId,
             'email'                => $email,
             'department'           => $department,
             'role_template'        => $roleTemplate,
+            'assigned_role'        => $realRole,
             'assigned_permissions' => $assignedPermissions,
-            'account_created'      => true,
+            'account_created'      => $account,
             'provisioned_at'       => now()->toIso8601String(),
         ];
 
         Log::info('[WF-011] it.provision_access', $provisioning);
 
-        // TODO: call Security module to create user account with RBAC roles
         return ['status' => 'success', 'provisioning' => $provisioning];
     }
 
@@ -357,6 +589,20 @@ class HrPayrollActionHandler
      * action: it.revoke_access
      *
      * Revoke all system access when an employee is offboarded or terminated.
+     *
+     * Chantier 10: used to log-and-drop ("TODO: call Auth module to
+     * invalidate tokens and disable account" — there is no separate "Auth
+     * module"; Sanctum tokens and account status live directly on the real
+     * App\Models\User model, same as it.provision_access above). For
+     * immediate revocation, disables the real User account (is_active =
+     * false) and deletes all its Sanctum tokens via the same $user->
+     * tokens()->delete() call already used by Modules\Core\Http\Controllers
+     * \Api\AccountController — no separate "Auth module" call needed. For a
+     * non-immediate (notice-period) revocation, only logs/notifies today —
+     * actually scheduling a future account disable would need a real job
+     * dispatch mechanism this action has no queue/schedule wiring for yet;
+     * left as an immediate-only real fix rather than half-building a
+     * scheduling concept no other part of this action handles.
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $context  employee_id, reason (resignation|termination|contract_end)
@@ -378,19 +624,43 @@ class HrPayrollActionHandler
             ? now()->toIso8601String()
             : ($context['last_working_day'] ?? now()->toDateString());
 
+        $sessionsTerminated = false;
+        $tokensRevoked       = false;
+
+        if ($immediate) {
+            $employee = Employee::find($employeeId);
+            $user     = $employee?->user;
+
+            if ($user) {
+                try {
+                    $user->is_active = false;
+                    $user->save();
+
+                    $user->tokens()->delete();
+
+                    $sessionsTerminated = true;
+                    $tokensRevoked      = true;
+                } catch (\Throwable $e) {
+                    Log::error('[WF-014] it.revoke_access: failed to disable User account', [
+                        'employee_id' => $employeeId,
+                        'error'       => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
         $revocation = [
             'employee_id'  => $employeeId,
             'reason'       => $reason,
             'revoke_at'    => $revokeAt,
             'immediate'    => $immediate,
             'revoked_at'   => now()->toIso8601String(),
-            'sessions_terminated' => true,
-            'tokens_revoked'      => true,
+            'sessions_terminated' => $sessionsTerminated,
+            'tokens_revoked'      => $tokensRevoked,
         ];
 
         Log::warning('[WF-014] it.revoke_access', $revocation);
 
-        // TODO: call Auth module to invalidate tokens and disable account
         return ['status' => 'success', 'revocation' => $revocation];
     }
 

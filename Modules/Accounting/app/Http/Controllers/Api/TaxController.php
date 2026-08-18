@@ -141,6 +141,23 @@ class TaxController extends Controller
 
     // ─── Tax Entries ──────────────────────────────────────────────────────────
 
+    /** GET /tax/entries */
+    public function entries(Request $request): JsonResponse
+    {
+        $entries = \Modules\Accounting\Models\TaxEntry::with('taxRate')
+            ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($request->query('tax_rate_id'), fn ($q, $id) => $q->where('tax_rate_id', $id))
+            ->when(
+                $request->query('period_start') && $request->query('period_end'),
+                fn ($q) => $q->whereDate('period_start', '>=', $request->query('period_start'))
+                    ->whereDate('period_end', '<=', $request->query('period_end'))
+            )
+            ->orderByDesc('period_end')
+            ->paginate(25);
+
+        return response()->json($entries);
+    }
+
     public function recordEntry(Request $request): JsonResponse
     {
 

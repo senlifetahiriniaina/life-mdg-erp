@@ -43,14 +43,30 @@ class PurchaseOrderController extends Controller
         return PurchaseOrderResource::collection($pos);
     }
 
+    /**
+     * Chantier 10: the headline Achats finding — PurchaseOrders/Form.vue
+     * submits the whole form (header fields + a `lines` array) as one
+     * request body, but this method previously dropped `lines` entirely
+     * (StorePurchaseOrderRequest had no rule for it, and
+     * PurchaseOrderService::createPurchaseOrder() never read it) — every
+     * real PO created through the UI silently ended up with zero line
+     * items. Wired onto the real, already-tested, previously-unused
+     * PurchaseOrderService::addLineItem().
+     */
     public function store(StorePurchaseOrderRequest $request)
     {
         $data = $request->validated();
+        $lines = $data['lines'] ?? [];
+        unset($data['lines']);
         $data['created_by'] = auth()->id();
 
         $po = $this->service->createPurchaseOrder($data);
 
-        return new PurchaseOrderResource($po);
+        foreach ($lines as $lineData) {
+            $this->service->addLineItem($po, $lineData);
+        }
+
+        return new PurchaseOrderResource($po->load('lines'));
     }
 
     public function show(PurchaseOrder $purchase_order)
@@ -60,11 +76,32 @@ class PurchaseOrderController extends Controller
         return new PurchaseOrderResource($purchase_order);
     }
 
+    /**
+     * Chantier 10: same silent-data-loss bug as store() on edit. The
+     * frontend has no per-line id tracking across edits (Form.vue just
+     * Object.assign()s show()'s response then free-form pushes/splices),
+     * so the lowest-risk fix matching that shape is delete-and-recreate:
+     * only touch lines at all when the request actually sent a `lines`
+     * key, then replace the set wholesale via the same real
+     * addLineItem() service method store() uses.
+     */
     public function update(UpdatePurchaseOrderRequest $request, PurchaseOrder $purchase_order)
     {
-        $po = $this->service->updatePurchaseOrder($purchase_order, $request->validated());
+        $data = $request->validated();
+        $hasLines = array_key_exists('lines', $data);
+        $lines = $data['lines'] ?? [];
+        unset($data['lines']);
 
-        return new PurchaseOrderResource($po);
+        $po = $this->service->updatePurchaseOrder($purchase_order, $data);
+
+        if ($hasLines) {
+            $po->lines()->delete();
+            foreach ($lines as $lineData) {
+                $this->service->addLineItem($po, $lineData);
+            }
+        }
+
+        return new PurchaseOrderResource($po->load('lines'));
     }
 
     public function destroy(PurchaseOrder $purchase_order)

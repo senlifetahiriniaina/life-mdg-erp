@@ -81,11 +81,14 @@ class StrategyAdvisorController extends Controller
     }
 
     /**
-     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', ...) — see
-     * StrategyPlanController::tenantId() for the full rationale.
+     * Chantier 10 (Strategy): was $request->user()?->tenant_id ?? 'default' —
+     * the phantom users.tenant_id column, never populated for real users, so
+     * every tenant silently collapsed into one shared 'default' bucket (a
+     * live cross-tenant leak). See StrategyPlanController::tenantId() for the
+     * full rationale; fixed to the real company_id boundary column.
      */
     private function tenantId(Request $request): string
     {
-        return (string) ($request->user()?->tenant_id ?? 'default');
+        return (string) ($request->user()?->company_id ?? 0);
     }
 }

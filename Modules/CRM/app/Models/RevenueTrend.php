@@ -13,7 +13,7 @@ class RevenueTrend extends Model
     protected $table = 'crm_revenue_trends';
 
     protected $fillable = [
-        'metric_name', 'dimension', 'dimension_value', 'period_start', 'period_end',
+        'company_id', 'metric_name', 'dimension', 'dimension_value', 'period_start', 'period_end',
         'current_value', 'previous_value', 'change_pct', 'trend_direction', 'data_points_count',
     ];
 

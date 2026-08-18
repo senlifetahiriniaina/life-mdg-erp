@@ -96,10 +96,16 @@ class PayrollIntegrationService
         // regardless of the actual employee. tenant_id now comes from the
         // caller (generatePayslips() already has the real value from the
         // authenticated user); when called standalone (as this method's own
-        // test does) it falls back to the employee's linked User's real,
-        // live tenant_id column. Currency comes from the employee's current
+        // test does) it falls back to the employee's linked User's real
+        // tenant boundary column. Currency comes from the employee's current
         // EmployeeCompensation record (the real salary source — see below).
-        $tenantId ??= (int) ($employee->user?->tenant_id ?? 0);
+        //
+        // Chantier 10 correction: the fallback used to read the employee's
+        // linked User's tenant_id — the same phantom column (real, migrated,
+        // never in User::$fillable, never populated by the real registration
+        // flow) already fixed repeatedly elsewhere in this session. Switched
+        // to company_id, the real tenant boundary column.
+        $tenantId ??= (int) ($employee->user?->company_id ?? 0);
         $compensation = $this->getCurrentCompensation($employee, $startDate);
         $currency = $compensation?->currency ?? 'XOF';
 
@@ -116,7 +122,7 @@ class PayrollIntegrationService
 
         $components = $this->calculateSalaryComponents($employee, $startDate, $endDate, $compensation);
         $grossSalary = $components['gross_salary'];
-        $deductions  = $this->calculateDeductions($employee, $grossSalary);
+        $deductions  = $this->calculateDeductions($employee, $grossSalary, $startDate, $endDate);
         $netSalary   = $grossSalary - $deductions['total_deductions'];
 
         return Payslip::create([
@@ -189,23 +195,70 @@ class PayrollIntegrationService
     /**
      * Calculate all deductions (taxes, social security, health, pension, loans).
      */
-    public function calculateDeductions(Employee $employee, float $grossSalary): array
+    public function calculateDeductions(Employee $employee, float $grossSalary, ?Carbon $startDate = null, ?Carbon $endDate = null): array
     {
         $countryCode = $employee->country_code ?? $employee->nationality ?? 'SN';
 
         $deductions = [
-            'income_tax'         => $this->calculateIncomeTax($grossSalary, $countryCode),
-            'social_security'    => $this->calculateSocialSecurity($grossSalary, $countryCode),
-            'health_insurance'   => (float) ($employee->health_insurance_contribution ?? 0),
-            'pension_contribution'=> $this->calculatePensionContribution($grossSalary, $countryCode),
-            'loan_repayment'     => $this->calculateLoanRepayment($employee),
-            'union_dues'         => (float) ($employee->union_dues ?? 0),
+            'income_tax'             => $this->calculateIncomeTax($grossSalary, $countryCode),
+            'social_security'        => $this->calculateSocialSecurity($grossSalary, $countryCode),
+            'health_insurance'       => (float) ($employee->health_insurance_contribution ?? 0),
+            'pension_contribution'   => $this->calculatePensionContribution($grossSalary, $countryCode),
+            'loan_repayment'         => $this->calculateLoanRepayment($employee),
+            'union_dues'             => (float) ($employee->union_dues ?? 0),
+            'unpaid_leave_deduction' => $this->calculateLeaveDeduction($employee, $grossSalary, $startDate, $endDate),
         ];
 
         return [
             'deductions'       => $deductions,
             'total_deductions' => array_sum($deductions),
         ];
+    }
+
+    /**
+     * Chantier 10: unpaid/sick leave was never deducted from any real
+     * payslip — calculateSalaryComponents()/calculateDeductions() had no
+     * leave concept at all. Modules\Workflow's HrPayrollActionHandler::
+     * adjustForLeave() computed a *preview* of what should be deducted every
+     * time a leave request was approved, but only ever logged it (its own
+     * "TODO: persist to payroll_adjustments table" — a table that never
+     * existed). The real source of truth already exists and is already
+     * persisted: the employee's own approved Modules\HR\Models\LeaveRequest
+     * records — no new table needed, just wiring the existing one in at
+     * generation time. Sick leave beyond the same 3-day grace period the
+     * workflow handler already applies is treated as unpaid too, matching
+     * that handler's own business rule rather than inventing a second one.
+     */
+    private function calculateLeaveDeduction(Employee $employee, float $grossSalary, ?Carbon $startDate, ?Carbon $endDate, int $sickGraceDays = 3): float
+    {
+        if (! $startDate || ! $endDate) {
+            return 0.0;
+        }
+
+        $dailyRate = $grossSalary / 30;
+
+        $requests = $employee->leaveRequests()
+            ->where('status', 'approved')
+            ->whereBetween('start_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->with('leaveType')
+            ->get();
+
+        $deductibleDays = 0.0;
+
+        foreach ($requests as $request) {
+            $days = (float) ($request->days ?? $request->days_requested ?? 0);
+            $isPaid = $request->leaveType?->is_paid ?? true;
+            $isSick = str_contains(mb_strtolower((string) ($request->leave_type ?? $request->type ?? $request->leaveType?->code ?? '')), 'sick')
+                || str_contains(mb_strtolower((string) ($request->leaveType?->name ?? '')), 'malad');
+
+            if ($isSick) {
+                $deductibleDays += max(0.0, $days - $sickGraceDays);
+            } elseif (! $isPaid) {
+                $deductibleDays += $days;
+            }
+        }
+
+        return round($dailyRate * $deductibleDays, 2);
     }
 
     /**

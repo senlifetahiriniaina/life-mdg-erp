@@ -38,8 +38,22 @@ class AiActionAdvisorController extends Controller
         $locale   = $validated['locale']  ?? 'fr';
         $context  = $validated['context'] ?? [];
         $userId   = (int) $request->user()->id;
-        $tenantId = (int) ($request->user()->tenant_id ?? $request->user()->id);
-        $userRole = $request->user()->role ?? 'user';
+        // Chantier 10: was `tenant_id ?? user()->id` — the phantom
+        // tenant_id column, falling through to the user's own id, meaning
+        // every user effectively got their own private "tenant" budget
+        // bucket instead of sharing their real company's AiUsageLimit
+        // (set via setLimit() below) — a functional bug (admin-set budgets
+        // never actually applied to real users), not a cross-tenant leak
+        // (no shared/guessable fallback). Fixed to the real tenant
+        // boundary, company_id (ai_usage_limits.tenant_id is a real integer
+        // column).
+        $tenantId = (int) ($request->user()->company_id ?? 0);
+        // Chantier 10: `role` is a phantom column (never populated — real
+        // roles are Spatie roles), same bug already fixed for this
+        // controller's requireAdmin() elsewhere. Only used to tailor AI
+        // guidance tone here (not a security check), so low severity, but
+        // cheap to fix correctly while touching this file.
+        $userRole = $request->user()->getRoleNames()->first() ?? 'user';
 
         // Check budget
         $budgetStatus = $this->budget->checkLimit($userId, $tenantId);
@@ -105,7 +119,16 @@ class AiActionAdvisorController extends Controller
     public function myUsage(Request $request): JsonResponse
     {
         $userId   = (int) $request->user()->id;
-        $tenantId = (int) ($request->user()->tenant_id ?? $request->user()->id);
+        // Chantier 10: was `tenant_id ?? user()->id` — the phantom
+        // tenant_id column, falling through to the user's own id, meaning
+        // every user effectively got their own private "tenant" budget
+        // bucket instead of sharing their real company's AiUsageLimit
+        // (set via setLimit() below) — a functional bug (admin-set budgets
+        // never actually applied to real users), not a cross-tenant leak
+        // (no shared/guessable fallback). Fixed to the real tenant
+        // boundary, company_id (ai_usage_limits.tenant_id is a real integer
+        // column).
+        $tenantId = (int) ($request->user()->company_id ?? 0);
         $period   = $request->query('period', 'monthly');
 
         if (!in_array($period, ['daily', 'weekly', 'monthly'], true)) {
@@ -144,7 +167,16 @@ class AiActionAdvisorController extends Controller
     {
         $this->requireAdmin($request);
 
-        $tenantId = (int) ($request->user()->tenant_id ?? $request->user()->id);
+        // Chantier 10: was `tenant_id ?? user()->id` — the phantom
+        // tenant_id column, falling through to the user's own id, meaning
+        // every user effectively got their own private "tenant" budget
+        // bucket instead of sharing their real company's AiUsageLimit
+        // (set via setLimit() below) — a functional bug (admin-set budgets
+        // never actually applied to real users), not a cross-tenant leak
+        // (no shared/guessable fallback). Fixed to the real tenant
+        // boundary, company_id (ai_usage_limits.tenant_id is a real integer
+        // column).
+        $tenantId = (int) ($request->user()->company_id ?? 0);
         $period   = $request->query('period', 'monthly');
         $topN     = (int) ($request->query('limit', 10));
 
@@ -168,7 +200,16 @@ class AiActionAdvisorController extends Controller
     {
         $this->requireAdmin($request);
 
-        $tenantId = (int) ($request->user()->tenant_id ?? $request->user()->id);
+        // Chantier 10: was `tenant_id ?? user()->id` — the phantom
+        // tenant_id column, falling through to the user's own id, meaning
+        // every user effectively got their own private "tenant" budget
+        // bucket instead of sharing their real company's AiUsageLimit
+        // (set via setLimit() below) — a functional bug (admin-set budgets
+        // never actually applied to real users), not a cross-tenant leak
+        // (no shared/guessable fallback). Fixed to the real tenant
+        // boundary, company_id (ai_usage_limits.tenant_id is a real integer
+        // column).
+        $tenantId = (int) ($request->user()->company_id ?? 0);
 
         $limits = AiUsageLimit::where('tenant_id', $tenantId)
             ->orderBy('user_id')
@@ -208,7 +249,7 @@ class AiActionAdvisorController extends Controller
             'block_on_exceed' => ['sometimes', 'boolean'],
         ]);
 
-        $tenantId     = (int) ($request->user()->tenant_id ?? $request->user()->id);
+        $tenantId     = (int) ($request->user()->company_id ?? 0);
         $userId       = isset($validated['user_id']) ? (int) $validated['user_id'] : null;
         $blockOnExceed = (bool) ($validated['block_on_exceed'] ?? false);
 
@@ -238,7 +279,16 @@ class AiActionAdvisorController extends Controller
     {
         $this->requireAdmin($request);
 
-        $tenantId = (int) ($request->user()->tenant_id ?? $request->user()->id);
+        // Chantier 10: was `tenant_id ?? user()->id` — the phantom
+        // tenant_id column, falling through to the user's own id, meaning
+        // every user effectively got their own private "tenant" budget
+        // bucket instead of sharing their real company's AiUsageLimit
+        // (set via setLimit() below) — a functional bug (admin-set budgets
+        // never actually applied to real users), not a cross-tenant leak
+        // (no shared/guessable fallback). Fixed to the real tenant
+        // boundary, company_id (ai_usage_limits.tenant_id is a real integer
+        // column).
+        $tenantId = (int) ($request->user()->company_id ?? 0);
 
         $limit = AiUsageLimit::where('tenant_id', $tenantId)->findOrFail($id);
         $limit->delete();

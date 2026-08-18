@@ -14,11 +14,18 @@ uses(RefreshDatabase::class);
 
 /**
  * Create a StrategyPlan owned by the given user.
+ *
+ * Chantier 10: was `$user->tenant_id ?? 'default'` — the phantom
+ * users.tenant_id column CascadeController::tenantId() no longer reads
+ * (see that method's own docblock: it silently collapsed every tenant's
+ * data into one shared 'default' bucket). Aligned to the real company_id
+ * boundary column so this fixture's tenant matches what the controller
+ * now actually resolves for $user.
  */
 function createPlan(User $user): StrategyPlan
 {
     return StrategyPlan::create([
-        'tenant_id'    => $user->tenant_id ?? 'default',
+        'tenant_id'    => (string) ($user->company_id ?? 0),
         'name'         => 'Test Plan 2026',
         'vision'       => 'Market leadership',
         'mission'      => 'Deliver excellence',

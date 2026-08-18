@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
@@ -34,11 +35,18 @@ beforeEach(function () {
 /**
  * Create and authenticate a test user without triggering Employee factory
  * (the global actingAsUser() creates hr_employees which may not exist in SQLite).
+ *
+ * Chantier 10: WorkflowController::tenantId() was fixed away from the
+ * phantom `tenant_id ?? user()->id` fallback onto the real `company_id`
+ * tenant boundary (see that method's docblock) — every fixture in this
+ * file that used to key workflow/execution rows off `$user->id` as a
+ * tenant surrogate now needs a real `company_id` instead.
  */
 function workflowUser(string $role = 'admin'): \App\Models\User
 {
     \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-    $user = \App\Models\User::factory()->create();
+    $company = \App\Models\Company::factory()->create();
+    $user = \App\Models\User::factory()->create(['company_id' => $company->id]);
     $user->assignRole($role);
     test()->actingAs($user, 'sanctum');
     return $user;
@@ -98,8 +106,8 @@ test('unauthenticated request to create workflow returns 401', function () {
 
 test('authenticated user can list their workflow definitions', function () {
     $user = workflowUser('admin');
-    makeWorkflowForUser($user->id);
-    makeWorkflowForUser($user->id, ['name' => 'Second Workflow']);
+    makeWorkflowForUser($user->company_id);
+    makeWorkflowForUser($user->company_id, ['name' => 'Second Workflow']);
 
     $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/workflows');
@@ -115,8 +123,8 @@ test('authenticated user can list their workflow definitions', function () {
 
 test('list workflows filters by module', function () {
     $user = workflowUser('admin');
-    makeWorkflowForUser($user->id, ['module' => 'CRM']);
-    makeWorkflowForUser($user->id, ['module' => 'HR']);
+    makeWorkflowForUser($user->company_id, ['module' => 'CRM']);
+    makeWorkflowForUser($user->company_id, ['module' => 'HR']);
 
     $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/workflows?module=CRM');
@@ -127,8 +135,8 @@ test('list workflows filters by module', function () {
 
 test('list workflows filters by is_active', function () {
     $user = workflowUser('admin');
-    makeWorkflowForUser($user->id, ['is_active' => true]);
-    makeWorkflowForUser($user->id, ['is_active' => false]);
+    makeWorkflowForUser($user->company_id, ['is_active' => true]);
+    makeWorkflowForUser($user->company_id, ['is_active' => false]);
 
     $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/workflows?is_active=1');
@@ -153,7 +161,7 @@ test('can create a workflow definition', function () {
     $this->assertDatabaseHas('wfd_definitions', [
         'name'      => 'Test Workflow',
         'module'    => 'CRM',
-        'tenant_id' => $user->id,
+        'tenant_id' => $user->company_id,
     ]);
 });
 
@@ -222,7 +230,7 @@ test('create workflow returns 422 for invalid action_type', function () {
 
 test('can show a workflow definition with actions', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
     makeAction($workflow->id);
 
     $response = $this->actingAs($user, 'sanctum')
@@ -246,7 +254,7 @@ test('show returns 404 for unknown workflow', function () {
 
 test('can update a workflow definition', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
 
     $response = $this->actingAs($user, 'sanctum')
         ->putJson("/api/v1/workflows/{$workflow->id}", [
@@ -267,7 +275,7 @@ test('can update a workflow definition', function () {
 
 test('update replaces actions when actions array is provided', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
     makeAction($workflow->id, ['action_type' => 'send_email']);
 
     $response = $this->actingAs($user, 'sanctum')
@@ -286,7 +294,7 @@ test('update replaces actions when actions array is provided', function () {
 
 test('can delete (deactivate) a workflow definition', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
 
     $response = $this->actingAs($user, 'sanctum')
         ->deleteJson("/api/v1/workflows/{$workflow->id}");
@@ -301,7 +309,7 @@ test('can delete (deactivate) a workflow definition', function () {
 
 test('can toggle workflow to inactive', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id, ['is_active' => true]);
+    $workflow = makeWorkflowForUser($user->company_id, ['is_active' => true]);
 
     $response = $this->actingAs($user, 'sanctum')
         ->postJson("/api/v1/workflows/{$workflow->id}/toggle");
@@ -317,7 +325,7 @@ test('can toggle workflow to inactive', function () {
 
 test('can toggle workflow back to active', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id, ['is_active' => false]);
+    $workflow = makeWorkflowForUser($user->company_id, ['is_active' => false]);
 
     $response = $this->actingAs($user, 'sanctum')
         ->postJson("/api/v1/workflows/{$workflow->id}/toggle");
@@ -330,16 +338,16 @@ test('can toggle workflow back to active', function () {
 
 test('can list execution history for a workflow', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
 
     WorkflowExecution::create([
-        'tenant_id'   => $user->id,
+        'tenant_id'   => $user->company_id,
         'workflow_id' => $workflow->id,
         'status'      => 'completed',
         'started_at'  => now(),
     ]);
     WorkflowExecution::create([
-        'tenant_id'   => $user->id,
+        'tenant_id'   => $user->company_id,
         'workflow_id' => $workflow->id,
         'status'      => 'failed',
         'started_at'  => now(),
@@ -354,11 +362,11 @@ test('can list execution history for a workflow', function () {
 
 test('execution history is paginated', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
 
     for ($i = 0; $i < 5; $i++) {
         WorkflowExecution::create([
-            'tenant_id'   => $user->id,
+            'tenant_id'   => $user->company_id,
             'workflow_id' => $workflow->id,
             'status'      => 'completed',
             'started_at'  => now(),
@@ -377,7 +385,7 @@ test('execution history is paginated', function () {
 
 test('manual trigger creates an execution record', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
     makeAction($workflow->id);
 
     $response = $this->actingAs($user, 'sanctum')
@@ -390,13 +398,13 @@ test('manual trigger creates an execution record', function () {
 
     $this->assertDatabaseHas('wfd_executions', [
         'workflow_id' => $workflow->id,
-        'tenant_id'   => $user->id,
+        'tenant_id'   => $user->company_id,
     ]);
 });
 
 test('manual trigger sets execution status to completed', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
     makeAction($workflow->id);
 
     $response = $this->actingAs($user, 'sanctum')
@@ -410,7 +418,7 @@ test('manual trigger sets execution status to completed', function () {
 
 test('manual trigger creates execution logs for each action', function () {
     $user     = workflowUser('admin');
-    $workflow = makeWorkflowForUser($user->id);
+    $workflow = makeWorkflowForUser($user->company_id);
     makeAction($workflow->id, ['order' => 0]);
     makeAction($workflow->id, ['action_type' => 'send_sms', 'order' => 1]);
 
@@ -436,9 +444,9 @@ test('manual trigger returns 422 when workflow_id is missing', function () {
 });
 
 test('manual trigger returns 404 for workflow not belonging to tenant', function () {
-    $user    = workflowUser('admin');
-    $other   = User::factory()->create(['id' => 9999]);
-    $foreign = makeWorkflowForUser($other->id + 1000);
+    $user          = workflowUser('admin');
+    $otherCompany  = Company::factory()->create();
+    $foreign       = makeWorkflowForUser($otherCompany->id);
 
     $response = $this->actingAs($user, 'sanctum')
         ->postJson('/api/v1/workflows/trigger', [
@@ -452,10 +460,10 @@ test('manual trigger returns 404 for workflow not belonging to tenant', function
 
 test('tenant A cannot see tenant B workflows', function () {
     $userA = workflowUser('admin');
-    makeWorkflowForUser($userA->id, ['name' => 'Tenant A Workflow']);
+    makeWorkflowForUser($userA->company_id, ['name' => 'Tenant A Workflow']);
 
-    $userB = User::factory()->create();
-    makeWorkflowForUser($userB->id + 1000, ['name' => 'Tenant B Workflow']);
+    $companyB = Company::factory()->create();
+    makeWorkflowForUser($companyB->id, ['name' => 'Tenant B Workflow']);
 
     $response = $this->actingAs($userA, 'sanctum')
         ->getJson('/api/v1/workflows');
@@ -467,9 +475,9 @@ test('tenant A cannot see tenant B workflows', function () {
 
 test('tenant A cannot update tenant B workflow', function () {
     $userA = workflowUser('admin');
-    $userB = User::factory()->create();
+    $companyB = Company::factory()->create();
 
-    $foreignWorkflow = makeWorkflowForUser($userB->id + 1000);
+    $foreignWorkflow = makeWorkflowForUser($companyB->id);
 
     $response = $this->actingAs($userA, 'sanctum')
         ->putJson("/api/v1/workflows/{$foreignWorkflow->id}", ['name' => 'Hacked']);
@@ -479,9 +487,9 @@ test('tenant A cannot update tenant B workflow', function () {
 
 test('tenant A cannot delete tenant B workflow', function () {
     $userA = workflowUser('admin');
-    $userB = User::factory()->create();
+    $companyB = Company::factory()->create();
 
-    $foreignWorkflow = makeWorkflowForUser($userB->id + 1000);
+    $foreignWorkflow = makeWorkflowForUser($companyB->id);
 
     $response = $this->actingAs($userA, 'sanctum')
         ->deleteJson("/api/v1/workflows/{$foreignWorkflow->id}");

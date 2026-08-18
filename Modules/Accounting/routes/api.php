@@ -305,36 +305,23 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::post('expenses/by-period', [ExpensesController::class, 'byPeriod']);
 
     // Advanced Accounting Features
-    // Audit Trail
+    // Audit Trail (Chantier 10: auditSummary route deleted — AdvancedAccountingController never
+    // implemented it, and its own auditTrail() docblock already says "Full audit trail available
+    // via AuditLog module" — confirmed nothing real backs a separate per-entity-type summary
+    // anywhere in the repo)
     Route::get('audit-trail/{entityType}/{entityId}', [AdvancedAccountingController::class, 'auditTrail']);
-    Route::get('audit-summary/{entityType}', [AdvancedAccountingController::class, 'auditSummary']);
 
-    // XBRL Export (rate limited - expensive operation)
-    Route::middleware('throttle:10,60')->group(function () {
-        Route::post('xbrl-export/{report}', [AdvancedAccountingController::class, 'generateXBRL']);
-        Route::get('xbrl-validate/{exportId}', [AdvancedAccountingController::class, 'validateXBRL']);
-        Route::get('xbrl-export/{exportId}', [AdvancedAccountingController::class, 'exportXBRLFile']);
-    });
-
-    // Intercompany Automation
-    Route::post('process-intercompany-rules', [AdvancedAccountingController::class, 'processIntercompanyRules']);
-    Route::post('intercompany-rules', [AdvancedAccountingController::class, 'createIntercompanyRule']);
-    Route::get('intercompany-rules/{ruleId}/test', [AdvancedAccountingController::class, 'testIntercompanyRule']);
-
-    // Consolidation Worksheets (rate limited)
-    Route::middleware('throttle:20,60')->group(function () {
-        Route::post('consolidations/{consolidation}/worksheets', [AdvancedAccountingController::class, 'createConsolidationWorksheet']);
-        Route::post('worksheets/{worksheetId}/submit', [AdvancedAccountingController::class, 'submitWorksheetForReview']);
-        Route::post('worksheets/{worksheetId}/approve', [AdvancedAccountingController::class, 'approveWorksheet']);
-        Route::get('worksheets/{worksheetId}/summary', [AdvancedAccountingController::class, 'worksheetSummary']);
-    });
-
-    // ML Matching
-    Route::post('reconciliations/{reconciliation}/metrics', [AdvancedAccountingController::class, 'recordMatchingMetric']);
-    Route::get('reconciliations/{reconciliation}/accuracy', [AdvancedAccountingController::class, 'matchingAccuracy']);
-    Route::get('reconciliations/{reconciliation}/trends', [AdvancedAccountingController::class, 'matchingTrends']);
-    Route::get('reconciliations/{reconciliation}/recommended-algorithm', [AdvancedAccountingController::class, 'recommendedAlgorithm']);
-    Route::post('metrics/{metricId}/feedback', [AdvancedAccountingController::class, 'feedbackMatch']);
+    // Chantier 10: XBRL export, intercompany-rule automation, consolidation-worksheet review,
+    // and ML-matching-metrics routes deleted — all 15 referenced AdvancedAccountingController
+    // methods that were never implemented (the controller's real methods are just
+    // consolidationReport/intercompanyTransactions/currencyRevaluation/periodClose/auditTrail,
+    // each explicitly pointing callers at the real ConsolidationController/AuditLog module
+    // instead). Confirmed via repo-wide grep that no XBRL/worksheet/intercompany-rule/
+    // matching-metric model, service, or table exists anywhere — genuinely nothing real to
+    // rewire these onto, unlike the other dead routes in this file. Real journal-entry
+    // matching for reconciliation is BankReconciliationService::suggestMatches() (see
+    // ReconciliationController::suggestMatches), and real intercompany transactions/
+    // consolidation already work via ConsolidationController.
 
     // AI Routes
     Route::post('ai/forecast-cash-flow', [AccountingAIController::class, 'forecastCashFlow']);
@@ -430,18 +417,20 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::post('fixed-assets/{fixedAsset}/dispose', [FixedAssetController::class, 'dispose']);
 
     // Performance Optimization (rate limited - admin operations)
+    // Chantier 10: 8 routes deleted (queryPerformance/optimizationRecommendations/
+    // performanceProfile/memoryPeaks/optimizationMetrics/invalidate{GL,Report,TrialBalance}Cache)
+    // — none were ever implemented on PerformanceOptimizationController, and confirmed via grep
+    // there is no Cache::tags()/remember() usage anywhere in Modules/Accounting for a per-entity
+    // cache to invalidate: the controller's own real methods already say "Cache stats depend on
+    // the cache driver in use" / "Slow query log requires database-level monitoring" — genuinely
+    // nothing real behind the deleted routes, matching the AdvancedAccountingController finding
+    // above. indexHealth() was real but had zero route (orphaned) — wired up here instead of left
+    // unreachable.
     Route::middleware('throttle:30,60')->group(function () {
         Route::get('performance/cache-stats', [PerformanceOptimizationController::class, 'cacheStats']);
         Route::post('performance/cache-clear', [PerformanceOptimizationController::class, 'clearCache']);
-        Route::post('performance/query-analysis', [PerformanceOptimizationController::class, 'queryPerformance']);
-        Route::get('performance/optimization-tips', [PerformanceOptimizationController::class, 'optimizationRecommendations']);
-        Route::get('performance/profile', [PerformanceOptimizationController::class, 'performanceProfile']);
         Route::get('performance/slow-queries', [PerformanceOptimizationController::class, 'slowQueries']);
-        Route::get('performance/memory-peaks', [PerformanceOptimizationController::class, 'memoryPeaks']);
-        Route::get('performance/metrics', [PerformanceOptimizationController::class, 'optimizationMetrics']);
-        Route::post('performance/invalidate-gl-cache/{accountId}', [PerformanceOptimizationController::class, 'invalidateGLCache']);
-        Route::post('performance/invalidate-report-cache/{reportId}', [PerformanceOptimizationController::class, 'invalidateReportCache']);
-        Route::post('performance/invalidate-trial-balance-cache/{companyId}', [PerformanceOptimizationController::class, 'invalidateTrialBalanceCache']);
+        Route::get('performance/index-health', [PerformanceOptimizationController::class, 'indexHealth']);
     });
 });
 

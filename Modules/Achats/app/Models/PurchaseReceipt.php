@@ -79,6 +79,19 @@ class PurchaseReceipt extends Model
             ->exists();
     }
 
+    /**
+     * Chantier 10: broader than hasDiscrepancies() — any line whose
+     * quality_status isn't one of the two real "no problem" values this
+     * service/frontend actually write ('good' from
+     * PurchaseReceiptService::addReceiptLine()'s default, 'acceptable'
+     * from PurchaseReceipts/Form.vue's own default) counts as an issue.
+     * Used by PurchaseReceiptResource/index()'s has_issues filter.
+     */
+    public function hasQualityIssueLines(): bool
+    {
+        return $this->lines->contains(fn ($line) => ! in_array($line->quality_status, ['good', 'acceptable']));
+    }
+
     public function markReceived(): void
     {
         $this->update(['status' => 'completed']);

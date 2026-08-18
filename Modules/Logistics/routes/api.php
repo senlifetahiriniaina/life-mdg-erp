@@ -140,7 +140,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:L
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/logistics')->group(function () {
+// Chantier 10: this group had zero module:/role: gate at all — unlike every
+// other Logistics route group and unlike Inventory's own ai/assist route
+// (already gated since Chantier 8.3il) — so any authenticated user of any
+// module/role could reach it. Matched to the main group's role list.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin'])->prefix('v1/logistics')->group(function () {
     Route::post('ai/assist', [\Modules\Logistics\Http\Controllers\Api\LogisticsAiAssistController::class, 'assist'])
         ->name('logistics.ai.assist');
 });
@@ -156,7 +160,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:L
 });
 
 // ── Ocean/Air Visibility Aggregator ──────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1')->group(function () {
+// Chantier 10: this group had zero module:/role: gate at all (any
+// authenticated user of any module/role could read shipment visibility and
+// trigger a refresh-tracking call) — fixed to match the main group's gate.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin'])->prefix('v1')->group(function () {
     Route::get('logistics/shipments/{id}/visibility', [\Modules\Logistics\Http\Controllers\Api\ShipmentVisibilityController::class, 'visibility'])
         ->name('logistics.shipments.visibility');
     Route::post('logistics/shipments/{id}/refresh-tracking', [\Modules\Logistics\Http\Controllers\Api\ShipmentVisibilityController::class, 'refreshTracking'])

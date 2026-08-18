@@ -12,14 +12,23 @@ use Modules\Payroll\Services\PayrollIntegrationService;
  * read base_salary/tenant_id/currency straight off Employee, but none of
  * those are in Employee's $fillable — no real create()/update() path ever
  * populates them, so every real payslip silently computed to (near) zero.
- * The real salary source is EmployeeCompensation; the real tenant source is
- * the linked User's tenant_id. These tests lock in the fix against the real
- * write paths, not a factory bypass.
+ * The real salary source is EmployeeCompensation. These tests lock in the
+ * fix against the real write paths, not a factory bypass.
+ *
+ * Chantier 10 correction: the tenant source used to be documented as the
+ * linked User's tenant_id — that was itself the same phantom-column bug
+ * already fixed repeatedly elsewhere in this app (Reporting, Strategy, AI,
+ * Sales, Achats, Integration, Workflow, Setup): users.tenant_id is a real,
+ * migrated column but is never in User::$fillable and never populated by
+ * any real registration/onboarding path, so every tenant's payslips were
+ * silently collapsing into one shared bucket. Fixed to users.company_id;
+ * these fixtures now set company_id instead of tenant_id to match.
  */
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 test('payslip generation uses the real EmployeeCompensation base salary, not the phantom Employee column', function () {
-    $user = User::factory()->create(['tenant_id' => 7]);
+    $company = \App\Models\Company::factory()->create();
+    $user = User::factory()->create(['company_id' => $company->id]);
     $employee = Employee::factory()->create([
         'user_id'          => $user->id,
         'status'           => 'active',
@@ -39,11 +48,12 @@ test('payslip generation uses the real EmployeeCompensation base salary, not the
     expect($payslip)->not->toBeNull();
     expect((float) $payslip->gross_salary)->toBeGreaterThanOrEqual(750_000.0);
     expect($payslip->currency)->toBe('XOF');
-    expect((int) $payslip->tenant_id)->toBe(7);
+    expect((int) $payslip->tenant_id)->toBe($company->id);
 });
 
 test('generatePayslips finds active employees regardless of the phantom Employee.tenant_id column', function () {
-    $user = User::factory()->create(['tenant_id' => 3]);
+    $company = \App\Models\Company::factory()->create();
+    $user = User::factory()->create(['company_id' => $company->id]);
     $employee = Employee::factory()->create([
         'user_id'          => $user->id,
         'status'           => 'active',
@@ -58,7 +68,7 @@ test('generatePayslips finds active employees regardless of the phantom Employee
     ]);
 
     $service = app(PayrollIntegrationService::class);
-    $result  = $service->generatePayslips(3, now()->startOfMonth(), now()->endOfMonth());
+    $result  = $service->generatePayslips($company->id, now()->startOfMonth(), now()->endOfMonth());
 
     expect($result['created_count'])->toBeGreaterThanOrEqual(1);
 });

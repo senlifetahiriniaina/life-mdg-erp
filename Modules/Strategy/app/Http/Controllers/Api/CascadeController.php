@@ -51,15 +51,16 @@ class CascadeController extends Controller
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     /**
-     * Chantier 8.6 (Strategy): already used $request->user()?->tenant_id (the
-     * correct, non-client-controlled column) before this pass — extracted into
-     * the same private helper as the other Strategy controllers for
-     * consistency. See StrategyPlanController::tenantId() for the full
-     * rationale on why this column (not X-Tenant-Id) is the right source.
+     * Chantier 10 (Strategy): the Chantier 8.6 comment here claimed
+     * users.tenant_id was "the correct, non-client-controlled column" — it
+     * is not; it's the phantom column documented elsewhere in CLAUDE.md,
+     * never populated for real users, so every tenant collapsed into one
+     * shared 'default' bucket. See StrategyPlanController::tenantId() for
+     * the full rationale; fixed to the real company_id boundary column.
      */
     private function tenantId(Request $request): string
     {
-        return (string) ($request->user()?->tenant_id ?? 'default');
+        return (string) ($request->user()?->company_id ?? 0);
     }
 
     /**

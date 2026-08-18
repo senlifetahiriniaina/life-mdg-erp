@@ -233,10 +233,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:B
         Route::get('bi/objective-catalog', [AiBiController::class, 'objectiveCatalog']);
         Route::get('bi/widgets/{widget}/objectives', [AiBiController::class, 'widgetObjectives']);
     });
-    Route::middleware('throttle:create_post')->group(function () {
-        Route::post('bi/widgets/{widget}/link-objective', [AiBiController::class, 'linkObjective']);
-        Route::post('bi/widgets/{widget}/link-forecast', [AiBiController::class, 'linkForecast']);
-    });
+    // NOTE: 'link-objective'/'link-forecast' routes were removed here (Chantier 10) —
+    // they pointed at AiBiController::linkObjective()/linkForecast(), neither of
+    // which ever existed (a guaranteed "call to undefined method" on every request),
+    // and no Vue page or test anywhere in the repo ever called either URL. See
+    // CLAUDE.md's Chantier 10 BI entry: AiBiController's objective/forecast-alignment
+    // endpoints are canned-response stubs with zero real consumer, documented as a
+    // gap rather than built out (would require inventing new link-storage schema and
+    // alignment-scoring business logic that was never specified anywhere).
 
     // Expensive operations (AI, predictive models, anomaly detection)
     Route::middleware('throttle:expensive')->group(function () {

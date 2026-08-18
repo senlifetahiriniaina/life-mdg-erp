@@ -3,15 +3,26 @@
 namespace Modules\CRM\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\CRM\Models\Account;
+use Modules\CRM\Models\Campaign;
+use Modules\CRM\Models\CallRecording;
 use Modules\CRM\Models\Contact;
 use Modules\CRM\Models\Lead;
 use Modules\CRM\Models\Opportunity;
+use Modules\CRM\Models\RevenueAnomaly;
+use Modules\CRM\Models\RevenueInsight;
+use Modules\CRM\Models\RevenueTrend;
+use Modules\CRM\Models\Workflow;
 use Modules\CRM\Observers\AccountObserver;
 use Modules\CRM\Observers\ContactObserver;
 use Modules\CRM\Observers\LeadObserver;
 use Modules\CRM\Observers\OpportunityObserver;
+use Modules\CRM\Policies\CallRecordingPolicy;
+use Modules\CRM\Policies\CampaignPolicy;
+use Modules\CRM\Policies\RevenueInsightPolicy;
+use Modules\CRM\Policies\WorkflowPolicy;
 use Modules\CRM\Services\AI\CrmAIService;
 use Modules\CRM\Services\CpqService;
 use Modules\CRM\Services\ForecastService;
@@ -39,6 +50,7 @@ class CRMServiceProvider extends ServiceProvider
         Account::observe(AccountObserver::class);
         Lead::observe(LeadObserver::class);
         Opportunity::observe(OpportunityObserver::class);
+        $this->registerPolicies();
         $this->registerCommands();
         $this->registerCommandSchedules();
         $this->registerTranslations();
@@ -60,6 +72,28 @@ class CRMServiceProvider extends ServiceProvider
         $this->app->singleton(CpqService::class);
         $this->app->singleton(ForecastService::class);
         $this->app->singleton(TerritoryService::class);
+    }
+
+    /**
+     * Register policies with Laravel's Gate.
+     *
+     * Chantier 10 fix: Modules-namespaced policies don't auto-discover the way App\Policies
+     * ones do (same pattern documented repeatedly elsewhere in this session — Core/BI/HR/
+     * Payroll/Strategy/Calendar all needed this same explicit registration). CampaignPolicy/
+     * WorkflowPolicy were already correctly written and already called via authorize() in
+     * CampaignController/WorkflowBuilderController, but with no Gate registration at all every
+     * one of those authorize() calls threw AuthorizationException for every non-super-admin
+     * user (Gate::before() only short-circuits super-admin) — active breakage, not just a
+     * missing-permission-seed gap.
+     */
+    protected function registerPolicies(): void
+    {
+        Gate::policy(Campaign::class, CampaignPolicy::class);
+        Gate::policy(Workflow::class, WorkflowPolicy::class);
+        Gate::policy(RevenueInsight::class, RevenueInsightPolicy::class);
+        Gate::policy(RevenueTrend::class, RevenueInsightPolicy::class);
+        Gate::policy(RevenueAnomaly::class, RevenueInsightPolicy::class);
+        Gate::policy(CallRecording::class, CallRecordingPolicy::class);
     }
 
     /**

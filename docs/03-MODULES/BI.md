@@ -42,8 +42,8 @@ Toutes les routes sont sous `v1`, `auth:sanctum`, `module:BI`, garde de rôle `r
 | POST | `bi/data-sources/{id}/test`, `.../sync`, GET `.../schema`, GET `bi/data-sources/types` | Gestion des connecteurs de sources externes |
 | POST | `bi/kpi-alerts/check`, `.../evaluate`, `bi/alert-events/{id}/acknowledge` | Évaluation et accusé de réception d'alerte KPI |
 | POST | `bi/scheduled-reports/{id}/send`, `.../process-due` | Envoi de rapports planifiés |
-| POST | `bi/ai/narrative`, `bi/ai/analyze-objectives`, `bi/ai/forecast-compare`, `bi/ai/suggest-alignment` | Analyse IA avancée (narration, objectifs, comparaison de prévision) |
-| POST | `bi/ai/detect-deviations`, GET `bi/forecast-sources`, `bi/objective-catalog`, `bi/widgets/{id}/objectives` | Alignement widget ↔ objectifs stratégiques |
+| POST | `bi/ai/narrative`, `bi/ai/analyze-objectives`, `bi/ai/forecast-compare`, `bi/ai/suggest-alignment` | Analyse IA avancée (narration, objectifs, comparaison de prévision) — seul `narrative` délègue réellement à `BiAIService`, les 3 autres renvoient une réponse statique en conserve (voir note Chantier 10 ci-dessous) |
+| POST | `bi/ai/detect-deviations`, GET `bi/forecast-sources`, `bi/objective-catalog`, `bi/widgets/{id}/objectives` | Alignement widget ↔ objectifs stratégiques — réponses statiques en conserve, zéro consommateur Vue/test (Chantier 10) |
 | POST | `bi/nl-query` | Requête en langage naturel → SQL |
 | POST | `bi/ai/insights`, `bi/ai/detect-trends`, `bi/ai/suggest-kpis`, `bi/ai/recommend-dashboard` | Suggestions IA (KPI, tendances, dashboard) |
 | POST/GET | `bi/predictive-models`, `.../{id}/train`, `.../{id}/generate`, `.../{id}/forecasts` | Modèles prédictifs |
@@ -66,9 +66,13 @@ Web : `BiWebController` (11 pages historiques + dashboards), et les 4 issus du C
 
 `BIController` (scaffold mort, zéro route) + ses vues blade ont été supprimés, même précédent que `HelpdeskController`.
 
+**Chantier 10 — re-vérification transverse** : `bi_kpi_history` (consommée par `Kpi::history()`, eager-loadée par `KpiController::show()`) était restée en stub `id/tenant_id/name/config/timestamps` malgré un modèle réel (`KpiHistory`, `$fillable = ['kpi_id','value','recorded_at']`) — patchée additivement (`2026_09_04_000001_patch_bi_kpi_history_table.php`). Deux routes mortes supprimées : `bi/widgets/{id}/link-objective`/`link-forecast` pointaient vers `AiBiController::linkObjective()`/`linkForecast()`, qui n'ont jamais existé (zéro appelant Vue/test) ; le reste du contrôleur (`analyzeObjectives`, `forecastCompare`, `suggestAlignment`, `detectDeviations`, `forecastSources`, `objectiveCatalog`, `widgetObjectives`) reste en place mais est documenté comme réponses statiques en conserve, zéro consommateur réel — construire l'alignement widget↔objectif pour de vrai supposerait d'inventer un schéma de liaison et une logique de scoring, laissé comme lacune documentée. `resources/js/Pages/BI/SqlEditor.vue` appelait `POST /api/v1/bi/queries/run` (jamais une route réelle) au lieu de `POST /api/v1/bi/queries/run-raw` — corrigé.
+
 ## Vues (Vue/Inertia)
 
 `Modules/BI/resources/js/Pages/` : `Visualizations/`, `DataStories/`, `Forecasting/`, `AlertRules/`, `AINarratives/`, `PredictiveAnalytics/`, `ExternalDataSources/` — les 4 dernières venant du Chantier 8.2bi (`AlertRules`, `DataStories`, `ExternalDataSources`, `Forecasting` sont accessibles via `/bi/alert-rules`, `/bi/data-stories`, `/bi/external-data-sources`, `/bi/forecasting`), plus les pages historiques (`/bi`, `/bi/analytics`, `/bi/kpis`, `/bi/nl-query`, `/bi/sql-editor`, `/bi/alerts`, `/bi/data-sources`, `/bi/reports`, `/bi/dashboards/builder`, `/bi/dashboards/{dashboard}`) servies par `BiWebController`.
+
+**Chantier 10** : `resources/js/Pages/BI/Visualizations/Index.vue` (racine) masquait `Modules/BI/resources/js/Pages/Visualizations/Index.vue` — même mécanisme prioritaire `resolve()` déjà documenté pour Calendar, mais avec la direction inversée : le fichier racine servi (287 lignes) était une galerie de types de graphiques 100 % statique (zéro `axios`/`fetch`), tandis que le fichier module masqué (396 lignes) est le vrai gestionnaire CRUD (liste, création, édition, partage, export, temps réel) déjà branché sur `/api/v1/bi/visualizations*`. Le fichier racine mock a été supprimé ; `BiWebController::visualizations()` sert maintenant le vrai gestionnaire via le repli module de `resolve()`.
 
 ## Services
 

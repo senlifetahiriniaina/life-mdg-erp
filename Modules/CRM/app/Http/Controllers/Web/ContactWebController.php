@@ -122,6 +122,63 @@ class ContactWebController extends Controller
         ]);
     }
 
+    /**
+     * Chantier 10: Accounts/Form.vue (create/edit) was a real, fully-built Inertia form —
+     * useForm().post('/crm/accounts') / .put('/crm/accounts/{id}') — but had no web route or
+     * controller action of any kind, only the API-only apiResource under /api/v1/crm/accounts.
+     * Wired directly onto the real Account model/validation (mirroring AccountController's
+     * own store() validation), not a new backend concept.
+     */
+    public function createAccount(): Response
+    {
+        return Inertia::render('CRM/Accounts/Form');
+    }
+
+    public function editAccount(Account $account): Response
+    {
+        return Inertia::render('CRM/Accounts/Form', ['account' => $account]);
+    }
+
+    public function storeAccount(Request $request)
+    {
+        $validated = $this->validateAccount($request);
+
+        $account = Account::create(array_merge($validated, ['owner_id' => $request->user()->id]));
+
+        return redirect('/crm/accounts/'.$account->id.'/edit')->with('success', 'Account created.');
+    }
+
+    public function updateAccount(Request $request, Account $account)
+    {
+        $account->update($this->validateAccount($request));
+
+        return redirect('/crm/accounts')->with('success', 'Account updated.');
+    }
+
+    private function validateAccount(Request $request): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'type' => ['nullable', 'in:prospect,customer,partner'],
+            'industry' => ['nullable', 'string', 'max:255'],
+            'website' => ['nullable', 'url'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email'],
+            // Accounts/Form.vue's field is `employees`; Account's real column is
+            // employee_count — mapped explicitly below rather than left to silently drop.
+            'employees' => ['nullable', 'integer', 'min:1'],
+            'annual_revenue' => ['nullable', 'numeric', 'min:0'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        if (array_key_exists('employees', $validated)) {
+            $validated['employee_count'] = $validated['employees'];
+            unset($validated['employees']);
+        }
+
+        return $validated;
+    }
+
     public function emailSequences(Request $request): Response
     {
         $sequences = EmailSequence::withCount(['enrollments', 'steps'])

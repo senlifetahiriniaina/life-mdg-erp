@@ -11,10 +11,25 @@ use Modules\API\Models\ApiKey;
 
 class ApiKeyController extends Controller
 {
+    /**
+     * Chantier 10: every `tenant_id` scoping site in this controller used
+     * $request->user()->id directly — not even the phantom tenant_id
+     * column, just the acting user's own id — so api_keys/api_requests were
+     * scoped per-user instead of per-company. Not a cross-tenant leak (no
+     * shared/guessable fallback), but a real collaboration bug: two admins
+     * of the same real company could never see/manage/revoke each other's
+     * API keys. Fixed to the real tenant boundary, company_id
+     * (api_keys.tenant_id is a real integer column).
+     */
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()->company_id ?? 0);
+    }
+
     public function index(Request $request)
     {
         $keys = DB::table('api_keys')
-            ->where('tenant_id', $request->user()->id)
+            ->where('tenant_id', $this->tenantId($request))
             ->whereNull('revoked_at')
             ->orderByDesc('created_at')
             ->get();
@@ -33,7 +48,7 @@ class ApiKeyController extends Controller
         ]);
         $rawKey = 'wh_' . Str::random(40);
         $id = DB::table('api_keys')->insertGetId([
-            'tenant_id' => $request->user()->id,
+            'tenant_id' => $this->tenantId($request),
             'user_id' => $request->user()->id,
             'name' => $data['name'],
             'key_hash' => Hash::make($rawKey),
@@ -49,7 +64,7 @@ class ApiKeyController extends Controller
 
     public function show(Request $request, $id)
     {
-        $key = DB::table('api_keys')->where('id', $id)->where('tenant_id', $request->user()->id)->first();
+        $key = DB::table('api_keys')->where('id', $id)->where('tenant_id', $this->tenantId($request))->first();
         abort_if(!$key, 404);
         return response()->json(['data' => $key]);
     }
@@ -62,13 +77,13 @@ class ApiKeyController extends Controller
         // doesn't need one.
         $this->authorize('delete', new ApiKey());
 
-        DB::table('api_keys')->where('id', $id)->where('tenant_id', $request->user()->id)->update(['revoked_at' => now()]);
+        DB::table('api_keys')->where('id', $id)->where('tenant_id', $this->tenantId($request))->update(['revoked_at' => now()]);
         return response()->json(['message' => 'API key revoked']);
     }
 
     public function logs(Request $request, $id)
     {
-        $logs = DB::table('api_requests')->where('api_key_id', $id)->where('tenant_id', $request->user()->id)->orderByDesc('created_at')->limit(100)->get();
+        $logs = DB::table('api_requests')->where('api_key_id', $id)->where('tenant_id', $this->tenantId($request))->orderByDesc('created_at')->limit(100)->get();
         return response()->json(['data' => $logs]);
     }
 }

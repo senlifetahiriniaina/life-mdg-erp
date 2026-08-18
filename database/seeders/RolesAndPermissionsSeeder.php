@@ -113,9 +113,21 @@ class RolesAndPermissionsSeeder extends Seeder
     // seeded here — the seeder that did seed them (Modules\CRM\database\seeders\
     // PermissionSeeder, via CRMDatabaseSeeder/TenantDefaultSeeder) is never
     // reached from this repo's actual DatabaseSeeder chain.
+    // Phase B (Chantier 10): CallRecordingPolicy/RevenueInsightPolicy (new —
+    // built during Chantier 10's Accounting+CRM+Sales re-verification pass,
+    // see CLAUDE.md) check crm.call-recording.{view,summarize} and
+    // crm.revenue-intelligence.{view,create,resolve} — non-standard verbs
+    // the generic MODULES/ACTIONS loop can't produce, same reasoning as the
+    // rest of this const. Both policies already fail closed via a
+    // PermissionDoesNotExist-catching wrapper, so this was not itself an
+    // active vulnerability — but it means finance-manager/sales-manager/
+    // admin/super-admin (the roles meant to actually use these features)
+    // were silently denied everywhere until these strings existed.
     private const CRM_EXTRA_PERMISSIONS = [
         'crm.campaigns.view', 'crm.campaigns.create', 'crm.campaigns.edit', 'crm.campaigns.delete',
         'crm.workflows.view', 'crm.workflows.create', 'crm.workflows.edit', 'crm.workflows.delete',
+        'crm.call-recording.view', 'crm.call-recording.summarize',
+        'crm.revenue-intelligence.view', 'crm.revenue-intelligence.create', 'crm.revenue-intelligence.resolve',
     ];
 
     // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
@@ -179,6 +191,19 @@ class RolesAndPermissionsSeeder extends Seeder
         // Visualization (CustomVisualization)
         'bi.visualization.view-any', 'bi.visualization.view', 'bi.visualization.create', 'bi.visualization.update',
         'bi.visualization.delete', 'bi.visualization.export', 'bi.visualization.share',
+        // Phase B (Chantier 10): BiAlertPolicy/BiAnomalyPolicy/BiDataSourcePolicy
+        // (distinct legacy policy classes from AlertPolicy/ForecastingPolicy/
+        // ExternalDataPolicy above — target the separate BiAlert/BiAnomaly/
+        // BiDataSource models behind AlertController/PredictiveAnalyticsController/
+        // DataSourceController) check bi.bialert.*/bi.bianomaly.*/bi.bidatasource.*
+        // with approve/export/archive verbs the generic MODULES/ACTIONS loop
+        // doesn't produce for 'bidatasource' (already in MODULES['bi']) and
+        // doesn't produce at all for 'bialert'/'bianomaly' (not in MODULES['bi']).
+        'bi.bialert.view-any', 'bi.bialert.view', 'bi.bialert.create', 'bi.bialert.update',
+        'bi.bialert.delete', 'bi.bialert.approve', 'bi.bialert.export', 'bi.bialert.archive',
+        'bi.bianomaly.view-any', 'bi.bianomaly.view', 'bi.bianomaly.create', 'bi.bianomaly.update',
+        'bi.bianomaly.delete', 'bi.bianomaly.approve', 'bi.bianomaly.export', 'bi.bianomaly.archive',
+        'bi.bidatasource.approve', 'bi.bidatasource.export', 'bi.bidatasource.archive',
     ];
 
     // Modules\Helpdesk\Policies\CustomerServiceAIPolicy backs CustomerServiceAIController's
@@ -264,6 +289,21 @@ class RolesAndPermissionsSeeder extends Seeder
         'logistics.deliveryround.view-any', 'logistics.deliveryround.view', 'logistics.deliveryround.create',
         'logistics.deliveryround.update', 'logistics.deliveryround.delete', 'logistics.deliveryround.approve',
         'logistics.deliveryround.export', 'logistics.deliveryround.archive',
+    ];
+
+    // Phase B (Chantier 10 — Stock+Logistique group): WarehousePolicy/
+    // StockMovementPolicy/StockPolicy were fully written but Inventory had
+    // zero registerPolicies() call and zero authorize() calls anywhere
+    // (Chantier 10 fixed the wiring) — 'stock' isn't in MODULES['inventory']
+    // at all (only 'stock-movement'/'warehouse'), and all three policies'
+    // approve/export/archive verbs aren't in the generic ACTIONS list, same
+    // reasoning as the other _EXTRA_PERMISSIONS constants.
+    private const INVENTORY_EXTRA_PERMISSIONS = [
+        'inventory.stock.view-any', 'inventory.stock.view', 'inventory.stock.create',
+        'inventory.stock.update', 'inventory.stock.delete', 'inventory.stock.approve',
+        'inventory.stock.export', 'inventory.stock.archive',
+        'inventory.stock-movement.approve', 'inventory.stock-movement.export', 'inventory.stock-movement.archive',
+        'inventory.warehouse.approve', 'inventory.warehouse.export', 'inventory.warehouse.archive',
     ];
 
     private const CORE_EXTRA_PERMISSIONS = [
@@ -415,6 +455,10 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         foreach (self::ACHATS_EXTRA_PERMISSIONS as $name) {
+            $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        foreach (self::INVENTORY_EXTRA_PERMISSIONS as $name) {
             $allPermissions[] = Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 

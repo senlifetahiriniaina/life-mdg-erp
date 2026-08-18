@@ -171,3 +171,55 @@ test('no cross-tenant leakage via embed endpoint', function () {
     $this->getJson("/api/v1/bi/embed/dashboard/99999?embed_token=" . urlencode($tokenA))
         ->assertStatus(403);
 });
+
+// Chantier 10: EmbedController::createToken() resolved the token's tenant scope
+// from `$user->tenant_id ?? 0` — the phantom users.tenant_id column, never
+// populated for real users, always resolving to 0 regardless of the caller's
+// real company. Fixed to `$user->company_id ?? 0`. This locks in that the
+// issued token now actually carries the caller's real company boundary.
+test('embed token tenant scope reflects the real company_id boundary, not the phantom tenant_id column', function () {
+    $user    = actingAsUser('manager');
+    $company = \App\Models\Company::factory()->create();
+    $user->forceFill(['company_id' => $company->id])->save();
+
+    $dashboard = Dashboard::factory()->create(['user_id' => $user->id]);
+
+    $token = $this->postJson('/api/v1/bi/embed/tokens', [
+        'dashboard_id'    => $dashboard->id,
+        'allowed_domains' => ['example.com'],
+    ])->json('token');
+
+    $payload = app(EmbedTokenService::class)->validateEmbedToken($token);
+
+    expect($payload['tenant_id'])->toBe($company->id);
+});
+
+// Chantier 10: the dashboard-ownership guard in createToken() used to compare
+// `$dashboard->tenant_id !== ($user->tenant_id ?? $dashboard->tenant_id)` — a
+// self-defeating fallback that always evaluated to false (permanently
+// vacuous), on top of `isset($dashboard->tenant_id)` itself always being
+// false since bi_dashboards.tenant_id is a dead scaffold column never in
+// Dashboard::$fillable — so any authenticated manager/admin could mint an
+// embed token for ANY dashboard by id regardless of ownership. Fixed to a
+// real ownership check matching this app's own established
+// DashboardPolicy::isAdminOrOwner() convention (admin/manager role, the
+// dashboard's own owner, or an explicitly public dashboard). Every role that
+// can reach this route at all (manager/admin, per the route's own `role:`
+// gate) legitimately passes the admin/manager branch of that check by this
+// app's design — this test documents that current, deliberate behavior
+// (a manager can embed a dashboard they don't own, matching
+// DashboardPolicy's own identical escape hatch for mutations) rather than
+// asserting a 403 that the route-level gate makes unreachable for any role
+// that could actually hit this endpoint.
+test('createToken allows a manager to embed a dashboard they do not own (matches DashboardPolicy::isAdminOrOwner)', function () {
+    $owner     = actingAsUser('employee');
+    $dashboard = Dashboard::factory()->create(['user_id' => $owner->id, 'is_public' => false]);
+
+    $manager = actingAsUser('manager');
+    $this->actingAs($manager, 'sanctum');
+
+    $this->postJson('/api/v1/bi/embed/tokens', [
+        'dashboard_id'    => $dashboard->id,
+        'allowed_domains' => ['example.com'],
+    ])->assertStatus(201);
+});

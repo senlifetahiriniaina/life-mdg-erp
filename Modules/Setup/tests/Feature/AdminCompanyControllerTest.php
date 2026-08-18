@@ -2,6 +2,7 @@
 
 namespace Modules\Setup\Tests\Feature;
 
+use App\Models\Company;
 use App\Models\User;
 use Modules\Setup\Models\CompanyProfile;
 use Spatie\Permission\Models\Role;
@@ -13,6 +14,12 @@ use Tests\TestCase;
  * fataled with a class-not-found error. CompanyProfile now exists
  * (2026_08_14_000011_create_setup_company_profiles_table.php); these
  * tests exercise the previously-guaranteed-fatal endpoints for real.
+ *
+ * Chantier 10: the admin user now needs a real company_id — the
+ * controller's tenantId() resolution was fixed away from the phantom
+ * `tenant_id ?? 'default'` (see AdminCompanyController's own docblock) onto
+ * the real `company_id` tenant boundary, so a bare `User::factory()->create()`
+ * (company_id null) now resolves to tenant '0', not 'default'.
  */
 class AdminCompanyControllerTest extends TestCase
 {
@@ -23,7 +30,8 @@ class AdminCompanyControllerTest extends TestCase
         parent::setUp();
 
         Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
-        $this->admin = User::factory()->create();
+        $company = Company::factory()->create();
+        $this->admin = User::factory()->create(['company_id' => $company->id]);
         $this->admin->assignRole('admin');
     }
 
@@ -57,7 +65,7 @@ class AdminCompanyControllerTest extends TestCase
     public function test_update_edits_an_existing_profile()
     {
         CompanyProfile::create([
-            'tenant_id' => 'default',
+            'tenant_id' => (string) $this->admin->company_id,
             'company_name' => 'Old Name',
             'country_code' => 'SN',
         ]);

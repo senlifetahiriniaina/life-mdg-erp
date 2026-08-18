@@ -21,6 +21,8 @@ class WarehouseController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Warehouse::class);
+
         $search = $request->query('search');
         $perPage = $request->query('per_page', 15);
 
@@ -38,6 +40,8 @@ class WarehouseController extends Controller
 
     public function store(StoreWarehouseRequest $request)
     {
+        $this->authorize('create', Warehouse::class);
+
         $warehouse = $this->service->createWarehouse($request->validated());
 
         return (new WarehouseResource($warehouse))->response()->setStatusCode(201);
@@ -45,6 +49,8 @@ class WarehouseController extends Controller
 
     public function show(Warehouse $warehouse)
     {
+        $this->authorize('view', $warehouse);
+
         $warehouse->load('stockMovements');
 
         return new WarehouseResource($warehouse);
@@ -52,6 +58,8 @@ class WarehouseController extends Controller
 
     public function update(UpdateWarehouseRequest $request, Warehouse $warehouse)
     {
+        $this->authorize('update', $warehouse);
+
         $updated = $this->service->updateWarehouse($warehouse, $request->validated());
 
         return new WarehouseResource($updated);
@@ -59,6 +67,8 @@ class WarehouseController extends Controller
 
     public function destroy(Warehouse $warehouse)
     {
+        $this->authorize('delete', $warehouse);
+
         $warehouse->delete();
 
         return response()->noContent();

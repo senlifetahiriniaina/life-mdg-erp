@@ -457,19 +457,31 @@ class SetupController extends Controller
     // -----------------------------------------------------------------------
 
     /**
-     * Chantier 8.5: was $request->user()?->company_id (a narrower, often-null,
-     * different-purpose FK) with a client-controlled X-Company-ID header
-     * fallback that was reached in the common case — any authenticated user
-     * could set X-Company-ID to another tenant's id and read/write their
-     * import jobs. The real multi-tenant boundary column is users.tenant_id
-     * (confirmed via App\Http\Middleware\InitializeTenancyFromAuthenticatedUser's
-     * own docblock: this app uses a shared-DB + tenant_id scoping model) —
-     * same ID-space mismatch bug pattern already fixed repeatedly elsewhere
-     * in this app (LeaveRequestPolicy, PayrollPolicy, TimesheetEntryPolicy).
+     * Chantier 8.5: was $request->user()?->company_id with a client-controlled
+     * X-Company-ID header fallback that was reached in the common case — any
+     * authenticated user could set X-Company-ID to another tenant's id and
+     * read/write their import jobs. That pass switched the source column to
+     * users.tenant_id, reasoning (from
+     * App\Http\Middleware\InitializeTenancyFromAuthenticatedUser's own
+     * docblock) that this app uses a shared-DB + tenant_id scoping model.
+     *
+     * Chantier 10 correction: that reasoning conflated "this app's design
+     * intends tenant_id as the scoping column" with "tenant_id is actually
+     * populated in production" — the middleware's docblock only describes
+     * intent and degrades safely when tenant_id is absent, it isn't evidence
+     * of real population. A repo-wide grep of every user-creation path
+     * (AuthController::register(), DemoSeeder, every factory) confirms
+     * users.tenant_id is never set anywhere — the exact same phantom-column
+     * pattern already fixed this session in Reporting/Strategy/AI/Sales/
+     * Achats/Integration/Workflow/Payroll (Chantier 10). Every tenant's
+     * import jobs and onboarding sessions were silently collapsing into one
+     * shared tenant_id=0 bucket. Switched to users.company_id — the real
+     * tenant boundary column — with no header fallback, so the original
+     * IDOR this method was written to close stays closed.
      */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()?->tenant_id ?? 0);
+        return (int) ($request->user()?->company_id ?? 0);
     }
 
     private function findJobForTenant(Request $request, int $id): ?ImportJob

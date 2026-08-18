@@ -28,6 +28,18 @@ Route::middleware(['auth', 'module:Timesheets'])->prefix('timesheets')->group(fu
         return inertia('Timesheets/TimeEntries/Form');
     })->name('timesheets.entries.edit');
 
+    // Chantier 10: real, fully-built page (Pinia store -> useTimesheets()
+    // composable -> real, tested GET /api/v1/timesheets/projects,
+    // TrackingProjectController) with no route anywhere — Dashboard.vue's
+    // own "Projects" quick-action link already targets this exact path.
+    // Modules/Timesheets/resources/js/Pages/Entries/Index.vue (a smaller,
+    // redundant duplicate of the richer, already-routed
+    // Timesheets/TimeEntries/Index.vue) was deleted rather than wired,
+    // matching the KB-routes/CRM-pages dead-duplicate precedent.
+    Route::get('/projects', function () {
+        return inertia('Timesheets/Projects/Index');
+    })->name('timesheets.projects.index');
+
     // Timesheets ("sheets" = weekly TimesheetPeriod submissions)
     Route::get('/sheets', function () {
         return inertia('Timesheets/Sheets/Index');

@@ -447,8 +447,13 @@ class SecretRotationManager
      *
      * @return string
      */
+    /**
+     * Chantier 10: same client-controlled-header-fallback cross-tenant bug
+     * fixed in SecretsService::getTenantId() (see that method's docblock) —
+     * fixed identically here.
+     */
     private function getTenantId(): string
     {
-        return auth()->user()?->tenant_id ?? request()->header('X-Tenant-ID', 'default');
+        return (string) (auth()->user()?->company_id ?? '0');
     }
 }

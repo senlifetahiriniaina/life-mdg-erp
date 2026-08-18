@@ -12,7 +12,12 @@ use Modules\Achats\Http\Controllers\Api\SupplierController;
 use Modules\Achats\Http\Controllers\Api\SupplierQuoteController;
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:purchasing-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->group(function () {
+// Chantier 10: this group had a role: gate but no module:Achats gate at all
+// — unlike Inventory/Logistics's own main groups and unlike Achats' own
+// routes/web.php (which already got module:Achats in Chantier 8.5-light) —
+// so a tenant with the Achats module disabled could still reach its full
+// API. Added to match every sibling module's main route group.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Achats', 'role:purchasing-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->group(function () {
     // Purchase Orders
     Route::get('purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::get('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show']);
@@ -59,7 +64,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:pur
     // Mutations
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('purchase-orders', [PurchaseOrderController::class, 'store']);
-        Route::put('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'update']);
+        // Chantier 10: PurchaseOrders/Form.vue's edit mode sends PATCH, not
+        // PUT — this route only ever registered PUT (405 on every real edit
+        // submission, undetected since no existing test exercised the edit
+        // path at all). Same bug found and fixed on suppliers/rfqs/
+        // purchase-receipts below.
+        Route::match(['put', 'patch'], 'purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'update']);
         Route::delete('purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'destroy']);
         Route::post('purchase-orders/{purchase_order}/submit', [PurchaseOrderController::class, 'submitForApproval']);
         Route::post('purchase-orders/{purchase_order}/approve', [PurchaseOrderController::class, 'approve']);
@@ -71,11 +81,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:pur
         Route::delete('purchase-orders/{purchase_order}/lines/{line}', [PurchaseOrderLineController::class, 'destroy']);
 
         Route::post('suppliers', [SupplierController::class, 'store']);
-        Route::put('suppliers/{supplier}', [SupplierController::class, 'update']);
+        // Chantier 10: Suppliers/Form.vue also sends PATCH on edit — same fix.
+        Route::match(['put', 'patch'], 'suppliers/{supplier}', [SupplierController::class, 'update']);
         Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
 
         Route::post('rfqs', [RFQController::class, 'store']);
-        Route::put('rfqs/{rfq}', [RFQController::class, 'update']);
+        // Chantier 10: RFQs/Form.vue also sends PATCH on edit — same fix.
+        Route::match(['put', 'patch'], 'rfqs/{rfq}', [RFQController::class, 'update']);
         Route::delete('rfqs/{rfq}', [RFQController::class, 'destroy']);
         Route::post('rfqs/{rfq}/issue', [RFQController::class, 'issue']);
         Route::post('rfqs/{rfq}/close', [RFQController::class, 'closeRfq']);
@@ -89,16 +101,20 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:pur
         Route::post('supplier-quotes/{supplier_quote}/reject', [SupplierQuoteController::class, 'reject']);
 
         Route::post('purchase-receipts', [PurchaseReceiptController::class, 'store']);
-        Route::put('purchase-receipts/{purchase_receipt}', [PurchaseReceiptController::class, 'update']);
+        // Chantier 10: PurchaseReceipts/Form.vue also sends PATCH on edit — same fix.
+        Route::match(['put', 'patch'], 'purchase-receipts/{purchase_receipt}', [PurchaseReceiptController::class, 'update']);
         Route::delete('purchase-receipts/{purchase_receipt}', [PurchaseReceiptController::class, 'destroy']);
-        Route::post('purchase-orders/{purchase_order}/receipts', [PurchaseReceiptController::class, 'store']);
+        Route::post('purchase-orders/{purchase_order}/receipts', [PurchaseReceiptController::class, 'storeForOrder']);
         Route::post('purchase-receipts/{purchase_receipt}/complete', [PurchaseReceiptController::class, 'complete']);
         Route::post('purchase-receipts/{purchase_receipt}/quality-issue', [PurchaseReceiptController::class, 'recordQualityIssue']);
     });
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/achats')->group(function () {
+// Chantier 10: this group had zero module:/role: gate at all — same finding
+// as Logistics' own ai/assist route — so any authenticated user of any
+// module/role could reach it. Matched to the main group's gate above.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Achats', 'role:purchasing-manager,warehouse-operator,manager,admin'])->prefix('v1/achats')->group(function () {
     Route::post('ai/assist', [\Modules\Achats\Http\Controllers\Api\AchatsAiAssistController::class, 'assist'])
         ->name('achats.ai.assist');
 });

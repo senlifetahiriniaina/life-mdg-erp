@@ -32,7 +32,7 @@ class RevenueInsight extends Model
     protected array $auditableFields = ['status', 'title', 'insight_type'];
 
     protected $fillable = [
-        'insight_type', 'category', 'title', 'description', 'data',
+        'company_id', 'insight_type', 'category', 'title', 'description', 'data',
         'impact_score', 'status', 'relevant_user_id', 'insight_generated_at',
     ];
 

@@ -107,6 +107,23 @@ class BankReconciliationService
      */
     private function findBestMatch(BankTransaction $transaction, BankStatement $statement): ?array
     {
+        $ranked = $this->rankCandidateMatches($transaction);
+
+        $best = $ranked[0] ?? null;
+
+        // Require minimum score of 0.7 (70% match) for auto-matching
+        return ($best !== null && $best['score'] >= 0.7) ? $best : null;
+    }
+
+    /**
+     * Rank every candidate journal entry against a transaction by composite match score,
+     * highest first. Shared by autoMatch()'s single-best-match path and suggestMatches()'s
+     * ranked-candidates path so both use the exact same scoring logic.
+     *
+     * @return list<array{id: int, score: float, entry: object}>
+     */
+    private function rankCandidateMatches(BankTransaction $transaction): array
+    {
         $candidates = DB::table('acc_journal_entries')
             ->whereBetween('amount', [
                 $transaction->amount * 0.95,  // 5% tolerance
@@ -116,24 +133,34 @@ class BankReconciliationService
             ->whereDate('entry_date', '<=', $transaction->transaction_date->addDays(5))
             ->get();
 
-        if ($candidates->isEmpty()) {
-            return null;
-        }
+        return $candidates
+            ->map(fn ($candidate) => [
+                'id'    => $candidate->id,
+                'score' => $this->calculateMatchScore($transaction, $candidate),
+                'entry' => $candidate,
+            ])
+            ->sortByDesc('score')
+            ->values()
+            ->all();
+    }
 
-        $bestScore = 0;
-        $bestMatch = null;
-
-        foreach ($candidates as $candidate) {
-            $score = $this->calculateMatchScore($transaction, $candidate);
-
-            // Require minimum score of 0.7 (70% match) for auto-matching
-            if ($score > $bestScore && $score >= 0.7) {
-                $bestScore = $score;
-                $bestMatch = ['id' => $candidate->id, 'score' => $score];
+    /**
+     * Suggest ranked candidate journal entries for a bank transaction, without committing
+     * a match — used by the manual-match review UI to show the top N scored options.
+     *
+     * @return list<array{id: int, score: float, entry: object}>
+     */
+    public function suggestMatches(BankTransaction $transaction, int $limit = 5): array
+    {
+        try {
+            if (! DB::getSchemaBuilder()->hasTable('acc_journal_entries')) {
+                return [];
             }
+        } catch (\Throwable) {
+            return [];
         }
 
-        return $bestMatch;
+        return array_slice($this->rankCandidateMatches($transaction), 0, $limit);
     }
 
     /**

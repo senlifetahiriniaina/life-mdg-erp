@@ -221,8 +221,19 @@ class PayrollController extends Controller
         return response()->json(['payslip' => $payslip]);
     }
 
+    /**
+     * Chantier 10: was $request->user()->tenant_id -- users.tenant_id is the
+     * well-documented phantom column (real, migrated, never in
+     * User::$fillable, never populated by the real registration flow —
+     * confirmed via a repo-wide grep of every write path) that has caused
+     * real cross-tenant leaks fixed repeatedly this session (Reporting,
+     * Strategy, AI, Sales, Achats, Integration, Workflow). Since tenant_id
+     * is effectively always null/0 in production, every company's payslips
+     * were silently collapsing into one shared tenant_id=0 bucket. The real
+     * tenant boundary is users.company_id.
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()->tenant_id ?? 0);
+        return (int) ($request->user()->company_id ?? 0);
     }
 }

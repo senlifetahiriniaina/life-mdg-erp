@@ -20,6 +20,21 @@ class StorePurchaseOrderRequest extends FormRequest
             'currency' => 'nullable|string|size:3',
             'shipping_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            // Chantier 10: PurchaseOrders/Form.vue always submits a `lines`
+            // array in the same request body as the PO header — these rules
+            // were previously entirely absent, so `lines` silently vanished
+            // (not in $fillable, never read by the service) on every real
+            // PO created through the UI. Validated here against
+            // PurchaseOrderLine::$fillable; `line_total` is intentionally
+            // not accepted — PurchaseOrderService::addLineItem() recomputes
+            // it server-side from quantity*unit_price.
+            'lines' => 'nullable|array',
+            'lines.*.product_id' => 'nullable|exists:inventory_products,id',
+            'lines.*.description' => 'required_with:lines|string',
+            'lines.*.quantity' => 'required_with:lines|numeric|min:0.01',
+            'lines.*.unit' => 'nullable|string',
+            'lines.*.unit_price' => 'required_with:lines|numeric|min:0',
+            'lines.*.tax_rate' => 'nullable|numeric|min:0',
         ];
     }
 }

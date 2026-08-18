@@ -24,7 +24,7 @@ Le module Logistics est le TMS (Transport Management System) de l'ERP : expédit
 
 ## Endpoints principaux
 
-Tous sous préfixe `v1`, `auth:sanctum`, avec garde de rôle `role:logistics-manager,warehouse-operator,manager,admin` (sauf routes IA/HS codes/visibilité qui n'imposent que `auth:sanctum`).
+Tous sous préfixe `v1`, `auth:sanctum`, avec garde de rôle `role:logistics-manager,warehouse-operator,manager,admin`. **Correction (Chantier 10)** : les groupes `ai/assist` et l'agrégateur de visibilité maritime/aérien (`shipments/{id}/visibility`, `refresh-tracking`, `tracking-events`) n'imposaient auparavant que `auth:sanctum` — n'importe quel utilisateur authentifié de n'importe quel module/rôle pouvait les atteindre ; alignés sur le même verrou `module:Logistics`+`role:` que le reste du module. HS codes reste volontairement en lecture seule sans garde de rôle (nomenclature de référence, `module:Logistics` seul).
 
 | Méthode | Route | Description |
 |---|---|---|
@@ -95,3 +95,7 @@ Préfixe `logistics.` (`database/seeders/RolesAndPermissionsSeeder.php`), ressou
 ## Particularités du périmètre life-mdg-erp
 
 Le middleware `module:Logistics` appliqué aux routes suppose l'existence d'un mécanisme de toggle de module par tenant (`admin.modules.toggle` dans les permissions admin) — cohérent avec le principe énoncé dans le CLAUDE.md racine selon lequel retirer un module se fait par suppression du dossier et de l'entrée dans `config/modules_statuses.json`, sans câblage de routes manuel.
+
+## Chantier 10 (re-vérification)
+
+Module le plus propre des trois de ce chantier : re-audit complet route → contrôleur → modèle → API → vue → RBAC, aucun contrôleur stub trouvé (aucune occurrence de « Implementation to follow » nulle part dans `app/Http/Controllers`), aucune route morte (chaque méthode routée existe réellement), et les 3 fichiers de `app/Policies/` correspondent exactement aux 3 `Gate::policy()` déjà enregistrées depuis le Chantier 8.3 (pas de policy orpheline). Seule trouvaille : les deux groupes de routes `ai/assist`/visibilité (voir Endpoints principaux, corrigé). `$fillable` de `CarrierRate`, `LogisticsRoute`, `FreightInvoice`, `CustomsDeclaration`, `Location` confirmés alignés avec les colonnes réellement migrées ; `PutawayRule::$fillable` reste divergent du schéma réel mais c'est un fait déjà documenté et sans impact — le contrôleur contourne le modèle Eloquent entièrement via `DB::table()` brut (voir Services ci-dessus).

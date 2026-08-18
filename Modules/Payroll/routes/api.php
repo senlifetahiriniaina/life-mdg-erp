@@ -7,7 +7,12 @@ use Modules\Payroll\Http\Controllers\Api\PayrollController;
 // this module, seeded with full payroll.* permissions — was missing from
 // this list entirely, locking it out of every payroll endpoint at the outer
 // route gate before its permissions were ever checked.
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:hr-manager,payroll-officer,accountant,finance-manager,manager,admin'])->group(function () {
+// Chantier 10: was missing module:Payroll entirely — every other module's
+// route groups have it (HR, Timesheets, Projects, Helpdesk, ...); its
+// absence here meant Payroll endpoints stayed reachable even if the module
+// were ever disabled for a tenant via ModuleManager, unlike every sibling
+// module. Added for consistency with the established pattern.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Payroll', 'role:hr-manager,payroll-officer,accountant,finance-manager,manager,admin'])->group(function () {
     Route::get('payslips',                [PayrollController::class, 'index']);
     Route::post('generate',               [PayrollController::class, 'generate']);
     Route::post('payslips/approve-batch', [PayrollController::class, 'approveBatch']);
@@ -19,13 +24,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:hr-
 // ── Employee self-service — view own payslips (any authenticated user,
 // not just payroll staff; PayrollPolicy::view() enforces the "own record
 // only" restriction for non-payroll-staff callers) ─────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Payroll'])->group(function () {
     Route::get('me/payslips',      [PayrollController::class, 'myPayslips']);
     Route::get('payslips/{payslip}', [PayrollController::class, 'show']);
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Payroll'])->group(function () {
     Route::post('ai/assist', [\Modules\Payroll\Http\Controllers\Api\PayrollAiAssistController::class, 'assist'])
         ->name('payroll.ai.assist');
 });

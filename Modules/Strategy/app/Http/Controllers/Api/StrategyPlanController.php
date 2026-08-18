@@ -26,6 +26,8 @@ class StrategyPlanController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', StrategyPlan::class);
+
         $validated = $request->validate([
             'name'         => 'required|string|max:255',
             'vision'       => 'nullable|string',
@@ -53,6 +55,9 @@ class StrategyPlanController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
+        $plan = StrategyPlan::findOrFail($id);
+        $this->authorize('update', $plan);
+
         $validated = $request->validate([
             'name'         => 'sometimes|string|max:255',
             'vision'       => 'nullable|string',
@@ -71,6 +76,7 @@ class StrategyPlanController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $plan = StrategyPlan::findOrFail($id);
+        $this->authorize('delete', $plan);
         $plan->delete();
 
         return response()->json(['message' => 'Plan deleted.']);
@@ -85,6 +91,7 @@ class StrategyPlanController extends Controller
 
     public function duplicate(Request $request, int $id): JsonResponse
     {
+        $this->authorize('create', StrategyPlan::class);
         $request->validate(['name' => 'required|string|max:255']);
 
         $plan = $this->service->duplicatePlan($id, $request->input('name'));
@@ -114,16 +121,24 @@ class StrategyPlanController extends Controller
     }
 
     /**
-     * Chantier 8.6 (Strategy): was $request->header('X-Tenant-Id', $request->query('tenant_id', 'default'))
-     * — a client-controlled header/query param that let any authenticated user
-     * pass X-Tenant-Id: <victim-tenant> to read/write another company's plans.
-     * The real multi-tenant boundary column is users.tenant_id (string, nullable
-     * — see App\Http\Middleware\InitializeTenancyFromAuthenticatedUser's own
-     * docblock), same fix already applied to Setup's identical bug. No
-     * client-supplied fallback is kept.
+     * Chantier 10 (Strategy): a Chantier 8.6 pass had already removed the
+     * client-controlled X-Tenant-Id header/query-param fallback (good), but
+     * replaced it with `$request->user()?->tenant_id ?? 'default'` — despite
+     * its own comment's claim, `users.tenant_id` is the phantom column
+     * documented repeatedly elsewhere in CLAUDE.md (real DB column, never in
+     * User::$fillable, never populated by any real registration/onboarding
+     * path), not the real tenant boundary. Since it's null for virtually
+     * every real user, every company's plans/KPIs/ratios/alerts/signals/
+     * rituals/scenarios/OKRs/cascade map still silently collapsed into one
+     * shared 'default'-tenant bucket — the identical cross-tenant leak this
+     * method's own docblock claimed to have fixed, just without the
+     * attacker-chosen-victim header syntax. Fixed for real to
+     * `$request->user()?->company_id ?? 0` — the actual multi-tenant
+     * boundary column used correctly everywhere else in this app (Reporting,
+     * Sales, AI, Achats, Integration, Workflow).
      */
     private function tenantId(Request $request): string
     {
-        return (string) ($request->user()?->tenant_id ?? 'default');
+        return (string) ($request->user()?->company_id ?? 0);
     }
 }

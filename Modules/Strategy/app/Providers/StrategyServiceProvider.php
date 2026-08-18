@@ -8,9 +8,11 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Strategy\Models\Ratio;
 use Modules\Strategy\Models\StrategyKpi;
 use Modules\Strategy\Models\StrategyObjective;
+use Modules\Strategy\Models\StrategyPlan;
 use Modules\Strategy\Policies\RatioPolicy;
 use Modules\Strategy\Policies\StrategyKpiPolicy;
 use Modules\Strategy\Policies\StrategyObjectivePolicy;
+use Modules\Strategy\Policies\StrategyPlanPolicy;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -52,6 +54,10 @@ class StrategyServiceProvider extends ServiceProvider
         Gate::policy(Ratio::class, RatioPolicy::class);
         Gate::policy(StrategyKpi::class, StrategyKpiPolicy::class);
         Gate::policy(StrategyObjective::class, StrategyObjectivePolicy::class);
+        // Chantier 10: StrategyPlanController had full CRUD with zero Policy
+        // at all (relied only on the route-level role gate) — see
+        // StrategyPlanPolicy's own docblock for the full rationale.
+        Gate::policy(StrategyPlan::class, StrategyPlanPolicy::class);
     }
 
     /**

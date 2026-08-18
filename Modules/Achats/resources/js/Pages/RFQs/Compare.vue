@@ -288,15 +288,16 @@ const acceptQuote = async (quoteId) => {
 
   actioning.value = true
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}/accept-quote`, {
+    // Chantier 10: this used to call a fictional per-RFQ
+    // `rfqs/{id}/accept-quote` endpoint that doesn't exist anywhere in
+    // routes/api.php. The real, already-working equivalent is
+    // SupplierQuoteController::accept() -> RFQService::selectWinningQuote().
+    const response = await fetch(`/api/v1/achats/supplier-quotes/${quoteId}/accept`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        quote_id: quoteId
-      })
+      }
     })
     if (response.ok) {
       loadRFQAndQuotes()
@@ -316,15 +317,14 @@ const rejectQuote = async (quoteId) => {
 
   actioning.value = true
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}/reject-quote`, {
+    // Chantier 10: same fix as acceptQuote() above — real equivalent is
+    // SupplierQuoteController::reject() -> RFQService::rejectQuote().
+    const response = await fetch(`/api/v1/achats/supplier-quotes/${quoteId}/reject`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        quote_id: quoteId
-      })
+      }
     })
     if (response.ok) {
       loadRFQAndQuotes()

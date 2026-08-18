@@ -201,14 +201,16 @@ class StrategyPageController extends Controller
     }
 
     /**
-     * Chantier 8.6 (Strategy): was $request->user()->tenant_id inlined at
-     * every call site — extracted into a helper matching the API controllers'
-     * fix for consistency. Already used the correct, non-client-controlled
-     * users.tenant_id column (no header/query fallback existed here), so this
-     * is a pure refactor, not a security fix.
+     * Chantier 10 (Strategy): was $request->user()->tenant_id inlined at every
+     * call site — the phantom users.tenant_id column, never populated for
+     * real users, so every tenant's cockpit/plans/ratios/objectives pages
+     * silently collapsed into one shared 'default' bucket (a live
+     * cross-tenant leak, despite the Chantier 8.6 comment here claiming this
+     * column was correct). Fixed to the real company_id boundary column,
+     * matching StrategyPlanController::tenantId().
      */
     private function tenantId(Request $request): string
     {
-        return (string) ($request->user()?->tenant_id ?? 'default');
+        return (string) ($request->user()?->company_id ?? 0);
     }
 }

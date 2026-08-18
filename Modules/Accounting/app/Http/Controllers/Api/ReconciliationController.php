@@ -7,6 +7,7 @@ namespace Modules\Accounting\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Accounting\Models\BankTransaction;
 use Modules\Accounting\Models\Reconciliation;
 use Modules\Accounting\Services\BankReconciliationService;
 
@@ -31,7 +32,7 @@ class ReconciliationController extends Controller
 
     public function show(Reconciliation $reconciliation): JsonResponse
     {
-        return response()->json(['data' => $reconciliation->load('lines')]);
+        return response()->json(['data' => $reconciliation]);
     }
 
     /** POST /reconciliations */
@@ -128,6 +129,24 @@ class ReconciliationController extends Controller
             'data'              => [],
             'reconciliation_id' => $reconciliation->id,
             'message'           => 'Exceptions query requires linked BankStatement.',
+        ]);
+    }
+
+    /**
+     * GET /reconciliations/{reconciliation}/suggest/{bankTransaction}
+     *
+     * Rank candidate journal entries for a bank transaction using the same multi-criteria
+     * scoring BankReconciliationService::autoMatch() uses, without committing a match —
+     * lets the manual-match review UI show the top-scored options for a human to confirm.
+     */
+    public function suggestMatches(Reconciliation $reconciliation, BankTransaction $bankTransaction): JsonResponse
+    {
+        $suggestions = $this->service->suggestMatches($bankTransaction);
+
+        return response()->json([
+            'data'               => $suggestions,
+            'reconciliation_id'  => $reconciliation->id,
+            'bank_transaction_id' => $bankTransaction->id,
         ]);
     }
 }

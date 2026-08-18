@@ -16,9 +16,12 @@ use Modules\Accounting\Http\Controllers\Web\IntercompanyClearanceWebController;
 use Modules\Accounting\Http\Controllers\Web\ScenarioPlanningWebController;
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/', function () {
-        return view('accounting::dashboard');
-    })->name('dashboard');
+    // Chantier 10 fix: rendered a nonexistent 'accounting::dashboard' Blade view (this module
+    // is Inertia-based, like the rest of the app — the Blade view was never built, and this
+    // route is referenced from nowhere in the frontend, confirmed via a full nav grep) — every
+    // visit to the bare /accounting root 500'd. Redirects to the module's real, central,
+    // already-routed Invoices list instead of maintaining a dead Blade file.
+    Route::get('/', fn () => redirect()->route('invoices.index'))->name('dashboard');
 
     Route::get('invoices', [InvoiceWebController::class, 'index'])->name('invoices.index');
     Route::get('invoices/create', [InvoiceWebController::class, 'create'])->name('invoices.create');

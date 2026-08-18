@@ -74,8 +74,13 @@ class ProjectKpiService
      */
     public function getPortfolioKpis(int $companyId): array
     {
+        // Chantier 10: was where('tenant_id', ...) against a column that was
+        // never migrated on prj_projects at all — a guaranteed
+        // QueryException on every real call to this method, not a
+        // hypothetical gap. company_id is the real (now-migrated) scoping
+        // column, matching the fix pattern used throughout this session.
         $projects = DB::table('prj_projects')
-            ->where('tenant_id', $companyId)
+            ->where('company_id', $companyId)
             ->whereIn('status', ['active', 'in_progress'])
             ->whereNull('deleted_at')
             ->get();
@@ -366,7 +371,7 @@ class ProjectKpiService
         try {
             return (float) DB::table('ts_project_billing')
                 ->join('prj_projects', 'prj_projects.id', '=', 'ts_project_billing.project_id')
-                ->where('prj_projects.tenant_id', $companyId)
+                ->where('prj_projects.company_id', $companyId)
                 ->whereIn('ts_project_billing.status', ['sent', 'paid'])
                 ->sum('ts_project_billing.amount');
         } catch (\Exception) {
@@ -379,7 +384,7 @@ class ProjectKpiService
         try {
             return (int) DB::table('prj_risks')
                 ->join('prj_projects', 'prj_projects.id', '=', 'prj_risks.project_id')
-                ->where('prj_projects.tenant_id', $companyId)
+                ->where('prj_projects.company_id', $companyId)
                 ->whereIn('prj_risks.status', ['open', 'in_review'])
                 ->count();
         } catch (\Exception) {

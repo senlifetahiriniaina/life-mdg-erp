@@ -13,7 +13,7 @@ class RevenueAnomaly extends Model
     protected $table = 'crm_revenue_anomalies';
 
     protected $fillable = [
-        'anomaly_type', 'metric_name', 'dimension', 'dimension_value',
+        'company_id', 'anomaly_type', 'metric_name', 'dimension', 'dimension_value',
         'detected_value', 'expected_value', 'deviation_pct', 'severity',
         'status', 'explanation', 'detected_at',
     ];

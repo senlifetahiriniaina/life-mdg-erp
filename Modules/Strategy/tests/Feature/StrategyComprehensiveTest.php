@@ -243,6 +243,36 @@ describe('Strategy API - Plans', function () {
         $this->getJson('/api/v1/strategy/plans')
             ->assertUnauthorized();
     });
+
+    // Chantier 10: StrategyPlanController had full CRUD with zero Policy at
+    // all — any role passing the outer route:employee,finance-manager,
+    // manager,admin gate could delete any plan with no per-record check.
+    // StrategyPlanPolicy (new) restricts delete to admin/super-admin roles
+    // or an explicit strategy.plan.delete permission — 'employee' gets every
+    // non-.delete permission by this app's broad-role design (see
+    // RolesAndPermissionsSeeder), so it should still create/update but be
+    // denied on delete.
+    test('employee can create and update a strategy plan but cannot delete one', function () {
+        $employee = actingAsUser('employee');
+
+        $created = $this->actingAs($employee, 'sanctum')
+            ->postJson('/api/v1/strategy/plans', [
+                'name'         => 'Employee-created plan',
+                'period_start' => 2026,
+                'period_end'   => 2026,
+            ]);
+        $created->assertCreated();
+
+        $plan = StrategyPlan::find($created->json('id'));
+
+        $this->actingAs($employee, 'sanctum')
+            ->putJson("/api/v1/strategy/plans/{$plan->id}", ['name' => 'Renamed'])
+            ->assertOk();
+
+        $this->actingAs($employee, 'sanctum')
+            ->deleteJson("/api/v1/strategy/plans/{$plan->id}")
+            ->assertStatus(403);
+    });
 });
 
 // ─── API Endpoints — OKRs ────────────────────────────────────────────────────

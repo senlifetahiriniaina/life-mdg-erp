@@ -292,7 +292,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 });
 
 // ── Call recordings + AI summarization ──────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm')->group(function () {
+// Chantier 10: added module:CRM (was missing entirely) — company_id tenant scoping and
+// authorize() calls now live in CallRecordingController/CallRecordingPolicy.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:CRM'])->prefix('v1/crm')->group(function () {
     Route::get('calls/{callId}', [CallRecordingController::class, 'show'])
         ->name('crm.calls.show');
     Route::post('calls/{callId}/summarize', [CallRecordingController::class, 'summarize'])
@@ -302,7 +304,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 });
 
 // ── Revenue intelligence (insights, trends, anomalies) ──────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm/revenue-intelligence')->group(function () {
+// Chantier 10: added module:CRM (was missing entirely) — company_id tenant scoping and
+// authorize() calls now live in RevenueIntelligenceController/RevenueInsightPolicy.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:CRM'])->prefix('v1/crm/revenue-intelligence')->group(function () {
     Route::get('insights', [RevenueIntelligenceController::class, 'getInsights'])
         ->name('crm.revenue-intelligence.insights');
     Route::post('insights/generate', [RevenueIntelligenceController::class, 'generateInsight'])

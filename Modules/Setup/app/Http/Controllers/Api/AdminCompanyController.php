@@ -24,7 +24,11 @@ class AdminCompanyController extends Controller
 
     public function show(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        // Chantier 10: same phantom-tenant_id fix as AdminModulesController
+        // (see SetupController::tenantId()'s docblock for the full
+        // reasoning) — every admin's company profile silently landed in
+        // the same shared 'default' bucket regardless of real company.
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $profile = CompanyProfile::forTenant($tenantId)->first();
 
@@ -58,7 +62,11 @@ class AdminCompanyController extends Controller
             'vat_number'        => 'nullable|string|max:50',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        // Chantier 10: same phantom-tenant_id fix as AdminModulesController
+        // (see SetupController::tenantId()'s docblock for the full
+        // reasoning) — every admin's company profile silently landed in
+        // the same shared 'default' bucket regardless of real company.
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         /** @var CompanyProfile $profile */
         $profile = CompanyProfile::forTenant($tenantId)->firstOrCreate(
@@ -85,7 +93,11 @@ class AdminCompanyController extends Controller
             'logo' => 'required|image|mimes:jpeg,png,gif,webp|max:2048',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        // Chantier 10: same phantom-tenant_id fix as AdminModulesController
+        // (see SetupController::tenantId()'s docblock for the full
+        // reasoning) — every admin's company profile silently landed in
+        // the same shared 'default' bucket regardless of real company.
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $path = $request->file('logo')->store('logos', 'public');
 

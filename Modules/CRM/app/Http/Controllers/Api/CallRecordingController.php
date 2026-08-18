@@ -26,13 +26,18 @@ class CallRecordingController extends Controller
      * @response 200 {"id": 1, "call_id": 1, "status": "ready", "recording_url": "https://..."}
      * @response 404 {"message": "No recording found for this call."}
      */
-    public function show(int $callId): JsonResponse
+    public function show(Request $request, int $callId): JsonResponse
     {
-        $recording = CallRecording::where('call_id', $callId)->latest()->first();
+        $recording = CallRecording::where('call_id', $callId)
+            ->where('company_id', $request->user()->company_id)
+            ->latest()
+            ->first();
 
         if (! $recording) {
             return response()->json(['message' => 'No recording found for this call.'], 404);
         }
+
+        $this->authorize('view', $recording);
 
         return response()->json($recording);
     }
@@ -46,12 +51,16 @@ class CallRecordingController extends Controller
      */
     public function summarize(Request $request, int $callId): JsonResponse
     {
-        // Ensure a recording exists before queuing
-        $exists = CallRecording::where('call_id', $callId)->exists();
+        $recording = CallRecording::where('call_id', $callId)
+            ->where('company_id', $request->user()->company_id)
+            ->latest()
+            ->first();
 
-        if (! $exists) {
+        if (! $recording) {
             return response()->json(['message' => 'No recording found for this call.'], 404);
         }
+
+        $this->authorize('summarize', $recording);
 
         SummarizeCallJob::dispatch($callId);
 
@@ -70,13 +79,18 @@ class CallRecordingController extends Controller
      * @response 404 {"message": "No recording found for this call."}
      * @response 422 {"message": "AI summary not yet generated. Queue it via POST /calls/{id}/summarize."}
      */
-    public function getSummary(int $callId): JsonResponse
+    public function getSummary(Request $request, int $callId): JsonResponse
     {
-        $recording = CallRecording::where('call_id', $callId)->latest()->first();
+        $recording = CallRecording::where('call_id', $callId)
+            ->where('company_id', $request->user()->company_id)
+            ->latest()
+            ->first();
 
         if (! $recording) {
             return response()->json(['message' => 'No recording found for this call.'], 404);
         }
+
+        $this->authorize('view', $recording);
 
         if ($recording->status !== CallRecording::STATUS_READY || ! $recording->ai_summary) {
             return response()->json([
