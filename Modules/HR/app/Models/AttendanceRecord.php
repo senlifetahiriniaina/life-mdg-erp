@@ -31,6 +31,8 @@ class AttendanceRecord extends Model
     protected $fillable = [
         'employee_id', 'clock_in', 'clock_out', 'break_minutes',
         'type', 'notes', 'ip_address', 'location_lat', 'location_lng',
+        'device_id', 'clock_in_method', 'device_name', 'verification_status',
+        'location',
     ];
 
     protected $casts = [
@@ -45,6 +47,11 @@ class AttendanceRecord extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(BiometricDevice::class, 'device_id');
+    }
+
     /**
      * Get worked hours (excluding break).
      */
@@ -57,5 +64,15 @@ class AttendanceRecord extends Model
         $totalMinutes = $this->clock_in->diffInMinutes($this->clock_out);
 
         return round(($totalMinutes - $this->break_minutes) / 60, 2);
+    }
+
+    public function clockOut(): void
+    {
+        $this->update(['clock_out' => now()]);
+    }
+
+    public function verify(): void
+    {
+        $this->update(['verification_status' => 'verified']);
     }
 }

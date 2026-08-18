@@ -2,14 +2,21 @@
 
 namespace Modules\HR\Providers;
 
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use Modules\HR\Models\AttendanceException;
+use Modules\HR\Models\AttendanceRecord;
+use Modules\HR\Models\BiometricDevice;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\LeaveRequest;
+use Modules\HR\Models\ShiftSchedule;
+use Modules\HR\Models\TimeOffRequest;
 use Modules\HR\Observers\EmployeeObserver;
 use Modules\HR\Observers\LeaveRequestObserver;
+use Modules\HR\Policies\AttendancePolicy;
 use Modules\HR\Services\DocumentExpiryService;
 use Modules\HR\Services\HRService;
 
@@ -38,6 +45,7 @@ class HRServiceProvider extends ServiceProvider {
         LeaveRequest::observe(LeaveRequestObserver::class);
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         $this->loadTranslationsFrom(__DIR__.'/../../lang', 'hr');
+        $this->registerPolicies();
 
         // Register artisan command for document expiry checks
         if ($this->app->runningInConsole()) {
@@ -45,6 +53,23 @@ class HRServiceProvider extends ServiceProvider {
                 \Modules\HR\Console\Commands\CheckDocumentExpiry::class,
             ]);
         }
+    }
+
+    /**
+     * Chantier 8.3: AttendancePolicy is fully written (13 abilities backing
+     * AttendanceBiometricController) but, like every other Modules-namespaced
+     * policy in this app, doesn't auto-discover — its class name doesn't match
+     * any single model's name (it backs 5: BiometricDevice/AttendanceRecord/
+     * AttendanceException/TimeOffRequest/ShiftSchedule), so it must be
+     * registered explicitly for each one.
+     */
+    protected function registerPolicies(): void
+    {
+        Gate::policy(BiometricDevice::class, AttendancePolicy::class);
+        Gate::policy(AttendanceRecord::class, AttendancePolicy::class);
+        Gate::policy(AttendanceException::class, AttendancePolicy::class);
+        Gate::policy(TimeOffRequest::class, AttendancePolicy::class);
+        Gate::policy(ShiftSchedule::class, AttendancePolicy::class);
     }
 
     protected function registerConfig(): void

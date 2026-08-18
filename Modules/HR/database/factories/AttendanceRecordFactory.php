@@ -4,41 +4,26 @@ namespace Modules\HR\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\HR\Models\AttendanceRecord;
+use Modules\HR\Models\Employee;
 
 class AttendanceRecordFactory extends Factory
 {
     protected $model = AttendanceRecord::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
+        $clockIn = fake()->dateTimeBetween('-30 days', 'now');
+
         return [
-                        'employee_id' => fake()->word(),
-            'clock_in' => fake()->word(),
-            'clock_out' => fake()->word(),
-            'type' => fake()->word(),
-            'ip_address' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'employee_id' => fn () => Employee::factory()->create()->id,
+            'clock_in' => $clockIn,
+            'clock_out' => null,
+            'break_minutes' => 0,
+            'type' => fake()->randomElement(['regular', 'overtime', 'remote']),
+            'notes' => null,
+            'ip_address' => fake()->ipv4(),
+            'location_lat' => null,
+            'location_lng' => null,
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
     }
 }

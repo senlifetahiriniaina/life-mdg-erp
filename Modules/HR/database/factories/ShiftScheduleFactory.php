@@ -3,63 +3,29 @@
 namespace Modules\HR\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\HR\Models\Employee;
 use Modules\HR\Models\ShiftSchedule;
 
 class ShiftScheduleFactory extends Factory
 {
     protected $model = ShiftSchedule::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'employee_id' => fake()->word(),
-            'shift_name' => fake()->word(),
-            'shift_code' => fake()->word(),
-            'start_time' => fake()->word(),
-            'end_time' => fake()->word(),
-            'working_hours' => fake()->word(),
-            'days_of_week' => fake()->word(),
-            'is_night_shift' => fake()->word(),
-            'is_flexible' => fake()->word(),
-            'effective_from' => fake()->word(),
-            'effective_to' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'notes' => fake()->text(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
+            'employee_id' => fn () => Employee::factory()->create()->id,
+            'shift_name' => fake()->randomElement(['Morning', 'Afternoon', 'Night', 'Split']),
+            'shift_code' => fake()->bothify('SH-##'),
+            'start_time' => '09:00:00',
+            'end_time' => '17:00:00',
+            'working_hours' => 8,
+            'days_of_week' => [1, 2, 3, 4, 5],
+            'is_night_shift' => false,
+            'is_flexible' => fake()->boolean(20),
+            'effective_from' => fake()->dateTimeBetween('-1 month', 'now'),
+            'effective_to' => null,
+            'status' => 'active',
+            'notes' => fake()->optional()->sentence(),
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
     }
 }

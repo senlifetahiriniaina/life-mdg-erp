@@ -9,62 +9,26 @@ class BiometricDeviceFactory extends Factory
 {
     protected $model = BiometricDevice::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'device_id' => fake()->word(),
-            'device_name' => fake()->word(),
-            'device_type' => fake()->word(),
-            'manufacturer' => fake()->word(),
-            'model' => fake()->word(),
-            'location' => fake()->word(),
-            'building' => fake()->word(),
-            'floor' => fake()->word(),
-            'zone' => fake()->word(),
-            'latitude' => fake()->word(),
-            'longitude' => fake()->word(),
-            'ip_address' => fake()->word(),
-            'mac_address' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'last_sync' => fake()->word(),
-            'firmware_version' => fake()->word(),
-            'capacity' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'device_id' => fake()->unique()->bothify('DEV-####'),
+            'device_name' => fake()->words(2, true).' Terminal',
+            'device_type' => fake()->randomElement(['fingerprint', 'facial_recognition', 'rfid', 'manual_pin']),
+            'manufacturer' => fake()->company(),
+            'model' => fake()->bothify('MX-###'),
+            'location' => fake()->streetAddress(),
+            'building' => fake()->randomElement(['Building A', 'Building B', 'Main Building']),
+            'floor' => fake()->randomElement(['1', '2', '3', 'Ground']),
+            'zone' => fake()->randomElement(['Entrance', 'Warehouse', 'Office']),
+            'latitude' => fake()->latitude(),
+            'longitude' => fake()->longitude(),
+            'ip_address' => fake()->ipv4(),
+            'mac_address' => fake()->macAddress(),
+            'status' => fake()->randomElement(['active', 'inactive']),
+            'last_sync' => fake()->dateTimeBetween('-1 day', 'now'),
+            'firmware_version' => fake()->numerify('#.#.#'),
+            'capacity' => fake()->numberBetween(500, 5000),
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
     }
 }

@@ -95,6 +95,8 @@ class AttendanceBiometricController extends Controller
      */
     public function clockIn(Request $request): JsonResponse
     {
+        $this->authorize('recordAttendance', AttendanceRecord::class);
+
         $validated = $request->validate([
             'employee_id' => ['required', 'exists:hr_employees,id'],
             'device_id' => ['required', 'exists:hr_biometric_devices,id'],
@@ -105,12 +107,21 @@ class AttendanceBiometricController extends Controller
 
         $device = BiometricDevice::findOrFail($validated['device_id']);
 
-        $record = AttendanceRecord::create(array_merge($validated, [
+        // Chantier 8.3: validated() keys were 'latitude'/'longitude' but
+        // AttendanceRecord's real columns are 'location_lat'/'location_lng' —
+        // previously silently dropped on every clock-in (neither key was even
+        // in the model's $fillable at all until this chantier added them).
+        $record = AttendanceRecord::create([
+            'employee_id' => $validated['employee_id'],
+            'device_id' => $validated['device_id'],
+            'clock_in_method' => $validated['clock_in_method'],
+            'location_lat' => $validated['latitude'] ?? null,
+            'location_lng' => $validated['longitude'] ?? null,
             'clock_in' => now(),
             'location' => $device->location,
             'device_name' => $device->device_name,
             'verification_status' => 'pending',
-        ]));
+        ]);
 
         return response()->json($record, 201);
     }
@@ -122,6 +133,8 @@ class AttendanceBiometricController extends Controller
      */
     public function clockOut(Request $request, AttendanceRecord $record): JsonResponse
     {
+        $this->authorize('recordAttendance', AttendanceRecord::class);
+
         if ($record->clock_out !== null) {
             return response()->json(['message' => 'Already clocked out'], 422);
         }
@@ -195,6 +208,8 @@ class AttendanceBiometricController extends Controller
      */
     public function createShift(Request $request): JsonResponse
     {
+        $this->authorize('manageshifts', ShiftSchedule::class);
+
         $validated = $request->validate([
             'employee_id' => ['required', 'exists:hr_employees,id'],
             'shift_name' => ['required', 'string'],
@@ -236,6 +251,8 @@ class AttendanceBiometricController extends Controller
      */
     public function requestTimeOff(Request $request): JsonResponse
     {
+        $this->authorize('requestTimeOff', TimeOffRequest::class);
+
         $validated = $request->validate([
             'request_type' => ['required', 'in:pto,sick,unpaid,sabbatical,personal,jury_duty'],
             'start_date' => ['required', 'date'],

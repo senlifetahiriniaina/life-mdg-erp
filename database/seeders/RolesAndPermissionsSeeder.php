@@ -145,6 +145,15 @@ class RolesAndPermissionsSeeder extends Seeder
         'hr.salary-band.update', 'hr.salary-band.delete',
         'hr.skill.view-any', 'hr.skill.view', 'hr.skill.create',
         'hr.skill.update', 'hr.skill.delete',
+        // Chantier 8.3: AttendancePolicy's 13 abilities (backing
+        // AttendanceBiometricController, now routed for the first time) check
+        // these exact permission strings — none were seeded before.
+        'hr.attendance.view', 'hr.attendance.view-personal', 'hr.attendance.record',
+        'hr.attendance.manage-devices', 'hr.attendance.verify-records',
+        'hr.attendance.handle-exceptions', 'hr.attendance.approve-exception',
+        'hr.attendance.request-time-off', 'hr.attendance.approve-time-off',
+        'hr.attendance.reject-time-off', 'hr.attendance.manage-shifts',
+        'hr.attendance.view-analytics', 'hr.attendance.export',
     ];
 
     // Chantier 8.2 (BI): AlertRule/DataStory/ExternalDataSource/ForecastModel/

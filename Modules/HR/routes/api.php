@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\HR\Http\Controllers\Api\AttendanceBiometricController;
 use Modules\HR\Http\Controllers\Api\AttendanceController;
 use Modules\HR\Http\Controllers\Api\DepartmentController;
 use Modules\HR\Http\Controllers\Api\DocumentAlertController;
@@ -78,6 +79,29 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('attendance/clock-in', [AttendanceController::class, 'clockIn']);
         Route::post('attendance/clock-out', [AttendanceController::class, 'clockOut']);
+    });
+
+    // Chantier 8.3: AttendanceBiometricController was fully written (13 methods,
+    // biometric device management, exception/shift/time-off workflows,
+    // analytics) but never had a single route pointing at it — a distinct,
+    // additive subsystem from AttendanceController above (which only covers
+    // simple self clock-in/out), so it gets its own URL prefixes rather than
+    // colliding with the existing 'attendance/*' paths.
+    Route::get('biometric-devices', [AttendanceBiometricController::class, 'listDevices']);
+    Route::get('attendance-exceptions', [AttendanceBiometricController::class, 'listExceptions']);
+    Route::get('shifts', [AttendanceBiometricController::class, 'listShifts']);
+    Route::get('time-off-requests', [AttendanceBiometricController::class, 'listTimeOffRequests']);
+    Route::get('attendance-analytics', [AttendanceBiometricController::class, 'getAnalytics']);
+    Route::get('attendance-records', [AttendanceBiometricController::class, 'listAttendance']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('biometric-devices', [AttendanceBiometricController::class, 'registerDevice']);
+        Route::post('attendance-records/clock-in', [AttendanceBiometricController::class, 'clockIn']);
+        Route::post('attendance-records/{record}/clock-out', [AttendanceBiometricController::class, 'clockOut']);
+        Route::post('attendance-records/{record}/verify', [AttendanceBiometricController::class, 'verifyRecord']);
+        Route::post('attendance-exceptions/{exception}/approve', [AttendanceBiometricController::class, 'approveException']);
+        Route::post('shifts', [AttendanceBiometricController::class, 'createShift']);
+        Route::post('time-off-requests', [AttendanceBiometricController::class, 'requestTimeOff']);
+        Route::post('time-off-requests/{timeOff}/approve', [AttendanceBiometricController::class, 'approveTimeOff']);
     });
 
     // Skills (basic skill tagging, no training catalogue / skill matrix visualization)
