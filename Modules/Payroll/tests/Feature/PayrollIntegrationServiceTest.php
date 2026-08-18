@@ -84,25 +84,45 @@ class PayrollIntegrationServiceTest extends TestCase
         $this->assertIsFloat($taxSN);
         $this->assertIsFloat($taxCI);
         $this->assertIsFloat($taxNG);
-        // CI flat rate is higher than SN threshold-based rate on 500k
-        $this->assertGreaterThan($taxSN, $taxCI);
+        // Chantier 8.3: real StatutorySchemes brackets for SN produce a
+        // higher tax than CI's at 500k gross (SN's steeper progressive
+        // brackets outweigh its 30%-capped abatement) — the opposite of
+        // the old crude flat-rate approximation this test used to assert.
+        $this->assertGreaterThan($taxCI, $taxSN);
     }
 
     /** @test */
     public function it_calculates_social_security_by_country(): void
     {
+        // Chantier 8.3: real StatutorySchemes data — both SN's 'css' and
+        // CI's 'cnps_pf_at' schemes (family benefits/work accidents) are
+        // employer-funded only (employee_rate 0.0) in the real statutory
+        // rates; the employee-side pension scheme is a separate figure,
+        // see it_calculates_pension_contribution().
         $ssSN = $this->service->calculateSocialSecurity(600_000, 'SN');
         $ssCI = $this->service->calculateSocialSecurity(600_000, 'CI');
 
-        $this->assertEquals(600_000 * 0.055, $ssSN);
-        $this->assertEquals(600_000 * 0.065, $ssCI);
+        $this->assertEquals(0.0, $ssSN);
+        $this->assertEquals(0.0, $ssCI);
+
+        // A country with a single combined scheme (no pension/social split)
+        // folds its full employee contribution into social_security instead.
+        $ssBJ = $this->service->calculateSocialSecurity(600_000, 'BJ');
+        $this->assertEquals(21_600.0, $ssBJ);
     }
 
     /** @test */
     public function it_calculates_pension_contribution(): void
     {
+        // Chantier 8.3: real StatutorySchemes 'ipres' rate (5.6%) capped at
+        // its real 432,000 XOF monthly ceiling — gross 600,000 exceeds the
+        // ceiling, so the base used is 432,000, not the full gross.
         $pension = $this->service->calculatePensionContribution(600_000, 'SN');
-        $this->assertEquals(600_000 * 0.05, $pension);
+        $this->assertEquals(432_000 * 0.056, $pension);
+
+        // A combined-scheme country has no separate pension figure to split.
+        $pensionBJ = $this->service->calculatePensionContribution(600_000, 'BJ');
+        $this->assertEquals(0.0, $pensionBJ);
     }
 
     /** @test */
@@ -197,29 +217,38 @@ class PayrollIntegrationServiceTest extends TestCase
     /** @test */
     public function it_calculates_senegal_income_tax_correctly(): void
     {
-        // Below threshold — no tax
-        $this->assertEquals(0.0, $this->service->calculateIncomeTax(300_000, 'SN'));
-
-        // Above threshold — 20% on excess
-        $expected = (500_000 - 400_000) * 0.20;
-        $this->assertEquals($expected, $this->service->calculateIncomeTax(500_000, 'SN'));
+        // Chantier 8.3: real StatutorySchemes SN brackets — 30%-abatement
+        // (capped at 75,000) reduces the taxable base before the real
+        // progressive IR brackets + fixed TRIMF apply. Values confirmed
+        // against the service's own live calculation, not hand-derived.
+        $this->assertEquals(44_800.0, $this->service->calculateIncomeTax(300_000, 'SN'));
+        $this->assertEquals(109_383.35, $this->service->calculateIncomeTax(500_000, 'SN'));
     }
 
     /** @test */
     public function it_calculates_ivory_coast_income_tax_correctly(): void
     {
-        $this->assertEquals(500_000 * 0.18, $this->service->calculateIncomeTax(500_000, 'CI'));
+        // Chantier 8.3: real StatutorySchemes CI brackets (20% abatement,
+        // no cap, then the real ITS/CN progressive schedule).
+        $this->assertEquals(60_000.0, $this->service->calculateIncomeTax(500_000, 'CI'));
     }
 
     /** @test */
     public function it_handles_cameroon_progressive_tax_brackets(): void
     {
-        $this->assertEquals(0.0, $this->service->calculateIncomeTax(200_000, 'CM'));
+        // Chantier 8.3: real StatutorySchemes CM brackets — 30% abatement,
+        // then the real IRPP progressive schedule, then the real 10% CAC
+        // (Centimes Additionnels Communaux) surcharge on top.
+        $this->assertEquals(15_400.0, $this->service->calculateIncomeTax(200_000, 'CM'));
+        $this->assertEquals(40_333.32, $this->service->calculateIncomeTax(400_000, 'CM'));
+        $this->assertEquals(119_624.94, $this->service->calculateIncomeTax(750_000, 'CM'));
+    }
 
-        $expected = (400_000 - 250_000) * 0.10;
-        $this->assertEquals($expected, $this->service->calculateIncomeTax(400_000, 'CM'));
-
-        $expected = 25_000 + ((750_000 - 500_000) * 0.15);
-        $this->assertEquals($expected, $this->service->calculateIncomeTax(750_000, 'CM'));
+    /** @test */
+    public function it_falls_back_to_the_old_approximation_for_a_country_statutory_schemes_does_not_cover(): void
+    {
+        // NG isn't one of the 8 real StatutorySchemes countries — keeps the
+        // pre-existing crude approximation rather than guessing new rates.
+        $this->assertEquals(30_000.0, $this->service->calculateIncomeTax(500_000, 'NG'));
     }
 }

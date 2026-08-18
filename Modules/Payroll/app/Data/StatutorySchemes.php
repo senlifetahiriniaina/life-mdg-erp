@@ -9,7 +9,10 @@ namespace Modules\Payroll\Data;
  *
  * Each country exposes:
  *  - `schemes`     : social contribution schemes (employee + employer rates,
- *                    monthly ceilings/plafonds, declaration periodicity, OHADA accounts)
+ *                    monthly ceilings/plafonds, declaration periodicity, OHADA accounts,
+ *                    `category` — 'pension' | 'social_security' | 'health' | 'combined',
+ *                    the last used where a single scheme covers everything and can't be
+ *                    split further without inventing a percentage this dataset doesn't have)
  *  - `income_tax`  : progressive monthly withholding brackets + abatements
  *
  * All amounts are MONTHLY and expressed in the country currency (XOF/XAF/MGA).
@@ -37,6 +40,7 @@ class StatutorySchemes
                     'ipres' => [
                         'label'          => 'IPRES — Régime de retraite',
                         'agency'         => 'IPRES',
+                        'category'       => 'pension',
                         'employee_rate'  => 0.056,
                         'employer_rate'  => 0.084,
                         'ceiling'        => 432_000,
@@ -46,6 +50,7 @@ class StatutorySchemes
                     'css' => [
                         'label'          => 'CSS — Sécurité sociale (PF + AT/MP)',
                         'agency'         => 'Caisse de Sécurité Sociale',
+                        'category'       => 'social_security',
                         'employee_rate'  => 0.0,
                         'employer_rate'  => 0.10, // 7% prestations familiales + 3% accidents du travail (taux moyen)
                         'ceiling'        => 63_000,
@@ -80,6 +85,7 @@ class StatutorySchemes
                     'cnps_retraite' => [
                         'label'          => 'CNPS — Retraite',
                         'agency'         => 'CNPS',
+                        'category'       => 'pension',
                         'employee_rate'  => 0.063,
                         'employer_rate'  => 0.077,
                         'ceiling'        => 3_375_000, // 45 × SMIG (75 000 XOF)
@@ -89,6 +95,7 @@ class StatutorySchemes
                     'cnps_pf_at' => [
                         'label'          => 'CNPS — Prestations familiales + AT/MP',
                         'agency'         => 'CNPS',
+                        'category'       => 'social_security',
                         'employee_rate'  => 0.0,
                         'employer_rate'  => 0.0875, // 5,75% PF + 3% AT (taux moyen)
                         'ceiling'        => 70_000,
@@ -123,6 +130,7 @@ class StatutorySchemes
                     'cnps_pension' => [
                         'label'          => 'CNPS — Pension Vieillesse-Invalidité-Décès',
                         'agency'         => 'CNPS',
+                        'category'       => 'pension',
                         'employee_rate'  => 0.042,
                         'employer_rate'  => 0.042,
                         'ceiling'        => 750_000,
@@ -132,6 +140,7 @@ class StatutorySchemes
                     'cnps_pf_rp' => [
                         'label'          => 'CNPS — Prestations familiales + Risques professionnels',
                         'agency'         => 'CNPS',
+                        'category'       => 'social_security',
                         'employee_rate'  => 0.0,
                         'employer_rate'  => 0.095, // 7% PF + 2,5% RP (groupe B)
                         'ceiling'        => 750_000,
@@ -165,6 +174,7 @@ class StatutorySchemes
                     'cnaps' => [
                         'label'          => 'CNaPS — Caisse Nationale de Prévoyance Sociale',
                         'agency'         => 'CNaPS',
+                        'category'       => 'pension',
                         'employee_rate'  => 0.01,
                         'employer_rate'  => 0.13,
                         'ceiling'        => 2_000_000, // 8 × salaire minimum
@@ -174,6 +184,7 @@ class StatutorySchemes
                     'ostie' => [
                         'label'          => 'OSTIE — Organisation Sanitaire Inter-Entreprises',
                         'agency'         => 'OSTIE',
+                        'category'       => 'health',
                         'employee_rate'  => 0.01,
                         'employer_rate'  => 0.05,
                         'ceiling'        => 2_000_000,
@@ -208,6 +219,7 @@ class StatutorySchemes
                     'cnss' => [
                         'label'          => 'CNSS — Caisse Nationale de Sécurité Sociale',
                         'agency'         => 'CNSS Bénin',
+                        'category'       => 'combined',
                         'employee_rate'  => 0.036,
                         'employer_rate'  => 0.154, // 6,4% vieillesse + 9% PF + AT
                         'ceiling'        => null,
@@ -241,6 +253,7 @@ class StatutorySchemes
                     'cnss' => [
                         'label'          => 'CNSS — Caisse Nationale de Sécurité Sociale',
                         'agency'         => 'CNSS Togo',
+                        'category'       => 'combined',
                         'employee_rate'  => 0.04,
                         'employer_rate'  => 0.175, // 12,5% pensions + 3% PF + 2% AT
                         'ceiling'        => null,
@@ -274,6 +287,7 @@ class StatutorySchemes
                     'cnss' => [
                         'label'          => 'CNSS — Caisse Nationale de Sécurité Sociale',
                         'agency'         => 'CNSS Burkina',
+                        'category'       => 'combined',
                         'employee_rate'  => 0.055,
                         'employer_rate'  => 0.16,
                         'ceiling'        => 600_000,
@@ -309,6 +323,7 @@ class StatutorySchemes
                     'inps' => [
                         'label'          => 'INPS — Institut National de Prévoyance Sociale',
                         'agency'         => 'INPS',
+                        'category'       => 'combined',
                         'employee_rate'  => 0.036,
                         'employer_rate'  => 0.182, // vieillesse + PF + AT + AMO part employeur
                         'ceiling'        => null,

@@ -10,6 +10,7 @@ use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Models\PayrollRun;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\Timesheets\Models\TimesheetEntry;
+use Modules\Payroll\Data\StatutorySchemes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -209,16 +210,59 @@ class PayrollIntegrationService
 
     /**
      * Calculate income tax by country (OHADA-compliant).
+     *
+     * Chantier 8.3: `StatutorySchemes` (8 real African statutory schedules —
+     * SN/CI/CM/MG/BJ/TG/BF/ML, with real progressive brackets/abatements/
+     * ceilings from the actual tax codes) existed fully written but had zero
+     * consumers anywhere in this app — every calculation below was a crude
+     * flat-rate/single-threshold approximation instead. Countries the real
+     * dataset doesn't cover (NG, or any other code) keep the old
+     * approximations as an explicit fallback rather than guessing new rates.
      */
     public function calculateIncomeTax(float $grossSalary, string $countryCode): float
     {
+        $scheme = StatutorySchemes::country($countryCode);
+        if ($scheme !== null) {
+            return $this->calculateProgressiveIncomeTax($grossSalary, $scheme['income_tax']);
+        }
+
         return match ($countryCode) {
-            'SN' => $this->calculateSenegalTax($grossSalary),
-            'CI' => $this->calculateIvoryCoastTax($grossSalary),
-            'CM' => $this->calculateCameroonTax($grossSalary),
-            'NG' => $this->calculateNigeriaTax($grossSalary),
+            'NG'    => $this->calculateNigeriaTax($grossSalary),
             default => $this->calculateOhadaTax($grossSalary),
         };
+    }
+
+    /**
+     * Progressive monthly withholding against a StatutorySchemes country's
+     * `income_tax` definition: professional-expense abatement (rate, capped
+     * where the country defines a cap) reduces the taxable base, then
+     * marginal brackets apply, then any flat surtax/surcharge/minimum.
+     */
+    private function calculateProgressiveIncomeTax(float $grossSalary, array $incomeTax): float
+    {
+        $deduction = $grossSalary * (float) ($incomeTax['abatement_rate'] ?? 0.0);
+        if (($incomeTax['abatement_cap'] ?? null) !== null) {
+            $deduction = min($deduction, (float) $incomeTax['abatement_cap']);
+        }
+        $taxableBase = max(0.0, $grossSalary - $deduction);
+
+        $tax = 0.0;
+        foreach ($incomeTax['brackets'] as [$lower, $upper, $rate]) {
+            if ($taxableBase <= $lower) {
+                break;
+            }
+            $bandTop = $upper === null ? $taxableBase : min($taxableBase, $upper);
+            $tax += max(0.0, $bandTop - $lower) * $rate;
+        }
+
+        $tax *= 1 + (float) ($incomeTax['surcharge_rate'] ?? 0.0);
+        $tax += (float) ($incomeTax['fixed_tax'] ?? 0);
+
+        if (($incomeTax['minimum_tax'] ?? null) !== null) {
+            $tax = max($tax, (float) $incomeTax['minimum_tax']);
+        }
+
+        return round($tax, 2);
     }
 
     private function calculateSenegalTax(float $salary): float
@@ -252,12 +296,24 @@ class PayrollIntegrationService
         return $salary * 0.15;
     }
 
+    /**
+     * Employee-side social contributions (family benefits/health/work-
+     * accident schemes — everything StatutorySchemes categorizes as
+     * anything other than 'pension'). Countries with a single combined
+     * scheme (BJ/TG/BF/ML — no legal split into pension vs. the rest) are
+     * folded entirely into this bucket, matching the old code's own
+     * behavior of treating social_security as the general contribution
+     * figure; calculatePensionContribution() returns 0 for them rather
+     * than guessing a split this dataset doesn't provide.
+     */
     public function calculateSocialSecurity(float $grossSalary, string $countryCode): float
     {
+        $scheme = StatutorySchemes::country($countryCode);
+        if ($scheme !== null) {
+            return $this->sumSchemeContributions($scheme['schemes'], $grossSalary, ['social_security', 'health', 'combined']);
+        }
+
         return $grossSalary * match ($countryCode) {
-            'SN'    => 0.055,
-            'CI'    => 0.065,
-            'CM'    => 0.058,
             'NG'    => 0.08,
             default => 0.06,
         };
@@ -265,13 +321,36 @@ class PayrollIntegrationService
 
     public function calculatePensionContribution(float $grossSalary, string $countryCode): float
     {
+        $scheme = StatutorySchemes::country($countryCode);
+        if ($scheme !== null) {
+            return $this->sumSchemeContributions($scheme['schemes'], $grossSalary, ['pension']);
+        }
+
         return $grossSalary * match ($countryCode) {
-            'SN'    => 0.05,
-            'CI'    => 0.055,
-            'CM'    => 0.04,
             'NG'    => 0.045,
             default => 0.05,
         };
+    }
+
+    /**
+     * Sum employee-side contributions across the schemes matching the
+     * given categories, respecting each scheme's own monthly ceiling.
+     *
+     * @param array<string, array<string, mixed>> $schemes
+     * @param string[] $categories
+     */
+    private function sumSchemeContributions(array $schemes, float $grossSalary, array $categories): float
+    {
+        $total = 0.0;
+        foreach ($schemes as $scheme) {
+            if (!in_array($scheme['category'], $categories, true)) {
+                continue;
+            }
+            $base = $scheme['ceiling'] !== null ? min($grossSalary, (float) $scheme['ceiling']) : $grossSalary;
+            $total += $base * (float) $scheme['employee_rate'];
+        }
+
+        return round($total, 2);
     }
 
     private function calculatePerformanceAllowance(Employee $employee, float $baseSalary): float
