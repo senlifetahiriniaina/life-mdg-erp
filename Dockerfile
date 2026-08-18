@@ -1,5 +1,5 @@
 # Build stage
-FROM php:8.4-fpm AS builder
+FROM php:8.5-fpm AS builder
 
 WORKDIR /app
 
@@ -69,7 +69,7 @@ RUN php artisan config:cache \
 
 ###############################################################################
 # Runtime stage
-FROM php:8.4-fpm
+FROM php:8.5-fpm
 
 WORKDIR /app
 
