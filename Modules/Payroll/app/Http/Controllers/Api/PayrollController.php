@@ -193,6 +193,34 @@ class PayrollController extends Controller
         return response()->json(['taxes' => $taxes]);
     }
 
+    /**
+     * Self-service: the authenticated user's own payslips — PayrollPolicy's
+     * "employee can view their own payslip" ability existed but had no
+     * consumer of any kind (unregistered, no controller call site).
+     */
+    public function myPayslips(Request $request): JsonResponse
+    {
+        $employeeId = $request->user()->employee?->id;
+        abort_if($employeeId === null, 403, 'No linked employee record.');
+
+        $records = Payslip::where('employee_id', $employeeId)
+            ->latest('period')
+            ->paginate(50);
+
+        return response()->json(['payslips' => $records]);
+    }
+
+    /**
+     * View a single payslip — payroll staff can view any, an employee only
+     * their own (PayrollPolicy::view()).
+     */
+    public function show(Request $request, Payslip $payslip): JsonResponse
+    {
+        $this->authorize('view', $payslip);
+
+        return response()->json(['payslip' => $payslip]);
+    }
+
     private function tenantId(Request $request): int
     {
         return (int) ($request->user()->tenant_id ?? 0);

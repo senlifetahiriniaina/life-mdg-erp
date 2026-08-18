@@ -9,6 +9,7 @@ use Modules\HR\Models\EmployeeCompensation;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Models\PayrollRun;
 use Modules\Accounting\Models\JournalEntry;
+use Modules\Timesheets\Models\TimesheetEntry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -291,20 +292,32 @@ class PayrollIntegrationService
 
     private function calculateOvertime(Employee $employee, Carbon $startDate, Carbon $endDate, float $baseSalary): array
     {
-        $overtimeHours = DB::table('hr_timesheets')
-            ->where('employee_id', $employee->id)
-            ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->sum('overtime_hours');
+        // Chantier 8.3: was reading `hr_timesheets.overtime_hours` — a dead
+        // stub table (created by an early scaffold migration) with zero
+        // writers anywhere in this app, so this always returned 0. The
+        // real, live time-tracking data is Modules\Timesheets\TimesheetEntry
+        // (`timesheet_entries`, hours_worked/entry_date/status), but that
+        // model has no distinct "overtime" flag of its own — nothing in
+        // this app tracks per-entry overtime as a separate concept. Derive
+        // it the same way the standard-hourly-rate divisor below (160h a
+        // month, ~40h/week) already implies: hours actually worked beyond
+        // that standard in the period, on approved entries only.
+        $hoursWorked = (float) TimesheetEntry::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->whereBetween('entry_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->sum('hours_worked');
+
+        $overtimeHours = max(0.0, $hoursWorked - 160.0);
 
         // Chantier 8.3: was re-reading the phantom Employee::base_salary
         // field — now takes the already-resolved real base salary.
         $hourlyRate = $baseSalary / 160;
 
         return [
-            'hours'       => (float) $overtimeHours,
+            'hours'       => $overtimeHours,
             'hourly_rate' => $hourlyRate,
             'multiplier'  => 1.5,
-            'total'       => (float) $overtimeHours * $hourlyRate * 1.5,
+            'total'       => $overtimeHours * $hourlyRate * 1.5,
         ];
     }
 
@@ -327,6 +340,17 @@ class PayrollIntegrationService
 
     private function calculateLoanRepayment(Employee $employee): float
     {
+        // Chantier 8.3: `hr_employee_loans` is a dead stub table from the
+        // same early-scaffold origin as the old `hr_timesheets` read above
+        // — confirmed via a repo-wide grep that no model, controller, or
+        // UI anywhere in this app ever writes an employee loan record,
+        // unlike overtime (which has real TimesheetEntry hours to derive
+        // from above). Building a full loan-management feature
+        // (application, approval, disbursement, repayment schedule) from
+        // scratch is out of scope for this bug-fix chantier — left at the
+        // safe 0 fallback this already degrades to, same fallback-first
+        // pattern used throughout this app (e.g. Strategy's training_roi
+        // ratio).
         return (float) DB::table('hr_employee_loans')
             ->where('employee_id', $employee->id)
             ->where('status', 'active')

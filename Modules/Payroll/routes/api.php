@@ -16,6 +16,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:hr-
     Route::get('taxes/by-country',        [PayrollController::class, 'taxesByCountry']);
 });
 
+// ── Employee self-service — view own payslips (any authenticated user,
+// not just payroll staff; PayrollPolicy::view() enforces the "own record
+// only" restriction for non-payroll-staff callers) ─────────────────────
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
+    Route::get('me/payslips',      [PayrollController::class, 'myPayslips']);
+    Route::get('payslips/{payslip}', [PayrollController::class, 'show']);
+});
+
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::post('ai/assist', [\Modules\Payroll\Http\Controllers\Api\PayrollAiAssistController::class, 'assist'])
