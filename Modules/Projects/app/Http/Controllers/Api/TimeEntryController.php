@@ -5,15 +5,29 @@ declare(strict_types=1);
 namespace Modules\Projects\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Models\Project;
+use Modules\Projects\Models\ProjectTimeLog;
 use Modules\Projects\Models\Task;
-use Modules\Projects\Models\TimeLog;
 
 /**
  * @group Projects - Time Entries
  *
  * Log and manage time entries against project tasks.
+ *
+ * Chantier 8.4: was built against Modules\Projects\Models\TimeLog, whose
+ * $fillable (hours/date/is_billable) never matched any real migrated
+ * table — the real `prj_time_logs` table (also written by
+ * ProjectTeamController::storeTimeLog()) has started_at/ended_at/
+ * duration_minutes/billable/hourly_rate instead. Rewritten onto
+ * Modules\Projects\Models\ProjectTimeLog (the model that already matches
+ * the real schema) with a thin manual-entry adapter that converts the
+ * simple hours+date API this controller exposes into that timer-shaped
+ * storage — ProjectTeamController only supports create+list+stop for time
+ * logs, not show/update/destroy of an individual entry, so this
+ * task-scoped CRUD is real, additive functionality, not a duplicate.
  */
 class TimeEntryController extends Controller
 {
@@ -24,10 +38,10 @@ class TimeEntryController extends Controller
      */
     public function index(Request $request, Task $task): JsonResponse
     {
-        $entries = TimeLog::with('user:id,name,email')
+        $entries = ProjectTimeLog::with('user:id,name,email')
             ->where('task_id', $task->id)
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
-            ->latest('date')
+            ->latest('started_at')
             ->paginate(50);
 
         return response()->json($entries);
@@ -36,6 +50,7 @@ class TimeEntryController extends Controller
     /**
      * Create a time entry.
      *
+     * @urlParam project int required The project ID. Example: 1
      * @urlParam task int required The task ID. Example: 1
      *
      * @bodyParam hours numeric required Hours spent. Example: 2.5
@@ -44,7 +59,7 @@ class TimeEntryController extends Controller
      * @bodyParam is_billable boolean Whether the time is billable. Example: true
      * @bodyParam hourly_rate numeric Hourly rate (overrides task default). Example: 75.00
      */
-    public function store(Request $request, Task $task): JsonResponse
+    public function store(Request $request, Project $project, Task $task): JsonResponse
     {
         $validated = $request->validate([
             'hours' => ['required', 'numeric', 'min:0.01', 'max:24'],
@@ -54,10 +69,13 @@ class TimeEntryController extends Controller
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $entry = TimeLog::create(array_merge($validated, [
+        $entry = new ProjectTimeLog([
+            'project_id' => $project->id,
             'task_id' => $task->id,
             'user_id' => $request->user()->id,
-        ]));
+        ]);
+        $this->applyManualEntry($entry, $validated);
+        $entry->save();
 
         return response()->json($entry->load('user:id,name,email'), 201);
     }
@@ -68,7 +86,7 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function show(Task $task, TimeLog $timeEntry): JsonResponse
+    public function show(Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
@@ -83,7 +101,7 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function update(Request $request, Task $task, TimeLog $timeEntry): JsonResponse
+    public function update(Request $request, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
@@ -101,7 +119,8 @@ class TimeEntryController extends Controller
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $timeEntry->update($validated);
+        $this->applyManualEntry($timeEntry, $validated);
+        $timeEntry->save();
 
         return response()->json($timeEntry->fresh()->load('user:id,name,email'));
     }
@@ -112,7 +131,7 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function destroy(Request $request, Task $task, TimeLog $timeEntry): JsonResponse
+    public function destroy(Request $request, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
@@ -125,5 +144,35 @@ class TimeEntryController extends Controller
         $timeEntry->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Convert the manual hours+date entry shape into ProjectTimeLog's real
+     * started_at/ended_at/duration_minutes storage. Missing hours/date on a
+     * partial update fall back to the entry's current values.
+     */
+    private function applyManualEntry(ProjectTimeLog $entry, array $validated): void
+    {
+        $date = isset($validated['date'])
+            ? Carbon::parse($validated['date'])->startOfDay()
+            : ($entry->started_at?->copy()->startOfDay() ?? now()->startOfDay());
+
+        $minutes = isset($validated['hours'])
+            ? (int) round($validated['hours'] * 60)
+            : ($entry->duration_minutes ?? 0);
+
+        $entry->started_at = $date;
+        $entry->duration_minutes = $minutes;
+        $entry->ended_at = $date->copy()->addMinutes($minutes);
+
+        if (array_key_exists('description', $validated)) {
+            $entry->description = $validated['description'];
+        }
+        if (array_key_exists('is_billable', $validated)) {
+            $entry->billable = $validated['is_billable'];
+        }
+        if (array_key_exists('hourly_rate', $validated)) {
+            $entry->hourly_rate = $validated['hourly_rate'];
+        }
     }
 }

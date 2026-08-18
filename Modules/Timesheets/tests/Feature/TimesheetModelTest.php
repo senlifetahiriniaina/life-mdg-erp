@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Timesheets\Models\TimeAllocation;
-use Modules\Timesheets\Models\TimeEntry;
 use Modules\Timesheets\Models\TimeTrackingProject;
 
 uses(RefreshDatabase::class);
@@ -219,24 +218,7 @@ it('billable scope returns only billable allocations', function () {
     expect($billable)->toHaveCount(3);
 });
 
-// ──────────────────────────────────────────────────────────────────
-// TimeEntry MODEL TESTS
-// ──────────────────────────────────────────────────────────────────
-
-it('time entry amount attribute is computed from hours and rate', function () {
-    $entry = new TimeEntry([
-        'hours' => 5,
-        'rate'  => 80,
-    ]);
-
-    expect($entry->amount)->toBe(400.0);
-});
-
-it('time entry amount is zero when rate is null', function () {
-    $entry = new TimeEntry([
-        'hours' => 5,
-        'rate'  => null,
-    ]);
-
-    expect($entry->amount)->toBe(0.0);
-});
+// Chantier 8.4: Modules\Timesheets\Models\TimeEntry (and its TimeEntryController)
+// were a fully-unrouted, broken parallel duplicate of the real
+// TimesheetEntry/TimesheetEntryController — deleted; its 2 isolated unit
+// tests here went with it.

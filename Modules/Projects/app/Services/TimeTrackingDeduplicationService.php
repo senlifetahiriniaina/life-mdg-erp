@@ -6,7 +6,6 @@ namespace Modules\Projects\Services;
 
 use Illuminate\Support\Facades\DB;
 use Modules\Projects\Models\TimeEntry;
-use Modules\Projects\Models\TimeLog;
 
 /**
  * Service for deduplicating time tracking entries and ensuring single source of truth.
