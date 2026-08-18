@@ -44,8 +44,19 @@ class ApprovalWorkflowService
         $newWorkflow->save();
 
         // Clone all rules
+        //
+        // Chantier 8.5sv: replicate(array $except) takes attribute NAMES to
+        // exclude, not a key=>value map of overrides — passing
+        // ['workflow_id' => $newWorkflow->id] was a no-op for exclusion
+        // purposes (Arr::except iterates the array's VALUES as keys to
+        // remove, so it tried to remove an attribute literally named
+        // $newWorkflow->id, which doesn't exist) and did NOT set the new
+        // workflow_id, so every cloned rule kept pointing at the original
+        // workflow instead of the new one.
         foreach ($workflow->rules as $rule) {
-            $rule->replicate(['workflow_id' => $newWorkflow->id])->save();
+            $newRule = $rule->replicate();
+            $newRule->workflow_id = $newWorkflow->id;
+            $newRule->save();
         }
 
         return $newWorkflow;

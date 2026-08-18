@@ -140,11 +140,7 @@ class ImportDataJob implements ShouldQueue
      */
     private function transformRow(array $row): ?array
     {
-        $result = [
-            'tenant_id'  => $this->tenantId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ];
+        $result = [];
 
         $hasValue = false;
 
@@ -251,6 +247,28 @@ class ImportDataJob implements ShouldQueue
             return [0, count($rows), ["Table inconnue pour l'entité \"{$entity}\""]];
         }
 
+        // Not every target table has the same columns as ENTITY_SCHEMAS assumes
+        // (e.g. acc_invoices/crm_contacts/inventory_stock_movements have no
+        // tenant_id column at all) — filter each row down to columns that
+        // actually exist rather than let one unknown column fail the whole
+        // insert.
+        $columns = DB::getSchemaBuilder()->getColumnListing($table);
+        $rows    = array_map(function (array $row) use ($columns): array {
+            $filtered = array_intersect_key($row, array_flip($columns));
+
+            if (in_array('tenant_id', $columns, true)) {
+                $filtered['tenant_id'] = $this->tenantId;
+            }
+            if (in_array('created_at', $columns, true)) {
+                $filtered['created_at'] = now();
+            }
+            if (in_array('updated_at', $columns, true)) {
+                $filtered['updated_at'] = now();
+            }
+
+            return $filtered;
+        }, $rows);
+
         try {
             DB::table($table)->insert($rows);
             return [count($rows), 0, []];
@@ -307,7 +325,7 @@ class ImportDataJob implements ShouldQueue
             'products'  => 'inventory_products',
             'suppliers' => 'achats_suppliers',
             'employees' => 'hr_employees',
-            'invoices'  => 'accounting_invoices',
+            'invoices'  => 'acc_invoices',
             'stock'     => 'inventory_stock_movements',
             default     => null,
         };

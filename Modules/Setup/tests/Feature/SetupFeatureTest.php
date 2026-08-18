@@ -153,10 +153,11 @@ test('can list available target schemas', function () {
 
 test('can retrieve a specific import job by id', function () {
     $user = setupUser();
-    // SetupController::tenantId() scopes by $request->user()->company_id, not
-    // the user's own id — give the test user a real company and match it.
-    $user->forceFill(['company_id' => \App\Models\Company::factory()->create()->id])->save();
-    $job = createImportJob(['tenant_id' => $user->company_id, 'created_by' => $user->id]);
+    // Chantier 8.5sv: SetupController::tenantId() now scopes by the real
+    // multi-tenant boundary column users.tenant_id, not users.company_id.
+    $company = \App\Models\Company::factory()->create();
+    $user->forceFill(['company_id' => $company->id, 'tenant_id' => $company->id])->save();
+    $job = createImportJob(['tenant_id' => $user->tenant_id, 'created_by' => $user->id]);
 
     $this->getJson("/api/v1/setup/import-jobs/{$job->id}")
         ->assertOk()

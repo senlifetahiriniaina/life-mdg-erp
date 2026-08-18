@@ -137,13 +137,15 @@ class ApprovalRequestService
 
     public function getPendingApprovalsForUser(User $user): Collection
     {
+        // Chantier 8.5sv: was filtering to requests the user HASN'T already
+        // acted on (doesntExist() on their own actions) instead of requests
+        // where they ARE the assigned approver — since almost nobody has
+        // acted on any given pending request yet, this returned every
+        // pending approval company-wide to every caller, not just their own.
         return ApprovalRequest::where('status', 'pending')
+            ->where('approver_id', $user->id)
             ->with('approvable')
-            ->get()
-            ->filter(function ($request) use ($user) {
-                // Check if user is an approver for this request
-                return $request->actions()->where('approver_id', $user->id)->doesntExist();
-            });
+            ->get();
     }
 
     public function getHistoryForRequest(ApprovalRequest $request): Collection

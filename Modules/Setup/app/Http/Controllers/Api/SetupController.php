@@ -48,6 +48,8 @@ class SetupController extends Controller
      */
     public function createJob(Request $request): JsonResponse
     {
+        $this->authorize('create', ImportJob::class);
+
         $validator = Validator::make($request->all(), [
             'name'             => 'required|string|max:100',
             'source_type'      => ['required', Rule::in(['excel', 'csv', 'pdf', 'database'])],
@@ -114,6 +116,8 @@ class SetupController extends Controller
 
     public function listJobs(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ImportJob::class);
+
         $tenantId = $this->tenantId($request);
 
         $query = ImportJob::forTenant($tenantId);
@@ -142,6 +146,8 @@ class SetupController extends Controller
             return response()->json(['message' => 'Import job not found.'], 404);
         }
 
+        $this->authorize('view', $job);
+
         return response()->json([
             'data' => $job->load(['sourceSchema', 'fieldMappings']),
         ]);
@@ -158,6 +164,8 @@ class SetupController extends Controller
         if ($job === null) {
             return response()->json(['message' => 'Import job not found.'], 404);
         }
+
+        $this->authorize('update', $job);
 
         if ($job->isRunning()) {
             return response()->json(['message' => 'Job is currently running and cannot be re-analyzed.'], 409);
@@ -196,6 +204,8 @@ class SetupController extends Controller
             return response()->json(['message' => 'Import job not found.'], 404);
         }
 
+        $this->authorize('view', $job);
+
         $schema = $job->sourceSchema;
 
         if ($schema === null) {
@@ -225,6 +235,8 @@ class SetupController extends Controller
         if ($job === null) {
             return response()->json(['message' => 'Import job not found.'], 404);
         }
+
+        $this->authorize('update', $job);
 
         if (!$job->isEditable()) {
             return response()->json(['message' => 'Job is not in an editable state.'], 409);
@@ -285,6 +297,8 @@ class SetupController extends Controller
             return response()->json(['message' => 'Import job not found.'], 404);
         }
 
+        $this->authorize('update', $job);
+
         $job->update(['status' => 'validating']);
 
         // Check required field coverage
@@ -335,6 +349,8 @@ class SetupController extends Controller
             return response()->json(['message' => 'Import job not found.'], 404);
         }
 
+        $this->authorize('update', $job);
+
         // Guard: only allow queuing from "ready" statuses to prevent double-dispatch.
         if (!in_array($job->status, ['pending', 'mapping', 'validating'], true)) {
             return response()->json([
@@ -369,6 +385,8 @@ class SetupController extends Controller
         if ($job === null) {
             return response()->json(['message' => 'Import job not found.'], 404);
         }
+
+        $this->authorize('view', $job);
 
         $errors = $job->importErrors()
             ->orderBy('row_number')
@@ -438,11 +456,20 @@ class SetupController extends Controller
     // Helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 8.5: was $request->user()?->company_id (a narrower, often-null,
+     * different-purpose FK) with a client-controlled X-Company-ID header
+     * fallback that was reached in the common case — any authenticated user
+     * could set X-Company-ID to another tenant's id and read/write their
+     * import jobs. The real multi-tenant boundary column is users.tenant_id
+     * (confirmed via App\Http\Middleware\InitializeTenancyFromAuthenticatedUser's
+     * own docblock: this app uses a shared-DB + tenant_id scoping model) —
+     * same ID-space mismatch bug pattern already fixed repeatedly elsewhere
+     * in this app (LeaveRequestPolicy, PayrollPolicy, TimesheetEntryPolicy).
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()?->company_id
-            ?? $request->header('X-Company-ID')
-            ?? 0);
+        return (int) ($request->user()?->tenant_id ?? 0);
     }
 
     private function findJobForTenant(Request $request, int $id): ?ImportJob

@@ -25,6 +25,8 @@ class ApprovalRequestController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('viewAny', ApprovalRequest::class);
+
         $query = ApprovalRequest::with(['workflow', 'requester', 'approver', 'approvable']);
 
         if ($request->has('status')) {
@@ -76,6 +78,8 @@ class ApprovalRequestController extends Controller
 
     public function show(ApprovalRequest $approval_request)
     {
+        $this->authorize('view', $approval_request);
+
         return $approval_request->load(['workflow', 'requester', 'actions.approver', 'history']);
     }
 

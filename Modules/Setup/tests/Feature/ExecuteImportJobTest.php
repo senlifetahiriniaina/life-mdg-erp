@@ -26,6 +26,32 @@ function importJobForQueue(array $overrides = []): ImportJob
     ], $overrides));
 }
 
+/**
+ * Chantier 8.5sv: import-jobs/execute now requires
+ * role:employee,admin,super-admin at the route level (previously ungated).
+ */
+function makeQueueTestUser(): \App\Models\User
+{
+    // Chantier 8.5sv: SetupController::tenantId() now reads users.tenant_id
+    // (the real multi-tenant boundary column), not users.company_id.
+    $company = \App\Models\Company::factory()->create();
+    $u = \App\Models\User::factory()->create(['company_id' => $company->id, 'tenant_id' => $company->id]);
+
+    // The route gate is role:employee,..., but SetupController's mutating
+    // methods also now call authorize() against ImportSessionPolicy, which
+    // checks real setup.import.* permissions — a bare Role::firstOrCreate()
+    // assigns an empty-permission role and still 403s. Run the real seeder
+    // (same pattern as tests/TestCase::actingAsUser()) so 'employee' carries
+    // its real broad permission set.
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
+    \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+    $u->assignRole('employee');
+
+    return $u;
+}
+
 // ============================================================
 // ExecuteImportJob — unit-level behaviour
 // ============================================================
@@ -78,8 +104,8 @@ test('failed stores the exception class in error_summary', function () {
 test('executeJob returns 202 and dispatches ExecuteImportJob for a mapping-status job', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
-    $job  = importJobForQueue(['status' => 'mapping', 'tenant_id' => $user->company_id]);
+    $user = makeQueueTestUser();
+    $job  = importJobForQueue(['status' => 'mapping', 'tenant_id' => $user->tenant_id]);
 
     // Attach a confirmed mapping so the confirmed-count guard passes
     \Modules\Setup\Models\FieldMapping::factory()->create([
@@ -102,8 +128,8 @@ test('executeJob returns 202 and dispatches ExecuteImportJob for a mapping-statu
 test('executeJob returns 202 for a validating-status job', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
-    $job  = importJobForQueue(['status' => 'validating', 'tenant_id' => $user->company_id]);
+    $user = makeQueueTestUser();
+    $job  = importJobForQueue(['status' => 'validating', 'tenant_id' => $user->tenant_id]);
 
     \Modules\Setup\Models\FieldMapping::factory()->create([
         'import_job_id' => $job->id,
@@ -121,8 +147,8 @@ test('executeJob returns 202 for a validating-status job', function () {
 test('executeJob returns 202 for a pending-status job', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
-    $job  = importJobForQueue(['status' => 'pending', 'tenant_id' => $user->company_id]);
+    $user = makeQueueTestUser();
+    $job  = importJobForQueue(['status' => 'pending', 'tenant_id' => $user->tenant_id]);
 
     \Modules\Setup\Models\FieldMapping::factory()->create([
         'import_job_id' => $job->id,
@@ -140,8 +166,8 @@ test('executeJob returns 202 for a pending-status job', function () {
 test('executeJob returns 409 when job is already importing', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
-    $job  = importJobForQueue(['status' => 'importing', 'tenant_id' => $user->company_id]);
+    $user = makeQueueTestUser();
+    $job  = importJobForQueue(['status' => 'importing', 'tenant_id' => $user->tenant_id]);
 
     $this->actingAs($user)
         ->postJson("/api/v1/setup/import-jobs/{$job->id}/execute")
@@ -153,8 +179,8 @@ test('executeJob returns 409 when job is already importing', function () {
 test('executeJob returns 409 when job is already completed', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
-    $job  = importJobForQueue(['status' => 'completed', 'tenant_id' => $user->company_id]);
+    $user = makeQueueTestUser();
+    $job  = importJobForQueue(['status' => 'completed', 'tenant_id' => $user->tenant_id]);
 
     $this->actingAs($user)
         ->postJson("/api/v1/setup/import-jobs/{$job->id}/execute")
@@ -166,8 +192,8 @@ test('executeJob returns 409 when job is already completed', function () {
 test('executeJob returns 422 when no confirmed mappings exist', function () {
     Queue::fake();
 
-    $user = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
-    $job  = importJobForQueue(['status' => 'mapping', 'tenant_id' => $user->company_id]);
+    $user = makeQueueTestUser();
+    $job  = importJobForQueue(['status' => 'mapping', 'tenant_id' => $user->tenant_id]);
     // No FieldMapping records created — confirmed count = 0
 
     $this->actingAs($user)
@@ -181,7 +207,7 @@ test('executeJob returns 422 when no confirmed mappings exist', function () {
 test('executeJob returns 404 for a job belonging to another tenant', function () {
     Queue::fake();
 
-    $user       = \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
+    $user = makeQueueTestUser();
     $otherJob   = importJobForQueue(['status' => 'mapping', 'tenant_id' => 99]);
 
     $this->actingAs($user)

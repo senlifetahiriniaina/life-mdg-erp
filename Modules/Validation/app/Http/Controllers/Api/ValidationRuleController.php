@@ -81,4 +81,35 @@ class ValidationRuleController extends Controller
             'errors' => $result->errors(),
         ]);
     }
+
+    /**
+     * Declare that this rule depends on another rule (must be evaluated
+     * first). Rejected with 422 if it would introduce a dependency cycle —
+     * ValidationEngine::hasCircularDependency() was real and tested but had
+     * no caller anywhere in the app before this endpoint.
+     */
+    public function addDependency(Request $request, ValidationRule $validationRule): JsonResponse
+    {
+        $validated = $request->validate([
+            'depends_on_rule_id' => 'required|integer|exists:validation_rules,id',
+        ]);
+
+        if ((int) $validated['depends_on_rule_id'] === $validationRule->id) {
+            return response()->json(['message' => 'A rule cannot depend on itself.'], 422);
+        }
+
+        $dependsOn = ValidationRule::findOrFail($validated['depends_on_rule_id']);
+
+        $validationRule->dependencies()->syncWithoutDetaching([$dependsOn->id]);
+
+        if ($this->engine->hasCircularDependency([$validationRule->fresh()])) {
+            $validationRule->dependencies()->detach($dependsOn->id);
+
+            return response()->json([
+                'message' => 'This dependency would introduce a circular reference.',
+            ], 422);
+        }
+
+        return response()->json(['data' => $validationRule->load('dependencies')]);
+    }
 }

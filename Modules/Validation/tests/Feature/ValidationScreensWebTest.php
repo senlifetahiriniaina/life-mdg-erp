@@ -96,7 +96,10 @@ class ValidationScreensWebTest extends TestCase
      */
     public function test_approval_requests_api_filters_by_module_and_computes_awaiting_my_action()
     {
-        $user = User::factory()->create();
+        // Chantier 8.5sv: ApprovalRequestController::index() now calls
+        // authorize('viewAny', ApprovalRequest::class), which
+        // ApprovalRequestPolicy restricts to admin/manager/approver roles.
+        $user = $this->actingAsUser('approver');
 
         $accountingWorkflow = ApprovalWorkflow::factory()->create(['module_name' => 'Accounting']);
         $achatsWorkflow = ApprovalWorkflow::factory()->create(['module_name' => 'Achats']);
@@ -124,7 +127,9 @@ class ValidationScreensWebTest extends TestCase
 
     public function test_validation_rule_crud()
     {
-        $user = User::factory()->create();
+        // Chantier 8.5sv: validation-rules store/update/destroy now require
+        // role:admin,super-admin at the route level (previously ungated).
+        $user = $this->actingAsUser('admin');
 
         $create = $this->actingAs($user)->postJson('/api/v1/validation-rules', [
             'name' => 'Email requis',

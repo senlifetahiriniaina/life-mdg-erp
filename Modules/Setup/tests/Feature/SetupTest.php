@@ -28,7 +28,24 @@ function makeSetupUser(?int $companyId = null): \App\Models\User
     // only worked before that constraint existed. Each call creates its own
     // real Company, so two calls always land on two distinct tenants (mirrors
     // the working pattern already used in ExecuteImportJobTest.php).
-    return \App\Models\User::factory()->create(['company_id' => \App\Models\Company::factory()->create()->id]);
+    $company = \App\Models\Company::factory()->create();
+    // Chantier 8.5sv: SetupController::tenantId() now reads users.tenant_id
+    // (the real multi-tenant boundary column), not users.company_id.
+    $user = \App\Models\User::factory()->create(['company_id' => $company->id, 'tenant_id' => $company->id]);
+
+    // The route gate is role:employee,..., but SetupController's mutating
+    // methods also now call authorize() against ImportSessionPolicy, which
+    // checks real setup.import.* permissions — a bare Role::firstOrCreate()
+    // assigns an empty-permission role and still 403s. Run the real seeder
+    // (same pattern as tests/TestCase::actingAsUser()) so 'employee' carries
+    // its real broad permission set.
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
+    \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+    $user->assignRole('employee');
+
+    return $user;
 }
 
 function makeImportJob(array $overrides = []): ImportJob
@@ -540,7 +557,7 @@ it('does not expose jobs belonging to another tenant', function () {
     $userA = makeSetupUser();
     $userB = makeSetupUser();
 
-    $jobA = makeImportJob(['tenant_id' => $userA->company_id, 'created_by' => $userA->id]);
+    $jobA = makeImportJob(['tenant_id' => $userA->tenant_id, 'created_by' => $userA->id]);
 
     // userB (tenant 2) should NOT see jobA (tenant 1)
     $response = $this->actingAs($userB)->getJson("/api/v1/setup/import-jobs/{$jobA->id}");

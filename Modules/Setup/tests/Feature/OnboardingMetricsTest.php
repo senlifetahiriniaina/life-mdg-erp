@@ -28,9 +28,26 @@ function makeOnboardingUser(): \App\Models\User
 {
     // users.company_id is a real FK to companies.id -- a bare literal id
     // violates the constraint unless a matching Company row exists.
-    return \App\Models\User::factory()->create([
-        'company_id' => \App\Models\Company::factory()->create()->id,
+    $company = \App\Models\Company::factory()->create();
+    // Chantier 8.5sv: OnboardingMetricsController::tenantId() now reads
+    // users.tenant_id (the real multi-tenant boundary column), not
+    // users.company_id; the onboarding/* route group also now requires
+    // role:employee,admin,super-admin (previously ungated) — a bare
+    // Role::firstOrCreate() leaves 'employee' with zero permissions, so
+    // run the real seeder for its full permission set (same pattern as
+    // tests/Pest.php's actingAsUser()).
+    $user = \App\Models\User::factory()->create([
+        'company_id' => $company->id,
+        'tenant_id'  => $company->id,
     ]);
+
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
+    \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+    $user->assignRole('employee');
+
+    return $user;
 }
 
 function makeSession(array $overrides = []): OnboardingSession
@@ -398,7 +415,7 @@ it('POST /onboarding/start returns 201 and creates a session', function () {
         ->assertJsonPath('data.current_step', 1);
 
     $this->assertDatabaseHas('setup_onboarding_sessions', [
-        'tenant_id'   => $user->company_id,
+        'tenant_id'   => $user->tenant_id,
         'user_id'     => $user->id,
         'source_type' => 'file_csv',
     ]);
@@ -423,7 +440,7 @@ it('POST /onboarding/start returns 422 for invalid source_type', function () {
 // ============================================================
 it('POST /onboarding/{id}/complete marks session completed and returns KPI flags', function () {
     $user    = makeOnboardingUser();
-    $session = makeSession(['tenant_id' => $user->company_id, 'user_id' => $user->id, 'started_at' => Carbon::now()->subSeconds(250)]);
+    $session = makeSession(['tenant_id' => $user->tenant_id, 'user_id' => $user->id, 'started_at' => Carbon::now()->subSeconds(250)]);
 
     $response = $this->actingAs($user)->postJson("/api/v1/setup/onboarding/{$session->id}/complete", [
         'rows_imported'               => 100,
@@ -444,7 +461,7 @@ it('POST /onboarding/{id}/complete marks session completed and returns KPI flags
 // ============================================================
 it('POST /onboarding/{id}/abandon sets abandoned_at on the session', function () {
     $user    = makeOnboardingUser();
-    $session = makeSession(['tenant_id' => $user->company_id, 'user_id' => $user->id]);
+    $session = makeSession(['tenant_id' => $user->tenant_id, 'user_id' => $user->id]);
 
     $response = $this->actingAs($user)->postJson("/api/v1/setup/onboarding/{$session->id}/abandon", [
         'at_step' => 3,
@@ -462,7 +479,7 @@ it('POST /onboarding/{id}/abandon sets abandoned_at on the session', function ()
 // ============================================================
 it('GET /onboarding/stats returns a valid funnel stats payload', function () {
     $user = makeOnboardingUser();
-    makeSession(['tenant_id' => $user->company_id, 'completed_at' => Carbon::now(), 'total_duration_seconds' => 200]);
+    makeSession(['tenant_id' => $user->tenant_id, 'completed_at' => Carbon::now(), 'total_duration_seconds' => 200]);
 
     $response = $this->actingAs($user)->getJson('/api/v1/setup/onboarding/stats?days=30');
 

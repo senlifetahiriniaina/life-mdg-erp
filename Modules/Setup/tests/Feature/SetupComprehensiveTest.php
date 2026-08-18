@@ -322,12 +322,15 @@ describe('Setup Wizard API', function () {
 describe('Import Job API', function () {
     beforeEach(function () {
         $this->user = actingAsUser('admin');
-        // SetupController::tenantId() resolves tenant from the authenticated
-        // user's company_id, not from ImportJob::tenant_id directly.
-        // users.company_id has a real FK to companies.id, so a real Company
-        // row is required (a bare literal id would violate the constraint).
+        // Chantier 8.5sv: SetupController::tenantId() now resolves tenant
+        // from the authenticated user's real tenant_id boundary column, not
+        // company_id. users.company_id/tenant_id both have real FKs to
+        // companies.id, so a real Company row is required (a bare literal id
+        // would violate the constraint).
         $this->company = \App\Models\Company::factory()->create();
-        $this->user->update(['company_id' => $this->company->id]);
+        // tenant_id is deliberately NOT in User::$fillable (mass-assignment
+        // hardening) so a plain update() silently drops it — forceFill() instead.
+        $this->user->forceFill(['company_id' => $this->company->id, 'tenant_id' => $this->company->id])->save();
     });
 
     test('GET /api/v1/setup/import-jobs lists jobs for tenant', function () {
@@ -384,11 +387,15 @@ describe('Import Job API', function () {
 describe('Onboarding Metrics API', function () {
     beforeEach(function () {
         $this->user = actingAsUser('admin');
-        // OnboardingMetricsController::tenantId() resolves tenant from company_id.
-        // users.company_id has a real FK to companies.id, so a real Company
-        // row is required (a bare literal id would violate the constraint).
+        // Chantier 8.5sv: OnboardingMetricsController::tenantId() now
+        // resolves tenant from the real tenant_id boundary column, not
+        // company_id. users.company_id/tenant_id both have real FKs to
+        // companies.id, so a real Company row is required (a bare literal id
+        // would violate the constraint).
         $this->company = \App\Models\Company::factory()->create();
-        $this->user->update(['company_id' => $this->company->id]);
+        // tenant_id is deliberately NOT in User::$fillable (mass-assignment
+        // hardening) so a plain update() silently drops it — forceFill() instead.
+        $this->user->forceFill(['company_id' => $this->company->id, 'tenant_id' => $this->company->id])->save();
     });
 
     test('POST /api/v1/setup/onboarding/start creates a new session', function () {

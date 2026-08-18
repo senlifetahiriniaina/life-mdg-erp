@@ -59,6 +59,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
         Route::post('approval-workflows', [ApprovalWorkflowController::class, 'store']);
         Route::put('approval-workflows/{workflow}', [ApprovalWorkflowController::class, 'update']);
         Route::delete('approval-workflows/{workflow}', [ApprovalWorkflowController::class, 'destroy']);
+        Route::post('approval-workflows/{workflow}/clone', [ApprovalWorkflowController::class, 'cloneWorkflow']);
 
         Route::post('approval-workflows/{workflow}/rules', [ApprovalRuleController::class, 'store']);
         Route::put('approval-workflows/{workflow}/rules/{rule}', [ApprovalRuleController::class, 'update']);
