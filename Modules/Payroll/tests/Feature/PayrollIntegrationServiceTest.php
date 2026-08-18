@@ -7,6 +7,7 @@ namespace Modules\Payroll\Tests\Feature;
 use Tests\TestCase;
 use Modules\Payroll\Services\PayrollIntegrationService;
 use Modules\HR\Models\Employee;
+use Modules\HR\Models\EmployeeCompensation;
 use Modules\Payroll\Models\Payslip;
 use App\Models\User;
 use Carbon\Carbon;
@@ -15,18 +16,33 @@ class PayrollIntegrationServiceTest extends TestCase
 {
     private PayrollIntegrationService $service;
     private Employee $employee;
+    private User $user;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->service = app(PayrollIntegrationService::class);
 
+        // Chantier 8.3: base_salary/salary_currency/country_code/tenant_id
+        // are real hr_employees columns but not in Employee's $fillable —
+        // the factory's unguarded() bypass could set them directly, but that
+        // exercised a code path real production writes (EmployeeController,
+        // EmployeeManagementService) can never reach. The real salary source
+        // is EmployeeCompensation, and the real tenant source is the linked
+        // User's tenant_id — set up both to match how the fixed service
+        // actually resolves them.
+        $this->user = User::factory()->create(['tenant_id' => 1]);
         $this->employee = Employee::factory()->create([
-            'status'          => 'active',
-            'termination_date'=> null,
-            'base_salary'     => 500_000,
-            'salary_currency' => 'XOF',
-            'country_code'    => 'SN',
+            'user_id'          => $this->user->id,
+            'status'           => 'active',
+            'termination_date' => null,
+        ]);
+        EmployeeCompensation::factory()->create([
+            'employee_id'    => $this->employee->id,
+            'base_salary'    => 500_000,
+            'currency'       => 'XOF',
+            'effective_date' => now()->startOfMonth()->subMonth(),
+            'end_date'       => null,
         ]);
     }
 
@@ -120,13 +136,17 @@ class PayrollIntegrationServiceTest extends TestCase
     /** @test */
     public function it_generates_payslips_for_all_active_employees(): void
     {
-        Employee::factory()->create([
-            'tenant_id' => $this->employee->tenant_id,
-            'status'    => 'active',
+        $secondEmployee = Employee::factory()->create(['status' => 'active']);
+        EmployeeCompensation::factory()->create([
+            'employee_id'    => $secondEmployee->id,
+            'base_salary'    => 400_000,
+            'currency'       => 'XOF',
+            'effective_date' => now()->startOfMonth()->subMonth(),
+            'end_date'       => null,
         ]);
 
         $result = $this->service->generatePayslips(
-            $this->employee->tenant_id,
+            $this->user->tenant_id,
             now()->startOfMonth(),
             now()->endOfMonth()
         );
@@ -142,7 +162,7 @@ class PayrollIntegrationServiceTest extends TestCase
         $this->employee->update(['status' => 'inactive']);
 
         $result = $this->service->generatePayslips(
-            $this->employee->tenant_id,
+            $this->user->tenant_id,
             now()->startOfMonth(),
             now()->endOfMonth()
         );
@@ -156,11 +176,13 @@ class PayrollIntegrationServiceTest extends TestCase
         $this->service->generatePayslip(
             $this->employee,
             now()->startOfMonth(),
-            now()->endOfMonth()
+            now()->endOfMonth(),
+            'monthly',
+            $this->user->tenant_id
         );
 
         $summary = $this->service->getPayrollSummary(
-            $this->employee->tenant_id,
+            $this->user->tenant_id,
             now()->startOfMonth(),
             now()->endOfMonth()
         );

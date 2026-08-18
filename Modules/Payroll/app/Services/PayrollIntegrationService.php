@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payroll\Services;
 
 use Modules\HR\Models\Employee;
+use Modules\HR\Models\EmployeeCompensation;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Models\PayrollRun;
 use Modules\Accounting\Models\JournalEntry;
@@ -27,8 +28,15 @@ class PayrollIntegrationService
         Carbon $endDate,
         string $payrollCycle = 'monthly'
     ): array {
-        $employees = Employee::where('tenant_id', $tenantId)
-            ->where('status', 'active')
+        // Chantier 8.3: hr_employees.tenant_id is a real column but not in
+        // Employee's $fillable — never set by any real create()/update() call
+        // in this app (confirmed: EmployeeController::store() and every other
+        // live Employee write path skip it entirely), so filtering by it here
+        // silently returned zero employees for any tenant. Employee has no
+        // real tenant scoping today (EmployeeController::index(), the live
+        // employee-listing endpoint, doesn't filter by tenant either) — drop
+        // the filter to match how Employee is actually queried elsewhere.
+        $employees = Employee::where('status', 'active')
             ->whereNull('termination_date')
             ->get();
 
@@ -37,7 +45,7 @@ class PayrollIntegrationService
 
         foreach ($employees as $employee) {
             try {
-                $record = $this->generatePayslip($employee, $startDate, $endDate, $payrollCycle);
+                $record = $this->generatePayslip($employee, $startDate, $endDate, $payrollCycle, $tenantId);
                 if ($record) {
                     $records[] = $record->id;
                 }
@@ -68,7 +76,8 @@ class PayrollIntegrationService
         Employee $employee,
         Carbon $startDate,
         Carbon $endDate,
-        string $payrollCycle = 'monthly'
+        string $payrollCycle = 'monthly',
+        ?int $tenantId = null
     ): ?Payslip {
         // Idempotent — skip if already exists for this period
         $existing = Payslip::where('employee_id', $employee->id)
@@ -79,8 +88,18 @@ class PayrollIntegrationService
             return $existing;
         }
 
-        $tenantId = (int) ($employee->tenant_id ?? 0);
-        $currency = $employee->salary_currency ?? 'XOF';
+        // Chantier 8.3: hr_employees.tenant_id/salary_currency are real
+        // columns but not in Employee's $fillable — never populated by any
+        // real create()/update() call, so this always resolved to 0/'XOF'
+        // regardless of the actual employee. tenant_id now comes from the
+        // caller (generatePayslips() already has the real value from the
+        // authenticated user); when called standalone (as this method's own
+        // test does) it falls back to the employee's linked User's real,
+        // live tenant_id column. Currency comes from the employee's current
+        // EmployeeCompensation record (the real salary source — see below).
+        $tenantId ??= (int) ($employee->user?->tenant_id ?? 0);
+        $compensation = $this->getCurrentCompensation($employee, $startDate);
+        $currency = $compensation?->currency ?? 'XOF';
 
         $periodDate = $startDate->copy()->startOfMonth()->toDateString();
         $run = PayrollRun::where('tenant_id', $tenantId)
@@ -93,7 +112,7 @@ class PayrollIntegrationService
                 'currency'  => $currency,
             ]);
 
-        $components = $this->calculateSalaryComponents($employee, $startDate, $endDate);
+        $components = $this->calculateSalaryComponents($employee, $startDate, $endDate, $compensation);
         $grossSalary = $components['gross_salary'];
         $deductions  = $this->calculateDeductions($employee, $grossSalary);
         $netSalary   = $grossSalary - $deductions['total_deductions'];
@@ -119,19 +138,34 @@ class PayrollIntegrationService
     public function calculateSalaryComponents(
         Employee $employee,
         Carbon $startDate,
-        Carbon $endDate
+        Carbon $endDate,
+        ?EmployeeCompensation $compensation = null
     ): array {
-        $baseSalary = (float) ($employee->base_salary ?? $employee->monthly_salary ?? 0);
+        // Chantier 8.3 (headline finding): base_salary/housing_allowance/
+        // transport_allowance/family_allowance/monthly_bonus were all read
+        // straight off Employee, but none of these are real Employee
+        // columns/fillable fields — nothing in the real HR onboarding flow
+        // (EmployeeController::store(), EmployeeManagementService) ever
+        // writes them, so every real payslip silently computed to a near-zero
+        // salary. The real salary source is EmployeeCompensation (see
+        // CompensationService) — base_salary comes from there now. The
+        // granular allowance/bonus sub-categories still have no real
+        // per-employee data source (only a single aggregate bonus_amount/
+        // benefits_annual_value exists on EmployeeCompensation) — left at 0
+        // rather than guessing a split, same fallback-first pattern already
+        // used elsewhere in this app (e.g. Strategy's training_roi ratio).
+        $compensation ??= $this->getCurrentCompensation($employee, $startDate);
+        $baseSalary = (float) ($compensation?->base_salary ?? 0);
 
         $allowances = [
             'housing_allowance'     => (float) ($employee->housing_allowance ?? 0),
             'transport_allowance'   => (float) ($employee->transport_allowance ?? 0),
             'family_allowance'      => (float) ($employee->family_allowance ?? 0),
-            'performance_allowance' => $this->calculatePerformanceAllowance($employee),
+            'performance_allowance' => $this->calculatePerformanceAllowance($employee, $baseSalary),
         ];
         $totalAllowances = array_sum($allowances);
 
-        $overtime     = $this->calculateOvertime($employee, $startDate, $endDate);
+        $overtime     = $this->calculateOvertime($employee, $startDate, $endDate, $baseSalary);
         $bonuses      = [
             'monthly_bonus'     => (float) ($employee->monthly_bonus ?? 0),
             'performance_bonus' => 0.0,
@@ -239,10 +273,12 @@ class PayrollIntegrationService
         };
     }
 
-    private function calculatePerformanceAllowance(Employee $employee): float
+    private function calculatePerformanceAllowance(Employee $employee, float $baseSalary): float
     {
-        $rating     = $employee->latest_performance_rating ?? 3;
-        $baseSalary = (float) ($employee->base_salary ?? $employee->monthly_salary ?? 0);
+        // Chantier 8.3: was re-reading the phantom Employee::base_salary
+        // field (same bug as calculateSalaryComponents()'s headline fix) —
+        // now takes the already-resolved real base salary from the caller.
+        $rating = $employee->latest_performance_rating ?? 3;
 
         return $baseSalary * match ($rating) {
             5       => 0.15,
@@ -253,14 +289,16 @@ class PayrollIntegrationService
         };
     }
 
-    private function calculateOvertime(Employee $employee, Carbon $startDate, Carbon $endDate): array
+    private function calculateOvertime(Employee $employee, Carbon $startDate, Carbon $endDate, float $baseSalary): array
     {
         $overtimeHours = DB::table('hr_timesheets')
             ->where('employee_id', $employee->id)
             ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
             ->sum('overtime_hours');
 
-        $hourlyRate = ((float) ($employee->base_salary ?? $employee->monthly_salary ?? 0)) / 160;
+        // Chantier 8.3: was re-reading the phantom Employee::base_salary
+        // field — now takes the already-resolved real base salary.
+        $hourlyRate = $baseSalary / 160;
 
         return [
             'hours'       => (float) $overtimeHours,
@@ -268,6 +306,23 @@ class PayrollIntegrationService
             'multiplier'  => 1.5,
             'total'       => (float) $overtimeHours * $hourlyRate * 1.5,
         ];
+    }
+
+    /**
+     * The employee's compensation record effective as of a given date —
+     * the real, single source of truth for salary data (see
+     * Modules\HR\Services\CompensationService, which uses the same query
+     * shape against now() rather than an arbitrary period date).
+     */
+    private function getCurrentCompensation(Employee $employee, Carbon $asOf): ?EmployeeCompensation
+    {
+        return $employee->compensations()
+            ->where('effective_date', '<=', $asOf->toDateString())
+            ->where(function ($q) use ($asOf) {
+                $q->whereNull('end_date')->orWhere('end_date', '>=', $asOf->toDateString());
+            })
+            ->latest('effective_date')
+            ->first();
     }
 
     private function calculateLoanRepayment(Employee $employee): float
