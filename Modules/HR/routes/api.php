@@ -3,9 +3,11 @@
 use Illuminate\Support\Facades\Route;
 use Modules\HR\Http\Controllers\Api\AttendanceBiometricController;
 use Modules\HR\Http\Controllers\Api\AttendanceController;
+use Modules\HR\Http\Controllers\Api\CompensationController;
 use Modules\HR\Http\Controllers\Api\DepartmentController;
 use Modules\HR\Http\Controllers\Api\DocumentAlertController;
 use Modules\HR\Http\Controllers\Api\EmployeeController;
+use Modules\HR\Http\Controllers\Api\EmployeeManagementController;
 use Modules\HR\Http\Controllers\Api\EmployeePortalController;
 use Modules\HR\Http\Controllers\Api\EmployeeSelfServiceController;
 use Modules\HR\Http\Controllers\Api\HrAIController;
@@ -38,6 +40,16 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     });
     // Chantier 8.3: real method, matched by no route anywhere.
     Route::get('employees/{employee}/skills', [SkillController::class, 'employeeSkills']);
+
+    // Chantier 8.3: EmployeeManagementController — onboarding/offboarding
+    // workflow (checklist + status transition), distinct from
+    // EmployeeController's plain CRUD above.
+    Route::get('employees/{employee}/profile', [EmployeeManagementController::class, 'profile']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('employees/onboard', [EmployeeManagementController::class, 'onboard']);
+        Route::post('employees/{employee}/complete-onboarding', [EmployeeManagementController::class, 'completeOnboarding']);
+        Route::post('employees/{employee}/terminate', [EmployeeManagementController::class, 'terminate']);
+    });
 
     // Department routes — never changes during session (1-hour cache)
     Route::middleware('cache.api:60')->group(function () {
@@ -102,6 +114,20 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
         Route::post('shifts', [AttendanceBiometricController::class, 'createShift']);
         Route::post('time-off-requests', [AttendanceBiometricController::class, 'requestTimeOff']);
         Route::post('time-off-requests/{timeOff}/approve', [AttendanceBiometricController::class, 'approveTimeOff']);
+    });
+
+    // Chantier 8.3: CompensationController — per-employee compensation
+    // tracking (base salary/bonus/benefits/equity vesting), distinct from
+    // SalaryBandController's band-level equity analysis above.
+    Route::get('employees/{employee}/compensation/current', [CompensationController::class, 'current']);
+    Route::get('employees/{employee}/compensation/breakdown', [CompensationController::class, 'breakdown']);
+    Route::get('employees/{employee}/compensation/history', [CompensationController::class, 'history']);
+    Route::get('employees/{employee}/compensation/bonus-accrual', [CompensationController::class, 'bonusAccrual']);
+    Route::get('compensation/audit', [CompensationController::class, 'audit']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('employees/{employee}/compensation', [CompensationController::class, 'store']);
+        Route::post('employees/{employee}/compensation/{compensation}/update-vesting', [CompensationController::class, 'updateVesting']);
+        Route::post('employees/{employee}/compensation/benchmark', [CompensationController::class, 'benchmark']);
     });
 
     // Skills (basic skill tagging, no training catalogue / skill matrix visualization)

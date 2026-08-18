@@ -38,13 +38,15 @@ class LeaveRequest extends Model
 
     protected static function booted(): void
     {
-        // leave_type_id is a required FK to hr_leave_types, but every caller
-        // in this codebase (AbsenceManagementService and both direct-create
-        // call sites in its test) only knows the plain string code
-        // ('vacation', 'sick', ...) stored in the separate leave_type
-        // column — resolve/create the matching LeaveType here so the FK is
-        // never left null, the same "derive the id from what callers
-        // actually pass" pattern already used by Employee::booted().
+        // leave_type_id is a required FK to hr_leave_types, but a caller may
+        // only know the plain string code ('vacation', 'sick', ...) stored in
+        // the separate leave_type column — resolve/create the matching
+        // LeaveType here so the FK is never left null, the same "derive the
+        // id from what callers actually pass" pattern already used by
+        // Employee::booted(). Chantier 8.3: this hook's original sole caller,
+        // AbsenceManagementService (a redundant, broken-schema parallel leave
+        // subsystem — see CLAUDE.md), was deleted; kept as harmless defensive
+        // coverage for any future leave_type-string-only caller.
         static::creating(function (self $request) {
             if (empty($request->leave_type_id) && ! empty($request->leave_type)) {
                 $request->leave_type_id = LeaveType::firstOrCreate(

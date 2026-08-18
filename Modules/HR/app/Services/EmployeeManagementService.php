@@ -5,6 +5,16 @@ namespace Modules\HR\Services;
 use Illuminate\Support\Facades\Cache;
 use Modules\HR\Models\Employee;
 
+/**
+ * Chantier 8.3: onboardEmployee()/getEmployeeProfile() originally referenced
+ * Employee columns that don't exist on the real model (department/position/
+ * salary — the real columns are department_id/job_position_id, and salary
+ * lives on EmployeeCompensation, not Employee) — fixed to match the real
+ * schema. updateEmployee()/getEmployeesByDepartment() were dropped entirely:
+ * both were 100% redundant with the already-live, already-routed
+ * EmployeeController::update()/byDepartment() (the latter itself delegating
+ * to HRService::getEmployeesByDepartment()).
+ */
 class EmployeeManagementService
 {
     const CACHE_TTL = 86400;
@@ -21,11 +31,10 @@ class EmployeeManagementService
             'phone' => $data['phone'] ?? null,
             'date_of_birth' => $data['date_of_birth'] ?? null,
             'hire_date' => $data['hire_date'],
-            'department' => $data['department'],
-            'position' => $data['position'],
+            'department_id' => $data['department_id'],
+            'job_position_id' => $data['job_position_id'],
             'employment_type' => $data['employment_type'] ?? 'full_time',
             'manager_id' => $data['manager_id'] ?? null,
-            'salary' => $data['salary'] ?? 0,
             'status' => 'onboarding',
         ]);
 
@@ -67,7 +76,7 @@ class EmployeeManagementService
         $cacheKey = "employee:{$employeeId}:profile";
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($employeeId) {
-            $employee = Employee::findOrFail($employeeId);
+            $employee = Employee::with(['department', 'jobPosition'])->findOrFail($employeeId);
 
             return [
                 'id' => $employee->id,
@@ -76,34 +85,15 @@ class EmployeeManagementService
                 'phone' => $employee->phone,
                 'date_of_birth' => $employee->date_of_birth,
                 'hire_date' => $employee->hire_date,
-                'department' => $employee->department,
-                'position' => $employee->position,
+                'department' => $employee->department?->name,
+                'position' => $employee->jobPosition?->title,
                 'employment_type' => $employee->employment_type,
                 'manager' => $employee->manager_id ? $this->getManagerName($employee->manager_id) : null,
-                'salary' => $employee->salary,
                 'status' => $employee->status,
                 'tenure_days' => $this->calculateTenure($employee->hire_date),
                 'reports_to' => $this->getDirectReports($employee->id),
             ];
         });
-    }
-
-    /**
-     * Update employee information
-     */
-    public function updateEmployee(int $employeeId, array $data): array
-    {
-        $employee = Employee::findOrFail($employeeId);
-
-        $employee->update($data);
-
-        $this->clearCache();
-
-        return [
-            'employee_id' => $employee->id,
-            'status' => 'updated',
-            'message' => 'Employee information updated',
-        ];
     }
 
     /**
@@ -133,27 +123,6 @@ class EmployeeManagementService
     }
 
     /**
-     * Get employees by department
-     */
-    public function getEmployeesByDepartment(string $department): array
-    {
-        $cacheKey = "employees:department:{$department}";
-
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($department) {
-            return Employee::where('department', $department)
-                ->where('status', 'active')
-                ->get()
-                ->map(fn($e) => [
-                    'id' => $e->id,
-                    'name' => "{$e->first_name} {$e->last_name}",
-                    'position' => $e->position,
-                    'email' => $e->email,
-                ])
-                ->toArray();
-        });
-    }
-
-    /**
      * Calculate tenure in days
      */
     private function calculateTenure(string $hireDate): int
@@ -175,13 +144,14 @@ class EmployeeManagementService
      */
     private function getDirectReports(int $employeeId): array
     {
-        return Employee::where('manager_id', $employeeId)
+        return Employee::with('jobPosition')
+            ->where('manager_id', $employeeId)
             ->where('status', 'active')
             ->get()
             ->map(fn($e) => [
                 'id' => $e->id,
                 'name' => "{$e->first_name} {$e->last_name}",
-                'position' => $e->position,
+                'position' => $e->jobPosition?->title,
             ])
             ->toArray();
     }

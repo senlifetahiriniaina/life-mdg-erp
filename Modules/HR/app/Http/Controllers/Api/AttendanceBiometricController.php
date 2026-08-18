@@ -219,7 +219,13 @@ class AttendanceBiometricController extends Controller
             'working_hours' => ['required', 'integer', 'min:1', 'max:24'],
             'days_of_week' => ['array'],
             'is_night_shift' => ['boolean'],
+            // Chantier 8.3: is_flexible/effective_to/notes are real ShiftSchedule
+            // $fillable columns the model already supports, but were missing
+            // from validation — silently dropped on every create() before now.
+            'is_flexible' => ['boolean'],
             'effective_from' => ['required', 'date'],
+            'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
+            'notes' => ['nullable', 'string'],
         ]);
 
         $shift = ShiftSchedule::create($validated);

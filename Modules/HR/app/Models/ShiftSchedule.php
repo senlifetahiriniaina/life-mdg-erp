@@ -37,6 +37,8 @@ class ShiftSchedule extends Model
         'effective_from' => 'date',
         'effective_to' => 'date',
         'days_of_week' => 'array',
+        'is_night_shift' => 'boolean',
+        'is_flexible' => 'boolean',
     ];
 
     public function employee(): BelongsTo

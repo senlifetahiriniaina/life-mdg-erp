@@ -157,26 +157,11 @@ describe('Compensation Service', function () {
         expect((float) $history[1]->base_salary)->toBe(80000.00);
     });
 
-    test('generateOfferLetterData includes all compensation details', function () {
-        EmployeeCompensation::create([
-            'employee_id' => $this->employee->id,
-            'base_salary' => 100000,
-            'bonus_amount' => 20000,
-            'bonus_frequency' => 'annual',
-            'benefits_annual_value' => 5000,
-            'equity_granted' => 10000,
-            'equity_vesting_period_months' => 48,
-            'currency' => 'USD',
-            'effective_date' => now()->subMonth(),
-        ]);
-
-        $offerLetter = $this->service->generateOfferLetterData($this->employee);
-
-        expect($offerLetter['compensation']['base_salary'])->toBe(100000.00);
-        expect($offerLetter['compensation']['bonus']['amount'])->toBe(20000.00);
-        expect($offerLetter['compensation']['benefits']['annual_value'])->toBe(5000.00);
-        expect($offerLetter['compensation']['total_package'])->toBe(135000.00);
-    });
+    // Chantier 8.3: generateOfferLetterData()/getBenefitsDetails() were
+    // dropped from CompensationService — offer-letter generation is a
+    // recruitment artefact issued before someone is an employee, the same
+    // ATS/recruitment exclusion already documented in CLAUDE.md for HR's
+    // "basique" scope.
 
     test('auditCompensationRecords finds employees without compensation', function () {
         Employee::factory()->create(['status' => 'active']);

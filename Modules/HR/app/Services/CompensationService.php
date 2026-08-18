@@ -11,7 +11,12 @@ use Modules\HR\Models\EmployeeCompensation;
 
 /**
  * Service for managing employee compensation including total comp calculation,
- * equity vesting, bonus accrual, and offer letter generation.
+ * equity vesting, and bonus accrual.
+ *
+ * Chantier 8.3: generateOfferLetterData()/getBenefitsDetails() were dropped —
+ * a recruitment artefact issued before someone is an employee, the same
+ * "offer-letter generation" exclusion already documented in CLAUDE.md for
+ * HR's "basique" scope (ATS/recruitment out of scope).
  */
 class CompensationService
 {
@@ -160,60 +165,6 @@ class CompensationService
         return $employee->compensations()
             ->orderBy('effective_date', 'desc')
             ->get();
-    }
-
-    /**
-     * Generate offer letter data with all compensation details.
-     */
-    public function generateOfferLetterData(Employee $employee): array
-    {
-        $compensation = $this->getCurrentCompensation($employee);
-        $breakdown = $this->getCompensationBreakdown($employee);
-
-        if (!$compensation) {
-            return [];
-        }
-
-        return [
-            'employee_name' => $employee->first_name . ' ' . $employee->last_name,
-            'position' => $employee->jobPosition?->name ?? 'Unknown',
-            'hire_date' => $employee->hire_date?->format('F j, Y'),
-            'employment_type' => $employee->employment_type,
-            'compensation' => [
-                'base_salary' => $breakdown['base_salary'],
-                'currency' => $compensation->currency ?? 'USD',
-                'bonus' => [
-                    'amount' => $breakdown['bonus'],
-                    'frequency' => $compensation->bonus_frequency ?? 'annual',
-                ],
-                'benefits' => [
-                    'annual_value' => $breakdown['benefits'],
-                    'details' => $this->getBenefitsDetails($employee),
-                ],
-                'equity' => [
-                    'amount' => $breakdown['equity'],
-                    'vesting_period_months' => $compensation->equity_vesting_period_months,
-                    'vesting_schedule' => $compensation->equity_vesting_schedule,
-                ],
-                'total_package' => $breakdown['total'],
-            ],
-            'effective_date' => $compensation->effective_date?->format('F j, Y'),
-        ];
-    }
-
-    /**
-     * Get benefits details for offer letter.
-     */
-    private function getBenefitsDetails(Employee $employee): array
-    {
-        // This would typically be pulled from a benefits configuration
-        // For now, returning a template structure
-        return [
-            'health_insurance' => 'Comprehensive health, dental, vision',
-            'retirement' => '401(k) with employer match',
-            'paid_time_off' => '20 days vacation + 10 holidays',
-            'professional_development' => 'Annual training budget',
-        ];
     }
 
     /**
