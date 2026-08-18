@@ -164,22 +164,22 @@ class ProjectBillingService
         $lines  = [];
 
         try {
-            $entries = DB::table('ts_timesheets')
+            $entries = DB::table('timesheet_entries')
                 ->where('project_id', $projectId)
                 ->where('status', 'approved')
-                ->where('billable', true)
-                ->whereBetween('work_date', [$periodStart, $periodEnd])
+                ->where('billable_hours', '>', 0)
+                ->whereBetween('entry_date', [$periodStart, $periodEnd])
                 ->get();
 
             foreach ($entries as $entry) {
-                $hours   = (float) ($entry->hours_logged ?? 0);
+                $hours   = (float) ($entry->billable_hours ?? 0);
                 $rate    = (float) ($entry->hourly_rate ?? 15_000); // 15,000 XOF/h default
                 $lineAmt = round($hours * $rate, 2);
                 $amount += $lineAmt;
 
                 $lines[] = [
                     'employee_id'    => $entry->employee_id,
-                    'work_date'      => $entry->work_date,
+                    'work_date'      => $entry->entry_date,
                     'hours'          => $hours,
                     'hourly_rate_xof'=> $rate,
                     'amount_xof'     => $lineAmt,

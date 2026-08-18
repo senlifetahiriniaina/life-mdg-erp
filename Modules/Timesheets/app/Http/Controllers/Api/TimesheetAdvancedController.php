@@ -9,8 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
-use Modules\Timesheets\Models\ProjectBilling;
-use Modules\Timesheets\Models\Timesheet;
+use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Timesheets\Models\TimesheetPeriod;
 use Modules\Timesheets\Services\ProjectBillingService;
 use Modules\Timesheets\Services\TimesheetService;
@@ -18,24 +17,45 @@ use Modules\Timesheets\Services\TimesheetService;
 /**
  * TimesheetAdvancedController — Phase 49 advanced timesheet and billing endpoints.
  *
- * Routes:
- *   GET    /api/v1/timesheets                               — list
- *   POST   /api/v1/timesheets                               — log hours
- *   PUT    /api/v1/timesheets/{id}                          — update entry
- *   DELETE /api/v1/timesheets/{id}                          — delete entry
- *   POST   /api/v1/timesheets/periods/{weekStart}/submit    — submit period
- *   PUT    /api/v1/timesheets/periods/{id}/approve          — approve period
- *   PUT    /api/v1/timesheets/periods/{id}/reject           — reject period
- *   GET    /api/v1/timesheets/weekly/{employeeId}/{weekStart}— weekly view
- *   GET    /api/v1/timesheets/team/{managerId}              — team view
- *   GET    /api/v1/timesheets/utilization                   — utilization report
- *   GET    /api/v1/timesheets/revenue-recognition           — revenue recognition
+ * Chantier 8.4: was built entirely against Modules\Timesheets\Models\Timesheet
+ * (deleted), whose $fillable (work_date/hours_logged/billable/hourly_rate)
+ * never matched its own timesheets_sheets stub table (bare id/tenant_id/
+ * data/timestamps) — every aggregate query below fatalled the moment real
+ * data existed. Rewritten onto the real, already-migrated TimesheetEntry
+ * (individual daily entries) and TimesheetPeriod (weekly submission/
+ * approval) models. The old index/store/update/destroy Timesheet-CRUD
+ * methods were deleted outright rather than repaired — they duplicated the
+ * already-real, already-tested, already-RBAC-covered TimesheetEntryController
+ * one-for-one. A new set of "sheets" endpoints was added to back the real,
+ * routed Sheets/*.vue and Reports/*.vue pages, which called a third,
+ * entirely nonexistent API scheme (`timesheets/sheets*`,
+ * `timesheets/reports/*`) with no controller behind it at all.
  *
- *   GET    /api/v1/projects/{id}/billing                    — billing history
- *   POST   /api/v1/projects/{id}/billing/milestone          — bill by milestone
- *   POST   /api/v1/projects/{id}/billing/percentage         — bill by percentage
- *   POST   /api/v1/projects/{id}/billing/time-material      — bill T&M
- *   GET    /api/v1/projects/{id}/billing/invoiceable        — invoiceable amount
+ * Routes:
+ *   GET    /api/v1/timesheets/sheets                         — list (paginated)
+ *   POST   /api/v1/timesheets/sheets                         — create a sheet (period)
+ *   PUT    /api/v1/timesheets/sheets/{id}                    — update a draft sheet
+ *   GET    /api/v1/timesheets/sheets/my-sheets                — current user's own sheets
+ *   POST   /api/v1/timesheets/sheets/{id}/submit              — submit for approval
+ *   POST   /api/v1/timesheets/sheets/{id}/approve             — approve (alias of periods/{id}/approve)
+ *   POST   /api/v1/timesheets/sheets/{id}/reject              — reject (alias of periods/{id}/reject)
+ *   GET    /api/v1/timesheets/reports/project-billing         — billing report
+ *   GET    /api/v1/timesheets/reports/employee-hours          — employee hours report
+ *   GET    /api/v1/timesheets/reports/utilization              — utilization report
+ *
+ *   POST   /api/v1/timesheets/periods/{weekStart}/submit      — submit (weekStart-keyed)
+ *   PUT    /api/v1/timesheets/periods/{id}/approve            — approve
+ *   PUT    /api/v1/timesheets/periods/{id}/reject             — reject
+ *   GET    /api/v1/timesheets/weekly/{employeeId}/{weekStart} — weekly view
+ *   GET    /api/v1/timesheets/team/{managerId}                — team view
+ *   GET    /api/v1/timesheets/utilization                     — utilization (generic)
+ *   GET    /api/v1/timesheets/revenue-recognition             — revenue recognition
+ *
+ *   GET    /api/v1/projects/{id}/billing                      — billing history
+ *   POST   /api/v1/projects/{id}/billing/milestone            — bill by milestone
+ *   POST   /api/v1/projects/{id}/billing/percentage           — bill by percentage
+ *   POST   /api/v1/projects/{id}/billing/time-material        — bill T&M
+ *   GET    /api/v1/projects/{id}/billing/invoiceable          — invoiceable amount
  *   POST   /api/v1/projects/{id}/billing/{billingId}/generate-invoice — generate invoice
  */
 class TimesheetAdvancedController extends Controller
@@ -46,122 +66,128 @@ class TimesheetAdvancedController extends Controller
     ) {}
 
     // -------------------------------------------------------------------------
-    // Timesheet CRUD
+    // Sheets (TimesheetPeriod) CRUD
     // -------------------------------------------------------------------------
 
     /**
-     * GET /api/v1/timesheets
+     * GET /api/v1/timesheets/sheets
      */
-    public function index(Request $request): JsonResponse
+    public function sheetsIndex(Request $request): JsonResponse
     {
-        $query = Timesheet::query();
+        $query = TimesheetPeriod::query()->with('employee');
 
-        if ($request->filled('employee_id')) {
-            $query->where('employee_id', $request->employee_id);
-        }
-        if ($request->filled('project_id')) {
-            $query->forProject((int) $request->project_id);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('employee', fn ($q) => $q->where('full_name', 'like', "%{$search}%"));
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('from')) {
-            $query->where('work_date', '>=', $request->from);
-        }
-        if ($request->filled('to')) {
-            $query->where('work_date', '<=', $request->to);
+
+        $sort = (string) $request->input('sort', '');
+        if ($sort !== '') {
+            $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
+            $column = ltrim($sort, '-');
+            if (in_array($column, ['period_start', 'period_end', 'total_hours', 'status'], true)) {
+                $query->orderBy($column, $direction);
+            }
+        } else {
+            $query->latest('period_start');
         }
 
-        $timesheets = $query->orderByDesc('work_date')->paginate(50);
+        $periods = $query->paginate((int) $request->input('per_page', 15));
+        $periods->getCollection()->transform(fn (TimesheetPeriod $p) => $this->sheetPayload($p));
 
-        return response()->json([
-            'data' => $timesheets->items(),
-            'meta' => [
-                'total'        => $timesheets->total(),
-                'current_page' => $timesheets->currentPage(),
-                'last_page'    => $timesheets->lastPage(),
-            ],
-        ]);
+        return response()->json($periods);
     }
 
     /**
-     * POST /api/v1/timesheets — log hours
+     * GET /api/v1/timesheets/sheets/my-sheets
      */
-    public function store(Request $request): JsonResponse
+    public function mySheets(Request $request): JsonResponse
+    {
+        $employeeId = $request->user()?->employee?->id;
+
+        $periods = TimesheetPeriod::query()
+            ->with(['employee', 'submitter', 'approver'])
+            ->when($employeeId, fn ($q) => $q->where('employee_id', $employeeId), fn ($q) => $q->whereRaw('1 = 0'))
+            ->latest('period_start')
+            ->paginate((int) $request->input('per_page', 100));
+
+        $periods->getCollection()->transform(fn (TimesheetPeriod $p) => $this->sheetPayload($p));
+
+        return response()->json($periods);
+    }
+
+    /**
+     * POST /api/v1/timesheets/sheets
+     */
+    public function storeSheet(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'employee_id'  => 'required|integer',
-            'project_id'   => 'nullable|integer',
-            'work_date'    => 'required|date',
-            'hours_logged' => 'required|numeric|min:0.25|max:24',
-            'hourly_rate'  => 'nullable|numeric|min:0',
-            'billable'     => 'nullable|boolean',
-            'description'  => 'nullable|string|max:1000',
+            'period_start' => ['required', 'date'],
+            'period_end'   => ['required', 'date', 'after_or_equal:period_start'],
+            'employee_id'  => ['nullable', 'integer', 'exists:hr_employees,id'],
         ]);
 
-        $validated['tenant_id'] = $request->user()?->tenant_id ?? $request->header('X-Tenant-ID', 1);
-        $validated['status']    = 'draft';
-        $validated['billable']  ??= true;
-        $validated['hourly_rate'] ??= 15_000; // 15,000 XOF/h default (Africa First)
+        $employeeId = $validated['employee_id'] ?? $request->user()?->employee?->id;
+        abort_unless($employeeId, 422, 'This user has no linked employee record.');
 
-        $timesheet = Timesheet::create($validated);
+        $period = TimesheetPeriod::create([
+            'tenant_id'    => $request->user()?->tenant_id,
+            'employee_id'  => $employeeId,
+            'period_start' => $validated['period_start'],
+            'period_end'   => $validated['period_end'],
+            'status'       => 'draft',
+        ]);
 
-        return response()->json([
-            'data'    => array_merge($timesheet->toArray(), [
-                'billable_amount_xof' => $timesheet->billable_amount,
-            ]),
-            'message' => 'Hours logged successfully',
-        ], 201);
+        return response()->json($this->sheetPayload($period->load('employee')), 201);
     }
 
     /**
-     * PUT /api/v1/timesheets/{id}
+     * PUT /api/v1/timesheets/sheets/{id}
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function updateSheet(Request $request, int $id): JsonResponse
     {
-        $timesheet = Timesheet::find($id);
+        $period = TimesheetPeriod::findOrFail($id);
 
-        if (! $timesheet) {
-            return response()->json(['error' => 'Timesheet entry not found'], 404);
+        if ($period->status !== 'draft' && ! $request->user()->hasAnyRole(['admin', 'manager'])) {
+            abort(403, 'Only draft sheets can be edited.');
         }
 
         $validated = $request->validate([
-            'hours_logged' => 'sometimes|numeric|min:0.25|max:24',
-            'hourly_rate'  => 'nullable|numeric|min:0',
-            'billable'     => 'nullable|boolean',
-            'description'  => 'nullable|string|max:1000',
-            'project_id'   => 'nullable|integer',
-            'work_date'    => 'sometimes|date',
+            'period_start' => ['sometimes', 'date'],
+            'period_end'   => ['sometimes', 'date', 'after_or_equal:period_start'],
+            'employee_id'  => ['sometimes', 'integer', 'exists:hr_employees,id'],
         ]);
 
-        $timesheet->update($validated);
+        $period->update($validated);
 
-        return response()->json([
-            'data'    => array_merge($timesheet->fresh()->toArray(), [
-                'billable_amount_xof' => $timesheet->billable_amount,
-            ]),
-            'message' => 'Timesheet entry updated',
-        ]);
+        return response()->json($this->sheetPayload($period->fresh('employee')));
     }
 
     /**
-     * DELETE /api/v1/timesheets/{id}
+     * POST /api/v1/timesheets/sheets/{id}/submit
      */
-    public function destroy(int $id): JsonResponse
+    public function submitSheet(Request $request, int $id): JsonResponse
     {
-        $timesheet = Timesheet::find($id);
+        $period = TimesheetPeriod::findOrFail($id);
 
-        if (! $timesheet) {
-            return response()->json(['error' => 'Timesheet entry not found'], 404);
+        if (! $period->canBeSubmitted()) {
+            return response()->json([
+                'error'  => "Sheet cannot be submitted (current status: {$period->status})",
+                'status' => $period->status,
+            ], 422);
         }
 
-        $timesheet->delete();
+        $this->aggregateAndSubmit($period, $request->user()?->id);
 
-        return response()->json(['message' => 'Timesheet entry deleted']);
+        return response()->json($this->sheetPayload($period->fresh('employee')));
     }
 
     // -------------------------------------------------------------------------
-    // Period management
+    // Period submission workflow (weekStart-keyed, no frontend caller today
+    // — kept as a real, working alternate API entry point per API First)
     // -------------------------------------------------------------------------
 
     /**
@@ -169,7 +195,7 @@ class TimesheetAdvancedController extends Controller
      */
     public function submitPeriod(Request $request, string $weekStart): JsonResponse
     {
-        $employeeId = $request->input('employee_id', $request->user()?->id ?? 1);
+        $employeeId = $request->input('employee_id', $request->user()?->employee?->id ?? 1);
         $weekEnd    = Carbon::parse($weekStart)->endOfWeek()->format('Y-m-d');
 
         $period = TimesheetPeriod::firstOrCreate(
@@ -180,7 +206,7 @@ class TimesheetAdvancedController extends Controller
                 'total_hours'    => 0,
                 'billable_hours' => 0,
                 'overtime_hours' => 0,
-                'status'         => 'open',
+                'status'         => 'draft',
             ]
         );
 
@@ -191,24 +217,7 @@ class TimesheetAdvancedController extends Controller
             ], 422);
         }
 
-        // Aggregate hours from timesheets
-        $totals = Timesheet::where('employee_id', $employeeId)
-            ->whereBetween('work_date', [$weekStart, $weekEnd])
-            ->selectRaw('SUM(hours_logged) as total, SUM(CASE WHEN billable = 1 THEN hours_logged ELSE 0 END) as billable')
-            ->first();
-
-        $totalHours   = (float) ($totals->total    ?? 0);
-        $billableHours = (float) ($totals->billable ?? 0);
-        $overtimeHours = max(0.0, $totalHours - 40.0); // OHADA: 40h/week standard
-
-        $period->update([
-            'status'         => 'submitted',
-            'total_hours'    => $totalHours,
-            'billable_hours' => $billableHours,
-            'overtime_hours' => $overtimeHours,
-            'submitted_by'   => $request->user()?->id ?? $employeeId,
-            'submitted_at'   => now(),
-        ]);
+        $this->aggregateAndSubmit($period, $request->user()?->id ?? $employeeId);
 
         return response()->json([
             'data'    => array_merge($period->toArray(), [
@@ -241,9 +250,9 @@ class TimesheetAdvancedController extends Controller
             'approved_at' => now(),
         ]);
 
-        // Mark timesheets as approved
-        Timesheet::where('employee_id', $period->employee_id)
-            ->whereBetween('work_date', [$period->period_start, $period->period_end])
+        // Mark timesheet entries in the period range as approved
+        TimesheetEntry::where('employee_id', $period->employee_id)
+            ->whereBetween('entry_date', [$period->period_start, $period->period_end])
             ->where('status', 'submitted')
             ->update(['status' => 'approved']);
 
@@ -292,28 +301,28 @@ class TimesheetAdvancedController extends Controller
     {
         $weekEnd = Carbon::parse($weekStart)->endOfWeek()->format('Y-m-d');
 
-        $entries = Timesheet::where('employee_id', $employeeId)
-            ->whereBetween('work_date', [$weekStart, $weekEnd])
-            ->orderBy('work_date')
+        $entries = TimesheetEntry::where('employee_id', $employeeId)
+            ->whereBetween('entry_date', [$weekStart, $weekEnd])
+            ->orderBy('entry_date')
             ->get()
-            ->map(fn ($t) => array_merge($t->toArray(), [
+            ->map(fn (TimesheetEntry $t) => array_merge($t->toArray(), [
                 'billable_amount_xof' => $t->billable_amount,
             ]));
 
-        $totalHours    = $entries->sum('hours_logged');
-        $billableHours = $entries->where('billable', true)->sum('hours_logged');
+        $totalHours    = (float) $entries->sum('hours_worked');
+        $billableHours = (float) $entries->sum('billable_hours');
 
         return response()->json([
             'data' => [
-                'employee_id'      => $employeeId,
-                'week_start'       => $weekStart,
-                'week_end'         => $weekEnd,
-                'entries'          => $entries->values(),
-                'total_hours'      => round($totalHours, 2),
-                'billable_hours'   => round($billableHours, 2),
-                'non_billable_hours'=> round($totalHours - $billableHours, 2),
-                'overtime_hours'   => round(max(0, $totalHours - 40), 2),
-                'currency'         => 'XOF',
+                'employee_id'        => $employeeId,
+                'week_start'         => $weekStart,
+                'week_end'           => $weekEnd,
+                'entries'            => $entries->values(),
+                'total_hours'        => round($totalHours, 2),
+                'billable_hours'     => round($billableHours, 2),
+                'non_billable_hours' => round($totalHours - $billableHours, 2),
+                'overtime_hours'     => round(max(0, $totalHours - 40), 2),
+                'currency'           => 'XOF',
             ],
         ]);
     }
@@ -334,9 +343,9 @@ class TimesheetAdvancedController extends Controller
                 ->pluck('employee_id');
 
             foreach ($employees as $employeeId) {
-                $totals = Timesheet::where('employee_id', $employeeId)
-                    ->whereBetween('work_date', [$from, $to])
-                    ->selectRaw('SUM(hours_logged) as total, SUM(CASE WHEN billable = 1 THEN hours_logged ELSE 0 END) as billable')
+                $totals = TimesheetEntry::where('employee_id', $employeeId)
+                    ->whereBetween('entry_date', [$from, $to])
+                    ->selectRaw('SUM(hours_worked) as total, SUM(billable_hours) as billable')
                     ->first();
 
                 $total    = (float) ($totals->total    ?? 0);
@@ -378,13 +387,13 @@ class TimesheetAdvancedController extends Controller
         $tenantId = $request->user()?->tenant_id ?? 1;
 
         try {
-            $stats = Timesheet::where('tenant_id', $tenantId)
-                ->whereBetween('work_date', [$from, $to])
+            $stats = TimesheetEntry::where('tenant_id', $tenantId)
+                ->whereBetween('entry_date', [$from, $to])
                 ->selectRaw('
-                    SUM(hours_logged) as total_hours,
-                    SUM(CASE WHEN billable = 1 THEN hours_logged ELSE 0 END) as billable_hours,
+                    SUM(hours_worked) as total_hours,
+                    SUM(billable_hours) as billable_hours,
                     COUNT(DISTINCT employee_id) as active_employees,
-                    SUM(CASE WHEN billable = 1 THEN hours_logged * hourly_rate ELSE 0 END) as billable_revenue_xof
+                    SUM(billable_hours * hourly_rate) as billable_revenue_xof
                 ')
                 ->first();
 
@@ -429,6 +438,174 @@ class TimesheetAdvancedController extends Controller
         $data = $this->billingService->getRevenueRecognition($companyId, $period);
 
         return response()->json(['data' => $data]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Reports (Reports/*.vue — real, routed pages with no backend until now)
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /api/v1/timesheets/reports/project-billing
+     */
+    public function projectBillingReport(Request $request): JsonResponse
+    {
+        $from = $request->query('from_date', now()->subDays(30)->format('Y-m-d'));
+        $to   = $request->query('to_date', now()->format('Y-m-d'));
+
+        $entries = TimesheetEntry::with(['project:id,name', 'employee'])
+            ->whereBetween('entry_date', [$from, $to])
+            ->where('billable_hours', '>', 0)
+            ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', $request->project_id))
+            ->get();
+
+        $byProject = $entries->groupBy('project_id')->map(function ($group) {
+            $first        = $group->first();
+            $billableHours = (float) $group->sum('billable_hours');
+            $amount        = (float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount);
+
+            return [
+                'project_name'    => $first->project?->name,
+                'billable_hours'  => round($billableHours, 2),
+                'avg_hourly_rate' => round((float) $group->avg('hourly_rate'), 2),
+                'billable_amount' => round($amount, 2),
+                'employee_count'  => $group->pluck('employee_id')->unique()->count(),
+                'entry_count'     => $group->count(),
+            ];
+        })->values();
+
+        $byEmployeeProject = $entries->groupBy(fn (TimesheetEntry $e) => "{$e->project_id}:{$e->employee_id}")
+            ->map(function ($group) {
+                $first = $group->first();
+
+                return [
+                    'project_name'   => $first->project?->name,
+                    'employee_name'  => $first->employee?->full_name,
+                    'billable_hours' => round((float) $group->sum('billable_hours'), 2),
+                    'hourly_rate'    => round((float) $group->avg('hourly_rate'), 2),
+                    'amount'         => round((float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
+                ];
+            })->values();
+
+        return response()->json([
+            'total_billable_hours'  => round((float) $entries->sum('billable_hours'), 2),
+            'total_billable_amount' => round((float) $entries->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
+            'avg_hourly_rate'       => round((float) $entries->avg('hourly_rate'), 2),
+            'by_project'            => $byProject,
+            'by_employee_project'   => $byEmployeeProject,
+        ]);
+    }
+
+    /**
+     * GET /api/v1/timesheets/reports/employee-hours
+     */
+    public function employeeHoursReport(Request $request): JsonResponse
+    {
+        $from = $request->query('from_date', now()->subDays(30)->format('Y-m-d'));
+        $to   = $request->query('to_date', now()->format('Y-m-d'));
+
+        $entries = TimesheetEntry::with(['employee', 'project:id,name'])
+            ->whereBetween('entry_date', [$from, $to])
+            ->when($request->filled('employee_id'), fn ($q) => $q->where('employee_id', $request->employee_id))
+            ->get();
+
+        $byEmployee = $entries->groupBy('employee_id')->map(function ($group) {
+            $first         = $group->first();
+            $totalHours    = (float) $group->sum('hours_worked');
+            $billableHours = (float) $group->sum('billable_hours');
+
+            return [
+                'id'                 => $first->employee_id,
+                'name'               => $first->employee?->full_name,
+                'total_hours'        => round($totalHours, 2),
+                'billable_hours'     => round($billableHours, 2),
+                'non_billable_hours' => round($totalHours - $billableHours, 2),
+                'billable_amount'    => round((float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
+                'avg_hourly_rate'    => round((float) $group->avg('hourly_rate'), 2),
+            ];
+        })->values();
+
+        $byProject = $entries->groupBy('project_id')->map(function ($group) {
+            $first = $group->first();
+
+            return [
+                'project_name'    => $first->project?->name,
+                'total_hours'     => round((float) $group->sum('hours_worked'), 2),
+                'billable_hours'  => round((float) $group->sum('billable_hours'), 2),
+                'employee_count'  => $group->pluck('employee_id')->unique()->count(),
+                'billable_amount' => round((float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
+            ];
+        })->values();
+
+        $totalHours    = (float) $entries->sum('hours_worked');
+        $billableHours = (float) $entries->sum('billable_hours');
+
+        return response()->json([
+            'total_hours'        => round($totalHours, 2),
+            'billable_hours'     => round($billableHours, 2),
+            'non_billable_hours' => round($totalHours - $billableHours, 2),
+            'by_employee'        => $byEmployee,
+            'by_project'         => $byProject,
+        ]);
+    }
+
+    /**
+     * GET /api/v1/timesheets/reports/utilization
+     */
+    public function utilizationReport(Request $request): JsonResponse
+    {
+        $from = $request->query('from_date', now()->subDays(30)->format('Y-m-d'));
+        $to   = $request->query('to_date', now()->format('Y-m-d'));
+
+        $entries = TimesheetEntry::with('employee.department')
+            ->whereBetween('entry_date', [$from, $to])
+            ->get();
+
+        $byEmployee = $entries->groupBy('employee_id')->map(function ($group) {
+            $first      = $group->first();
+            $total      = (float) $group->sum('hours_worked');
+            $billable   = (float) $group->sum('billable_hours');
+            $util       = $total > 0 ? round($billable / $total * 100, 1) : 0.0;
+
+            return [
+                'id'             => $first->employee_id,
+                'name'           => $first->employee?->full_name,
+                'department'     => $first->employee?->department?->name,
+                'total_hours'    => round($total, 2),
+                'billable_hours' => round($billable, 2),
+                'utilization'    => $util,
+            ];
+        })->when($request->filled('department'), fn ($c) => $c->filter(
+            fn ($row) => $row['department'] === $request->department
+        ))->values();
+
+        $ranges = ['high' => 0, 'medium' => 0, 'low' => 0, 'very_low' => 0];
+        foreach ($byEmployee as $row) {
+            $ranges[match (true) {
+                $row['utilization'] >= 80 => 'high',
+                $row['utilization'] >= 60 => 'medium',
+                $row['utilization'] >= 40 => 'low',
+                default                   => 'very_low',
+            }]++;
+        }
+
+        $byDepartment = $byEmployee->groupBy('department')
+            ->filter(fn ($group, $dept) => $dept !== null && $dept !== '')
+            ->map(fn ($group, $dept) => [
+                'department'      => $dept,
+                'avg_utilization' => round((float) $group->avg('utilization'), 1),
+                'employee_count'  => $group->count(),
+            ])->values();
+
+        $avgUtilization = $byEmployee->count() > 0 ? round((float) $byEmployee->avg('utilization'), 1) : 0.0;
+
+        return response()->json([
+            'avg_utilization'    => $avgUtilization,
+            'high_utilization'   => $byEmployee->where('utilization', '>=', 80)->count(),
+            'under_utilized'     => $byEmployee->where('utilization', '<', 40)->count(),
+            'utilization_ranges' => $ranges,
+            'by_employee'        => $byEmployee,
+            'by_department'      => $byDepartment,
+        ]);
     }
 
     // -------------------------------------------------------------------------
@@ -512,5 +689,64 @@ class TimesheetAdvancedController extends Controller
         $invoice = $this->billingService->generateInvoice($billingId);
 
         return response()->json(['data' => $invoice], 201);
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Aggregate real TimesheetEntry hours for a period's date range and
+     * transition it to 'submitted'. Shared by the weekStart-keyed
+     * submitPeriod() and the id-keyed submitSheet().
+     */
+    private function aggregateAndSubmit(TimesheetPeriod $period, ?int $submittedBy): void
+    {
+        $totals = TimesheetEntry::where('employee_id', $period->employee_id)
+            ->whereBetween('entry_date', [$period->period_start, $period->period_end])
+            ->selectRaw('SUM(hours_worked) as total, SUM(billable_hours) as billable')
+            ->first();
+
+        $totalHours    = (float) ($totals->total    ?? 0);
+        $billableHours = (float) ($totals->billable ?? 0);
+        $overtimeHours = max(0.0, $totalHours - 40.0); // OHADA: 40h/week standard
+
+        $period->update([
+            'status'         => 'submitted',
+            'total_hours'    => $totalHours,
+            'billable_hours' => $billableHours,
+            'overtime_hours' => $overtimeHours,
+            'submitted_by'   => $submittedBy,
+            'submitted_at'   => now(),
+        ]);
+    }
+
+    private function sheetPayload(TimesheetPeriod $period): array
+    {
+        return [
+            'id'              => $period->id,
+            'employee_id'     => $period->employee_id,
+            'employee'        => $period->relationLoaded('employee') && $period->employee ? [
+                'id'    => $period->employee->id,
+                'name'  => $period->employee->full_name,
+                'email' => $period->employee->email,
+            ] : null,
+            'period_start'    => $period->period_start?->format('Y-m-d'),
+            'period_end'      => $period->period_end?->format('Y-m-d'),
+            'total_hours'     => (float) $period->total_hours,
+            'billable_hours'  => (float) $period->billable_hours,
+            'overtime_hours'  => (float) $period->overtime_hours,
+            'status'          => $period->status,
+            'submitted_at'    => $period->submitted_at?->format('Y-m-d H:i:s'),
+            'submitter'       => $period->relationLoaded('submitter') && $period->submitter ? [
+                'id' => $period->submitter->id, 'name' => $period->submitter->name,
+            ] : null,
+            'approved_at'     => $period->approved_at?->format('Y-m-d H:i:s'),
+            'approver'        => $period->relationLoaded('approver') && $period->approver ? [
+                'id' => $period->approver->id, 'name' => $period->approver->name,
+            ] : null,
+            'rejected_reason' => $period->rejected_reason,
+            'created_at'      => $period->created_at?->format('Y-m-d H:i:s'),
+        ];
     }
 }

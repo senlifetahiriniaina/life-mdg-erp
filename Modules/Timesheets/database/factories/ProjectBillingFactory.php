@@ -1,66 +1,46 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Timesheets\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Projects\Models\Project;
 use Modules\Timesheets\Models\ProjectBilling;
 
+/**
+ * Chantier 8.4: was scaffold boilerplate (fake()->word() on every FK/date/
+ * numeric column, plus a dozen fields — name/title/slug/code/email/phone/
+ * quantity/price/cost — that don't exist on this model at all) — rewritten
+ * to match ProjectBilling's real $fillable/$casts.
+ *
+ * @extends Factory<ProjectBilling>
+ */
 class ProjectBillingFactory extends Factory
 {
     protected $model = ProjectBilling::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
+        $amount = fake()->randomFloat(2, 500_000, 10_000_000);
+        $tva = round($amount * 0.18, 2);
+
         return [
-                        'project_id' => fake()->word(),
-            'reference' => fake()->bothify('??-##'),
-            'billing_type' => fake()->word(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'tva_amount' => fake()->word(),
-            'total_ttc' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'ohada_account' => fake()->word(),
-            'description' => fake()->text(),
-            'billing_date' => fake()->word(),
-            'milestone_id' => fake()->word(),
-            'percentage' => fake()->numberBetween(0, 100),
-            'period_start' => fake()->word(),
-            'period_end' => fake()->word(),
-            'invoice_reference' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'slug' => fake()->slug(),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'project_id' => Project::factory(),
+            'reference' => 'BILL-'.now()->year.'-'.fake()->unique()->numberBetween(1, 9999),
+            'billing_type' => fake()->randomElement(['fixed', 'milestone', 'percentage', 'time_material']),
+            'amount' => $amount,
+            'tva_amount' => $tva,
+            'total_ttc' => round($amount + $tva, 2),
+            'status' => 'draft',
+            'ohada_account' => '7061',
+            'description' => fake()->sentence(),
+            'billing_date' => fake()->dateTimeBetween('-30 days', 'now')->format('Y-m-d'),
+            'milestone_id' => null,
+            'percentage' => null,
+            'period_start' => null,
+            'period_end' => null,
+            'invoice_reference' => null,
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
     }
 }

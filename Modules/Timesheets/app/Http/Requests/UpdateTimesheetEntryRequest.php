@@ -16,7 +16,9 @@ class UpdateTimesheetEntryRequest extends FormRequest
         return [
             'hours_worked' => 'sometimes|numeric|min:0.25|max:24',
             'description' => 'sometimes|string|min:5|max:500',
-            'task_id' => 'nullable|exists:tasks,id',
+            // Chantier 8.4: "tasks" table doesn't exist in this app — real
+            // table is prj_tasks (same fix as StoreTimesheetEntryRequest).
+            'task_id' => 'nullable|exists:prj_tasks,id',
             'notes' => 'nullable|string|max:1000',
         ];
     }

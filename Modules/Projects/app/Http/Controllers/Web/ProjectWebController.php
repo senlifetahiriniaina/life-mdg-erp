@@ -30,4 +30,59 @@ class ProjectWebController extends Controller
 
         return Inertia::render('Projects/Show', ['project' => $project]);
     }
+
+    /**
+     * Chantier 8.4: Calendar/Gantt/Kanban.vue are real, fully-built pages
+     * (real axios calls against already-live views/calendar, views/gantt,
+     * views/kanban endpoints) requiring a `project` prop — none had a web
+     * route. Reachable only by direct URL, matching the
+     * consolidation-hierarchies discoverability precedent.
+     */
+    public function calendar(Project $project): Response
+    {
+        return Inertia::render('Projects/Calendar', ['project' => $project]);
+    }
+
+    public function gantt(Project $project): Response
+    {
+        return Inertia::render('Projects/Gantt', ['project' => $project]);
+    }
+
+    public function kanban(Project $project): Response
+    {
+        return Inertia::render('Projects/Kanban', ['project' => $project]);
+    }
+
+    /**
+     * Automation/Epics/Sprints.vue are real, fully-built pages (real axios
+     * CRUD calls against already-live automations/epics/sprints endpoints)
+     * that accept an optional `projectId` — pass the real project id so
+     * they load scoped to it rather than rendering with nothing to fetch.
+     */
+    public function automation(Project $project): Response
+    {
+        return Inertia::render('Projects/Automation/Index', ['projectId' => $project->id]);
+    }
+
+    public function epics(Project $project): Response
+    {
+        return Inertia::render('Projects/Epics/Index', ['projectId' => $project->id]);
+    }
+
+    public function sprints(Project $project): Response
+    {
+        return Inertia::render('Projects/Sprints/Index', ['projectId' => $project->id]);
+    }
+
+    /**
+     * Roadmap.vue is cross-project (optional `projects` list for its
+     * project-filter dropdown) — it already self-fetches epics/sprints via
+     * axios, so only a lightweight id/name list is needed here.
+     */
+    public function roadmap(): Response
+    {
+        return Inertia::render('Projects/Roadmap', [
+            'projects' => Project::query()->select('id', 'name')->orderBy('name')->get(),
+        ]);
+    }
 }

@@ -71,6 +71,11 @@ class TimeEntry extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class, 'task_id');
+    }
+
     public function isBillable(): bool
     {
         return $this->billable === true;

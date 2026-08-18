@@ -22,7 +22,6 @@ test('controllers that call $this->authorize() can actually resolve it', functio
         \Modules\Strategy\Http\Controllers\Api\StrategyObjectiveLinkController::class,
         \Modules\Validation\Http\Controllers\Api\ApprovalRequestController::class,
         \Modules\Achats\Http\Controllers\Api\PurchaseOrderController::class,
-        \Modules\Timesheets\Http\Controllers\Api\TimeEntryController::class,
     ];
 
     foreach ($controllers as $class) {

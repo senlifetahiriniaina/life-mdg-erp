@@ -44,12 +44,15 @@ class TimesheetEntry extends Model
         'tenant_id', 'employee_id', 'entry_date', 'hours_worked', 'status',
         'project_id', 'task_id', 'description', 'notes', 'submitted_by',
         'submitted_at', 'approved_by', 'approved_at', 'approval_notes', 'rejection_reason',
+        'hourly_rate', 'billable_hours',
     ];
 
     protected $casts = [
         'entry_date' => 'date',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
+        'hourly_rate' => 'decimal:2',
+        'billable_hours' => 'decimal:2',
     ];
 
     protected static function newFactory(): TimesheetEntryFactory
@@ -92,6 +95,11 @@ class TimesheetEntry extends Model
         return $query->where('employee_id', $employeeId);
     }
 
+    public function scopeForProject($query, int $projectId)
+    {
+        return $query->where('project_id', $projectId);
+    }
+
     public function scopeByDate($query, string $date)
     {
         return $query->whereDate('entry_date', $date);
@@ -130,5 +138,17 @@ class TimesheetEntry extends Model
     public function canEdit(): bool
     {
         return $this->status === 'draft';
+    }
+
+    /**
+     * Chantier 8.4: billable_hours × hourly_rate — hourly_rate/billable_hours
+     * are real columns on this table (patched by
+     * 2026_05_30_000002_fix_timesheets_table_columns.php) but were missing
+     * from $fillable, so TimesheetAdvancedController's writes to them were
+     * silently dropped before this fix.
+     */
+    public function getBillableAmountAttribute(): float
+    {
+        return (float) ($this->billable_hours ?? 0) * (float) ($this->hourly_rate ?? 0);
     }
 }

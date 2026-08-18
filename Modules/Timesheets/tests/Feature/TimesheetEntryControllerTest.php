@@ -4,10 +4,20 @@ namespace Modules\Timesheets\Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Modules\HR\Models\Employee;
 use Modules\Timesheets\Models\TimesheetEntry;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
+/**
+ * Chantier 8.4: employee_id on TimesheetEntry FKs to hr_employees.id, not
+ * users.id — this whole file assigned $user->id directly as employee_id,
+ * which happened to keep passing only because TimesheetEntryController's
+ * non-manager filter and TimesheetEntryPolicy's ownership checks had the
+ * exact same mismatch bug (both compared against auth()->id()/$user->id
+ * instead of the linked employee's id). Now that both are fixed, every
+ * entry needs a real, linked Employee record.
+ */
 class TimesheetEntryControllerTest extends TestCase
 {
     use RefreshDatabase;
@@ -18,13 +28,22 @@ class TimesheetEntryControllerTest extends TestCase
         \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
     }
 
+    /** @return array{0: User, 1: Employee} */
+    private function employeeUser(string $role = 'employee'): array
+    {
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+
+        return [$user, $employee];
+    }
+
     #[Test]
     public function can_list_timesheet_entries()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         $entries = TimesheetEntry::factory()->count(5)->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
         ]);
 
         $response = $this->actingAs($user, 'sanctum')
@@ -42,12 +61,11 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_create_timesheet_entry()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/timesheets/entries', [
-                'employee_id' => $user->id,
+                'employee_id' => $employee->id,
                 'entry_date' => now()->subDay()->format('Y-m-d'),
                 'hours_worked' => 8,
                 'description' => 'Completed project development tasks',
@@ -59,7 +77,7 @@ class TimesheetEntryControllerTest extends TestCase
             ->assertJsonStructure(['data' => ['id', 'employee_id', 'status']]);
 
         $this->assertDatabaseHas('timesheet_entries', [
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'hours_worked' => 8,
             'status' => 'draft',
         ]);
@@ -68,12 +86,11 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function cannot_create_entry_with_invalid_hours()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/timesheets/entries', [
-                'employee_id' => $user->id,
+                'employee_id' => $employee->id,
                 'entry_date' => now()->subDay()->format('Y-m-d'),
                 'hours_worked' => 25,
                 'description' => 'Test entry',
@@ -86,9 +103,8 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_retrieve_specific_timesheet_entry()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
-        $entry = TimesheetEntry::factory()->create(['employee_id' => $user->id]);
+        [$user, $employee] = $this->employeeUser();
+        $entry = TimesheetEntry::factory()->create(['employee_id' => $employee->id]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->getJson("/api/v1/timesheets/entries/{$entry->id}");
@@ -100,10 +116,9 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_update_draft_timesheet_entry()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         $entry = TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'draft',
         ]);
 
@@ -123,10 +138,9 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function cannot_update_submitted_timesheet_entry()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         $entry = TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'submitted',
         ]);
 
@@ -141,10 +155,9 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_delete_draft_timesheet_entry()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         $entry = TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'draft',
         ]);
 
@@ -159,10 +172,9 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_submit_timesheet_entry()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         $entry = TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'draft',
         ]);
 
@@ -180,10 +192,9 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_approve_timesheet_entry()
     {
         $approver = $this->actingAsUser('admin');
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [, $employee] = $this->employeeUser();
         $entry = TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'submitted',
         ]);
 
@@ -203,10 +214,9 @@ class TimesheetEntryControllerTest extends TestCase
     public function can_reject_timesheet_entry()
     {
         $approver = $this->actingAsUser('admin');
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [, $employee] = $this->employeeUser();
         $entry = TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'submitted',
         ]);
 
@@ -224,15 +234,13 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_filter_entries_by_employee()
     {
-        $user1 = User::factory()->create();
-        $user1->assignRole('employee');
-        $user2 = User::factory()->create();
-        $user2->assignRole('employee');
-        TimesheetEntry::factory()->count(3)->create(['employee_id' => $user1->id]);
-        TimesheetEntry::factory()->count(2)->create(['employee_id' => $user2->id]);
+        [$user1, $employee1] = $this->employeeUser();
+        [, $employee2] = $this->employeeUser();
+        TimesheetEntry::factory()->count(3)->create(['employee_id' => $employee1->id]);
+        TimesheetEntry::factory()->count(2)->create(['employee_id' => $employee2->id]);
 
         $response = $this->actingAs($user1, 'sanctum')
-            ->getJson("/api/v1/timesheets/entries?employee_id={$user1->id}");
+            ->getJson("/api/v1/timesheets/entries?employee_id={$employee1->id}");
 
         $response->assertOk()
             ->assertJsonCount(3, 'data');
@@ -241,14 +249,13 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_filter_entries_by_status()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         TimesheetEntry::factory()->count(3)->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'draft',
         ]);
         TimesheetEntry::factory()->count(2)->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'status' => 'approved',
         ]);
 
@@ -262,14 +269,13 @@ class TimesheetEntryControllerTest extends TestCase
     #[Test]
     public function can_filter_entries_by_date_range()
     {
-        $user = User::factory()->create();
-        $user->assignRole('employee');
+        [$user, $employee] = $this->employeeUser();
         TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'entry_date' => now()->subDays(5),
         ]);
         TimesheetEntry::factory()->create([
-            'employee_id' => $user->id,
+            'employee_id' => $employee->id,
             'entry_date' => now(),
         ]);
 

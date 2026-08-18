@@ -3,23 +3,28 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Modules\Timesheets\Models\Timesheet;
 use Modules\Timesheets\Models\TimesheetEntry;
+use Modules\Timesheets\Models\TimesheetPeriod;
 use Modules\Timesheets\Models\TimeAllocation;
 use Modules\Timesheets\Models\TimeTrackingProject;
 
 uses(RefreshDatabase::class);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Timesheet model
+// TimesheetPeriod model
+//
+// Chantier 8.4: Modules\Timesheets\Models\Timesheet (tested here previously)
+// was deleted — a broken duplicate whose $fillable never matched its own
+// timesheets_sheets stub table. TimesheetPeriod is the real model serving
+// this same "weekly submission" role, backed by a real, migrated table.
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('Timesheet model uses correct table name', function () {
-    expect((new Timesheet())->getTable())->toBe('timesheets_sheets');
+test('TimesheetPeriod model uses correct table name', function () {
+    expect((new TimesheetPeriod())->getTable())->toBe('ts_timesheet_periods');
 });
 
-test('Timesheet model has correct fillable fields', function () {
-    $model = new Timesheet();
+test('TimesheetPeriod model has correct fillable fields', function () {
+    $model = new TimesheetPeriod();
 
     expect($model->getFillable())->toContain('employee_id')
         ->toContain('period_start')
@@ -29,33 +34,38 @@ test('Timesheet model has correct fillable fields', function () {
         ->toContain('billable_hours');
 });
 
-test('Timesheet model casts period_start and period_end as dates', function () {
-    $casts = (new Timesheet())->getCasts();
+test('TimesheetPeriod model casts period_start and period_end as dates', function () {
+    $casts = (new TimesheetPeriod())->getCasts();
 
     expect($casts['period_start'])->toBe('date')
         ->and($casts['period_end'])->toBe('date');
 });
 
-test('Timesheet model casts total_hours and billable_hours as decimal', function () {
-    $casts = (new Timesheet())->getCasts();
+test('TimesheetPeriod model casts total_hours and billable_hours as decimal', function () {
+    $casts = (new TimesheetPeriod())->getCasts();
 
     expect($casts['total_hours'])->toContain('decimal')
         ->and($casts['billable_hours'])->toContain('decimal');
 });
 
-test('Timesheet model has employee belongs-to relation', function () {
-    expect((new Timesheet())->employee())
+test('TimesheetPeriod model has employee belongs-to relation', function () {
+    expect((new TimesheetPeriod())->employee())
         ->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
 });
 
-test('Timesheet model has submitter belongs-to relation', function () {
-    expect((new Timesheet())->submitter())
+test('TimesheetPeriod model has submitter belongs-to relation', function () {
+    expect((new TimesheetPeriod())->submitter())
         ->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
 });
 
-test('Timesheet model has approver belongs-to relation', function () {
-    expect((new Timesheet())->approver())
+test('TimesheetPeriod model has approver belongs-to relation', function () {
+    expect((new TimesheetPeriod())->approver())
         ->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+});
+
+test('TimesheetPeriod canBeSubmitted is true only when status is draft', function () {
+    expect((new TimesheetPeriod(['status' => 'draft']))->canBeSubmitted())->toBeTrue()
+        ->and((new TimesheetPeriod(['status' => 'submitted']))->canBeSubmitted())->toBeFalse();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -33,6 +33,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:P
         Route::post('projects/time-entries/{timeEntry}/bill', [TimeTrackingController::class, 'bill'])->name('projects.tracking.bill');
     });
 
+    // Cross-project time report — MUST be before apiResource('projects') to avoid {project} capture
+    Route::get('projects/time-report-global', [TimeTrackingController::class, 'globalReport'])->name('projects.tracking.global-report');
+
     // Epics global list (Roadmap) — MUST be before apiResource('projects') to avoid {project} capture
     Route::get('projects/epics', [EpicController::class, 'all'])->name('projects.epics.all');
 
@@ -104,11 +107,15 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:P
     Route::middleware('throttle:complex_get')->group(function () {
         Route::get('projects/{project}/report', [ProjectReportController::class, 'show'])->name('projects.report.show');
         Route::get('projects/{project}/report/pdf', [ProjectReportController::class, 'pdf'])->name('projects.report.pdf');
+        // Chantier 8.4: real, working (Inertia-rendered HTML report), zero route.
+        Route::get('projects/{project}/report/html', [ProjectReportController::class, 'html'])->name('projects.report.html');
     });
 
     // Team & time logs
     Route::get('projects/{project}/team', [ProjectTeamController::class, 'index'])->name('projects.team.index');
     Route::get('projects/{project}/time-logs', [ProjectTeamController::class, 'timeLogs'])->name('projects.time-logs.index');
+    // Chantier 8.4: real, working (ProjectTeamService::getProjectHours()), zero route.
+    Route::get('projects/{project}/time-report', [ProjectTeamController::class, 'timeReport'])->name('projects.team.time-report');
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('projects/{project}/team', [ProjectTeamController::class, 'store'])->name('projects.team.store');
         Route::delete('projects/{project}/team/{member}', [ProjectTeamController::class, 'destroy'])->name('projects.team.destroy');

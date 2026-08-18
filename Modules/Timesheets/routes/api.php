@@ -10,6 +10,9 @@ use Modules\Timesheets\Http\Controllers\Api\TrackingProjectController;
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin', 'throttle:simple_get'])->prefix('timesheets')->group(function () {
     // Timesheet entries
     Route::get('entries/pending/approvals', [TimesheetEntryController::class, 'pendingApprovals']);
+    // Chantier 8.4: real, tested (TimesheetService::getEmployeeTimesheets())
+    // but never routed anywhere.
+    Route::get('entries/by-employee', [TimesheetEntryController::class, 'byEmployee']);
     Route::get('entries', [TimesheetEntryController::class, 'index']);
     Route::get('entries/{entry}', [TimesheetEntryController::class, 'show']);
 
@@ -75,18 +78,33 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:T
 });
 
 // ── Phase 49: advanced timesheet + project-billing endpoints (TimesheetAdvancedController) ──
+// Chantier 8.4: the old bare index/store/update/destroy (Timesheet-entry CRUD)
+// were deleted — 100% redundant with the real, already-routed
+// TimesheetEntryController above. "sheets/*" and "reports/*" back the real
+// Sheets/*.vue and Reports/*.vue pages, which called this exact URL scheme
+// with no controller behind it at all until now.
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('timesheets')->group(function () {
-    Route::get('/', [TimesheetAdvancedController::class, 'index']);
-    Route::post('/', [TimesheetAdvancedController::class, 'store']);
-    Route::put('{id}', [TimesheetAdvancedController::class, 'update']);
-    Route::delete('{id}', [TimesheetAdvancedController::class, 'destroy']);
-    Route::post('periods/{weekStart}/submit', [TimesheetAdvancedController::class, 'submitPeriod']);
-    Route::put('periods/{id}/approve', [TimesheetAdvancedController::class, 'approvePeriod']);
-    Route::put('periods/{id}/reject', [TimesheetAdvancedController::class, 'rejectPeriod']);
+    Route::get('sheets/my-sheets', [TimesheetAdvancedController::class, 'mySheets']);
+    Route::get('sheets', [TimesheetAdvancedController::class, 'sheetsIndex']);
+    Route::get('reports/project-billing', [TimesheetAdvancedController::class, 'projectBillingReport']);
+    Route::get('reports/employee-hours', [TimesheetAdvancedController::class, 'employeeHoursReport']);
+    Route::get('reports/utilization', [TimesheetAdvancedController::class, 'utilizationReport']);
     Route::get('weekly/{employeeId}/{weekStart}', [TimesheetAdvancedController::class, 'weeklyView']);
     Route::get('team/{managerId}', [TimesheetAdvancedController::class, 'teamView']);
     Route::get('utilization', [TimesheetAdvancedController::class, 'utilization']);
     Route::get('revenue-recognition', [TimesheetAdvancedController::class, 'revenueRecognition']);
+
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('sheets', [TimesheetAdvancedController::class, 'storeSheet']);
+        Route::put('sheets/{id}', [TimesheetAdvancedController::class, 'updateSheet']);
+        Route::post('sheets/{id}/submit', [TimesheetAdvancedController::class, 'submitSheet']);
+        Route::post('sheets/{id}/approve', [TimesheetAdvancedController::class, 'approvePeriod']);
+        Route::post('sheets/{id}/reject', [TimesheetAdvancedController::class, 'rejectPeriod']);
+
+        Route::post('periods/{weekStart}/submit', [TimesheetAdvancedController::class, 'submitPeriod']);
+        Route::put('periods/{id}/approve', [TimesheetAdvancedController::class, 'approvePeriod']);
+        Route::put('periods/{id}/reject', [TimesheetAdvancedController::class, 'rejectPeriod']);
+    });
 });
 
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin'])->prefix('projects')->group(function () {

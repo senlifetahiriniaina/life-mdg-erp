@@ -14,7 +14,7 @@ class TimesheetEntryResource extends JsonResource
             'employee_id' => $this->employee_id,
             'employee' => $this->whenLoaded('employee', fn () => [
                 'id' => $this->employee->id,
-                'name' => $this->employee->name,
+                'name' => $this->employee->full_name,
                 'email' => $this->employee->email,
             ]),
             'entry_date' => $this->entry_date->format('Y-m-d'),

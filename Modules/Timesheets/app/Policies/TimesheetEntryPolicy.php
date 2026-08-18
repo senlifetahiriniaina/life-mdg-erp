@@ -15,7 +15,7 @@ class TimesheetEntryPolicy
 
     public function view(User $user, TimesheetEntry $entry): bool
     {
-        return $user->id === $entry->employee_id
+        return $this->isOwnEntry($user, $entry)
             || $user->hasAnyRole(['admin', 'manager', 'hr-manager']);
     }
 
@@ -29,7 +29,7 @@ class TimesheetEntryPolicy
         if (in_array($entry->status, ['submitted', 'approved'])) {
             return $user->hasAnyRole(['admin', 'manager']);
         }
-        return $user->id === $entry->employee_id
+        return $this->isOwnEntry($user, $entry)
             || $user->hasAnyRole(['admin', 'manager']);
     }
 
@@ -39,7 +39,7 @@ class TimesheetEntryPolicy
             return $user->hasAnyRole(['admin', 'manager']);
         }
 
-        return $user->id === $entry->employee_id
+        return $this->isOwnEntry($user, $entry)
             || $user->hasAnyRole(['admin', 'manager']);
     }
 
@@ -50,7 +50,19 @@ class TimesheetEntryPolicy
 
     public function submit(User $user, TimesheetEntry $entry): bool
     {
-        return $user->id === $entry->employee_id
+        return $this->isOwnEntry($user, $entry)
             || $user->hasAnyRole(['admin', 'manager']);
+    }
+
+    /**
+     * Chantier 8.4: was `$user->id === $entry->employee_id` — comparing a
+     * users.id against an hr_employees.id, the same ID-space mismatch bug
+     * pattern already fixed elsewhere in this app (LeaveRequestPolicy,
+     * PayrollPolicy) — an employee could never pass any of the checks
+     * above on their own entries.
+     */
+    private function isOwnEntry(User $user, TimesheetEntry $entry): bool
+    {
+        return $user->employee?->id === $entry->employee_id;
     }
 }

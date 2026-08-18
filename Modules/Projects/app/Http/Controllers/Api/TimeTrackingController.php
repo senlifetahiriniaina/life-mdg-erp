@@ -202,4 +202,67 @@ class TimeTrackingController extends Controller
 
         return response()->json(['marked_billed' => $count]);
     }
+
+    /**
+     * Cross-project time report, grouped by member/project/task.
+     *
+     * Chantier 8.4: resources/js/Pages/Projects/TimeReport/Index.vue (the
+     * real, routed root-level page) calls GET projects/time-report-global
+     * with no backing endpoint anywhere — every request silently fell back
+     * to its client-side empty-report catch. Built here rather than on
+     * ProjectTeamController::timeReport() (single-project) since this is
+     * the one cross-project aggregate, and this controller already owns
+     * the global (non-project-scoped) time-entries endpoints against the
+     * real TimeEntry model this report needs.
+     */
+    public function globalReport(Request $request): JsonResponse
+    {
+        $groupBy = in_array($request->input('group_by'), ['member', 'project', 'task'], true)
+            ? $request->input('group_by')
+            : 'member';
+
+        $entries = TimeEntry::with(['project:id,name', 'user:id,name', 'task:id,title'])
+            ->whereNotNull('ended_at')
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('started_at', '>=', $request->date('date_from')))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('started_at', '<=', $request->date('date_to')))
+            ->get();
+
+        $groups = $entries->groupBy(function ($entry) use ($groupBy) {
+            return match ($groupBy) {
+                'project' => $entry->project_id,
+                'task' => $entry->task_id ?? 'none',
+                default => $entry->user_id,
+            };
+        });
+
+        $rows = $groups->map(function ($group, $key) use ($groupBy) {
+            $first = $group->first();
+            $hours = $group->sum('duration_minutes') / 60;
+            $billableHours = $group->where('billable', true)->sum('duration_minutes') / 60;
+            $amount = $group->sum(fn (TimeEntry $e) => $e->billableAmount());
+
+            return [
+                'key' => (string) $key,
+                'label' => match ($groupBy) {
+                    'project' => $first->project?->name ?? 'Sans projet',
+                    'task' => $first->task?->title ?? 'Sans tâche',
+                    default => $first->user?->name ?? 'Inconnu',
+                },
+                'member' => $first->user?->name,
+                'project' => $first->project?->name,
+                'task' => $first->task?->title,
+                'hours' => round($hours, 2),
+                'billable_hours' => round($billableHours, 2),
+                'rate' => $billableHours > 0 ? round($amount / $billableHours, 2) : 0,
+                'amount' => round($amount, 2),
+            ];
+        })->values();
+
+        return response()->json([
+            'total_hours' => round($entries->sum('duration_minutes') / 60, 2),
+            'billable_hours' => round($entries->where('billable', true)->sum('duration_minutes') / 60, 2),
+            'billable_amount' => round($entries->sum(fn (TimeEntry $e) => $e->billableAmount()), 2),
+            'rows' => $rows,
+        ]);
+    }
 }

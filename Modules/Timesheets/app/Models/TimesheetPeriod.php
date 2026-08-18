@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\User;
+use Modules\HR\Models\Employee;
 
 /**
  * TimesheetPeriod — weekly/bi-weekly period for grouped timesheet submission.
@@ -90,11 +91,19 @@ class TimesheetPeriod extends Model
     // -------------------------------------------------------------------------
 
     /**
-     * Returns true when the period can be submitted (status is 'open').
+     * Returns true when the period can be submitted (status is 'draft').
+     *
+     * Chantier 8.4: was 'open' — the only 3 references to that value were
+     * this check, its own docblock, and the status this class's own
+     * consumer set on create; the real Sheets/*.vue pages (Index's status
+     * filter, Show's `v-if="sheet.status === 'draft'"` edit/submit
+     * buttons) all use the same 'draft' vocabulary already established by
+     * the sibling TimesheetEntry model — aligned rather than left
+     * permanently mismatched.
      */
     public function canBeSubmitted(): bool
     {
-        return $this->status === 'open';
+        return $this->status === 'draft';
     }
 
     /**
@@ -109,10 +118,22 @@ class TimesheetPeriod extends Model
     // Relationships
     // -------------------------------------------------------------------------
 
-    public function timesheets(): HasMany
+    /**
+     * Chantier 8.4: this relation referenced Modules\Timesheets\Models\Timesheet
+     * (deleted — a broken duplicate of TimesheetEntry with a $fillable that
+     * never matched its own timesheets_sheets stub table) via a work_date
+     * column that model didn't even declare. Repointed to the real
+     * TimesheetEntry model / entry_date column.
+     */
+    public function entries(): HasMany
     {
-        return $this->hasMany(Timesheet::class, 'employee_id', 'employee_id')
-            ->whereBetween('work_date', [$this->period_start, $this->period_end]);
+        return $this->hasMany(TimesheetEntry::class, 'employee_id', 'employee_id')
+            ->whereBetween('entry_date', [$this->period_start, $this->period_end]);
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     public function submitter(): BelongsTo

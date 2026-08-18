@@ -29,9 +29,11 @@ class TimesheetEntryController extends Controller
         $query = TimesheetEntry::query()
             ->with(['employee', 'project', 'task', 'submitter', 'approver']);
 
-        // Non-managers can only see their own timesheets
+        // Non-managers can only see their own timesheets. Chantier 8.4: was
+        // auth()->id() — a users.id, not the hr_employees.id this column
+        // actually stores (same ID-space bug fixed in TimesheetEntryPolicy).
         if (! auth()->user()->hasAnyRole(['admin', 'manager', 'hr-manager'])) {
-            $query->where('employee_id', auth()->id());
+            $query->where('employee_id', auth()->user()->employee?->id ?? 0);
         } elseif ($request->employee_id) {
             // Managers can filter by employee
             $query->where('employee_id', $request->employee_id);
