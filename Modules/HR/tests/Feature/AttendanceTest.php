@@ -7,7 +7,11 @@ use Modules\HR\Models\Employee;
 
 
 beforeEach(function () {
+    if (\Spatie\Permission\Models\Permission::count() === 0) {
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    }
     $this->user = User::factory()->create();
+    $this->user->assignRole('employee');
     $this->token = $this->user->createToken('test')->plainTextToken;
     $this->employee = Employee::factory()->create(['user_id' => $this->user->id]);
 });

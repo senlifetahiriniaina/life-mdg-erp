@@ -6,6 +6,7 @@ namespace Modules\HR\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Modules\HR\Services\HrDashboardService;
 
 /**
@@ -42,5 +43,16 @@ class HrDashboardController extends Controller
             'absences_today' => $stats['absences_today'],
             'attendance' => $attendance,
         ]);
+    }
+
+    /**
+     * Leave analytics for a given year (optionally scoped to a department).
+     */
+    public function leaveAnalytics(Request $request): JsonResponse
+    {
+        $year = (int) $request->query('year', now()->year);
+        $departmentId = $request->query('department_id') ? (int) $request->query('department_id') : null;
+
+        return response()->json($this->service->getLeaveAnalytics($year, $departmentId));
     }
 }

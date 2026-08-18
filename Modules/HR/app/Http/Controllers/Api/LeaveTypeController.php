@@ -19,6 +19,8 @@ class LeaveTypeController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', LeaveType::class);
+
         $query = LeaveType::query()
             ->when($request->search, fn ($q, $s) => $q->where(function ($q) use ($s) {
                 $q->where('name', 'like', "%{$s}%")
@@ -32,6 +34,8 @@ class LeaveTypeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', LeaveType::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:50', 'unique:hr_leave_types,code'],
@@ -48,11 +52,15 @@ class LeaveTypeController extends Controller
 
     public function show(LeaveType $leaveType): JsonResponse
     {
+        $this->authorize('view', $leaveType);
+
         return response()->json(new LeaveTypeResource($leaveType));
     }
 
     public function update(Request $request, LeaveType $leaveType): JsonResponse
     {
+        $this->authorize('update', $leaveType);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'code' => ['sometimes', 'string', 'max:50', "unique:hr_leave_types,code,{$leaveType->id}"],
@@ -70,6 +78,8 @@ class LeaveTypeController extends Controller
 
     public function destroy(LeaveType $leaveType): JsonResponse
     {
+        $this->authorize('delete', $leaveType);
+
         $leaveType->delete();
 
         return response()->json(null, 204);

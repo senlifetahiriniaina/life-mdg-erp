@@ -10,7 +10,11 @@ use Modules\HR\Models\Employee;
 describe('HR Dashboard API', function () {
 
     beforeEach(function () {
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
         $this->user = User::factory()->create();
+        $this->user->assignRole('employee');
     });
 
     it('dashboard returns correct structure', function () {

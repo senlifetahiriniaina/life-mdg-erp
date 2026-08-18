@@ -203,8 +203,11 @@ test('show returns 404 for missing leave request', function () {
 // ── Update ────────────────────────────────────────────────────────────────────
 
 test('can update pending leave request', function () {
+    // Chantier 8.3: update() now requires ownership (or an elevated role) — an
+    // unrelated 'employee' could previously edit anyone's pending leave request.
     $user = actingAsUser('employee');
-    $leave = LeaveRequest::factory()->create(['status' => 'pending', 'reason' => 'Old reason']);
+    $employee = Employee::factory()->create(['user_id' => $user->id]);
+    $leave = LeaveRequest::factory()->create(['employee_id' => $employee->id, 'status' => 'pending', 'reason' => 'Old reason']);
     $this
         ->putJson("/api/v1/hr/leave-requests/{$leave->id}", ['reason' => 'New reason'])
         ->assertOk();
@@ -220,7 +223,8 @@ test('cannot update approved leave request', function () {
 
 test('can update dates on pending request', function () {
     $user = actingAsUser('employee');
-    $leave = LeaveRequest::factory()->create(['status' => 'pending']);
+    $employee = Employee::factory()->create(['user_id' => $user->id]);
+    $leave = LeaveRequest::factory()->create(['employee_id' => $employee->id, 'status' => 'pending']);
     $newStart = now()->addDays(15)->toDateString();
     $newEnd = now()->addDays(17)->toDateString();
     $this
@@ -266,7 +270,9 @@ test('cannot approve already approved leave', function () {
 // ── Destroy ───────────────────────────────────────────────────────────────────
 
 test('can cancel pending leave request', function () {
-    $user = actingAsUser('employee');
+    // Chantier 8.3: delete() is role-only (manager/hr-manager/admin) by design —
+    // cancelling was never a self-service action, only reading/creating/updating are.
+    $user = actingAsUser('hr-manager');
     $leave = LeaveRequest::factory()->create(['status' => 'pending']);
     $this->deleteJson("/api/v1/hr/leave-requests/{$leave->id}")->assertNoContent();
     expect($leave->fresh()->status)->toBe('cancelled');

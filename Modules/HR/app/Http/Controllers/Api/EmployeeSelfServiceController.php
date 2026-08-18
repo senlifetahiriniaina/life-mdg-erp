@@ -7,6 +7,7 @@ namespace Modules\HR\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\HR\Http\Resources\SelfServiceEmployeeResource;
 use Modules\HR\Models\AttendanceRecord;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\LeaveRequest;
@@ -36,7 +37,7 @@ class EmployeeSelfServiceController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        return response()->json($employee);
+        return response()->json(new SelfServiceEmployeeResource($employee));
     }
 
     /**
@@ -62,10 +63,10 @@ class EmployeeSelfServiceController extends Controller
 
         $employee->update($data);
 
-        return response()->json($employee->fresh([
+        return response()->json(new SelfServiceEmployeeResource($employee->fresh([
             'department:id,name',
             'jobPosition:id,title',
-        ]));
+        ])));
     }
 
     /**

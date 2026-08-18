@@ -25,6 +25,11 @@ use App\Policies\DocumentPolicy;
 use App\Policies\EmailSegmentPolicy;
 use App\Policies\EmailTemplatePolicy;
 use Modules\HR\Policies\EmployeePolicy;
+use Modules\HR\Policies\DepartmentPolicy;
+use Modules\HR\Policies\JobPositionPolicy;
+use Modules\HR\Policies\LeaveTypePolicy;
+use Modules\HR\Policies\SalaryBandPolicy;
+use Modules\HR\Policies\SkillPolicy;
 use App\Policies\FolderPolicy;
 use App\Policies\InvoicePolicy;
 use App\Policies\JournalEntryPolicy;
@@ -89,6 +94,11 @@ use Modules\Ecommerce\Models\Store;
 use Modules\Email\Models\Campaign;
 use Modules\Helpdesk\Models\Ticket;
 use Modules\HR\Models\Employee;
+use Modules\HR\Models\Department;
+use Modules\HR\Models\JobPosition;
+use Modules\HR\Models\LeaveType;
+use Modules\HR\Models\SalaryBand;
+use Modules\HR\Models\Skill;
 use Modules\HR\Models\LeaveRequest;
 use Modules\HR\Models\PayrollRecord;
 use Modules\Inventory\Models\Product;
@@ -142,6 +152,11 @@ class AppServiceProvider extends ServiceProvider
         JournalEntry::class     => AccountingPolicy::class,
         Ticket::class           => TicketPolicy::class,
         Employee::class         => EmployeePolicy::class,
+        Department::class       => DepartmentPolicy::class,
+        JobPosition::class      => JobPositionPolicy::class,
+        LeaveType::class        => LeaveTypePolicy::class,
+        SalaryBand::class       => SalaryBandPolicy::class,
+        Skill::class            => SkillPolicy::class,
         PayrollRecord::class    => PayrollRecordPolicy::class,
         LeaveRequest::class     => LeaveRequestPolicy::class,
         Product::class          => ProductPolicy::class,

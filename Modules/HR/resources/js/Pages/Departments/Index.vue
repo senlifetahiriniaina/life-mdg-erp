@@ -11,20 +11,11 @@
           </h1>
           <p class="text-surface-500 text-sm mt-1">{{ total }} {{ $t('hr.departments').toLowerCase() }}</p>
         </div>
-        <div class="flex gap-2">
-          <Button
-            :icon="viewMode === 'list' ? 'pi pi-sitemap' : 'pi pi-list'"
-            :label="viewMode === 'list' ? 'Tree View' : 'List View'"
-            severity="secondary"
-            outlined
-            @click="viewMode = viewMode === 'list' ? 'tree' : 'list'"
-          />
-          <Button
-            icon="pi pi-plus"
-            :label="$t('common.new') + ' ' + $t('hr.departments').slice(0, -1)"
-            @click="openCreateDialog"
-          />
-        </div>
+        <Button
+          icon="pi pi-plus"
+          :label="$t('common.new') + ' ' + $t('hr.departments').slice(0, -1)"
+          @click="openCreateDialog"
+        />
       </div>
 
       <!-- Search & filter row -->
@@ -46,8 +37,8 @@
         </div>
       </div>
 
-      <!-- List View -->
-      <div v-if="viewMode === 'list'" class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700">
+      <!-- List -->
+      <div class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700">
         <DataTable
           :value="departments"
           :loading="loading"
@@ -62,10 +53,7 @@
         >
           <Column field="name" header="Name" sortable style="min-width: 180px">
             <template #body="{ data }">
-              <div>
-                <p class="font-medium text-surface-900 dark:text-surface-50">{{ data.name }}</p>
-                <p v-if="data.parent" class="text-xs text-surface-400">{{ data.parent.name }}</p>
-              </div>
+              <p class="font-medium text-surface-900 dark:text-surface-50">{{ data.name }}</p>
             </template>
           </Column>
           <Column field="code" header="Code" style="min-width: 100px">
@@ -86,7 +74,7 @@
           </Column>
           <Column header="Status" style="min-width: 100px">
             <template #body="{ data }">
-              <Tag :value="data.is_active ? 'Active' : 'Inactive'" :severity="data.is_active ? 'success' : 'secondary'" />
+              <Tag :value="data.status === 'active' ? 'Active' : 'Inactive'" :severity="data.status === 'active' ? 'success' : 'secondary'" />
             </template>
           </Column>
           <Column :header="$t('common.actions')" style="min-width: 120px; text-align: right">
@@ -104,38 +92,6 @@
             </div>
           </template>
         </DataTable>
-      </div>
-
-      <!-- Tree View -->
-      <div v-else class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6">
-        <div v-if="loading" class="space-y-2">
-          <Skeleton height="2.5rem" v-for="i in 5" :key="i" />
-        </div>
-        <div v-else-if="treeNodes.length === 0" class="text-center py-12 text-surface-400">
-          <i class="pi pi-sitemap text-4xl mb-3 block" />
-          <p>{{ $t('common.no_records') }}</p>
-        </div>
-        <Tree v-else :value="treeNodes" class="w-full">
-          <template #default="{ node }">
-            <div class="flex items-center gap-3 py-1 flex-1">
-              <div class="flex-1 flex items-center gap-3">
-                <div>
-                  <p class="font-medium text-surface-900 dark:text-surface-50">{{ node.label }}</p>
-                  <p v-if="node.data.code" class="text-xs text-surface-400">{{ node.data.code }}</p>
-                </div>
-                <div v-if="node.data.manager" class="text-sm text-surface-500">
-                  <i class="pi pi-user text-xs mr-1" />{{ node.data.manager.full_name }}
-                </div>
-                <Tag :value="node.data.is_active ? 'Active' : 'Inactive'" :severity="node.data.is_active ? 'success' : 'secondary'" class="text-xs" />
-                <span class="text-xs text-surface-400">{{ node.data.employees_count ?? 0 }} employees</span>
-              </div>
-              <div class="flex gap-1">
-                <Button icon="pi pi-pencil" size="small" text rounded @click.stop="openEditDialog(node.data)" />
-                <Button icon="pi pi-trash" size="small" text rounded severity="danger" @click.stop="confirmDelete(node.data)" />
-              </div>
-            </div>
-          </template>
-        </Tree>
       </div>
     </div>
 
@@ -155,17 +111,6 @@
           </div>
         </div>
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-medium text-surface-900 dark:text-surface-50">Parent Department</label>
-          <Select
-            v-model="form.parent_id"
-            :options="parentOptions"
-            option-label="name"
-            option-value="id"
-            show-clear
-            placeholder="None (top level)"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
           <label class="text-sm font-medium text-surface-900 dark:text-surface-50">Manager</label>
           <Select
             v-model="form.manager_id"
@@ -182,8 +127,8 @@
           <Textarea v-model="form.description" rows="2" auto-resize />
         </div>
         <div class="flex items-center gap-3">
-          <ToggleSwitch v-model="form.is_active" input-id="is_active" />
-          <label for="is_active" class="text-sm font-medium text-surface-900 dark:text-surface-50 cursor-pointer">Active</label>
+          <ToggleSwitch :model-value="form.status === 'active'" @update:model-value="v => form.status = v ? 'active' : 'inactive'" input-id="status" />
+          <label for="status" class="text-sm font-medium text-surface-900 dark:text-surface-50 cursor-pointer">Active</label>
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <Button type="button" :label="$t('common.cancel')" severity="secondary" outlined @click="showDialog = false" />
@@ -197,7 +142,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import { useI18n } from 'vue-i18n'
 import { useConfirm } from 'primevue/useconfirm'
@@ -212,8 +157,6 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Textarea from 'primevue/textarea'
-import Tree from 'primevue/tree'
-import Skeleton from 'primevue/skeleton'
 import ToggleSwitch from 'primevue/toggleswitch'
 import ConfirmDialog from 'primevue/confirmdialog'
 
@@ -221,14 +164,12 @@ const { t } = useI18n()
 const confirm = useConfirm()
 
 const departments = ref([])
-const allDepartments = ref([])
 const managers = ref([])
 const loading = ref(false)
 const total = ref(0)
 const page = ref(1)
 const perPage = ref(25)
 const search = ref('')
-const viewMode = ref('list')
 
 const showDialog = ref(false)
 const saving = ref(false)
@@ -237,31 +178,12 @@ const editingDept = ref(null)
 const form = reactive({
   name: '',
   code: '',
-  parent_id: null,
   manager_id: null,
   description: '',
-  is_active: true,
+  status: 'active',
 })
 
 const errors = reactive({})
-
-const parentOptions = computed(() => {
-  if (!editingDept.value) return allDepartments.value
-  return allDepartments.value.filter((d) => d.id !== editingDept.value.id)
-})
-
-const buildTree = (depts, parentId = null) => {
-  return depts
-    .filter((d) => d.parent?.id === parentId || (parentId === null && !d.parent))
-    .map((d) => ({
-      key: String(d.id),
-      label: d.name,
-      data: d,
-      children: buildTree(depts, d.id),
-    }))
-}
-
-const treeNodes = computed(() => buildTree(allDepartments.value))
 
 const loadDepartments = async () => {
   loading.value = true
@@ -276,11 +198,6 @@ const loadDepartments = async () => {
   }
 }
 
-const loadAllDepartments = async () => {
-  const { data } = await axios.get('/api/v1/hr/departments', { params: { per_page: 500 } })
-  allDepartments.value = data.data
-}
-
 const debounceLoad = useDebounceFn(loadDepartments, 400)
 
 const onPage = (event) => {
@@ -291,7 +208,7 @@ const onPage = (event) => {
 
 const openCreateDialog = () => {
   editingDept.value = null
-  Object.assign(form, { name: '', code: '', parent_id: null, manager_id: null, description: '', is_active: true })
+  Object.assign(form, { name: '', code: '', manager_id: null, description: '', status: 'active' })
   Object.keys(errors).forEach((k) => delete errors[k])
   showDialog.value = true
 }
@@ -301,10 +218,9 @@ const openEditDialog = (dept) => {
   Object.assign(form, {
     name: dept.name,
     code: dept.code,
-    parent_id: dept.parent?.id ?? null,
     manager_id: dept.manager?.id ?? null,
     description: dept.description ?? '',
-    is_active: dept.is_active,
+    status: dept.status ?? 'active',
   })
   Object.keys(errors).forEach((k) => delete errors[k])
   showDialog.value = true
@@ -321,7 +237,6 @@ const submitForm = async () => {
     }
     showDialog.value = false
     loadDepartments()
-    loadAllDepartments()
   } catch (e) {
     if (e.response?.status === 422) {
       Object.assign(errors, e.response.data.errors)
@@ -340,14 +255,12 @@ const confirmDelete = (dept) => {
     accept: async () => {
       await axios.delete(`/api/v1/hr/departments/${dept.id}`)
       loadDepartments()
-      loadAllDepartments()
     },
   })
 }
 
 onMounted(async () => {
   loadDepartments()
-  loadAllDepartments()
   const { data } = await axios.get('/api/v1/hr/employees', { params: { per_page: 200, status: 'active' } })
   managers.value = data.data
 })

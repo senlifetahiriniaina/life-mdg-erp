@@ -34,6 +34,20 @@ class EmployeeWebController extends Controller
         return Inertia::render('HR/Employees/Show', ['employee' => $employee]);
     }
 
+    // Chantier 8.3: Employees/Form.vue is real (POSTs/PUTs to the real
+    // employees API, navigates via the real hr.employees.index route) but
+    // had no web route at all — HR/Employees/Index.vue's "Ajouter" button
+    // and HR/Employees/Show.vue's "Edit Employee" link both pointed nowhere.
+    public function create(): Response
+    {
+        return Inertia::render('HR/Employees/Form');
+    }
+
+    public function edit(Employee $employee): Response
+    {
+        return Inertia::render('HR/Employees/Form', ['employee' => $employee]);
+    }
+
     public function payroll(Request $request): Response
     {
         $records = Payslip::query()

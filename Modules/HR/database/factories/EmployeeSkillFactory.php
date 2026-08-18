@@ -3,7 +3,9 @@
 namespace Modules\HR\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\HR\Models\Employee;
 use Modules\HR\Models\EmployeeSkill;
+use Modules\HR\Models\Skill;
 
 class EmployeeSkillFactory extends Factory
 {
@@ -15,29 +17,11 @@ class EmployeeSkillFactory extends Factory
     public function definition(): array
     {
         return [
-                        'employee_id' => fake()->word(),
-            'skill_id' => fake()->word(),
-            'level' => fake()->word(),
-            'certified_at' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
+            'employee_id' => fn () => Employee::factory()->create()->id,
+            'skill_id' => fn () => Skill::factory()->create()->id,
+            'level' => fake()->numberBetween(1, 5),
+            'certified_at' => fake()->boolean(50) ? fake()->dateTimeBetween('-2 years', 'now') : null,
+            'expires_at' => null,
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
     }
 }

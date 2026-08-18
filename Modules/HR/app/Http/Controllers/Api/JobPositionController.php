@@ -19,6 +19,8 @@ class JobPositionController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', JobPosition::class);
+
         $query = JobPosition::withCount('employees')
             ->with('department')
             ->when(
@@ -35,6 +37,8 @@ class JobPositionController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', JobPosition::class);
+
         $validated = $request->validate([
             'department_id' => ['nullable', 'exists:hr_departments,id'],
             'title' => ['required', 'string', 'max:255'],
@@ -54,6 +58,8 @@ class JobPositionController extends Controller
 
     public function show(JobPosition $jobPosition): JsonResponse
     {
+        $this->authorize('view', $jobPosition);
+
         return response()->json(
             new JobPositionResource($jobPosition->loadCount('employees')->load('department'))
         );
@@ -61,6 +67,8 @@ class JobPositionController extends Controller
 
     public function update(Request $request, JobPosition $jobPosition): JsonResponse
     {
+        $this->authorize('update', $jobPosition);
+
         $validated = $request->validate([
             'department_id' => ['nullable', 'exists:hr_departments,id'],
             'title' => ['sometimes', 'string', 'max:255'],
@@ -79,6 +87,8 @@ class JobPositionController extends Controller
 
     public function destroy(JobPosition $jobPosition): JsonResponse
     {
+        $this->authorize('delete', $jobPosition);
+
         $jobPosition->delete();
 
         return response()->json(null, 204);

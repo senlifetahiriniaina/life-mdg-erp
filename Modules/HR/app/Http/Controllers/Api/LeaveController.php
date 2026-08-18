@@ -47,6 +47,8 @@ class LeaveController extends Controller
 
     public function approve(Request $request, LeaveRequest $leaveRequest): JsonResponse
     {
+        $this->authorize('approve', $leaveRequest);
+
         $leaveRequest->update([
             'status' => 'approved',
             'approved_by' => $request->user()->id,
@@ -58,6 +60,8 @@ class LeaveController extends Controller
 
     public function reject(Request $request, LeaveRequest $leaveRequest): JsonResponse
     {
+        $this->authorize('approve', $leaveRequest);
+
         $validated = $request->validate([
             'rejection_reason' => ['required', 'string'],
         ]);

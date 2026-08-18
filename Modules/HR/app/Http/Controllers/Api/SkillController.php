@@ -21,6 +21,8 @@ class SkillController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Skill::class);
+
         $skills = Skill::query()
             ->when($request->filled('category'), fn ($q) => $q->where('category', $request->category))
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', "%{$request->search}%"))
@@ -36,6 +38,8 @@ class SkillController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Skill::class);
+
         $data = $request->validate([
             'name' => 'required|string|max:200',
             'category' => 'nullable|string|max:100',
@@ -52,6 +56,8 @@ class SkillController extends Controller
      */
     public function show(Skill $skill): JsonResponse
     {
+        $this->authorize('view', $skill);
+
         return response()->json($skill->load('employees'));
     }
 
@@ -60,6 +66,8 @@ class SkillController extends Controller
      */
     public function update(Request $request, Skill $skill): JsonResponse
     {
+        $this->authorize('update', $skill);
+
         $data = $request->validate([
             'name' => 'sometimes|string|max:200',
             'category' => 'nullable|string|max:100',
@@ -76,6 +84,8 @@ class SkillController extends Controller
      */
     public function destroy(Skill $skill): JsonResponse
     {
+        $this->authorize('delete', $skill);
+
         $skill->delete();
 
         return response()->json(null, 204);
@@ -86,6 +96,8 @@ class SkillController extends Controller
      */
     public function employeeSkills(Employee $employee): JsonResponse
     {
+        $this->authorize('viewAny', Skill::class);
+
         $skills = EmployeeSkill::where('employee_id', $employee->id)
             ->with('skill')
             ->get();
@@ -98,6 +110,8 @@ class SkillController extends Controller
      */
     public function addEmployeeSkill(Request $request, Employee $employee): JsonResponse
     {
+        $this->authorize('update', $employee);
+
         $data = $request->validate([
             'skill_id' => 'required|exists:hr_skills,id',
             'level' => 'required|integer|min:1|max:5',

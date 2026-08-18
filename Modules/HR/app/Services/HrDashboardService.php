@@ -10,6 +10,7 @@ use Modules\HR\Models\AttendanceRecord;
 use Modules\HR\Models\Department;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\LeaveRequest;
+use Modules\HR\Models\LeaveType;
 use Modules\HR\Models\Position;
 
 class HrDashboardService
@@ -147,6 +148,95 @@ class HrDashboardService
             'on_leave' => $onLeave,
             'absent' => $absent,
             'total' => $totalActive,
+        ];
+    }
+
+    /**
+     * Leave analytics for a given year (optionally scoped to a department):
+     * totals, approval rate, monthly trend, per-type breakdown, and
+     * per-employee balances. Uses the same days_per_year-minus-taken formula
+     * already used by EmployeeSelfServiceController/EmployeePortalController
+     * for a single employee's own balance, just aggregated across everyone.
+     *
+     * @return array<string, mixed>
+     */
+    public function getLeaveAnalytics(int $year, ?int $departmentId = null): array
+    {
+        $requestsQuery = LeaveRequest::query()
+            ->whereYear('start_date', $year)
+            ->when($departmentId, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('department_id', $departmentId)));
+
+        $totalTaken = (int) (clone $requestsQuery)->where('status', 'approved')->sum('days');
+        $pendingRequests = (int) (clone $requestsQuery)->where('status', 'pending')->count();
+        $approvedCount = (int) (clone $requestsQuery)->where('status', 'approved')->count();
+        $rejectedCount = (int) (clone $requestsQuery)->where('status', 'rejected')->count();
+        $decided = $approvedCount + $rejectedCount;
+        $approvalRate = $decided > 0 ? round(($approvedCount / $decided) * 100, 1) : 0.0;
+
+        $monthlyTrend = [];
+        for ($month = 1; $month <= 12; $month++) {
+            $monthlyTrend[] = [
+                'month' => $month,
+                'count' => (int) (clone $requestsQuery)
+                    ->where('status', 'approved')
+                    ->whereMonth('start_date', $month)
+                    ->count(),
+            ];
+        }
+
+        $leaveTypeStats = LeaveType::query()
+            ->withCount(['leaveRequests as taken_count' => function ($q) use ($year, $departmentId) {
+                $q->where('status', 'approved')
+                    ->whereYear('start_date', $year)
+                    ->when($departmentId, fn ($qq) => $qq->whereHas('employee', fn ($e) => $e->where('department_id', $departmentId)));
+            }])
+            ->get(['id', 'name', 'code'])
+            ->map(fn (LeaveType $type) => [
+                'name' => $type->name,
+                'code' => $type->code,
+                'count' => $type->taken_count,
+            ]);
+
+        $employees = Employee::query()
+            ->where('status', 'active')
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+            ->with('department:id,name')
+            ->get(['id', 'first_name', 'last_name', 'department_id']);
+
+        $leaveTypes = LeaveType::where('is_active', true)->get(['id', 'days_per_year']);
+        $totalAnnualDays = (float) $leaveTypes->sum('days_per_year');
+
+        $takenByEmployee = LeaveRequest::where('status', 'approved')
+            ->whereYear('start_date', $year)
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->selectRaw('employee_id, SUM(days) as days_taken')
+            ->groupBy('employee_id')
+            ->pluck('days_taken', 'employee_id');
+
+        $employeeBalances = $employees->map(function (Employee $employee) use ($takenByEmployee, $totalAnnualDays) {
+            $taken = (float) ($takenByEmployee[$employee->id] ?? 0);
+
+            return [
+                'employee_id' => $employee->id,
+                'name' => trim($employee->first_name.' '.$employee->last_name),
+                'department' => $employee->department?->name,
+                'taken' => $taken,
+                'remaining' => max(0.0, $totalAnnualDays - $taken),
+            ];
+        })->values();
+
+        $avgBalance = $employeeBalances->isNotEmpty()
+            ? round($employeeBalances->avg('remaining'), 1)
+            : 0.0;
+
+        return [
+            'total_taken' => $totalTaken,
+            'avg_balance' => $avgBalance,
+            'pending_requests' => $pendingRequests,
+            'approval_rate' => $approvalRate,
+            'monthly_trend' => $monthlyTrend,
+            'leave_type_stats' => $leaveTypeStats,
+            'employee_balances' => $employeeBalances,
         ];
     }
 }

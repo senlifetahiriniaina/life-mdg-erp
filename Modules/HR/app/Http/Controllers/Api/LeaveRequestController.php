@@ -123,6 +123,8 @@ class LeaveRequestController extends Controller
 
     public function update(Request $request, LeaveRequest $leaveRequest)
     {
+        $this->authorize('update', $leaveRequest);
+
         if ($leaveRequest->status !== 'pending') {
             return response()->json(['message' => 'Only pending leave requests can be updated.'], 403);
         }
@@ -148,6 +150,8 @@ class LeaveRequestController extends Controller
 
     public function destroy(LeaveRequest $leaveRequest)
     {
+        $this->authorize('delete', $leaveRequest);
+
         if ($leaveRequest->status !== 'pending') {
             return response()->json(['message' => 'Only pending leave requests can be cancelled.'], 403);
         }
@@ -159,6 +163,8 @@ class LeaveRequestController extends Controller
 
     public function approve(Request $request, LeaveRequest $leaveRequest)
     {
+        $this->authorize('approve', $leaveRequest);
+
         if ($leaveRequest->status !== 'pending') {
             return response()->json(['message' => 'Only pending leave requests can be approved.'], 403);
         }
@@ -177,6 +183,8 @@ class LeaveRequestController extends Controller
 
     public function reject(Request $request, LeaveRequest $leaveRequest)
     {
+        $this->authorize('approve', $leaveRequest);
+
         $user = auth()->user();
         $rejecterId = $user->employee?->id ?? $leaveRequest->employee_id;
         $rejected = $this->service->rejectLeave(

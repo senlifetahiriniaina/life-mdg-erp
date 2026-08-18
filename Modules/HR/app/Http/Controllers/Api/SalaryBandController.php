@@ -17,6 +17,8 @@ class SalaryBandController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', SalaryBand::class);
+
         $bands = SalaryBand::query()
             ->when($request->currency, fn ($q, $v) => $q->where('currency', $v))
             ->orderBy('level')
@@ -27,6 +29,8 @@ class SalaryBandController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', SalaryBand::class);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'level' => 'required|string|max:50',
@@ -43,11 +47,15 @@ class SalaryBandController extends Controller
 
     public function show(SalaryBand $salaryBand): JsonResponse
     {
+        $this->authorize('view', $salaryBand);
+
         return response()->json($salaryBand);
     }
 
     public function update(Request $request, SalaryBand $salaryBand): JsonResponse
     {
+        $this->authorize('update', $salaryBand);
+
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'level' => 'sometimes|string|max:50',
@@ -64,6 +72,8 @@ class SalaryBandController extends Controller
 
     public function destroy(SalaryBand $salaryBand): JsonResponse
     {
+        $this->authorize('delete', $salaryBand);
+
         $salaryBand->delete();
 
         return response()->json(null, 204);
@@ -74,6 +84,8 @@ class SalaryBandController extends Controller
      */
     public function simulateRaise(Request $request, SalaryBand $salaryBand): JsonResponse
     {
+        $this->authorize('simulateRaise', $salaryBand);
+
         $validated = $request->validate([
             'raise_pct' => 'required|numeric|min:0|max:100',
         ]);
@@ -92,19 +104,30 @@ class SalaryBandController extends Controller
      */
     public function equityAnalysis(): JsonResponse
     {
+        $this->authorize('viewAny', SalaryBand::class);
+
         /** @var AIService $ai */
         $ai = app('ai');
         $bands = SalaryBand::orderBy('level')->get(['title', 'level', 'min_salary', 'mid_salary', 'max_salary', 'currency']);
 
         $summary = $bands->map(fn ($b) => "{$b->level} {$b->title}: min={$b->min_salary}, mid={$b->mid_salary}, max={$b->max_salary} {$b->currency}")->implode('; ');
-        $context = "Salary bands: {$summary}";
 
-        $suggestion = $ai->ask(
-            'Analyse these salary bands for equity issues, compression, or outliers. Provide concise recommendations.',
-            $context,
-            'HR',
-            'en'
-        );
+        // Chantier 8.3: two bugs fixed together — (1) AIService::ask() requires
+        // array $context, this call passed a plain string (a fatal TypeError
+        // waiting to happen the moment this method, never routed until now, was
+        // ever hit); (2) no try/catch, unlike every other app('ai')->ask() call
+        // site (see AiChatController), breaking the app-wide "AI features must
+        // degrade gracefully, never error" principle documented in CLAUDE.md.
+        try {
+            $suggestion = $ai->ask(
+                'Analyse these salary bands for equity issues, compression, or outliers. Provide concise recommendations.',
+                ['salary_bands' => $summary],
+                'HR',
+                'en'
+            );
+        } catch (\Throwable) {
+            $suggestion = 'AI equity analysis is currently unavailable.';
+        }
 
         return response()->json(['analysis' => $suggestion, 'bands' => $bands]);
     }

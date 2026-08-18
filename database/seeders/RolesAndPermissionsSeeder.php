@@ -132,9 +132,19 @@ class RolesAndPermissionsSeeder extends Seeder
     // just need to exist as real permissions, same as the other _PERMISSIONS constants.
     // 'edit'/'remind' aren't in the generic ACTIONS set, and 'documents' isn't in
     // MODULES['hr'] at all.
+    // Chantier 8.3 (HR): 'salary-band'/'skill' aren't in MODULES['hr'] at all —
+    // DepartmentController/JobPositionController/LeaveTypeController/SalaryBandController/
+    // SkillController had zero authorize() calls and (for salary-band/skill) no Policy
+    // class of any kind, a live RBAC hole identical to the one fixed for Inventory earlier
+    // in this chantier. Department/job-position/leave/leave-type already had permission
+    // strings seeded via the generic MODULES loop; only salary-band/skill needed adding here.
     private const HR_EXTRA_PERMISSIONS = [
         'hr.documents.view', 'hr.documents.create', 'hr.documents.edit',
         'hr.documents.delete', 'hr.documents.remind',
+        'hr.salary-band.view-any', 'hr.salary-band.view', 'hr.salary-band.create',
+        'hr.salary-band.update', 'hr.salary-band.delete',
+        'hr.skill.view-any', 'hr.skill.view', 'hr.skill.create',
+        'hr.skill.update', 'hr.skill.delete',
     ];
 
     // Chantier 8.2 (BI): AlertRule/DataStory/ExternalDataSource/ForecastModel/

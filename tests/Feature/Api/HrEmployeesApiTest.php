@@ -253,7 +253,11 @@ test('can create a leave request', function () {
 });
 
 test('can approve a leave request', function () {
-     $user = actingAsUser('employee');
+    // Chantier 8.3: approve/reject now require the LeaveRequestPolicy::approve()
+    // gate (manager/hr-manager/admin) — plain 'employee' could previously
+    // approve/reject anyone's leave request, a real RBAC hole closed alongside
+    // this test's role bump.
+    $user = actingAsUser('hr-manager');
     $employee = Employee::factory()->create();
     $leave    = LeaveRequest::factory()->create([
         'employee_id' => $employee->id,
@@ -266,7 +270,7 @@ test('can approve a leave request', function () {
 });
 
 test('can reject a leave request', function () {
-     $user = actingAsUser('employee');
+    $user = actingAsUser('hr-manager');
     $employee = Employee::factory()->create();
     $leave    = LeaveRequest::factory()->create([
         'employee_id' => $employee->id,

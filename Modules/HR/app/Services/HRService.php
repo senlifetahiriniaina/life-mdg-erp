@@ -60,6 +60,7 @@ class HRService
     public function getAllDepartments($perPage = 15)
     {
         return Department::withCount('employees')
+            ->with('manager:id,first_name,last_name')
             ->orderBy('name')
             ->paginate($perPage);
     }

@@ -35,6 +35,21 @@ class LeaveRequestPolicy extends BaseErpPolicy
         return $user->hasAnyRole(['super-admin', 'admin', 'manager', 'hr-manager']);
     }
 
+    // Chantier 8.3: BaseErpPolicy::update()'s ownership fallback compares
+    // $model->employee_id (an hr_employees.id) to $user->id (a users.id) —
+    // two different ID spaces that never match, so a normal employee could
+    // never pass authorize('update', $leaveRequest) on their OWN leave
+    // request. Compare against the leave request's employee's real
+    // user_id instead.
+    public function update(User $user, Model $model): bool
+    {
+        if ($user->hasAnyRole(['super-admin', 'admin', 'manager', 'hr-manager'])) {
+            return true;
+        }
+
+        return (int) $model->employee?->user_id === $user->id;
+    }
+
     public function delete(User $user, Model $model): bool
     {
         return $user->hasAnyRole(['super-admin', 'admin', 'manager', 'hr-manager']);

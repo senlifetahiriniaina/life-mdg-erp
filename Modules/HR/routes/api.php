@@ -17,7 +17,14 @@ use Modules\HR\Http\Controllers\Api\SalaryBandController;
 use Modules\HR\Http\Controllers\Api\SkillController;
 
 // Default: Simple GET throttle (1000 req/min) — overridden for specific endpoint groups
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
+// Chantier 8.3 (HR): this entire group had zero module/role gating (identical to the
+// Inventory hole fixed earlier in this chantier) — any authenticated user of any tenant
+// could create/update/delete departments, job positions, leave types, and salary bands.
+// 'employee' is included deliberately (this app's broad "every non-delete permission
+// across every module" role) so self-service routes (me/*, employee-portal/*, attendance
+// clock-in/out, documents) that live in this same group stay reachable for regular staff;
+// per-resource authorize() calls on the write endpoints provide the finer-grained gate.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:HR', 'role:employee,hr-manager,payroll-officer,manager,admin', 'throttle:simple_get'])->group(function () {
     // Employee routes - custom routes first to avoid being shadowed by apiResource
     Route::middleware('cache.api:1')->group(function () {
         Route::get('employees/by-department/{department}', [EmployeeController::class, 'byDepartment']);
@@ -28,6 +35,8 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
         Route::apiResource('employees', EmployeeController::class)->only(['store', 'update', 'destroy'])->names('api.employees');
         Route::post('employees/{employee}/skills', [SkillController::class, 'addEmployeeSkill']);
     });
+    // Chantier 8.3: real method, matched by no route anywhere.
+    Route::get('employees/{employee}/skills', [SkillController::class, 'employeeSkills']);
 
     // Department routes — never changes during session (1-hour cache)
     Route::middleware('cache.api:60')->group(function () {
@@ -81,6 +90,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
 
     // Salary bands / compensation support
     Route::middleware('cache.api:5')->group(function () {
+        // Chantier 8.3: real AI equity-analysis endpoint (already called by the real,
+        // routed HR/Compensation/Index.vue page) — registered before the {salaryBand}
+        // show route below so "equity" isn't swallowed as a salary band ID.
+        Route::get('salary-bands/equity', [SalaryBandController::class, 'equityAnalysis']);
         Route::apiResource('salary-bands', SalaryBandController::class)->only(['index', 'show']);
     });
     Route::middleware('throttle:create_post')->group(function () {
@@ -97,6 +110,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
     Route::middleware('throttle:complex_get')->group(function () {
         Route::get('dashboard', [HrDashboardController::class, 'index']);
         Route::get('dashboard/realtime', [HrDashboardController::class, 'realtime']);
+        // Chantier 8.3: Leave/Analytics.vue (real, reachable page) called this
+        // route and had zero backend behind it — built onto the same
+        // days_per_year-minus-taken formula EmployeeSelfServiceController/
+        // EmployeePortalController already use for a single employee's own
+        // balance, aggregated across everyone.
+        Route::get('leave-analytics', [HrDashboardController::class, 'leaveAnalytics']);
     });
 
     // HR AI routes (expensive operations)

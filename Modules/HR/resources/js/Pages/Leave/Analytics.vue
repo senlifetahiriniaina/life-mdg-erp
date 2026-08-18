@@ -200,6 +200,11 @@ const selectedDepartment = ref<number | null>(null)
 const selectedYear = ref(new Date().getFullYear())
 const departments = ref<Department[]>([])
 const leaveBalances = ref<EmployeeLeaveBalance[]>([])
+const leaveTypeStatsData = ref<{ name: string; count: number }[]>([])
+const monthlyTrendData = ref<{ month: number; count: number }[]>([])
+
+const TYPE_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#ec4899', '#10b981', '#8b5cf6']
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const availableYears = computed(() => {
   const years = []
@@ -217,20 +222,19 @@ const metrics = reactive<Metrics>({
   approvalRate: 0,
 })
 
-const leaveTypeStats = computed(() => [
-  { name: 'Annual Leave', count: 142, color: '#3b82f6' },
-  { name: 'Sick Leave', count: 67, color: '#ef4444' },
-  { name: 'Personal Leave', count: 34, color: '#f59e0b' },
-  { name: 'Maternity Leave', count: 12, color: '#ec4899' },
-])
-
-const monthlyTrend = computed(() => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return months.map((name, index) => ({
-    name,
-    count: Math.floor(Math.random() * 10),
+const leaveTypeStats = computed(() =>
+  leaveTypeStatsData.value.map((type, index) => ({
+    name: type.name,
+    count: type.count,
+    color: TYPE_COLORS[index % TYPE_COLORS.length],
   }))
-})
+)
+
+const monthlyTrend = computed(() =>
+  monthlyTrendData.value.length
+    ? monthlyTrendData.value.map(m => ({ name: MONTH_NAMES[m.month - 1], count: m.count }))
+    : MONTH_NAMES.map(name => ({ name, count: 0 }))
+)
 
 const loadAnalytics = async () => {
   try {
@@ -250,7 +254,15 @@ const loadAnalytics = async () => {
     metrics.pendingRequests = data.pending_requests || 0
     metrics.approvalRate = data.approval_rate || 0
 
-    leaveBalances.value = data.employee_balances || []
+    leaveBalances.value = (data.employee_balances || []).map((e: any) => ({
+      id: e.employee_id,
+      name: e.name,
+      department: e.department,
+      taken: e.taken,
+      remaining: e.remaining,
+    }))
+    leaveTypeStatsData.value = data.leave_type_stats || []
+    monthlyTrendData.value = data.monthly_trend || []
   } catch (error) {
     console.error('Failed to load analytics:', error)
   }

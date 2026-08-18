@@ -21,6 +21,8 @@ class DepartmentController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Department::class);
+
         $perPage = $request->query('per_page', 15);
         $departments = $this->service->getAllDepartments($perPage);
 
@@ -29,6 +31,8 @@ class DepartmentController extends Controller
 
     public function store(StoreDepartmentRequest $request)
     {
+        $this->authorize('create', Department::class);
+
         $department = $this->service->createDepartment($request->validated());
 
         return (new DepartmentResource($department))->response()->setStatusCode(201);
@@ -36,13 +40,17 @@ class DepartmentController extends Controller
 
     public function show(Department $department)
     {
-        $department->loadCount('employees');
+        $this->authorize('view', $department);
+
+        $department->loadCount('employees')->load('manager:id,first_name,last_name');
 
         return new DepartmentResource($department);
     }
 
     public function update(UpdateDepartmentRequest $request, Department $department)
     {
+        $this->authorize('update', $department);
+
         $updated = $this->service->updateDepartment($department, $request->validated());
 
         return new DepartmentResource($updated);
@@ -50,6 +58,8 @@ class DepartmentController extends Controller
 
     public function destroy(Department $department)
     {
+        $this->authorize('delete', $department);
+
         $department->delete();
 
         return response()->noContent();
@@ -57,6 +67,8 @@ class DepartmentController extends Controller
 
     public function metrics(Department $department)
     {
+        $this->authorize('view', $department);
+
         return response()->json($this->service->getDepartmentMetrics($department));
     }
 }
