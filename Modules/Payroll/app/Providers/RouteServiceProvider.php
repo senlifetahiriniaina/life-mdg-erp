@@ -16,6 +16,11 @@ class RouteServiceProvider extends ServiceProvider
                 ->prefix('api/v1/payroll')
                 ->name('api.payroll.')
                 ->group(__DIR__ . '/../../routes/api.php');
+
+            Route::middleware('web')
+                ->prefix('payroll')
+                ->name('payroll.')
+                ->group(__DIR__ . '/../../routes/web.php');
         });
     }
 }

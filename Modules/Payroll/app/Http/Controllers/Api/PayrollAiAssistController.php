@@ -39,9 +39,13 @@ class PayrollAiAssistController extends Controller
             'locale'  => ['sometimes', 'string', 'max:8'],
         ]);
 
+        // Chantier 8.3: was hardcoded to module 'HR' — this is Payroll's own
+        // AI-assist endpoint, and AiContextualAssistantService's static
+        // fallback table has a real 'Payroll' module entry (generate_payslips/
+        // approve_payroll/...) that this endpoint was never actually reaching.
         $guidance = $this->assistant->getGuidance(
-            module:   'HR',
-            action:   $validated['action'] === 'run_payroll' ? 'run_payroll' : $validated['action'],
+            module:   'Payroll',
+            action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
             userRole: $request->user()->role ?? 'user',
