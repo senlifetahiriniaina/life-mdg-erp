@@ -134,6 +134,16 @@ class FinancialReportService
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    /**
+     * Chantier 18: was selecting `coa.sub_type`, a column that has never
+     * existed on `acc_chart_of_accounts` (confirmed via Schema::getColumnListing)
+     * — a guaranteed "no such column" SQL error on every real call to
+     * balanceSheet()/incomeStatement()/cashFlow(), i.e. the Accounting
+     * module's own financial-statement pages were 100% broken, not just
+     * generically-grouped. `buildSection()` already tolerates a missing
+     * sub_type via `$row->sub_type ?? null`, so simply dropping it from the
+     * query is the correct, minimal fix.
+     */
     private function accountBalances(Carbon $asOf): Collection
     {
         return DB::table('acc_journal_entry_lines as jel')
@@ -141,8 +151,8 @@ class FinancialReportService
             ->join('acc_chart_of_accounts as coa', 'coa.id', '=', 'jel.account_id')
             ->where('je.status', 'posted')
             ->where('je.date', '<=', $asOf->toDateString())
-            ->groupBy('coa.id', 'coa.code', 'coa.name', 'coa.type', 'coa.sub_type', 'coa.parent_id')
-            ->selectRaw('coa.id, coa.code, coa.name, coa.type, coa.sub_type, coa.parent_id, SUM(jel.debit) - SUM(jel.credit) as balance')
+            ->groupBy('coa.id', 'coa.code', 'coa.name', 'coa.type', 'coa.parent_id')
+            ->selectRaw('coa.id, coa.code, coa.name, coa.type, coa.parent_id, SUM(jel.debit) - SUM(jel.credit) as balance')
             ->get()
             ->keyBy('id');
     }
@@ -154,8 +164,8 @@ class FinancialReportService
             ->join('acc_chart_of_accounts as coa', 'coa.id', '=', 'jel.account_id')
             ->where('je.status', 'posted')
             ->whereBetween('je.date', [$from->toDateString(), $to->toDateString()])
-            ->groupBy('coa.id', 'coa.code', 'coa.name', 'coa.type', 'coa.sub_type', 'coa.parent_id')
-            ->selectRaw('coa.id, coa.code, coa.name, coa.type, coa.sub_type, coa.parent_id, SUM(jel.credit) - SUM(jel.debit) as balance')
+            ->groupBy('coa.id', 'coa.code', 'coa.name', 'coa.type', 'coa.parent_id')
+            ->selectRaw('coa.id, coa.code, coa.name, coa.type, coa.parent_id, SUM(jel.credit) - SUM(jel.debit) as balance')
             ->get()
             ->keyBy('id');
     }

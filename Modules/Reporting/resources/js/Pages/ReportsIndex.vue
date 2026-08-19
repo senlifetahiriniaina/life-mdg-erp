@@ -193,7 +193,19 @@ const fetchReports = async () => {
 // system report (see quickReports above).
 const csrfToken = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
 
+// Chantier 18: the 'ohada_balance' tile's seeded ReportTemplateSeeder row
+// carries `query_template: '-- Handled by OhadaReportService::generateBalanceSheet()'`
+// — a SQL comment, not real SQL — so executeQuery() above always produced an
+// empty/broken result for this one tile. The real OHADA engine is reachable
+// via Accounting's own `reports/ohada/*` endpoints (delegating to the real,
+// now-fixed OhadaReportService) — navigate there directly instead of routing
+// through the generic executor for this specific tile.
 const runQuickReport = async (quick: typeof quickReports[0]) => {
+  if (quick.id === 'ohada_balance') {
+    router.visit('/accounting/reports/balance-sheet')
+    return
+  }
+
   try {
     await fetch(`/api/v1/reporting/reports/${quick.slug}/execute`, {
       method: 'POST',

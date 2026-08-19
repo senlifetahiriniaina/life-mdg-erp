@@ -150,13 +150,35 @@ class OhadaReportService
         ];
 
         // ── PASSIF ─────────────────────────────────────────────────────────────
+        // Chantier 18: the Bilan otherwise only ever covers classes 1-5 —
+        // it never folded the period's net result (classes 6/7, "Résultat
+        // de l'exercice") into capitaux propres, so it structurally could
+        // never balance except in a freshly-opened company with zero
+        // transactions (confirmed empirically: any real posted purchase/
+        // sale journal entry made `equilibre` false). This is the standard
+        // "not yet formally clôturé" presentation used by real accounting
+        // software — the cumulative résultat (produits classe 7 − charges
+        // classe 6, since inception through the report date) is computed
+        // live and folded into capitaux propres rather than requiring a
+        // separate period-end closing journal entry, which this app has no
+        // mechanism for. Fundamental double-entry identity guarantees this
+        // makes the Bilan balance exactly: since every journal entry is
+        // debit=credit, the sum of ALL account balances across the WHOLE
+        // chart (classes 1-7) is always 0, so Actif(2-5 debit) −
+        // Passif(1,4,5 credit) always equals exactly produits − charges.
+        $resultatCumule = $this->sumAccounts($currentBalances, '7', 'credit') - $this->sumAccounts($currentBalances, '6', 'debit');
+        $resultatCumuleN1 = $this->sumAccounts($previousBalances, '7', 'credit') - $this->sumAccounts($previousBalances, '6', 'debit');
+
         $passif = [
             'capitaux_propres' => [
                 'label_fr' => 'Capitaux propres (Classe 1)',
                 'label_en' => 'Shareholders equity',
-                'accounts' => $this->extractAccounts($currentBalances, '1', 'credit'),
-                'n_1'      => $this->sumAccounts($previousBalances, '1', 'credit'),
-                'total'    => $this->sumAccounts($currentBalances, '1', 'credit'),
+                'accounts' => [
+                    ...$this->extractAccounts($currentBalances, '1', 'credit'),
+                    ...($resultatCumule != 0 ? [['account_code' => '13*', 'montant' => $resultatCumule, 'label_fr' => 'Résultat de l\'exercice (non clôturé)']] : []),
+                ],
+                'n_1'      => $this->sumAccounts($previousBalances, '1', 'credit') + $resultatCumuleN1,
+                'total'    => $this->sumAccounts($currentBalances, '1', 'credit') + $resultatCumule,
                 'lines'    => [
                     ['code' => '10', 'label_fr' => 'Capital social',           'label_en' => 'Share capital'],
                     ['code' => '11', 'label_fr' => 'Réserves',                 'label_en' => 'Retained earnings'],
@@ -828,25 +850,38 @@ class OhadaReportService
     }
 
     /**
-     * Returns cumulative account balances as of a given date for a tenant.
-     * Falls back to empty array if accounting tables don't exist (graceful degradation).
+     * Returns cumulative account balances as of a given date.
+     *
+     * Chantier 18: this used to query `accounting_journal_lines`/
+     * `accounting_journal_entries` — a table pair with NO migration
+     * anywhere in the repo (confirmed via Schema::hasTable — always
+     * missing), so every one of this service's report methods silently
+     * degraded to empty data via the surrounding try/catch on every real
+     * call, despite being fully routed and seeded as if it worked. Fixed
+     * to query the real, live `acc_journal_entry_lines`/`acc_journal_entries`
+     * ledger (the same tables `FinancialReportService` and
+     * `JournalEntryApiController` actually write to). `acc_journal_entries`
+     * has no tenant/company column at all (confirmed) — this app posts to a
+     * single shared ledger, matching `FinancialReportService`'s own
+     * behaviour — so `$tenantId` is accepted for API-signature compatibility
+     * but no longer used to filter.
      *
      * @return array<string, array{debit: float, credit: float}>
      */
     private function getAccountBalances(int $tenantId, string $asOfDate): array
     {
         try {
-            $rows = DB::table('accounting_journal_lines as jl')
-                ->join('accounting_journal_entries as je', 'je.id', '=', 'jl.journal_entry_id')
-                ->where('je.tenant_id', $tenantId)
-                ->whereDate('je.entry_date', '<=', $asOfDate)
+            $rows = DB::table('acc_journal_entry_lines as jel')
+                ->join('acc_journal_entries as je', 'je.id', '=', 'jel.entry_id')
+                ->join('acc_chart_of_accounts as coa', 'coa.id', '=', 'jel.account_id')
+                ->whereDate('je.date', '<=', $asOfDate)
                 ->where('je.status', 'posted')
                 ->select(
-                    'jl.account_code',
-                    DB::raw('SUM(jl.debit_amount) as total_debit'),
-                    DB::raw('SUM(jl.credit_amount) as total_credit'),
+                    'coa.code as account_code',
+                    DB::raw('SUM(jel.debit) as total_debit'),
+                    DB::raw('SUM(jel.credit) as total_credit'),
                 )
-                ->groupBy('jl.account_code')
+                ->groupBy('coa.code')
                 ->get();
 
             $result = [];
@@ -869,18 +904,18 @@ class OhadaReportService
     private function getPeriodMovements(int $tenantId, string $start, string $end): array
     {
         try {
-            $rows = DB::table('accounting_journal_lines as jl')
-                ->join('accounting_journal_entries as je', 'je.id', '=', 'jl.journal_entry_id')
-                ->where('je.tenant_id', $tenantId)
-                ->whereDate('je.entry_date', '>=', $start)
-                ->whereDate('je.entry_date', '<=', $end)
+            $rows = DB::table('acc_journal_entry_lines as jel')
+                ->join('acc_journal_entries as je', 'je.id', '=', 'jel.entry_id')
+                ->join('acc_chart_of_accounts as coa', 'coa.id', '=', 'jel.account_id')
+                ->whereDate('je.date', '>=', $start)
+                ->whereDate('je.date', '<=', $end)
                 ->where('je.status', 'posted')
                 ->select(
-                    'jl.account_code',
-                    DB::raw('SUM(jl.debit_amount) as total_debit'),
-                    DB::raw('SUM(jl.credit_amount) as total_credit'),
+                    'coa.code as account_code',
+                    DB::raw('SUM(jel.debit) as total_debit'),
+                    DB::raw('SUM(jel.credit) as total_credit'),
                 )
-                ->groupBy('jl.account_code')
+                ->groupBy('coa.code')
                 ->get();
 
             $result = [];
@@ -903,10 +938,19 @@ class OhadaReportService
      * @param array<string, array{debit: float, credit: float}> $balances
      * @return array
      */
+    /**
+     * Chantier 18: `$code` comes from a PHP array key built from
+     * `getAccountBalances()`'s `account_code` string — PHP auto-casts
+     * purely-numeric string array keys ('310', '401', ...) to int, so
+     * `str_starts_with()` (string-only) fataled the moment this method
+     * was ever fed real, non-empty data (previously always empty, see
+     * getAccountBalances()'s own fix docblock). Cast back to string.
+     */
     private function extractAccounts(array $balances, string $prefix, string $side): array
     {
         $lines = [];
         foreach ($balances as $code => $amounts) {
+            $code = (string) $code;
             if (str_starts_with($code, $prefix)) {
                 $net = $side === 'debit'
                     ? max(0, $amounts['debit'] - $amounts['credit'])
@@ -929,6 +973,7 @@ class OhadaReportService
     {
         $total = 0.0;
         foreach ($balances as $code => $amounts) {
+            $code = (string) $code;
             if (str_starts_with($code, $prefix)) {
                 $net = $side === 'debit'
                     ? max(0, $amounts['debit'] - $amounts['credit'])
@@ -948,6 +993,7 @@ class OhadaReportService
     {
         $total = 0.0;
         foreach ($movements as $code => $amounts) {
+            $code = (string) $code;
             if (str_starts_with($code, $prefix)) {
                 $total += $side === 'debit' ? $amounts['debit'] : $amounts['credit'];
             }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Carbon;
 use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Services\FinancialReportService;
+use Modules\Reporting\Services\OhadaReportService;
 
 /**
  * @group Accounting - Financial Reporting
@@ -19,6 +20,49 @@ use Modules\Accounting\Services\FinancialReportService;
 class ReportingController extends Controller
 {
     public function __construct(private FinancialReportService $service) {}
+
+    /**
+     * Chantier 18: `FinancialReportService::balanceSheet()`/`incomeStatement()`
+     * (used above) group by the flat `type` column (asset/liability/equity/
+     * revenue/expense) — not the SYSCOHADA/Madagascar rubrique structure
+     * (Actif immobilisé/Stocks/Créances/Trésorerie-actif;
+     * Capitaux propres/Dettes financières/Passif circulant/Trésorerie-passif;
+     * CA→marge→résultat d'exploitation→financier→net). That real structure
+     * already exists in `Modules\Reporting\Services\OhadaReportService`
+     * (also fixed this chantier — it was reading from a phantom, never-
+     * migrated table pair) — delegated to here rather than duplicated, so
+     * Accounting's own reports page (where users actually look for
+     * financial statements) can render the real Madagascar-standard
+     * presentation under this module's own RBAC gate.
+     *
+     * POST /accounting/reports/ohada/balance-sheet
+     */
+    public function ohadaBalanceSheet(Request $request, OhadaReportService $ohada): JsonResponse
+    {
+        $validated = $request->validate([
+            'period' => 'nullable|string',
+        ]);
+
+        $period = $validated['period'] ?? now()->format('Y-m');
+
+        return response()->json([
+            'data' => $ohada->generateBalanceSheet($request->user()?->company_id ?? 0, $period, 'MGA'),
+        ]);
+    }
+
+    /** POST /accounting/reports/ohada/income-statement — see ohadaBalanceSheet() docblock. */
+    public function ohadaIncomeStatement(Request $request, OhadaReportService $ohada): JsonResponse
+    {
+        $validated = $request->validate([
+            'period' => 'nullable|string',
+        ]);
+
+        $period = $validated['period'] ?? now()->format('Y-m');
+
+        return response()->json([
+            'data' => $ohada->generateIncomeStatement($request->user()?->company_id ?? 0, $period, 'MGA'),
+        ]);
+    }
 
     /** GET /financial-reports — List saved reports. */
     public function index(Request $request): JsonResponse

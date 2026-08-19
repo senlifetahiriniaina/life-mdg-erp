@@ -49,6 +49,7 @@ use Modules\Accounting\Http\Controllers\Api\CostEngineController;
 use Modules\Accounting\Http\Controllers\Api\ScenarioPlanningController;
 use Modules\Accounting\Http\Controllers\Api\TreasuryImportController;
 use Modules\Accounting\Http\Controllers\Api\OperationTemplateController;
+use Modules\Accounting\Http\Controllers\Api\FinancialSimulationController;
 
 // Webhooks (no auth required, signature validation only, rate limited)
 Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\Modules\Accounting\Http\Requests\HandleOpenBankingWebhookRequest $request) {
@@ -59,6 +60,10 @@ Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\M
 // Simple GET endpoints (1000 req/min)
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:simple_get'])->group(function () {
     Route::get('operation-templates', [OperationTemplateController::class, 'index']);
+    // Chantier 18 — financial simulation (upmetrics-style forecast)
+    Route::get('financial-simulations', [FinancialSimulationController::class, 'index']);
+    Route::get('financial-simulations/{financialSimulation}', [FinancialSimulationController::class, 'show']);
+    Route::get('financial-simulations/{financialSimulation}/project', [FinancialSimulationController::class, 'project']);
     Route::get('invoices', [InvoiceController::class, 'index']);
     Route::get('invoices/summary', [InvoiceController::class, 'summary']);
     Route::get('invoices/aged-receivables', [InvoiceController::class, 'agedReceivables']);
@@ -145,6 +150,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     // Financial Reports
     Route::post('financial-reports/income-statement', [ReportingController::class, 'incomeStatement']);
     Route::post('financial-reports/balance-sheet', [ReportingController::class, 'balanceSheet']);
+    // Chantier 18 — Madagascar/SYSCOHADA-structured statements (real rubriques)
+    Route::post('financial-reports/ohada/balance-sheet', [ReportingController::class, 'ohadaBalanceSheet']);
+    Route::post('financial-reports/ohada/income-statement', [ReportingController::class, 'ohadaIncomeStatement']);
     Route::post('financial-reports/cash-flow', [ReportingController::class, 'cashFlowStatement']);
     Route::post('financial-reports/tax-summary', [ReportingController::class, 'taxSummary']);
     Route::post('financial-reports/multi-period', [ReportingController::class, 'multiPeriodComparison']);
@@ -200,6 +208,15 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     // Treasury import — cash/bank operations with operation-template suggestions (Chantier 15)
     Route::post('treasury-imports/preview', [TreasuryImportController::class, 'preview']);
     Route::post('treasury-imports/commit', [TreasuryImportController::class, 'commit']);
+
+    // Chantier 18 — financial simulation
+    Route::post('financial-simulations', [FinancialSimulationController::class, 'store']);
+    Route::match(['put', 'patch'], 'financial-simulations/{financialSimulation}', [FinancialSimulationController::class, 'update']);
+    Route::delete('financial-simulations/{financialSimulation}', [FinancialSimulationController::class, 'destroy']);
+    Route::post('financial-simulations/{financialSimulation}/lines', [FinancialSimulationController::class, 'storeLine']);
+    Route::match(['put', 'patch'], 'financial-simulation-lines/{line}', [FinancialSimulationController::class, 'updateLine']);
+    Route::delete('financial-simulation-lines/{line}', [FinancialSimulationController::class, 'destroyLine']);
+    Route::post('financial-simulation-lines/{line}/realize', [FinancialSimulationController::class, 'realizeLine']);
 
     Route::post('chart-of-accounts', [ChartOfAccountController::class, 'store']);
     Route::put('chart-of-accounts/{chartOfAccount}', [ChartOfAccountController::class, 'update']);

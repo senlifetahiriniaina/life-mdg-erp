@@ -34,6 +34,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('chart-of-accounts', [AccountingWebController::class, 'chartOfAccounts'])->name('chart-of-accounts.index');
     Route::get('expenses', [AccountingWebController::class, 'expenses'])->name('expenses.index');
 
+    // Chantier 18: AccountingWebController::balanceSheet()/incomeStatement()
+    // existed and rendered real Vue pages, but had no web route anywhere —
+    // both pages were entirely unreachable from the UI.
+    Route::get('reports/balance-sheet', [AccountingWebController::class, 'balanceSheet'])->name('reports.balance-sheet');
+    Route::get('reports/income-statement', [AccountingWebController::class, 'incomeStatement'])->name('reports.income-statement');
+    Route::get('financial-simulations', fn () => \Inertia\Inertia::render('Accounting/FinancialSimulation/Index'))->name('financial-simulations.index');
+    Route::get('financial-simulations/{financialSimulation}', fn ($financialSimulation) => \Inertia\Inertia::render('Accounting/FinancialSimulation/Show', ['id' => (int) $financialSimulation]))->name('financial-simulations.show');
+
     Route::get('bank-reconciliation', [BankReconciliationWebController::class, 'index'])->name('bank-reconciliation.index');
     Route::get('bank-reconciliation/{account}', [BankReconciliationWebController::class, 'reconcile'])->name('bank-reconciliation.reconcile');
 

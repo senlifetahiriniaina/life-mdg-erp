@@ -103,6 +103,10 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.asset_impairment.restore', 'accounting.asset_impairment.force_delete',
         'accounting.depreciation_policy.restore', 'accounting.depreciation_policy.force_delete',
         'accounting.budget_scenario.approve',
+        // Chantier 18 — FinancialSimulationPolicy checks a "realize" ability
+        // (turn a simulated line into a real order + journal entry), a
+        // non-standard verb the generic MODULES/ACTIONS loop doesn't produce.
+        'accounting.financial-simulation.realize',
     ];
 
     // Modules\CRM\Policies\{CampaignPolicy,WorkflowPolicy} check crm.{campaigns,workflows}.
@@ -358,7 +362,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier', 'product-template', 'sourcing-benchmark'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier', 'purchaseorderline'],
-        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario'],
+        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario', 'financial-simulation'],
         'helpdesk'         => ['ticket', 'team', 'agent-performance'],
         'bi'               => ['dashboard', 'kpi', 'report', 'bidatasource'],
         'analytics'        => ['forecast', 'anomaly'],
