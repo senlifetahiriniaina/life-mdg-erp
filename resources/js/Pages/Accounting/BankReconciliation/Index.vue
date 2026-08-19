@@ -8,6 +8,7 @@
         <p class="wh-page-subtitle">{{ accounts.length }} compte{{ accounts.length !== 1 ? 's' : '' }} bancaire{{ accounts.length !== 1 ? 's' : '' }}</p>
       </div>
       <div class="page-actions">
+        <Button label="Importer un relevé" icon="pi pi-upload" :href="route('accounting.treasury-import.index')" as="a" />
         <Button label="Connecter une banque" icon="pi pi-link" @click="showConnectDialog = true" />
         <Button label="Nouveau compte" icon="pi pi-plus" severity="primary" @click="showCreateDialog = true" />
       </div>

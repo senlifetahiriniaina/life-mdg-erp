@@ -5,6 +5,7 @@ namespace Modules\Accounting\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Modules\Accounting\Database\Factories\JournalEntryFactory;
 
@@ -36,6 +37,9 @@ class JournalEntry extends Model
         'type',
         'debit',
         'credit',
+        'currency',
+        'posted_at',
+        'notes',
     ];
 
     protected $casts = [
@@ -54,6 +58,18 @@ class JournalEntry extends Model
     public function glAccount(): BelongsTo
     {
         return $this->belongsTo(GLAccount::class, 'gl_account_id');
+    }
+
+    /**
+     * Chantier 15: this was missing entirely — JournalEntryApiController::store()
+     * already called `$entry->lines()->create($line)`, a fatal "call to
+     * undefined method" on every real request (confirmed via CLAUDE.md and a
+     * repo-wide grep before this fix — nothing else in the app ever wrote to
+     * acc_journal_entry_lines).
+     */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(JournalEntryLine::class, 'entry_id');
     }
 
     public function createdBy(): BelongsTo

@@ -24,6 +24,7 @@ class AccountingDatabaseSeeder extends Seeder
     {
         $this->seedChartOfAccounts();
         $this->seedDefaultJournals();
+        $this->seedOperationTemplates();
     }
 
     private function seedChartOfAccounts(): void
@@ -206,5 +207,61 @@ class AccountingDatabaseSeeder extends Seeder
                 'updated_at' => $now,
             ],
         ]);
+    }
+
+    /**
+     * Chantier 15: default cash/bank "operation templates" — the catalogue
+     * TreasuryImportService matches an imported caisse/relevé-bancaire row
+     * against to propose the right double-entry pairing (treasury account
+     * vs. a fixed counterpart GL account) before the user validates. Every
+     * `counterpart_account_code` below is a real code from the chart above.
+     */
+    private function seedOperationTemplates(): void
+    {
+        if (DB::table('acc_operation_templates')->exists()) {
+            return;
+        }
+
+        $now = now();
+
+        $templates = [
+            // Encaissements — l'argent entre : le compte de trésorerie est débité.
+            ['code' => 'vente_comptant', 'label' => 'Vente de marchandises au comptant', 'nature' => 'encaissement', 'counterpart_account_code' => '707', 'keywords' => ['vente', 'ventes', 'vente comptant', 'client comptant']],
+            ['code' => 'prestation_service', 'label' => 'Encaissement prestation de service', 'nature' => 'encaissement', 'counterpart_account_code' => '706', 'keywords' => ['prestation', 'service', 'honoraires']],
+            ['code' => 'reglement_client', 'label' => 'Règlement client (facture)', 'nature' => 'encaissement', 'counterpart_account_code' => '411', 'keywords' => ['règlement client', 'reglement client', 'paiement facture', 'virement client', 'encaissement facture']],
+            ['code' => 'apport_capital', 'label' => "Apport en capital / associé", 'nature' => 'encaissement', 'counterpart_account_code' => '101', 'keywords' => ['apport', 'capital', 'associé', 'associe', 'actionnaire']],
+            ['code' => 'emprunt_recu', 'label' => 'Emprunt / prêt bancaire reçu', 'nature' => 'encaissement', 'counterpart_account_code' => '164', 'keywords' => ['emprunt', 'prêt bancaire', 'pret bancaire', 'crédit reçu', 'credit recu']],
+            ['code' => 'virement_interne_in', 'label' => 'Virement interne (dépôt en banque / approvisionnement)', 'nature' => 'encaissement', 'counterpart_account_code' => '512', 'keywords' => ['virement interne', 'dépôt banque', 'depot banque', 'approvisionnement caisse']],
+            ['code' => 'autre_produit', 'label' => 'Autre produit divers', 'nature' => 'encaissement', 'counterpart_account_code' => '771', 'keywords' => ['divers', 'autre recette', 'produit exceptionnel']],
+
+            // Décaissements — l'argent sort : le compte de trésorerie est crédité.
+            ['code' => 'reglement_fournisseur', 'label' => 'Règlement fournisseur (facture)', 'nature' => 'decaissement', 'counterpart_account_code' => '401', 'keywords' => ['fournisseur', 'règlement fournisseur', 'reglement fournisseur', 'paiement facture achat']],
+            ['code' => 'achat_comptant', 'label' => 'Achat de marchandises au comptant', 'nature' => 'decaissement', 'counterpart_account_code' => '607', 'keywords' => ['achat comptant', 'achat marchandise']],
+            ['code' => 'paiement_salaire', 'label' => 'Paiement des salaires', 'nature' => 'decaissement', 'counterpart_account_code' => '641', 'keywords' => ['salaire', 'salaires', 'paie', 'paye']],
+            ['code' => 'charges_sociales', 'label' => 'Charges sociales (CNaPS / OSTIE)', 'nature' => 'decaissement', 'counterpart_account_code' => '645', 'keywords' => ['cnaps', 'ostie', 'charges sociales', 'cotisation']],
+            ['code' => 'loyer', 'label' => 'Loyer / location', 'nature' => 'decaissement', 'counterpart_account_code' => '613', 'keywords' => ['loyer', 'location']],
+            ['code' => 'assurance', 'label' => "Prime d'assurance", 'nature' => 'decaissement', 'counterpart_account_code' => '616', 'keywords' => ['assurance', 'prime assurance']],
+            ['code' => 'entretien_reparation', 'label' => 'Entretien et réparations', 'nature' => 'decaissement', 'counterpart_account_code' => '615', 'keywords' => ['entretien', 'réparation', 'reparation', 'maintenance']],
+            ['code' => 'telecom', 'label' => 'Frais postaux et télécommunications', 'nature' => 'decaissement', 'counterpart_account_code' => '626', 'keywords' => ['telma', 'orange', 'airtel', 'telephone', 'téléphone', 'internet', 'télécom', 'telecom']],
+            ['code' => 'frais_bancaires', 'label' => 'Frais et commissions bancaires', 'nature' => 'decaissement', 'counterpart_account_code' => '627', 'keywords' => ['frais bancaire', 'commission', 'agios', 'frais de tenue de compte']],
+            ['code' => 'impots_taxes', 'label' => 'Impôts et taxes', 'nature' => 'decaissement', 'counterpart_account_code' => '631', 'keywords' => ['impôt', 'impot', 'tva', 'irsa', 'taxe']],
+            ['code' => 'deplacement', 'label' => 'Déplacements et missions', 'nature' => 'decaissement', 'counterpart_account_code' => '625', 'keywords' => ['déplacement', 'deplacement', 'mission', 'transport', 'carburant']],
+            ['code' => 'virement_interne_out', 'label' => 'Virement interne (retrait vers caisse / mobile money)', 'nature' => 'decaissement', 'counterpart_account_code' => '512', 'keywords' => ['virement interne', 'retrait', 'retrait banque']],
+            ['code' => 'autre_charge', 'label' => 'Autre charge diverse', 'nature' => 'decaissement', 'counterpart_account_code' => '671', 'keywords' => ['divers', 'autre charge', 'charge exceptionnelle']],
+        ];
+
+        DB::table('acc_operation_templates')->insert(
+            array_map(fn ($t) => [
+                'code' => $t['code'],
+                'label' => $t['label'],
+                'nature' => $t['nature'],
+                'counterpart_account_code' => $t['counterpart_account_code'],
+                'keywords' => json_encode($t['keywords']),
+                'is_active' => true,
+                'company_id' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $templates)
+        );
     }
 }

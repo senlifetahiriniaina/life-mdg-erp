@@ -47,6 +47,8 @@ use Modules\Accounting\Http\Controllers\IntercompanyClearanceController;
 use Modules\Accounting\Http\Controllers\Api\BudgetVarianceController;
 use Modules\Accounting\Http\Controllers\Api\CostEngineController;
 use Modules\Accounting\Http\Controllers\Api\ScenarioPlanningController;
+use Modules\Accounting\Http\Controllers\Api\TreasuryImportController;
+use Modules\Accounting\Http\Controllers\Api\OperationTemplateController;
 
 // Webhooks (no auth required, signature validation only, rate limited)
 Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\Modules\Accounting\Http\Requests\HandleOpenBankingWebhookRequest $request) {
@@ -56,6 +58,7 @@ Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\M
 
 // Simple GET endpoints (1000 req/min)
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:simple_get'])->group(function () {
+    Route::get('operation-templates', [OperationTemplateController::class, 'index']);
     Route::get('invoices', [InvoiceController::class, 'index']);
     Route::get('invoices/summary', [InvoiceController::class, 'summary']);
     Route::get('invoices/aged-receivables', [InvoiceController::class, 'agedReceivables']);
@@ -193,6 +196,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::post('journal-entries', [JournalEntryApiController::class, 'store']);
     Route::post('journal-entries/{id}/post', [JournalEntryApiController::class, 'post']);
     Route::post('journal-entries/{id}/reverse', [JournalEntryApiController::class, 'reverse']);
+
+    // Treasury import — cash/bank operations with operation-template suggestions (Chantier 15)
+    Route::post('treasury-imports/preview', [TreasuryImportController::class, 'preview']);
+    Route::post('treasury-imports/commit', [TreasuryImportController::class, 'commit']);
 
     Route::post('chart-of-accounts', [ChartOfAccountController::class, 'store']);
     Route::put('chart-of-accounts/{chartOfAccount}', [ChartOfAccountController::class, 'update']);

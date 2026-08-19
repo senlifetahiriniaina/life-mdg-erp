@@ -14,6 +14,7 @@ use Modules\Accounting\Http\Controllers\Web\DepreciationPolicyWebController;
 use Modules\Accounting\Http\Controllers\Web\DepreciationScheduleWebController;
 use Modules\Accounting\Http\Controllers\Web\IntercompanyClearanceWebController;
 use Modules\Accounting\Http\Controllers\Web\ScenarioPlanningWebController;
+use Modules\Accounting\Http\Controllers\Web\TreasuryImportWebController;
 
 Route::middleware(['auth'])->group(function () {
     // Chantier 10 fix: rendered a nonexistent 'accounting::dashboard' Blade view (this module
@@ -55,4 +56,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('depreciation-schedules', [DepreciationScheduleWebController::class, 'index'])->name('depreciation-schedules.index');
     Route::get('intercompany-clearances', [IntercompanyClearanceWebController::class, 'index'])->name('intercompany-clearances.index');
     Route::get('scenario-planning', [ScenarioPlanningWebController::class, 'index'])->name('scenario-planning.index');
+    Route::get('treasury-import', [TreasuryImportWebController::class, 'index'])->name('treasury-import.index');
 });
