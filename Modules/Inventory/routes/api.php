@@ -17,6 +17,7 @@ use Modules\Inventory\Http\Controllers\Api\RmaController;
 use Modules\Inventory\Http\Controllers\Api\SeasonalFactorController;
 use Modules\Inventory\Http\Controllers\Api\ShipmentController;
 use Modules\Inventory\Http\Controllers\Api\StockMovementController;
+use Modules\Inventory\Http\Controllers\Api\StockImportController;
 use Modules\Inventory\Http\Controllers\Api\SupplierController;
 use Modules\Inventory\Http\Controllers\Api\TransferOrderController;
 use Modules\Inventory\Http\Controllers\Api\UnitController;
@@ -211,6 +212,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         // is an immutable audit-trail fact in this design, so those verbs
         // were dropped rather than stubbed; only 'store' is real.
         Route::apiResource('stock-movements', StockMovementController::class)->only(['store']);
+
+        // Chantier 16: cash/bank-style import for stock in/out — same shape
+        // as Accounting's treasury-imports (Chantier 15): preview() is
+        // read-only, commit() is the only endpoint that writes.
+        Route::post('stock-imports/preview', [StockImportController::class, 'preview']);
+        Route::post('stock-imports/commit', [StockImportController::class, 'commit']);
         Route::apiResource('lots', LotTrackingController::class)->only(['store', 'update', 'destroy']);
         Route::apiResource('picking-orders', PickingOrderController::class)->only(['store', 'update', 'destroy']);
         Route::apiResource('shipments', ShipmentController::class)->only(['store', 'update', 'destroy']);

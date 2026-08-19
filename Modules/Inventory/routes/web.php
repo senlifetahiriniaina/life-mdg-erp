@@ -17,6 +17,11 @@ Route::middleware(['auth', 'module:Inventory'])->group(function () {
     // never existed) — Stock/Movements.vue below already covers manual adjustments via
     // POST stock-movements {type: 'adjustment'}, so it was deleted rather than built.
     Route::get('/stock/movements', fn () => Inertia::render('Inventory/Stock/Movements'))->name('stock-movements');
+
+    // Chantier 16: cash/bank-import-style preview→commit page for stock in/out —
+    // self-contained axios-fetch page (warehouse picker + file upload + preview
+    // table), same Inertia::render() closure pattern as stock-movements above.
+    Route::get('/stock/import', fn () => Inertia::render('Inventory/Stock/Import'))->name('stock-import');
     Route::get('/reorder-automation', fn () => Inertia::render('Inventory/ReorderAutomation/Index'))->name('reorder-automation');
     Route::get('/demand-forecast', fn () => Inertia::render('Inventory/DemandForecast/Index'))->name('demand-forecast');
     Route::get('/marketplace-sync', fn () => Inertia::render('Inventory/MarketplaceSync/Index'))->name('marketplace-sync');

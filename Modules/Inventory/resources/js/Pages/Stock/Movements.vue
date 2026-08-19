@@ -13,11 +13,19 @@
             Track all inventory movements
           </p>
         </div>
-        <Button
-          icon="pi pi-plus"
-          label="New Movement"
-          @click="openNewMovementModal"
-        />
+        <div class="flex gap-2">
+          <Button
+            icon="pi pi-upload"
+            label="Importer"
+            outlined
+            @click="router.visit('/stock/import')"
+          />
+          <Button
+            icon="pi pi-plus"
+            label="New Movement"
+            @click="openNewMovementModal"
+          />
+        </div>
       </div>
 
       <!-- Filters -->
@@ -245,7 +253,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import Button from 'primevue/button'
 import Select from 'primevue/select'

@@ -53,7 +53,18 @@ class StockMovementController extends Controller
     {
         $this->authorize('create', StockMovement::class);
 
-        $movement = $this->service->recordStockMovement($request->validated());
+        // Was calling recordStockMovement(), a bare `StockMovement::create()`
+        // that only ever wrote the audit-trail row — every movement recorded
+        // through this endpoint (the real one Stock/Movements.vue posts to)
+        // silently never touched the product's actual on-hand quantity in
+        // `inventory_stock`. recordMovement() is the real, tested method that
+        // does both (with pessimistic locking) — only the barcode-scan flow
+        // (BarcodeController::stockMovement()) was ever calling it.
+        try {
+            $movement = $this->service->recordMovement($request->validated());
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return response()->json(new StockMovementResource($movement), 201);
     }
