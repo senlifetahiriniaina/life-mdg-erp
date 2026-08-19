@@ -16,7 +16,7 @@ uses(RefreshDatabase::class);
 test('default seed provides a working admin with every role', function () {
     $this->seed();
 
-    $admin = User::where('email', 'admin@lifemdg.com')->first();
+    $admin = User::where('email', 'admin@life-mdg.com')->first();
 
     expect($admin)->not->toBeNull();
     expect($admin->getRoleNames())->toHaveCount(Role::where('guard_name', 'web')->count());

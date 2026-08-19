@@ -16,13 +16,13 @@ class DatabaseSeeder extends Seeder
         $this->call(RolesAndPermissionsSeeder::class);
 
         // Chantier 12: default bootstrap admin — deliberately predictable
-        // credentials (admin@lifemdg.com / admin) so a fresh install always
+        // credentials (admin@life-mdg.com / admin) so a fresh install always
         // has a working first login, per explicit user request. This is a
         // real security tradeoff, not an oversight — see
         // docs/07-DEPLOIEMENT/CHECKLIST-GO-LIVE.md, which requires changing
         // this password before any real production go-live.
         $user = User::firstOrCreate(
-            ['email' => 'admin@lifemdg.com'],
+            ['email' => 'admin@life-mdg.com'],
             [
                 'name'     => 'Administrateur',
                 'password' => Hash::make('admin'),

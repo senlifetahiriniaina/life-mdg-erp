@@ -39,7 +39,7 @@ class DefaultDataSeeder extends Seeder
         // anchored against. Tenant-keyed off the bootstrap admin's own id,
         // matching the convention DatabaseSeeder already uses for
         // tenant_modules.
-        $admin = \App\Models\User::where('email', 'admin@lifemdg.com')->first();
+        $admin = \App\Models\User::where('email', 'admin@life-mdg.com')->first();
         if ($admin) {
             CompanyProfile::firstOrCreate(
                 ['tenant_id' => (string) $admin->id],

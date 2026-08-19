@@ -44,7 +44,7 @@ class DemoSeeder extends Seeder
         // no-op here) — kept in sync so this doesn't spawn a second, orphaned
         // admin@widehalo.com account.
         $admin = User::firstOrCreate(
-            ['email' => 'admin@lifemdg.com'],
+            ['email' => 'admin@life-mdg.com'],
             ['name' => 'Administrateur', 'password' => Hash::make('admin')]
         );
 
