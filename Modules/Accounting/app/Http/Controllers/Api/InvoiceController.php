@@ -110,9 +110,51 @@ class InvoiceController extends Controller
             }
         }
 
+        // `lines`/`line_items` aren't real Invoice columns (not in $fillable) — Invoice::create()
+        // silently drops them either way, so it's safe to leave them in $data here.
         $invoice = Invoice::create($data);
 
-        return (new InvoiceResource($invoice))->response()->setStatusCode(201);
+        // Chantier 19 re-verification: this loop was entirely missing — every invoice created
+        // through the real Invoices/Form.vue silently ended up with zero InvoiceLine rows
+        // despite the form always submitting a real `lines` array, the same silent
+        // line-item-data-loss bug pattern already found and fixed in Achats (Chantier 10).
+        // Confirmed empirically: lineItems()->count() was 0 after a real store() call with
+        // a real lines payload, before this fix.
+        $this->syncInvoiceLines($invoice, $lines);
+
+        return (new InvoiceResource($invoice->load('lineItems')))->response()->setStatusCode(201);
+    }
+
+    /**
+     * Replace an invoice's line items to match the given payload — delete-and-recreate,
+     * matching the same strategy already used for Achats PO/RFQ line edits (Chantier 10),
+     * since the frontend forms here don't track per-line ids reliably across edits either.
+     */
+    private function syncInvoiceLines(Invoice $invoice, array $lines): void
+    {
+        $invoice->lineItems()->delete();
+
+        foreach ($lines as $line) {
+            $qty = (float) ($line['quantity'] ?? $line['qty'] ?? 1);
+            $price = (float) ($line['unit_price'] ?? 0);
+            $taxRate = (float) ($line['tax_rate'] ?? 0);
+            $lineSubtotal = $qty * $price;
+            $lineTax = $lineSubtotal * ($taxRate / 100);
+
+            $invoice->lineItems()->create([
+                'description' => $line['description'] ?? null,
+                'quantity' => $qty,
+                'unit_price' => $price,
+                'tax_rate' => $taxRate,
+                // `tax_percent` is a second, separate column on acc_invoice_lines (only
+                // `tax_rate` is used by the API/Form/Show shape) that the PDF export blade
+                // template reads for display — kept in sync so the PDF isn't blank there.
+                'tax_percent' => $taxRate,
+                'subtotal' => $lineSubtotal,
+                'tax_amount' => $lineTax,
+                'total' => $lineSubtotal + $lineTax,
+            ]);
+        }
     }
 
     public function show(Invoice $invoice)
@@ -135,11 +177,39 @@ class InvoiceController extends Controller
             'due_date' => 'nullable|date',
             'invoice_date' => 'nullable|date',
             'status' => 'nullable|string|in:draft,sent,paid,overdue,cancelled',
+            // Chantier 19 re-verification: the real Invoices/Form.vue edit flow (PUT with a
+            // `lines` array, same shape as store()) had nothing here to receive it at all —
+            // an edited invoice's line-item changes were silently discarded on every save.
+            'lines' => 'nullable|array',
+            'lines.*' => 'array',
         ]);
+
+        $lines = $data['lines'] ?? null;
+        unset($data['lines']);
+
+        if ($lines !== null) {
+            $subtotal = 0;
+            $taxAmount = 0;
+            foreach ($lines as $line) {
+                $qty = (float) ($line['quantity'] ?? $line['qty'] ?? 1);
+                $price = (float) ($line['unit_price'] ?? 0);
+                $taxRate = (float) ($line['tax_rate'] ?? 0);
+                $lineSubtotal = $qty * $price;
+                $subtotal += $lineSubtotal;
+                $taxAmount += $lineSubtotal * ($taxRate / 100);
+            }
+            $data['subtotal'] = $data['subtotal'] ?? $subtotal;
+            $data['tax_amount'] = $data['tax_amount'] ?? $taxAmount;
+            $data['total'] = $data['total'] ?? ($subtotal + $taxAmount);
+        }
 
         $invoice->update(array_filter($data, fn ($v) => $v !== null));
 
-        return new InvoiceResource($invoice->fresh());
+        if ($lines !== null) {
+            $this->syncInvoiceLines($invoice, $lines);
+        }
+
+        return new InvoiceResource($invoice->fresh()->load('lineItems'));
     }
 
     public function updateStatus(Request $request, Invoice $invoice)

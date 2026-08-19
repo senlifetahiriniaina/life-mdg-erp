@@ -59,7 +59,34 @@ class SalesController extends Controller
             ->latest()
             ->paginate($perPage);
 
-        return response()->json($orders);
+        // Chantier 19 (Sales re-audit) fix: SalesIndex.vue's KPI cards read
+        // data.meta.{month_count,month_revenue,pending_count,delivered_count}
+        // from this exact response — empirically confirmed via a real HTTP
+        // call that a raw paginator's response()->json() never carried a
+        // 'meta' key at all (Laravel's default paginator JSON flattens
+        // pagination fields to the top level), so every KPI card on the
+        // Sales dashboard has always silently shown '0'/'0 XOF' regardless
+        // of real data. Additive — the pre-existing top-level pagination
+        // keys (current_page/per_page/total/last_page) two other tests
+        // assert on are left untouched.
+        $tenantOrders = SalesOrder::forTenant($tenantId);
+        $meta = [
+            'month_count'     => (clone $tenantOrders)
+                ->whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->count(),
+            'month_revenue'   => (float) (clone $tenantOrders)
+                ->whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->where('status', '!=', 'cancelled')
+                ->sum('total'),
+            'pending_count'   => (clone $tenantOrders)
+                ->whereIn('status', ['draft', 'confirmed', 'processing'])
+                ->count(),
+            'delivered_count' => (clone $tenantOrders)->where('status', 'delivered')->count(),
+        ];
+
+        return response()->json(array_merge($orders->toArray(), ['meta' => $meta]));
     }
 
     /**

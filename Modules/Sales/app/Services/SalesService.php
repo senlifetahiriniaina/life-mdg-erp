@@ -173,6 +173,19 @@ class SalesService
 
     /**
      * Convert an accepted quotation to a confirmed sales order.
+     *
+     * Chantier 19 (Sales re-audit) fix: SalesQuotation has no line items of
+     * its own (`sales_quotations` only carries a flat `total`, confirmed via
+     * schema+model audit — no lines()/items relation exists anywhere), but
+     * createOrder() computes the new order's subtotal/total purely from its
+     * `lines` array and ignores any 'total' passed in $data. Since this
+     * method never passed a `lines` key at all, every converted quotation
+     * silently produced a real order with $0 total and zero line items —
+     * empirically confirmed via a real HTTP round trip (a 75000 XOF
+     * quotation converted to a 0.00 XOF order with no lines). The quotation
+     * has no per-item breakdown to decompose, so the honest fix is a single
+     * synthetic line carrying the quotation's own total forward — not a
+     * guess, the same total the quotation itself already recorded.
      */
     public function convertQuotationToOrder(SalesQuotation $quotation): SalesOrder
     {
@@ -185,9 +198,13 @@ class SalesService
                 'tenant_id'  => $quotation->tenant_id,
                 'contact_id' => $quotation->contact_id,
                 'currency'   => $quotation->currency,
-                'total'      => $quotation->total,
                 'notes'      => $quotation->notes,
                 'created_by' => $quotation->created_by,
+                'lines'      => [[
+                    'description' => "Devis {$quotation->reference}",
+                    'quantity'    => 1,
+                    'unit_price'  => (float) $quotation->total,
+                ]],
             ]);
 
             $quotation->update([

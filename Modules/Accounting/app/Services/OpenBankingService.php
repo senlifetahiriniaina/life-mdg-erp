@@ -71,6 +71,14 @@ class OpenBankingService
 
     /**
      * Sync transactions from the provider for a connection.
+     *
+     * Chantier 19 re-verification: called BankReconciliationService::importTransactions(),
+     * a method that has never existed on that class — a guaranteed fatal "call to
+     * undefined method" on every real sync, confirmed empirically (500 on the exact
+     * `open-banking/sync/{connection}` endpoint BankReconciliation/Index.vue's
+     * "Synchroniser" button calls). The real, existing method with an equivalent shape
+     * is `importStatement(BankAccount, statementData, transactions)`, which creates a
+     * real BankStatement + BankTransaction rows — used instead.
      */
     public function syncTransactions(OpenBankingConnection $conn): int
     {
@@ -81,10 +89,18 @@ class OpenBankingService
             // Here we mock the Nordigen transactions endpoint.
             $transactions = $this->fetchTransactionsFromProvider($conn);
 
-            $count = $this->reconciliationService->importTransactions(
+            $this->reconciliationService->importStatement(
                 $bankAccount,
+                [
+                    'statement_date' => now()->toDateString(),
+                    'opening_balance' => (float) $bankAccount->current_balance,
+                    'closing_balance' => (float) $bankAccount->current_balance,
+                    'notes' => "Open Banking sync — {$conn->provider}",
+                ],
                 $transactions
             );
+
+            $count = count($transactions);
 
             OpenBankingSyncLog::create([
                 'connection_id' => $conn->id,

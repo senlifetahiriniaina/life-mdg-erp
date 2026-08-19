@@ -36,7 +36,12 @@ class OpportunityController extends Controller
         $sortDir = str_starts_with($sortParam, '-') ? 'desc' : 'asc';
         $sortCol = in_array(ltrim($sortParam, '-'), $allowedSorts) ? ltrim($sortParam, '-') : 'created_at';
 
+        // Chantier 19: index() had zero tenant scoping — any authenticated user of any
+        // company could list every other company's opportunities. crm_opportunities has no
+        // company_id column of its own; it carries tenant_id (added Chantier 10, populated
+        // from company_id at store() time — see below), so that's what's filtered on.
         $query = Opportunity::with('account', 'contact', 'owner', 'pipeline', 'territory')
+            ->where('tenant_id', $request->user()->company_id)
             ->when($request->pipeline_id, fn ($q, $v) => $q->where('pipeline_id', $v))
             ->when($request->stage, fn ($q, $v) => $q->where('stage', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
@@ -75,8 +80,11 @@ class OpportunityController extends Controller
         }
 
         // Eager load all relationships to avoid N+1
+        // Chantier 19: kanban() had zero tenant scoping — a pipeline is a shared, non-tenant
+        // resource, but the opportunities placed on its board are not.
         $opportunities = Opportunity::with('account', 'contact', 'owner', 'territory')
             ->where('pipeline_id', $pipelineId)
+            ->where('tenant_id', $request->user()->company_id)
             ->where('status', 'open')
             ->latest()
             ->limit($limit)
@@ -185,9 +193,12 @@ class OpportunityController extends Controller
         return response()->json(null, 204);
     }
 
-    public function pipeline(): JsonResponse
+    public function pipeline(Request $request): JsonResponse
     {
+        // Chantier 19: this aggregate had zero tenant scoping — every company's open-pipeline
+        // counts/amounts were summed together into one shared figure.
         $summary = Opportunity::selectRaw('stage, COUNT(*) as count, SUM(amount) as total_amount')
+            ->where('tenant_id', $request->user()->company_id)
             ->where('status', 'open')
             ->groupBy('stage')
             ->get()

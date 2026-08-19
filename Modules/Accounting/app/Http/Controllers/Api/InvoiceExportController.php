@@ -29,7 +29,11 @@ class InvoiceExportController extends Controller
      */
     public function pdf(Invoice $invoice): Response
     {
-        $invoice->load(['lines', 'createdBy', 'journal']);
+        // Chantier 19 re-verification: Invoice has no `lines()` relation at all (only
+        // `lineItems()`) — a guaranteed "Call to undefined relationship [lines]" fatal
+        // on every PDF download, confirmed empirically. This endpoint is linked directly
+        // from the real, routed Invoices/Index.vue page (the PDF icon on every row).
+        $invoice->load(['lineItems', 'createdBy', 'journal']);
 
         $pdf = Pdf::loadView('accounting.invoices.pdf', ['invoice' => $invoice])
             ->setPaper('a4', 'portrait');

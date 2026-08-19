@@ -4,6 +4,7 @@ namespace Modules\Accounting\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Accounting\Models\InvoiceLine;
 use Modules\Accounting\Services\AccountingService;
 
 /**
@@ -112,18 +113,68 @@ class ReportController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * "Lettrage" — customer/supplier account reconciliation. Was a literal stub
+     * (`return response()->json(['data' => [], 'total' => 0])`) despite the real,
+     * routed Lettrage.vue page calling this exact endpoint on every load, and despite
+     * `InvoiceLine` already carrying real `match_ref`/`matched_by`/`matched_at`
+     * columns clearly designed for this feature — confirmed empirically (Chantier 19
+     * re-verification) that the page always showed "Aucune ligne non lettrée trouvée"
+     * regardless of real unmatched data. Also fixes a second bug the stub was masking:
+     * the frontend does `const { data } = await axios.get(...); lines.value = data`
+     * — a bare array is expected, not the `{data:[], total:0}` envelope the stub
+     * returned (which would have rendered garbage the moment real rows existed).
+     */
     public function ledgerMatching(Request $request)
     {
-        return response()->json(['data' => [], 'total' => 0]);
+        $request->validate([
+            'account_code' => 'nullable|string',
+        ]);
+
+        $lines = InvoiceLine::query()
+            ->with(['invoice:id,number,type,partner_name,customer_name', 'account:id,code,name'])
+            ->whereNull('match_ref')
+            ->whereHas('invoice')
+            ->when($request->filled('account_code'), fn ($q) => $q->whereHas(
+                'account',
+                fn ($aq) => $aq->where('code', 'like', $request->string('account_code') . '%')
+            ))
+            ->latest('id')
+            ->limit(200)
+            ->get()
+            ->map(fn (InvoiceLine $line) => [
+                'id' => $line->id,
+                'invoice_type' => $line->invoice?->type,
+                'invoice_number' => $line->invoice?->number,
+                'partner_name' => $line->invoice?->partner_name ?: $line->invoice?->customer_name,
+                'account_code' => $line->account?->code,
+                'account_name' => $line->account?->name,
+                'description' => $line->description,
+                'total' => (float) $line->total,
+                'match_ref' => $line->match_ref,
+            ]);
+
+        return response()->json($lines);
     }
 
     public function ledgerMatch(Request $request)
     {
         $request->validate([
             'line_ids' => 'required|array|min:2',
-            'line_ids.*' => 'integer',
+            'line_ids.*' => 'integer|exists:acc_invoice_lines,id',
         ]);
-        return response()->json(['match_ref' => 'MATCH-' . uniqid()]);
+
+        $matchRef = 'MATCH-' . uniqid();
+
+        InvoiceLine::whereIn('id', $request->input('line_ids'))
+            ->whereNull('match_ref')
+            ->update([
+                'match_ref' => $matchRef,
+                'matched_by' => $request->user()?->id,
+                'matched_at' => now(),
+            ]);
+
+        return response()->json(['match_ref' => $matchRef]);
     }
 
     public function ledgerUnmatch(Request $request)
@@ -131,6 +182,10 @@ class ReportController extends Controller
         $request->validate([
             'match_ref' => 'required|string',
         ]);
+
+        InvoiceLine::where('match_ref', $request->string('match_ref'))
+            ->update(['match_ref' => null, 'matched_by' => null, 'matched_at' => null]);
+
         return response()->json(['message' => 'Unmatched successfully.']);
     }
 

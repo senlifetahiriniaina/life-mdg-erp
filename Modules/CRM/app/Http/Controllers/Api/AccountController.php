@@ -26,7 +26,11 @@ class AccountController extends Controller
             $sortCol = 'created_at';
         }
 
+        // Chantier 19: index() had zero tenant scoping — any authenticated user of any
+        // company could list every other company's accounts. Scoped to the caller's own
+        // company_id (new column, see the accompanying migration).
         $query = Account::with('owner')
+            ->where('company_id', $request->user()->company_id)
             ->when($request->search, fn ($q, $s) => $q->where('name', 'like', "%{$s}%")
                 ->orWhere('email', 'like', "%{$s}%"))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
@@ -57,7 +61,10 @@ class AccountController extends Controller
             'custom_fields' => ['nullable', 'array'],
         ]);
 
-        $account = Account::create(array_merge($validated, ['owner_id' => $request->user()->id]));
+        $account = Account::create(array_merge($validated, [
+            'owner_id' => $request->user()->id,
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json($account->load('owner'), 201);
     }

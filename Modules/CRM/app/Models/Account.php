@@ -14,6 +14,7 @@ use Modules\Core\Traits\RecordsActivity;
 /**
  * @property int $id
  * @property int|null $owner_id
+ * @property int|null $company_id
  * @property string $name
  * @property string|null $type
  * @property string|null $industry
@@ -43,7 +44,7 @@ class Account extends Model
     protected static string $auditModule = 'CRM';
 
     protected $fillable = [
-        'owner_id', 'name', 'type', 'industry', 'website', 'phone', 'email',
+        'owner_id', 'company_id', 'name', 'type', 'industry', 'website', 'phone', 'email',
         'employee_count', 'annual_revenue', 'currency', 'billing_address',
         'billing_city', 'billing_country', 'description', 'custom_fields',
         'status', 'revenue',

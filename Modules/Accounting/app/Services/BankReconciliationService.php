@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Accounting\Models\BankAccount;
 use Modules\Accounting\Models\BankStatement;
 use Modules\Accounting\Models\BankTransaction;
+use Modules\Accounting\Models\JournalEntry;
 use Modules\Accounting\Models\ReconciliationSession;
 
 class BankReconciliationService
@@ -124,20 +125,38 @@ class BankReconciliationService
      */
     private function rankCandidateMatches(BankTransaction $transaction): array
     {
-        $candidates = DB::table('acc_journal_entries')
-            ->whereBetween('amount', [
-                $transaction->amount * 0.95,  // 5% tolerance
-                $transaction->amount * 1.05,
-            ])
+        // Chantier 19 re-verification: this used to filter a raw DB::table('acc_journal_entries')
+        // query on its `amount` column — a legacy field the real, fixed (Chantier 15) posting
+        // path (JournalEntryApiController::store()) never populates at all (every real entry's
+        // true total only lives on its acc_journal_entry_lines rows). Confirmed empirically:
+        // auto-match against a real journal entry created via the real endpoint always returned
+        // matched_count=0, no exception, silently — the exact bug class this re-audit was
+        // scoped to hunt for. Also, DB::table() bypassed the model's `description`/`entry_date`
+        // casts, so the description-similarity scoring below was comparing raw ciphertext
+        // (`description` is an `encrypted` cast) rather than real text — fixed as a side effect
+        // of switching to Eloquent, which decrypts/casts normally.
+        $toleranceAbsAmount = abs($transaction->amount);
+
+        $candidates = JournalEntry::with('lines')
             ->whereDate('entry_date', '>=', $transaction->transaction_date->subDays(5))
             ->whereDate('entry_date', '<=', $transaction->transaction_date->addDays(5))
-            ->get();
+            ->get()
+            ->map(fn (JournalEntry $entry) => [
+                'entry'  => $entry,
+                // Debit side == credit side on any real balanced entry — sum the lines
+                // rather than trust the never-populated header `amount` column.
+                'amount' => (float) $entry->lines->sum('debit'),
+            ])
+            ->filter(fn (array $c) => $c['amount'] > 0
+                && $c['amount'] >= $toleranceAbsAmount * 0.95  // 5% tolerance
+                && $c['amount'] <= $toleranceAbsAmount * 1.05
+            );
 
         return $candidates
-            ->map(fn ($candidate) => [
-                'id'    => $candidate->id,
-                'score' => $this->calculateMatchScore($transaction, $candidate),
-                'entry' => $candidate,
+            ->map(fn (array $c) => [
+                'id'    => $c['entry']->id,
+                'score' => $this->calculateMatchScore($transaction, $c['entry'], $c['amount']),
+                'entry' => $c['entry'],
             ])
             ->sortByDesc('score')
             ->values()
@@ -167,11 +186,13 @@ class BankReconciliationService
      * Calculate composite match score (0-1) between transaction and journal entry.
      * Factors: amount tolerance (40%), date proximity (30%), description similarity (30%).
      */
-    private function calculateMatchScore(BankTransaction $transaction, object $candidate): float
+    private function calculateMatchScore(BankTransaction $transaction, object $candidate, ?float $candidateAmount = null): float
     {
+        $candidateAmount ??= (float) ($candidate->amount ?? 0);
+
         // Amount score: perfect match = 1.0, up to 5% variance = 0.8
-        $amountDiff = abs($transaction->amount - $candidate->amount);
-        $amountScore = max(0, 1.0 - ($amountDiff / $transaction->amount));
+        $amountDiff = abs(abs($transaction->amount) - $candidateAmount);
+        $amountScore = max(0, 1.0 - ($amountDiff / max(abs($transaction->amount), 0.01)));
 
         // Date score: same day = 1.0, 5 days apart = 0.0
         $dateDiff = abs($transaction->transaction_date->diffInDays($candidate->entry_date ?? now()));

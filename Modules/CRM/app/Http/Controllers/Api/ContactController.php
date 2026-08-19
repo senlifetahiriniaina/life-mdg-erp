@@ -42,9 +42,14 @@ class ContactController extends Controller
         }
 
         $version = Cache::get(self::CACHE_VERSION_KEY, 1);
+        // Chantier 19: the cache key never included company_id — filtering the query by
+        // company was not enough on its own, since Company B's request could still be served
+        // Company A's already-cached page from a shared cache key. Company id is now part of
+        // the key so the cache itself is tenant-scoped, not just the underlying query.
         $cacheKey = sprintf(
-            'crm.contacts.%d.p%d.s%s.o%s.pp%d',
+            'crm.contacts.%d.c%s.p%d.s%s.o%s.pp%d',
             $version,
+            $request->user()->company_id ?? '0',
             $request->get('page', 1),
             $request->get('status', ''),
             $request->get('owner_id', ''),
@@ -96,7 +101,13 @@ class ContactController extends Controller
             'custom_fields' => ['nullable', 'array'],
         ]);
 
-        $contact = Contact::create(array_merge($validated, ['owner_id' => $request->user()->id]));
+        $contact = Contact::create(array_merge($validated, [
+            'owner_id' => $request->user()->id,
+            // Chantier 19: never populated before — every real contact was created with no
+            // company_id, which is what let ContactController::index()'s new company scoping
+            // (and ContactPolicy's new sameCompany() check) be trivially bypassed by anyone.
+            'company_id' => $request->user()->company_id,
+        ]));
         $this->bustCache();
 
         return response()->json($contact->load('account', 'owner'), 201);
@@ -194,7 +205,13 @@ class ContactController extends Controller
     /** @return Builder<Contact> */
     private function buildQuery(Request $request): Builder
     {
+        // Chantier 19: index() had zero tenant scoping of any kind — any authenticated user
+        // of any company could list every other company's contacts. Scoped to the caller's
+        // own company_id, matching the ?? 0 sentinel convention already used elsewhere in
+        // this session (a contact/user with no real company_id are treated as the same
+        // "untagged" bucket rather than leaving NULL-vs-NULL ambiguous).
         return Contact::with('account', 'owner')
+            ->where('company_id', $request->user()->company_id)
             ->when($request->search, fn ($q, $s) => $q->where(function ($q) use ($s) {
                 $q->where('first_name', 'like', "%{$s}%")
                     ->orWhere('last_name', 'like', "%{$s}%")

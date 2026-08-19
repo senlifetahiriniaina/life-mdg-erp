@@ -361,6 +361,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::delete('open-banking/connections/{connection}', [AccOpenBankingController::class, 'destroyConnection']);
     Route::get('open-banking/transactions', [AccOpenBankingController::class, 'indexTransactions']);
     Route::patch('open-banking/transactions/{transaction}', [AccOpenBankingController::class, 'updateTransaction']);
+    // Chantier 19 re-verification: indexFeeds() is a real controller method (its own
+    // docblock even documents the intended route) but had zero route registered anywhere
+    // — the real, routed OpenBanking/Index.vue page calls exactly this URL from
+    // selectConnection(), so every "select connection" click 404'd and feeds/transactions
+    // never loaded, confirmed empirically before this fix.
+    Route::get('open-banking/feeds/{connection}', [AccOpenBankingController::class, 'indexFeeds']);
 
     // Bank Accounts
     Route::get('bank/summary', [BankAccountController::class, 'summary']);

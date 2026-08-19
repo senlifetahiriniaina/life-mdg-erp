@@ -34,6 +34,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('chart-of-accounts', [AccountingWebController::class, 'chartOfAccounts'])->name('chart-of-accounts.index');
     Route::get('expenses', [AccountingWebController::class, 'expenses'])->name('expenses.index');
 
+    // Chantier 19 re-verification: journalEntries()/currency()/openBanking()/lettrage()
+    // were fully written on AccountingWebController and render real Vue pages
+    // (Accounting/{JournalEntries/Index,Currency/Index,OpenBanking/Index,Lettrage}.vue),
+    // but none had ever had a web route registered anywhere — all four pages were
+    // 100% unreachable from the UI, confirmed via a repo-wide grep for any link/route()
+    // call pointing at them (none exist). Wired up now, matching the established
+    // URL-only-discoverability precedent (consolidation-hierarchies, SlaAutomation, etc).
+    Route::get('journal-entries', [AccountingWebController::class, 'journalEntries'])->name('journal-entries.index');
+    Route::get('currency', [AccountingWebController::class, 'currency'])->name('currency.index');
+    Route::get('open-banking', [AccountingWebController::class, 'openBanking'])->name('open-banking.index');
+    Route::get('lettrage', [AccountingWebController::class, 'lettrage'])->name('lettrage.index');
+
     // Chantier 18: AccountingWebController::balanceSheet()/incomeStatement()
     // existed and rendered real Vue pages, but had no web route anywhere —
     // both pages were entirely unreachable from the UI.

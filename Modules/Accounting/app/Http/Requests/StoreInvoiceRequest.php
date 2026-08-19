@@ -31,7 +31,14 @@ class StoreInvoiceRequest extends FormRequest
             'exchange_rate' => 'nullable|numeric|min:0',
             'subtotal' => 'nullable|numeric|min:0',
             'tax_amount' => 'nullable|numeric|min:0',
-            'total' => 'required_without:journal_id|numeric|min:0',
+            // Chantier 19 re-verification: was 'required_without:journal_id', but the real,
+            // routed Invoices/Form.vue (customer-style: customer_id + lines, no journal_id and
+            // no total — it relies on the server computing total from lines, which
+            // InvoiceController::store() already does) never sends `total` at all. Every real
+            // invoice creation through the UI 422'd on this rule before store()'s own
+            // line-total computation ever ran — confirmed empirically, not a hypothetical gap.
+            // Now only required when neither journal_id nor lines are present.
+            'total' => 'required_without_all:journal_id,lines|numeric|min:0',
             'amount_paid' => 'nullable|numeric|min:0',
             'amount_due' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',

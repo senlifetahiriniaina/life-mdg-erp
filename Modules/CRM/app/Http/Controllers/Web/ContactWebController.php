@@ -17,7 +17,13 @@ class ContactWebController extends Controller
 {
     public function index(Request $request): Response
     {
+        // Chantier 19: this Inertia web page rendered contacts straight from the model with
+        // zero tenant scoping — a second, entirely separate code path from ContactController's
+        // API index() (also fixed this chantier), reachable via the normal /crm/contacts page
+        // and previously leaking every company's contact list regardless of which fix landed
+        // on the API side.
         $contacts = Contact::with('account')
+            ->where('company_id', $request->user()->company_id)
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
                 $q->where('first_name', 'like', "%{$request->search}%")
                     ->orWhere('last_name', 'like', "%{$request->search}%")
@@ -43,8 +49,13 @@ class ContactWebController extends Controller
         ]);
     }
 
-    public function show(Contact $contact): Response
+    public function show(Request $request, Contact $contact): Response
     {
+        // Chantier 19: unlike the API's show(), this web action had zero authorize() call at
+        // all — any authenticated user could open any other company's contact detail page by
+        // guessing its id.
+        $this->authorize('view', $contact);
+
         $contact->load('account');
 
         return Inertia::render('CRM/Contacts/Show', [
@@ -73,7 +84,10 @@ class ContactWebController extends Controller
 
     public function leads(Request $request): Response
     {
+        // Chantier 19: same gap as index() above — zero tenant scoping on the web-rendered
+        // leads list.
         $leads = Lead::query()
+            ->where('company_id', $request->user()->company_id)
             ->with(['owner:id,name', 'contact:id,first_name,last_name'])
             ->when($request->filled('search'), fn ($q) => $q->where('title', 'like', "%{$request->search}%"))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
@@ -98,7 +112,10 @@ class ContactWebController extends Controller
 
     public function accounts(Request $request): Response
     {
+        // Chantier 19: same gap as index() above — zero tenant scoping on the web-rendered
+        // accounts list.
         $accounts = Account::query()
+            ->where('company_id', $request->user()->company_id)
             ->withCount('contacts')
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', "%{$request->search}%"))
             ->when($request->filled('industry'), fn ($q) => $q->where('industry', $request->industry))
@@ -136,6 +153,10 @@ class ContactWebController extends Controller
 
     public function editAccount(Account $account): Response
     {
+        // Chantier 19: no authorize() call at all — any authenticated user could open any
+        // other company's account edit form by guessing its id.
+        $this->authorize('update', $account);
+
         return Inertia::render('CRM/Accounts/Form', ['account' => $account]);
     }
 
@@ -143,13 +164,20 @@ class ContactWebController extends Controller
     {
         $validated = $this->validateAccount($request);
 
-        $account = Account::create(array_merge($validated, ['owner_id' => $request->user()->id]));
+        $account = Account::create(array_merge($validated, [
+            'owner_id' => $request->user()->id,
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return redirect('/crm/accounts/'.$account->id.'/edit')->with('success', 'Account created.');
     }
 
     public function updateAccount(Request $request, Account $account)
     {
+        // Chantier 19: no authorize() call at all — any authenticated user could submit this
+        // form against any other company's account id.
+        $this->authorize('update', $account);
+
         $account->update($this->validateAccount($request));
 
         return redirect('/crm/accounts')->with('success', 'Account updated.');

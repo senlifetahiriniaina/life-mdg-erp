@@ -79,7 +79,10 @@
     </tr>
   </thead>
   <tbody>
-    @forelse($invoice->lines as $i => $line)
+    {{-- Chantier 19 re-verification: Invoice's real relation is lineItems(), not lines()
+         (which doesn't exist on the model at all) — fixed alongside the same bug in
+         InvoiceExportController::pdf()'s eager-load. --}}
+    @forelse($invoice->lineItems as $i => $line)
     <tr>
       <td>{{ $i + 1 }}</td>
       <td>{{ $line->description }}</td>

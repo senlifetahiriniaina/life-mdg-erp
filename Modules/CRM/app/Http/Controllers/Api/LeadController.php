@@ -30,7 +30,11 @@ class LeadController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Chantier 19: index() had zero tenant scoping — any authenticated user of any
+        // company could list every other company's leads. Scoped to the caller's own
+        // company_id (crm_leads already carries the column).
         $query = Lead::with('owner', 'contact')
+            ->where('company_id', $request->user()->company_id)
             ->when($request->search, fn ($q, $s) => $q->where('title', 'like', "%{$s}%"))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->owner_id, fn ($q, $v) => $q->where('owner_id', $v));
@@ -72,6 +76,7 @@ class LeadController extends Controller
 
         $lead = Lead::create(array_merge($validated, [
             'owner_id' => $validated['owner_id'] ?? $request->user()->id,
+            'company_id' => $request->user()->company_id,
         ]));
 
         return response()->json($lead->load('owner', 'contact'), 201);

@@ -33,6 +33,22 @@ class InvoiceResource extends JsonResource
             'paid_at' => $this->paid_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            // Chantier 19 re-verification: never exposed here at all despite show()/index()
+            // eager-loading the relation and the real Invoices/Show.vue page reading
+            // `invoice.line_items` — the web page happens to work via $invoice->toArray()
+            // bypassing this resource entirely, but any real API consumer (or a future web
+            // page switched onto this resource) got nothing. Added now that lines are also
+            // actually persisted (see InvoiceController::store()/update()).
+            'line_items' => $this->whenLoaded('lineItems', fn () => $this->lineItems->map(fn ($line) => [
+                'id' => $line->id,
+                'description' => $line->description,
+                'quantity' => (float) $line->quantity,
+                'unit_price' => (float) $line->unit_price,
+                'tax_rate' => (float) $line->tax_rate,
+                'subtotal' => (float) $line->subtotal,
+                'tax_amount' => (float) $line->tax_amount,
+                'total' => (float) $line->total,
+            ])),
         ];
     }
 }

@@ -107,6 +107,13 @@ class RolesAndPermissionsSeeder extends Seeder
         // (turn a simulated line into a real order + journal entry), a
         // non-standard verb the generic MODULES/ACTIONS loop doesn't produce.
         'accounting.financial-simulation.realize',
+        // Chantier 19 re-verification — new CompanyPolicy (Modules\Accounting\Models\
+        // Company, the multi-entity consolidation-group model) checks 3 non-standard
+        // verbs the generic loop doesn't produce, reusing the already-seeded
+        // accounting.consolidation.* prefix.
+        'accounting.consolidation.generate-report',
+        'accounting.consolidation.record-transaction',
+        'accounting.consolidation.eliminate-intercompany',
     ];
 
     // Modules\CRM\Policies\{CampaignPolicy,WorkflowPolicy} check crm.{campaigns,workflows}.
