@@ -69,6 +69,10 @@ class DatabaseSeeder extends Seeder
         // sample dataset below — see DefaultDataSeeder's own docblock.
         $this->call(DefaultDataSeeder::class);
 
+        // Chantier 17: textile/clothing product-template catalogue — depends
+        // on the categories/units DefaultDataSeeder just created above.
+        $this->call(\Modules\Inventory\Database\Seeders\ProductTemplateSeeder::class);
+
         $this->call(DemoSeeder::class);
     }
 }

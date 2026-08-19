@@ -59,6 +59,13 @@ class AccountingDatabaseSeeder extends Seeder
 
             // Classe 3 — Comptes de stocks
             ['code' => '310', 'name' => 'Stocks de matières premières',         'type' => 'asset',      'is_active' => true],
+            // Chantier 17 — accessoires/fournitures (boutons, fermetures, fil,
+            // étiquettes) et en-cours de production (vêtements semi-finis)
+            // sont des concepts de stock distincts des matières premières
+            // brutes — même style pragmatique d'adaptation que 310/355/370
+            // (non un numéro SYSCOHADA officiel certifié, voir CLAUDE.md).
+            ['code' => '312', 'name' => "Stocks d'accessoires et fournitures",  'type' => 'asset',      'is_active' => true],
+            ['code' => '335', 'name' => 'Stocks en-cours (vêtements semi-finis)', 'type' => 'asset',    'is_active' => true],
             ['code' => '355', 'name' => 'Stocks de produits finis',             'type' => 'asset',      'is_active' => true],
             ['code' => '370', 'name' => 'Stocks de marchandises',               'type' => 'asset',      'is_active' => true],
             ['code' => '390', 'name' => 'Dépréciations des stocks MP',          'type' => 'asset',      'is_active' => true],
@@ -114,6 +121,11 @@ class AccountingDatabaseSeeder extends Seeder
             // ajoutés dans DefaultDataSeeder). Numérotation SYSCOHADA/PCG
             // standard (603x côté charges, 713x côté produits).
             ['code' => '6031', 'name' => 'Variation des stocks de matières premières', 'type' => 'expense', 'is_active' => true],
+            // Chantier 17 — mêmes comptes de compensation, pour les 2 nouvelles
+            // catégories de stock (312/335) ajoutées par ce chantier.
+            ['code' => '602', 'name' => "Achats d'accessoires et fournitures", 'type' => 'expense',    'is_active' => true],
+            ['code' => '6032', 'name' => "Variation des stocks d'accessoires et fournitures", 'type' => 'expense', 'is_active' => true],
+            ['code' => '6035', 'name' => 'Variation des stocks en-cours (vêtements semi-finis)', 'type' => 'expense', 'is_active' => true],
             ['code' => '6037', 'name' => 'Variation des stocks de marchandises', 'type' => 'expense',    'is_active' => true],
             ['code' => '607', 'name' => 'Achats de marchandises',               'type' => 'expense',    'is_active' => true],
             ['code' => '611', 'name' => 'Sous-traitance générale',              'type' => 'expense',    'is_active' => true],

@@ -278,3 +278,21 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
     Route::post('3pl/sync-inventory', [\Modules\Inventory\Http\Controllers\Api\FulfillmentController::class, 'syncInventory'])
         ->name('inventory.3pl.sync-inventory');
 });
+
+// ── Chantier 17: product templates (clothing-domain catalogue) + sourcing
+// price benchmarking (China/Europe suppliers vs internal catalogue) ────────
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
+    Route::get('product-templates', [\Modules\Inventory\Http\Controllers\Api\ProductTemplateController::class, 'index'])
+        ->name('inventory.product-templates.index');
+
+    Route::get('sourcing-benchmarks', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'index'])
+        ->name('inventory.sourcing-benchmarks.index');
+    Route::get('sourcing-benchmarks/compare/{product}', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'compare'])
+        ->name('inventory.sourcing-benchmarks.compare');
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('sourcing-benchmarks', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'store'])
+            ->name('inventory.sourcing-benchmarks.store');
+        Route::delete('sourcing-benchmarks/{sourcingBenchmark}', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'destroy'])
+            ->name('inventory.sourcing-benchmarks.destroy');
+    });
+});

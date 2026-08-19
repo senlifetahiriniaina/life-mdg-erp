@@ -6,9 +6,14 @@
         <span class="text-surface-400 dark:text-surface-500">/</span>
         <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">{{ product?.name }}</h1>
       </div>
-      <Link :href="`/inventory/products/${productId}/edit`" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-        Edit Product
-      </Link>
+      <div class="flex items-center gap-2">
+        <Link :href="`/inventory/benchmark?product_id=${productId}`" class="px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-700">
+          Comparer les prix
+        </Link>
+        <Link :href="`/inventory/products/${productId}/edit`" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          Edit Product
+        </Link>
+      </div>
     </div>
 
     <div v-if="product" class="grid grid-cols-3 gap-6">

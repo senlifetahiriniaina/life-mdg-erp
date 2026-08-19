@@ -6,6 +6,37 @@
       <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">{{ isEdit ? 'Edit Product' : 'Create Product' }}</h1>
     </div>
 
+    <div v-if="!isEdit" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+      <label for="template" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
+        Utiliser un template de produit (optionnel)
+      </label>
+      <select
+        id="template"
+        v-model="selectedTemplateId"
+        class="w-full px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        @change="applyTemplate"
+      >
+        <option :value="null">— Aucun template —</option>
+        <optgroup v-for="(label, family) in templateFamilies" :key="family" :label="label">
+          <option v-for="tpl in templatesByFamily[family] || []" :key="tpl.id" :value="tpl.id">
+            {{ tpl.name }}
+          </option>
+        </optgroup>
+      </select>
+      <p v-if="selectedTemplate" class="text-sm text-surface-600 dark:text-surface-400 mt-2">
+        Catégorie : <strong>{{ selectedTemplate.category?.name }}</strong>
+        <span v-if="selectedTemplate.category?.default_stock_account_code">
+          — Compte de stock suggéré : <strong>{{ selectedTemplate.category.default_stock_account_code }}</strong>
+        </span>
+        <span v-if="selectedTemplate.category?.default_purchase_account_code">
+          — Compte d'achat : <strong>{{ selectedTemplate.category.default_purchase_account_code }}</strong>
+        </span>
+        <span v-if="selectedTemplate.category?.default_sale_account_code">
+          — Compte de vente : <strong>{{ selectedTemplate.category.default_sale_account_code }}</strong>
+        </span>
+      </p>
+    </div>
+
     <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
       <form @submit.prevent="handleSubmit" class="space-y-6">
         <div class="grid grid-cols-2 gap-6">
@@ -149,6 +180,45 @@ const categories = ref([])
 const errors = ref({})
 const isEdit = computed(() => !!routeId.value)
 
+// Chantier 17 — product-template picker: pre-fills category/unit and shows
+// the category's suggested chart-of-accounts routing before the user
+// finishes filling in the rest of the form manually.
+const templates = ref([])
+const templateFamilies = ref({})
+const selectedTemplateId = ref(null)
+
+const templatesByFamily = computed(() => {
+  const grouped = {}
+  for (const tpl of templates.value) {
+    if (!grouped[tpl.family]) grouped[tpl.family] = []
+    grouped[tpl.family].push(tpl)
+  }
+  return grouped
+})
+
+const selectedTemplate = computed(() =>
+  templates.value.find(t => t.id === selectedTemplateId.value) ?? null
+)
+
+const applyTemplate = () => {
+  const tpl = selectedTemplate.value
+  if (!tpl) return
+
+  formData.value.category_id = tpl.category_id
+  if (tpl.unit?.name) formData.value.unit = tpl.unit.name
+  if (!formData.value.name) formData.value.name = tpl.name
+}
+
+const loadTemplates = async () => {
+  try {
+    const { data } = await axios.get('/api/v1/inventory/product-templates')
+    templates.value = data.data || []
+    templateFamilies.value = data.families || {}
+  } catch (error) {
+    console.error('Failed to load product templates:', error)
+  }
+}
+
 const formData = ref({
   sku: '',
   name: '',
@@ -205,6 +275,7 @@ const handleSubmit = async () => {
 
 onMounted(() => {
   loadCategories()
+  loadTemplates()
   if (isEdit.value) {
     loadProduct()
   }

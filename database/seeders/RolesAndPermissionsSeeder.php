@@ -353,7 +353,9 @@ class RolesAndPermissionsSeeder extends Seeder
         'payroll'          => ['payslip', 'run', 'tax-config'],
         'timesheets'       => ['timesheet', 'entry'],
         'projects'         => ['project', 'task'],
-        'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier'],
+        // Chantier 17: 'product-template' (clothing-domain catalogue) and
+        // 'sourcing-benchmark' (external price observations) added.
+        'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier', 'product-template', 'sourcing-benchmark'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier', 'purchaseorderline'],
         'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario'],
@@ -614,6 +616,10 @@ class RolesAndPermissionsSeeder extends Seeder
                 'inventory.warehouse.view-any', 'inventory.warehouse.view',
                 'inventory.category.view-any', 'inventory.category.view',
                 'inventory.unit.view-any', 'inventory.unit.view',
+                // Chantier 17 — useful when creating a product from a
+                // template while receiving stock; benchmark pricing is a
+                // purchasing/analyst concern, not extended here.
+                'inventory.product-template.view-any', 'inventory.product-template.view',
             ])
         ));
 

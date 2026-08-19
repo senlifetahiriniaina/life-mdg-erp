@@ -6,10 +6,14 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
 use Modules\Inventory\Models\Product;
+use Modules\Inventory\Models\ProductTemplate;
+use Modules\Inventory\Models\SourcingBenchmark;
 use Modules\Inventory\Models\Stock;
 use Modules\Inventory\Models\StockMovement;
 use Modules\Inventory\Models\Warehouse;
 use Modules\Inventory\Observers\ProductObserver;
+use Modules\Inventory\Policies\ProductTemplatePolicy;
+use Modules\Inventory\Policies\SourcingBenchmarkPolicy;
 use Modules\Inventory\Policies\StockMovementPolicy;
 use Modules\Inventory\Policies\StockPolicy;
 use Modules\Inventory\Policies\WarehousePolicy;
@@ -61,5 +65,8 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         Gate::policy(Warehouse::class, WarehousePolicy::class);
         Gate::policy(StockMovement::class, StockMovementPolicy::class);
         Gate::policy(Stock::class, StockPolicy::class);
+        // Chantier 17
+        Gate::policy(ProductTemplate::class, ProductTemplatePolicy::class);
+        Gate::policy(SourcingBenchmark::class, SourcingBenchmarkPolicy::class);
     }
 }

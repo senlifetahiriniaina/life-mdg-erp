@@ -44,4 +44,10 @@ Route::middleware(['auth', 'module:Inventory'])->group(function () {
     // Chantier 8.3: ChannelController (marketplace channel connections) was real and
     // routed at the API layer above with no page at all — new self-contained page.
     Route::get('/channels', fn () => Inertia::render('Inventory/Channels/Index'))->name('channels.index');
+
+    // Chantier 17: self-contained axios-fetch page (product picker + external
+    // price observations + internal-cost comparison), same Inertia::render()
+    // closure pattern as stock/movements above. Linked from Products/Show.vue
+    // ("Comparer les prix") with an optional ?product_id= preselection.
+    Route::get('/benchmark', fn () => Inertia::render('Inventory/Benchmark/Index'))->name('benchmark.index');
 });

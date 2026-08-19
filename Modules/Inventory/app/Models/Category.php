@@ -20,6 +20,12 @@ class Category extends Model
         'slug',
         'description',
         'image',
+        // Chantier 17 — chart-of-accounts routing suggested per category
+        // (account *codes*, not FK ids — see the migration docblock).
+        'default_stock_account_code',
+        'default_purchase_account_code',
+        'default_sale_account_code',
+        'default_variance_account_code',
     ];
 
     protected static function newFactory()
