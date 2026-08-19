@@ -27,7 +27,10 @@ class Kernel extends ConsoleKernel
         // Expire overdue tenant sandbox environments daily
         $schedule->command('core:expire-sandboxes')->daily();
 
-        // Daily database backup to S3 at 02:00 UTC
+        // Daily compressed database backup (data + schema manifest, see
+        // BackupDatabase/SchemaSnapshotService) at 02:00 UTC. --s3 forces
+        // S3 regardless of config('backup.disk') — matches this schedule's
+        // existing intent (daily backups always go off-box).
         $schedule->command('backup:database --s3')
             ->dailyAt('02:00')
             ->timezone('UTC')
@@ -48,8 +51,9 @@ class Kernel extends ConsoleKernel
         //     ->timezone('UTC')
         //     ->withoutOverlapping();
 
-        // Cleanup old backups (keep last 30 days)
-        $schedule->command('backup:cleanup --days=30')
+        // Cleanup old backups — retention now driven by config('backup.retention_days')
+        // (BACKUP_RETENTION_DAYS), not hardcoded here.
+        $schedule->command('backup:cleanup')
             ->dailyAt('03:00')
             ->timezone('UTC')
             ->withoutOverlapping();

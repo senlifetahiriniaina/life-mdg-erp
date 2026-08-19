@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\Storage;
 
 class BackupCleanup extends Command
 {
-    protected $signature = 'backup:cleanup {--days=30 : Number of days to retain backups}';
+    protected $signature = 'backup:cleanup {--days= : Number of days to retain backups (defaults to config(\'backup.retention_days\'))}';
     protected $description = 'Clean up old database backups';
 
     public function handle(): int
     {
         try {
-            $days = (int) $this->option('days');
+            $days = (int) ($this->option('days') ?? config('backup.retention_days', 30));
             $cutoffDate = now()->subDays($days);
 
             $this->info("Cleaning up backups older than {$days} days ({$cutoffDate->toDateString()})...");
@@ -43,7 +43,10 @@ class BackupCleanup extends Command
             return;
         }
 
-        $files = glob("{$backupDir}/*.sql.gz");
+        // Chantier 14: BackupDatabase now produces .zip archives (data + schema
+        // manifest) instead of bare .sql.gz — matches both patterns so backups
+        // made before this change still get cleaned up on schedule.
+        $files = array_merge(glob("{$backupDir}/*.zip"), glob("{$backupDir}/*.sql.gz"));
         $deletedCount = 0;
 
         foreach ($files as $file) {
