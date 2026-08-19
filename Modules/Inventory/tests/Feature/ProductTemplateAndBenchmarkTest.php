@@ -92,6 +92,106 @@ describe('Product Templates API (route + controller + RBAC layers)', function ()
     });
 });
 
+describe('Product Templates CRUD (Chantier 17b — editable/addable/removable, not just seeded defaults)', function () {
+    test('creates a new template', function () {
+        $category = Category::where('name', 'Matières premières')->firstOrFail();
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/v1/inventory/product-templates', [
+                'code' => 'mp-tissu-lin',
+                'name' => 'Tissu lin',
+                'family' => 'matiere_premiere',
+                'category_id' => $category->id,
+                'default_attributes' => ['composition' => '100% lin'],
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('inventory_product_templates', ['code' => 'mp-tissu-lin', 'name' => 'Tissu lin', 'is_active' => true]);
+    });
+
+    test('rejects a duplicate template code', function () {
+        $category = Category::where('name', 'Matières premières')->firstOrFail();
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/v1/inventory/product-templates', [
+                'code' => 'mp-tissu-coton',
+                'name' => 'Doublon',
+                'family' => 'matiere_premiere',
+                'category_id' => $category->id,
+            ])
+            ->assertStatus(422);
+    });
+
+    test('rejects an unknown family value', function () {
+        $category = Category::where('name', 'Matières premières')->firstOrFail();
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/v1/inventory/product-templates', [
+                'code' => 'mp-invalide',
+                'name' => 'Invalide',
+                'family' => 'not-a-real-family',
+                'category_id' => $category->id,
+            ])
+            ->assertStatus(422);
+    });
+
+    test('updates an existing template, including deactivating it', function () {
+        $template = ProductTemplate::where('code', 'mp-tissu-coton')->firstOrFail();
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->putJson("/api/v1/inventory/product-templates/{$template->id}", [
+                'code' => $template->code,
+                'name' => 'Tissu coton (renommé)',
+                'family' => $template->family,
+                'category_id' => $template->category_id,
+                'is_active' => false,
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('inventory_product_templates', [
+            'id' => $template->id,
+            'name' => 'Tissu coton (renommé)',
+            'is_active' => false,
+        ]);
+    });
+
+    test('a deactivated template is excluded from the default (active-only) listing but included with include_inactive=1', function () {
+        $template = ProductTemplate::where('code', 'mp-tissu-coton')->firstOrFail();
+        $template->update(['is_active' => false]);
+
+        $default = $this->actingAs($this->user, 'sanctum')->getJson('/api/v1/inventory/product-templates');
+        expect(collect($default->json('data'))->pluck('id'))->not->toContain($template->id);
+
+        $withInactive = $this->actingAs($this->user, 'sanctum')->getJson('/api/v1/inventory/product-templates?include_inactive=1');
+        expect(collect($withInactive->json('data'))->pluck('id'))->toContain($template->id);
+    });
+
+    test('deletes a template', function () {
+        $template = ProductTemplate::where('code', 'mp-tissu-coton')->firstOrFail();
+
+        $this->actingAs($this->user, 'sanctum')
+            ->deleteJson("/api/v1/inventory/product-templates/{$template->id}")
+            ->assertStatus(204);
+
+        $this->assertDatabaseMissing('inventory_product_templates', ['id' => $template->id]);
+    });
+
+    test('a role outside the Inventory route gate is denied creating/updating/deleting templates', function () {
+        $outsider = actingAsUser('sales-rep');
+        $category = Category::where('name', 'Matières premières')->firstOrFail();
+        $template = ProductTemplate::where('code', 'mp-tissu-coton')->firstOrFail();
+
+        $this->actingAs($outsider, 'sanctum')
+            ->postJson('/api/v1/inventory/product-templates', [
+                'code' => 'mp-nouveau', 'name' => 'Nouveau', 'family' => 'matiere_premiere', 'category_id' => $category->id,
+            ])->assertStatus(403);
+
+        $this->actingAs($outsider, 'sanctum')
+            ->deleteJson("/api/v1/inventory/product-templates/{$template->id}")
+            ->assertStatus(403);
+    });
+});
+
 describe('Sourcing Benchmark API (route + controller + model + sécurité + RBAC layers)', function () {
     test('records a price observation tied to a real catalogue product', function () {
         $product = Product::factory()->create(['currency' => 'MGA', 'cost_price' => 20000]);

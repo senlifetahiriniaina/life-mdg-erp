@@ -169,23 +169,50 @@ class ProductController extends Controller
         return ProductResource::collection($products);
     }
 
+    /**
+     * Chantier 17c — multi-warehouse audit found this endpoint (the one the
+     * real, live ReorderAutomation/Index.vue page actually calls — a
+     * separate, entirely dead `ReorderAutomationService` was found ignoring
+     * warehouses too, but it has zero callers anywhere in the app, so fixing
+     * it would have been wasted effort) always compared each warehouse's
+     * stock row against the *same global* `reorder_level`/`reorder_point`
+     * on `Product`, even though `Modules\Inventory\Models\ReorderRule`
+     * already models a real per-product-per-warehouse override
+     * (`min_level`) that was written but never read anywhere. Two
+     * warehouses with different sales velocity for the same product
+     * couldn't have different reorder points in practice, despite the
+     * schema already supporting it. Fixed by preferring an active
+     * `ReorderRule` for the exact (product, warehouse) pair when one
+     * exists, falling back to the product-level default otherwise.
+     */
     public function lowStockReport()
     {
-        $stocks = \Modules\Inventory\Models\Stock::with(['product'])
+        $stocks = \Modules\Inventory\Models\Stock::with(['product'])->get();
+
+        $rulesByProductAndWarehouse = \Modules\Inventory\Models\ReorderRule::active()
             ->get()
-            ->filter(function ($stock) {
-                $reorderLevel = (int) ($stock->product?->reorder_level ?? $stock->product?->reorder_point ?? 0);
-                return $reorderLevel > 0 && $stock->quantity < $reorderLevel;
+            ->keyBy(fn ($rule) => "{$rule->product_id}:{$rule->warehouse_id}");
+
+        $lowStock = $stocks
+            ->map(function ($stock) use ($rulesByProductAndWarehouse) {
+                $rule = $rulesByProductAndWarehouse->get("{$stock->product_id}:{$stock->warehouse_id}");
+                $reorderLevel = $rule
+                    ? (int) $rule->min_level
+                    : (int) ($stock->product?->reorder_level ?? $stock->product?->reorder_point ?? 0);
+
+                return [$stock, $reorderLevel, $rule !== null];
             })
+            ->filter(fn ($item) => $item[1] > 0 && $item[0]->quantity < $item[1])
             ->values();
 
         return response()->json([
-            'low_stock_items' => $stocks->map(fn ($s) => [
-                'product_id' => $s->product_id,
-                'product_name' => $s->product?->name,
-                'quantity' => (float) $s->quantity,
-                'reorder_level' => (int) ($s->product?->reorder_level ?? $s->product?->reorder_point ?? 0),
-                'warehouse_id' => $s->warehouse_id,
+            'low_stock_items' => $lowStock->map(fn ($item) => [
+                'product_id' => $item[0]->product_id,
+                'product_name' => $item[0]->product?->name,
+                'quantity' => (float) $item[0]->quantity,
+                'reorder_level' => $item[1],
+                'warehouse_id' => $item[0]->warehouse_id,
+                'from_warehouse_rule' => $item[2],
             ]),
         ]);
     }

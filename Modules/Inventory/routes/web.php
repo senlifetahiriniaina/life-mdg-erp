@@ -13,6 +13,11 @@ Route::middleware(['auth', 'module:Inventory'])->group(function () {
     Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
     Route::get('warehouses', [WarehouseController::class, 'index'])->name('warehouses.index');
 
+    // Chantier 17b: templates must be editable/addable/removable, not just
+    // the seeded defaults — self-contained axios-fetch modal-CRUD page,
+    // same pattern as categories.index above.
+    Route::get('/product-templates', fn () => Inertia::render('Inventory/ProductTemplates/Index'))->name('product-templates.index');
+
     // Chantier 8.3: stock-adjustments was a 100%-redundant scaffold (Index/Form/Show.vue
     // never existed) — Stock/Movements.vue below already covers manual adjustments via
     // POST stock-movements {type: 'adjustment'}, so it was deleted rather than built.

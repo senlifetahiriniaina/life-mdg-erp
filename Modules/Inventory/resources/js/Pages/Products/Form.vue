@@ -7,9 +7,14 @@
     </div>
 
     <div v-if="!isEdit" class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
-      <label for="template" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-        Utiliser un template de produit (optionnel)
-      </label>
+      <div class="flex items-center justify-between mb-2">
+        <label for="template" class="block text-sm font-medium text-surface-700 dark:text-surface-300">
+          Utiliser un template de produit (optionnel)
+        </label>
+        <Link href="/inventory/product-templates" class="text-sm text-primary-700 dark:text-primary-300 hover:underline">
+          Gérer les templates
+        </Link>
+      </div>
       <select
         id="template"
         v-model="selectedTemplateId"

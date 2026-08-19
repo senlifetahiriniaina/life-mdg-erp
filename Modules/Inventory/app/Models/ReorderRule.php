@@ -37,10 +37,23 @@ class ReorderRule extends Model
         return $query->where('status', 'active');
     }
 
+    /**
+     * Chantier 17c — was joining `inventory_products.quantity_on_hand`, a
+     * column that has never existed on that table (confirmed via
+     * Schema::hasColumn — stock quantity lives per-warehouse on
+     * `inventory_stock`, not as a flat column on Product) — a guaranteed
+     * SQL error the moment this scope was ever actually called (it wasn't,
+     * anywhere in the app, until now). Fixed to join the real per-(product,
+     * warehouse) stock row this rule is scoped to, matching what
+     * `warehouse_id` on this model is for in the first place.
+     */
     public function scopeNeedsReorder($query)
     {
         return $query->where('status', 'active')
-            ->join('inventory_products', 'inventory_reorder_rules.product_id', '=', 'inventory_products.id')
-            ->whereRaw('inventory_products.quantity_on_hand <= inventory_reorder_rules.min_level');
+            ->join('inventory_stock', function ($join) {
+                $join->on('inventory_reorder_rules.product_id', '=', 'inventory_stock.product_id')
+                    ->on('inventory_reorder_rules.warehouse_id', '=', 'inventory_stock.warehouse_id');
+            })
+            ->whereColumn('inventory_stock.quantity', '<=', 'inventory_reorder_rules.min_level');
     }
 }

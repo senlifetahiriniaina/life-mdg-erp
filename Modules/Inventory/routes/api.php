@@ -290,6 +290,15 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
     Route::get('sourcing-benchmarks/compare/{product}', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'compare'])
         ->name('inventory.sourcing-benchmarks.compare');
     Route::middleware('throttle:create_post')->group(function () {
+        // Chantier 17b: product templates must be editable/addable/removable,
+        // not just seeded defaults — full CRUD, gated by ProductTemplatePolicy.
+        Route::post('product-templates', [\Modules\Inventory\Http\Controllers\Api\ProductTemplateController::class, 'store'])
+            ->name('inventory.product-templates.store');
+        Route::match(['put', 'patch'], 'product-templates/{productTemplate}', [\Modules\Inventory\Http\Controllers\Api\ProductTemplateController::class, 'update'])
+            ->name('inventory.product-templates.update');
+        Route::delete('product-templates/{productTemplate}', [\Modules\Inventory\Http\Controllers\Api\ProductTemplateController::class, 'destroy'])
+            ->name('inventory.product-templates.destroy');
+
         Route::post('sourcing-benchmarks', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'store'])
             ->name('inventory.sourcing-benchmarks.store');
         Route::delete('sourcing-benchmarks/{sourcingBenchmark}', [\Modules\Inventory\Http\Controllers\Api\SourcingBenchmarkController::class, 'destroy'])

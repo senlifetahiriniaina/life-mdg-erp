@@ -13,11 +13,19 @@
             Organize your products into categories
           </p>
         </div>
-        <Button
-          icon="pi pi-plus"
-          label="New Category"
-          @click="openCreateModal"
-        />
+        <div class="flex gap-2">
+          <Button
+            icon="pi pi-th-large"
+            label="Templates de produits"
+            outlined
+            @click="router.visit('/inventory/product-templates')"
+          />
+          <Button
+            icon="pi pi-plus"
+            label="New Category"
+            @click="openCreateModal"
+          />
+        </div>
       </div>
 
       <!-- DataTable -->
@@ -146,7 +154,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
