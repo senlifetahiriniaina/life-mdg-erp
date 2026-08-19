@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Achats\Models\Supplier;
+use Modules\Inventory\Models\Product;
 use Modules\Setup\Models\CompanyProfile;
 use Spatie\Permission\Models\Role;
 
@@ -37,6 +38,29 @@ test('default seed provides a default company, customer, and supplier', function
     expect(Customer::where('name', 'Client par défaut')->exists())->toBeTrue();
     expect(Supplier::where('code', 'FOUR-DEFAUT')->exists())->toBeTrue();
     expect(CompanyProfile::where('country_code', 'MG')->exists())->toBeTrue();
+});
+
+test('default seed provides raw-material and finished-good products, and compensation accounts', function () {
+    $this->seed();
+
+    expect(Product::where('sku', 'MP-DEFAUT')->exists())->toBeTrue();
+    expect(Product::where('sku', 'PF-DEFAUT')->exists())->toBeTrue();
+    expect(Product::where('sku', 'MD-DEFAUT')->exists())->toBeTrue();
+    expect(Product::where('sku', 'SV-DEFAUT')->exists())->toBeTrue();
+
+    expect(DB::table('acc_chart_of_accounts')->where('code', '6031')->exists())->toBeTrue();
+    expect(DB::table('acc_chart_of_accounts')->where('code', '6037')->exists())->toBeTrue();
+    expect(DB::table('acc_chart_of_accounts')->where('code', '7135')->exists())->toBeTrue();
+});
+
+test('default company profile is configured as a VAT-exempt SARL', function () {
+    $this->seed();
+
+    $profile = CompanyProfile::where('country_code', 'MG')->first();
+
+    expect($profile)->not->toBeNull();
+    expect($profile->vat_exempt)->toBeTrue();
+    expect($profile->vat_number)->toBeNull();
 });
 
 test('import job splits a full_name mapping into first_name/last_name', function () {

@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $city
  * @property string|null $postal_code
  * @property string|null $vat_number
+ * @property bool         $vat_exempt
  * @property string|null $logo_path
  * @property array|null  $admin_profile
  * @property array|null  $modules_selected
@@ -56,6 +57,7 @@ class CompanyProfile extends Model
         'city',
         'postal_code',
         'vat_number',
+        'vat_exempt',
         'logo_path',
         'admin_profile',
         'modules_selected',
@@ -71,6 +73,7 @@ class CompanyProfile extends Model
         'workflows_config' => 'array',
         'apps_config' => 'array',
         'onboarding_completed' => 'boolean',
+        'vat_exempt' => 'boolean',
         'onboarding_completed_at' => 'datetime',
         'fiscal_year_start' => 'integer',
     ];

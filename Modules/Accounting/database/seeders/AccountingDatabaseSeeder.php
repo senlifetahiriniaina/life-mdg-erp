@@ -105,6 +105,15 @@ class AccountingDatabaseSeeder extends Seeder
 
             // Classe 6 — Comptes de charges
             ['code' => '601', 'name' => 'Achats de matières premières',         'type' => 'expense',    'is_active' => true],
+            // Comptes de compensation ("variation des stocks") — sans eux, un
+            // achat porté en 601/607 ne se réconcilie jamais avec le stock
+            // porté à l'actif (310/355/370) : ces comptes sont ce qui absorbe
+            // l'écart en fin de période (Chantier 13, sur la base des
+            // matières premières/produits finis/marchandises par défaut
+            // ajoutés dans DefaultDataSeeder). Numérotation SYSCOHADA/PCG
+            // standard (603x côté charges, 713x côté produits).
+            ['code' => '6031', 'name' => 'Variation des stocks de matières premières', 'type' => 'expense', 'is_active' => true],
+            ['code' => '6037', 'name' => 'Variation des stocks de marchandises', 'type' => 'expense',    'is_active' => true],
             ['code' => '607', 'name' => 'Achats de marchandises',               'type' => 'expense',    'is_active' => true],
             ['code' => '611', 'name' => 'Sous-traitance générale',              'type' => 'expense',    'is_active' => true],
             ['code' => '613', 'name' => 'Locations',                            'type' => 'expense',    'is_active' => true],
@@ -125,6 +134,7 @@ class AccountingDatabaseSeeder extends Seeder
 
             // Classe 7 — Comptes de produits
             ['code' => '701', 'name' => 'Ventes de produits finis',             'type' => 'revenue',    'is_active' => true],
+            ['code' => '7135', 'name' => 'Variation des stocks de produits finis', 'type' => 'revenue', 'is_active' => true],
             ['code' => '706', 'name' => 'Prestations de services',              'type' => 'revenue',    'is_active' => true],
             ['code' => '707', 'name' => 'Ventes de marchandises',               'type' => 'revenue',    'is_active' => true],
             ['code' => '708', 'name' => 'Produits des activités annexes',       'type' => 'revenue',    'is_active' => true],

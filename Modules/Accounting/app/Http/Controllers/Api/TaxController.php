@@ -207,9 +207,15 @@ class TaxController extends Controller
 
     public function storeEntries(Request $request): JsonResponse
     {
+        // Chantier 13: 'tax_rule_id'/'acc_tax_rules' matched neither
+        // TaxEntry::$fillable (the real column is 'tax_rate_id') nor any
+        // table that still exists — acc_tax_rules was dropped as dead
+        // scaffold in an earlier chantier (see CLAUDE.md). Every real call
+        // to this endpoint would have failed validation's exists: check
+        // with a SQL "table not found" error.
         $validated = $request->validate([
             'entries' => 'required|array',
-            'entries.*.tax_rule_id' => 'required|exists:acc_tax_rules,id',
+            'entries.*.tax_rate_id' => 'required|exists:acc_tax_rates,id',
             'entries.*.amount' => 'required|numeric|min:0',
             'entries.*.period' => 'required|string',
         ]);
