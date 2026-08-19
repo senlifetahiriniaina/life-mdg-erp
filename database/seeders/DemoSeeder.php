@@ -40,9 +40,12 @@ class DemoSeeder extends Seeder
     public function run(): void
     {
         // ── Demo users ─────────────────────────────────────────────────────────
+        // Same account DatabaseSeeder already created (firstOrCreate is a
+        // no-op here) — kept in sync so this doesn't spawn a second, orphaned
+        // admin@widehalo.com account.
         $admin = User::firstOrCreate(
-            ['email' => 'admin@widehalo.com'],
-            ['name' => 'Admin User', 'password' => Hash::make('Admin#Wh2025!')]
+            ['email' => 'admin@lifemdg.com'],
+            ['name' => 'Administrateur', 'password' => Hash::make('admin')]
         );
 
         $userDefs = [

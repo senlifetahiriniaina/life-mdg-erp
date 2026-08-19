@@ -5,6 +5,19 @@ namespace Modules\Accounting\Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Chantier 12: now actually wired into the live seed chain from
+ * database/seeders/DatabaseSeeder.php — previously only reachable via the
+ * broken TenantDefaultSeeder/ProvisionTenantJob path (see CLAUDE.md's
+ * "Known gaps"), so this 76-account SYSCOHADA-style chart of accounts was
+ * written but never actually seeded by `migrate --seed`.
+ *
+ * A handful of accounts below (431/437/447, 531/532) are labelled for
+ * Madagascar specifically (CNaPS/OSTIE/IRSA, Mvola/Airtel Money) rather than
+ * left as generic French SYSCOHADA placeholders — a pragmatic adaptation of
+ * the existing base, not a certified official PCG 2005 malgache reference;
+ * have an accountant review/adjust before real production bookkeeping.
+ */
 class AccountingDatabaseSeeder extends Seeder
 {
     public function run(): void
@@ -59,8 +72,14 @@ class AccountingDatabaseSeeder extends Seeder
             ['code' => '416', 'name' => 'Clients douteux ou litigieux',         'type' => 'asset',      'is_active' => true],
             ['code' => '419', 'name' => 'Clients créditeurs — Avances reçues',  'type' => 'liability',  'is_active' => true],
             ['code' => '421', 'name' => 'Personnel — Rémunérations dues',       'type' => 'liability',  'is_active' => true],
-            ['code' => '431', 'name' => 'Sécurité sociale',                     'type' => 'liability',  'is_active' => true],
-            ['code' => '437', 'name' => 'Autres organismes sociaux',            'type' => 'liability',  'is_active' => true],
+            // 431/437 relabellisés pour Madagascar (CNaPS = caisse de retraite/
+            // prévoyance sociale, OSTIE = organisme de santé au travail le plus
+            // répandu) — adaptation pragmatique de la base SYSCOHADA, pas une
+            // référence PCG 2005 malgache officielle certifiée ; à faire
+            // valider par un comptable avant tout usage en production réelle.
+            ['code' => '431', 'name' => 'CNaPS — Caisse Nationale de Prévoyance Sociale', 'type' => 'liability', 'is_active' => true],
+            ['code' => '437', 'name' => 'OSTIE — Organisme de santé au travail', 'type' => 'liability',  'is_active' => true],
+            ['code' => '447', 'name' => 'État — IRSA (impôt sur les revenus salariaux)', 'type' => 'liability', 'is_active' => true],
             ['code' => '441', 'name' => 'État — Subventions à recevoir',        'type' => 'asset',      'is_active' => true],
             ['code' => '444', 'name' => 'État — Impôts sur les bénéfices',      'type' => 'liability',  'is_active' => true],
             ['code' => '445', 'name' => 'État — Taxes sur le chiffre d\'affaires', 'type' => 'liability', 'is_active' => true],
@@ -78,6 +97,10 @@ class AccountingDatabaseSeeder extends Seeder
             ['code' => '512', 'name' => 'Banques',                              'type' => 'asset',      'is_active' => true],
             ['code' => '514', 'name' => 'Chèques postaux',                      'type' => 'asset',      'is_active' => true],
             ['code' => '530', 'name' => 'Caisse',                               'type' => 'asset',      'is_active' => true],
+            // Comptes mobile money — moyens de paiement réels listés pour MG
+            // dans Modules\Core\Services\SmartDefaultsService::COUNTRIES['MG'].
+            ['code' => '531', 'name' => 'Mvola (Telma)',                        'type' => 'asset',      'is_active' => true],
+            ['code' => '532', 'name' => 'Airtel Money',                         'type' => 'asset',      'is_active' => true],
             ['code' => '540', 'name' => 'Régies d\'avances et accréditifs',     'type' => 'asset',      'is_active' => true],
 
             // Classe 6 — Comptes de charges

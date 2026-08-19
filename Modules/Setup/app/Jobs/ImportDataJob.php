@@ -158,6 +158,19 @@ class ImportDataJob implements ShouldQueue
                 $hasValue = true;
             }
 
+            // Chantier 12: 'full_name' is a mapping-UI concept only — no
+            // target table (crm_contacts, hr_employees) has a full_name
+            // column, so bulkInsert()'s column-intersection filter silently
+            // dropped it on every import (the name was lost with no error).
+            // Split into the real columns instead of writing the phantom key.
+            if ($target === 'full_name') {
+                $normalised = $this->normaliseValue($target, $value);
+                [$firstName, $lastName] = $this->splitFullName((string) ($normalised ?? ''));
+                $result['first_name'] = $firstName;
+                $result['last_name']  = $lastName;
+                continue;
+            }
+
             $result[$target] = $this->normaliseValue($target, $value);
         }
 
@@ -198,6 +211,26 @@ class ImportDataJob implements ShouldQueue
 
             default => $value,
         };
+    }
+
+    /**
+     * Split a single "full name" cell into [first_name, last_name] — the
+     * shape crm_contacts/hr_employees actually store. A name with no space
+     * (or empty) becomes [name, ''] rather than dropping data outright.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function splitFullName(string $fullName): array
+    {
+        $fullName = trim($fullName);
+
+        if ($fullName === '') {
+            return ['', ''];
+        }
+
+        $parts = preg_split('/\s+/', $fullName, 2);
+
+        return [$parts[0], $parts[1] ?? ''];
     }
 
     private function normaliseNumeric(string $value): float|null

@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
@@ -14,15 +15,26 @@ class DatabaseSeeder extends Seeder
         // Roles and permissions must be seeded first (policies depend on them)
         $this->call(RolesAndPermissionsSeeder::class);
 
+        // Chantier 12: default bootstrap admin — deliberately predictable
+        // credentials (admin@lifemdg.com / admin) so a fresh install always
+        // has a working first login, per explicit user request. This is a
+        // real security tradeoff, not an oversight — see
+        // docs/07-DEPLOIEMENT/CHECKLIST-GO-LIVE.md, which requires changing
+        // this password before any real production go-live.
         $user = User::firstOrCreate(
-            ['email' => 'admin@widehalo.com'],
+            ['email' => 'admin@lifemdg.com'],
             [
-                'name'     => 'Admin User',
-                'password' => Hash::make('Admin#Wh2025!'),
+                'name'     => 'Administrateur',
+                'password' => Hash::make('admin'),
             ]
         );
 
-        $user->syncRoles(['super-admin']);
+        // Every seeded role, not just super-admin — super-admin already
+        // bypasses every Gate check (see Gate::before across this session's
+        // RBAC work), but several views/menus branch on a specific role name
+        // (hasRole('accountant'), etc.), so the bootstrap admin needs every
+        // role attached to actually see every department's screens.
+        $user->syncRoles(Role::where('guard_name', 'web')->pluck('name')->all());
 
         // Real Life MDG 27-module scope (see CLAUDE.md's scope table) — was a stale
         // 13-module list copied from WideHalo-ERP's old 47-module scope (mirrored the
@@ -44,7 +56,18 @@ class DatabaseSeeder extends Seeder
             );
         }
 
+        // Real chart of accounts (76 SYSCOHADA-style accounts, adapted for
+        // Madagascar) + default journals — previously written but never
+        // actually reachable from this seed chain (only wired through the
+        // broken TenantDefaultSeeder/ProvisionTenantJob path, see CLAUDE.md).
+        $this->call(\Modules\Accounting\Database\Seeders\AccountingDatabaseSeeder::class);
+
         $this->call(WorkflowDefinitionsSeeder::class);
+
+        // Chantier 12: minimal real-world defaults (company, customer,
+        // supplier) distinct from DemoSeeder's illustrative French/EUR
+        // sample dataset below — see DefaultDataSeeder's own docblock.
+        $this->call(DefaultDataSeeder::class);
 
         $this->call(DemoSeeder::class);
     }

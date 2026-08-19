@@ -2,6 +2,7 @@
 
 ## Avant le premier déploiement en production
 
+- [ ] **Le mot de passe du compte `admin@lifemdg.com` (`admin` par défaut, seedé par `DatabaseSeeder`) a été changé.** Ce compte a délibérément tous les rôles pour faciliter le démarrage (Chantier 12) — des identifiants aussi prévisibles ne doivent jamais rester actifs sur une instance réellement exposée en production.
 - [ ] Toutes les variables de `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md` "à changer impérativement" sont configurées
 - [ ] Les 6 secrets GitHub requis par `deploy.yml` sont configurés (`DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`)
 - [x] `scripts/smoke-tests.js` est écrit (Chantier 11 — voir `docs/07-DEPLOIEMENT/README.md`)
