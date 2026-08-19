@@ -20,121 +20,87 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  deploy:
-    name: Deploy to ${{ inputs.environment || 'production' }}
+  build-and-push:
+    name: Build and push image
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment || 'production' }}
-      url: ${{ steps.deploy.outputs.url }}
-
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          php-version: '8.3'
-          extensions: redis, mbstring, pdo, pdo_mysql, bcmath
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Composer Cache Directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+      - name: Compute image tag
+        id: meta
+        run: echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Composer Dependencies
-        uses: actions/cache@v6
+      - name: Build and push
+        uses: docker/build-push-action@v7
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Install Composer Dependencies
-        run: composer install --no-scripts --no-progress --prefer-dist --no-dev
+  deploy:
+    name: Deploy to ${{ inputs.environment || 'production' }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+      url: https://${{ secrets.DEPLOY_HOST }}
 
-      - name: Discover Packages
-        run: php artisan package:discover --ansi
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      - name: Install Node Dependencies
-        run: npm install
-
-      - name: Build Frontend Assets
-        run: npm run build
-
-      - name: Create Deployment Artifact
-        run: |
-          tar -czf life-mdg-erp-${{ github.sha }}.tar.gz \
-            --exclude=.git \
-            --exclude=node_modules \
-            --exclude=.env \
-            --exclude=.env.* \
-            --exclude=storage/logs \
-            --exclude=bootstrap/cache \
-            .
-
-      - name: Upload to Deployment Server
+    steps:
+      # docker-compose.prod.yml + Caddyfile must already exist on the target
+      # server from a prior `git clone` + `scripts/deploy.sh` run (see
+      # docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md) — this job re-pulls
+      # the freshly-built image and restarts the stack against the server's
+      # own .env, it does not provision a server from scratch.
+      - name: Deploy via SSH (docker compose pull + up)
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
         run: |
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          scp -i ~/.ssh/deploy_key life-mdg-erp-${{ github.sha }}.tar.gz \
-            $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/releases/
-
-      - name: Execute Deployment
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-
-          ssh -i ~/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "IMAGE_TAG='$IMAGE_TAG' IMAGE_REF='$IMAGE_REF' DEPLOY_PATH='$DEPLOY_PATH' bash -s" << 'EOF'
             set -e
-            cd ${{ secrets.DEPLOY_PATH }}
+            cd "$DEPLOY_PATH"
 
-            # Enable maintenance mode
-            php artisan down
+            git pull --ff-only
+            docker pull "$IMAGE_REF"
+            docker tag "$IMAGE_REF" "life-mdg-erp:$IMAGE_TAG"
+            IMAGE_TAG="$IMAGE_TAG" docker compose -f docker-compose.prod.yml up -d --no-build
+            docker compose -f docker-compose.prod.yml exec -T app php artisan migrate --force
+            docker compose -f docker-compose.prod.yml exec -T app php artisan cache:clear
+            docker compose -f docker-compose.prod.yml exec -T app php artisan view:clear
+            docker compose -f docker-compose.prod.yml exec -T app php artisan route:clear
 
-            # Extract new release
-            mkdir -p releases/${{ github.sha }}
-            tar -xzf releases/life-mdg-erp-${{ github.sha }}.tar.gz -C releases/${{ github.sha }}
-
-            # Install dependencies
-            cd releases/${{ github.sha }}
-            composer install --no-scripts --no-dev
-            php artisan package:discover --ansi
-
-            # Run migrations
-            php artisan migrate --force
-
-            # Clear caches
-            php artisan cache:clear
-            php artisan view:clear
-            php artisan route:clear
-
-            # Switch symlink
-            rm ../current || true
-            ln -s releases/${{ github.sha }} ../current
-
-            # Cleanup old releases (keep last 5)
-            cd ../releases
-            ls -t | tail -n +6 | xargs -r rm -rf
-
-            # Disable maintenance mode
-            php artisan up
+            # Garde le tag précédent taggé "previous" pour le rollback ci-dessous.
+            docker tag "life-mdg-erp:$IMAGE_TAG" life-mdg-erp:previous 2>/dev/null || true
           EOF
 
       - name: Health Check
@@ -208,18 +174,14 @@ jobs:
           echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          ssh -i ~/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
-            cd ${{ secrets.DEPLOY_PATH }}
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' bash -s" << 'EOF'
+            set -e
+            cd "$DEPLOY_PATH"
 
-            # Get previous release
-            PREVIOUS=$(ls -t releases/ | head -2 | tail -1)
-
-            # Switch back
-            rm current || true
-            ln -s releases/$PREVIOUS current
-
-            # Restart app
-            php artisan up
+            # "previous" a été taggé par le job deploy juste avant de basculer
+            # sur la nouvelle image — on repointe simplement dessus.
+            IMAGE_TAG=previous docker compose -f docker-compose.prod.yml up -d --no-build
           EOF
 
       - name: Notify Rollback

@@ -8,8 +8,10 @@ Voir `.env.example` pour la liste complète et les valeurs de démarrage. Points
 |---|---|---|
 | `APP_ENV` | `local` | `production` |
 | `APP_DEBUG` | `true` | `false` (ne jamais exposer de stack trace en production) |
-| `APP_KEY` | vide | `php artisan key:generate` |
+| `APP_KEY` | vide | `php artisan key:generate` (fait automatiquement par `scripts/deploy.sh` à la première installation) |
+| `APP_DOMAIN` | vide | **Obligatoire** pour `scripts/deploy.sh` (Docker Compose + Caddy) — le nom de domaine public de l'application, utilisé par Caddy pour obtenir le certificat SSL Let's Encrypt. Voir `docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md`. |
 | `DB_PASSWORD` | `secret` | Mot de passe fort, géré via secret manager |
+| `DB_ROOT_PASSWORD` | vide | **Obligatoire** pour `scripts/deploy.sh` — mot de passe root MySQL du conteneur `mysql` de `docker-compose.prod.yml` (différent de `DB_PASSWORD`, non lu par Laravel lui-même). |
 | `DB_SSL_CA` / `DB_SSL_VERIFY` | vide / `true` | Configurer un certificat TLS pour la connexion base de données |
 | `METRICS_TOKEN` | vide | Token long aléatoire — l'endpoint `/api/metrics` **fail-closed** si vide en production (aucune valeur par défaut n'est acceptée) |
 | `CORS_ALLOWED_ORIGINS` | vide | Domaines autorisés explicites — jamais `*` (rejeté de toute façon si `credentials` est actif) |

@@ -16,6 +16,8 @@
 
 **Tous les checks sauf `deploy.yml` sont informationnels** (`continue-on-error: true`) — voir `docs/09-RBAC-SECURITE/SECURITE.md` pour la justification de ce choix. Le workflow `mobile-release.yml` présent dans Widehalo-ERP a été retiré : life-mdg-erp n'a pas de module Mobile dans son périmètre de 27 modules.
 
+**Pour déployer, voir en premier lieu le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md)** — ce README documente les workflows CI/CD et l'état de chaque brique ; le guide simple donne la marche à suivre complète (DNS, `.env`, `scripts/deploy.sh`) en une page.
+
 ### Validation effectuée
 
 Chaque workflow a été corrigé pour fonctionner avec la structure réelle de life-mdg-erp (composer.json/package.json à la racine, pas de dossier `webapp/` ni `apps/`, pas de split multi-dépôt) — ces fichiers étaient copiés tels quels depuis Widehalo-ERP au moment de l'extraction et référençaient des chemins inexistants ici. La validation a inclus l'observation de runs réels sur GitHub Actions (pas seulement une relecture du YAML, y compris un déclenchement manuel des workflows à cron pour les exercer avant tout merge), ce qui a permis de détecter plusieurs échecs invisibles jusqu'ici (masqués par `continue-on-error: true` ou jamais exécutés avant cette validation) :
@@ -27,23 +29,28 @@ Chaque workflow a été corrigé pour fonctionner avec la structure réelle de l
 
 ## Docker
 
-`Dockerfile` à la racine — build multi-étapes (`php:8.4-fpm` en base). `docker-build.yml` valide que l'image build sur chaque changement pertinent, sans la publier vers un registre.
+`Dockerfile` à la racine — build multi-étapes (`php:8.5-fpm` en base). `docker-build.yml` valide que l'image build sur chaque changement pertinent (Dockerfile, `docker-compose.{deepseek,redis,prod}.yml`, `Caddyfile`), sans la publier vers un registre sur les push vers les branches de travail (le push réel vers `ghcr.io` n'a lieu que dans `deploy.yml`, voir ci-dessous).
 
-**Le build Docker ne peut pas aboutir en l'état** : le `Dockerfile` copie `docker/supervisor.conf`, `docker/php.ini`, `docker/php-fpm.conf` et `docker/health-check.php`, mais ce dossier `docker/` n'existe dans aucun des deux dépôts (Widehalo-ERP source compris — ce n'est donc pas un oubli de portage, c'est un `Dockerfile` jamais réellement construit avec succès, même dans le dépôt source). Les autres erreurs bloquantes du build (COPY de `.widehalo-core`, supprimé lors de l'extraction ; COPY de `composer.lock`/`package-lock.json`, gitignorés ; `npm ci --only=prod`, syntaxe npm obsolète) ont été corrigées. Écrire les 4 fichiers `docker/*` manquants (configuration PHP-FPM, supervisor, script de health-check) est un vrai travail d'infrastructure à part entière — non traité ici, tracké dans `CLAUDE.md` sous "Known gaps".
+**Le build Docker fonctionne** — `docker/{supervisor.conf,php.ini,php-fpm.conf,health-check.php}` sont des fichiers réels (voir `CLAUDE.md` "Known gaps" pour l'historique de leur mise en place), confirmé par des runs CI réels, pas seulement un lint local.
 
-## Déploiement en production (`deploy.yml`)
+## Déploiement en production — Docker Compose + Caddy (chemin officiel)
 
-Déploiement par tar+SSH (pas de conteneur en production malgré la présence d'un `Dockerfile` — celui-ci sert à la validation CI, pas au déploiement) :
+**Voir le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md) pour la marche à suivre complète.** Résumé de l'architecture :
 
-1. Build (`composer install --no-dev`, `npm run build`)
-2. Archive tar de l'application (exclut `.git`, `node_modules`, `.env*`, `storage/logs`, `bootstrap/cache`)
-3. Transfert SCP vers le serveur cible
-4. Extraction, `php artisan migrate --force`, bascule du symlink `current` vers la nouvelle release, purge des anciennes releases (garde les 5 dernières)
-5. Vérification santé (`GET /api/health`), notification Slack
+- `docker-compose.prod.yml` (racine) lance 6 services : `app` (php-fpm), `queue` (worker), `scheduler` (cron interne), `mysql`, `redis`, et `caddy` (reverse-proxy + certificat SSL Let's Encrypt automatique, seul service exposé sur les ports 80/443).
+- `scripts/deploy.sh` orchestre le déploiement en une commande depuis un clone frais : construction de l'image, démarrage de la stack, migrations, vérification santé.
+- `Caddyfile` définit le seul bloc de configuration nécessaire (`php_fastcgi` vers le service `app`) — Caddy gère lui-même l'obtention/le renouvellement du certificat SSL, aucune étape certbot manuelle.
 
-**Secrets requis** (non fournis dans ce dépôt, à configurer dans les paramètres GitHub du dépôt) : `DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`.
+## Déploiement continu (`deploy.yml`)
 
-**Prérequis non encore présents dans ce dépôt** : le job `post-deploy-tests` de `deploy.yml` appelle `node scripts/smoke-tests.js`, qui n'existe pas encore (`scripts/` n'a pas été porté depuis Widehalo-ERP). Ce script devra être écrit avant la première utilisation réelle de `deploy.yml` — voir `docs/07-DEPLOIEMENT/CHECKLIST-GO-LIVE.md`.
+Sur push vers `main`/tag `v*.*.*`, ou déclenchement manuel :
+
+1. Build de l'image Docker (`Dockerfile` racine) et push vers `ghcr.io/<repo>:<sha>` + `:latest`.
+2. Connexion SSH au serveur cible (qui doit déjà avoir été initialisé une première fois via `scripts/deploy.sh`, voir le guide simple) : `git pull`, `docker pull` de la nouvelle image, `docker compose -f docker-compose.prod.yml up -d --no-build` (redémarre les conteneurs sur la nouvelle image sans reconstruire sur le serveur), migrations.
+3. Vérification santé (`GET /api/health`) + tests de fumée (`scripts/smoke-tests.js`), notification Slack.
+4. En cas d'échec après déploiement : `rollback` repointe automatiquement sur l'image précédente (taguée `previous` par le job `deploy`).
+
+**Secrets requis** (non fournis dans ce dépôt, à configurer dans les paramètres GitHub du dépôt) : `DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`. `DEPLOY_PATH` doit pointer vers le répertoire du clone déjà initialisé sur le serveur (celui où `scripts/deploy.sh` a été lancé la première fois).
 
 ## Runbook de migration
 

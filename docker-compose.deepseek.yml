@@ -1,9 +1,9 @@
 # DeepSeek auto-hébergé (Ollama) — service optionnel pour le module IA
 #
-# Fichier dédié et isolé plutôt que fusionné dans un compose applicatif
-# général (qui n'existe pas encore à la racine, cf. CLAUDE.md "Known gaps" —
-# seul setup/docker-compose.yml existe, gabarit hérité de l'architecture
-# split de Widehalo-ERP). Lancer indépendamment :
+# Fichier dédié et isolé plutôt que fusionné dans docker-compose.prod.yml
+# (la stack de production réelle, voir docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md) —
+# ce provider IA auto-hébergé est optionnel, non requis par défaut. Lancer
+# indépendamment :
 #
 #   docker compose -f docker-compose.deepseek.yml up -d
 #

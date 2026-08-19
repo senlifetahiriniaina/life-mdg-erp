@@ -1,0 +1,26 @@
+# Reverse-proxy de production — sert public/ en statique, relaie le reste vers
+# php-fpm (service "app", port 9000, cf. docker-compose.prod.yml). Caddy
+# obtient et renouvelle automatiquement un certificat SSL Let's Encrypt pour
+# {$APP_DOMAIN} dès qu'il reçoit du trafic HTTPS valide — aucune configuration
+# ACME manuelle n'est nécessaire, c'est le comportement par défaut de l'image
+# caddy:2-alpine dès qu'un nom de domaine public (pas une IP ni "localhost")
+# est utilisé.
+#
+# Repli local/test : si APP_DOMAIN vaut "localhost" ou une adresse IP, Caddy
+# sert automatiquement en HTTP simple (pas de certificat possible pour ces
+# valeurs) — pratique pour un test de la stack sans domaine public résolvable,
+# voir docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md.
+
+{$APP_DOMAIN} {
+	# Caddy (ce conteneur) voit public/ sous /srv/public (volume app_public),
+	# tandis que php-fpm (conteneur "app") le voit sous /app/public — le
+	# `root` imbriqué dans php_fastcgi indique le chemin tel que le backend
+	# FastCGI le résout, distinct du `root` racine ci-dessus qui sert au
+	# file_server de Caddy pour les fichiers statiques.
+	root * /srv/public
+	encode gzip
+	php_fastcgi app:9000 {
+		root /app/public
+	}
+	file_server
+}

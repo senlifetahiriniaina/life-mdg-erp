@@ -4,7 +4,9 @@
 
 - [ ] Toutes les variables de `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md` "à changer impérativement" sont configurées
 - [ ] Les 6 secrets GitHub requis par `deploy.yml` sont configurés (`DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`)
-- [ ] `scripts/smoke-tests.js` est écrit (référencé par `deploy.yml` mais absent de ce dépôt — voir `docs/07-DEPLOIEMENT/README.md`)
+- [x] `scripts/smoke-tests.js` est écrit (Chantier 11 — voir `docs/07-DEPLOIEMENT/README.md`)
+- [ ] `APP_DOMAIN`/`DB_ROOT_PASSWORD` configurés dans `.env` sur le serveur cible, DNS de `APP_DOMAIN` vérifié propagé (`dig +short $APP_DOMAIN`) — voir `docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md`
+- [ ] `scripts/deploy.sh` exécuté avec succès une première fois sur le serveur cible (initialise `DEPLOY_PATH` pour `deploy.yml`)
 - [ ] `php artisan migrate:fresh --seed` s'exécute sans erreur sur une base de données de type production (MySQL, pas SQLite)
 - [ ] `vendor/bin/pest` passe (les échecs pré-existants documentés dans `CLAUDE.md` sous "Known gaps" sont acceptés comme backlog, pas comme bloquants — mais aucun échec *nouveau* ne doit apparaître)
 - [ ] `npm run build && npm run type-check` sans erreur

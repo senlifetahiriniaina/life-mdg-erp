@@ -1,9 +1,10 @@
 # Redis — service optionnel encapsulant le cache/session/queue/tenancy Redis
 #
-# Fichier dédié et isolé, même convention que docker-compose.deepseek.yml
-# (pas fusionné dans un compose applicatif général, qui n'existe pas encore
-# à la racine — cf. CLAUDE.md "Known gaps", seul setup/docker-compose.yml
-# existe). Lancer indépendamment :
+# Fichier dédié et isolé, même convention que docker-compose.deepseek.yml —
+# pratique pour un usage dev/CI isolé (publie le port 6379 sur l'hôte).
+# La stack de production réelle (docker-compose.prod.yml, voir
+# docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md) définit son propre
+# service Redis, volontairement sans port publié. Lancer indépendamment :
 #
 #   docker compose -f docker-compose.redis.yml up -d
 #

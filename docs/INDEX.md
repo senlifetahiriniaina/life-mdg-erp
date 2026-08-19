@@ -59,6 +59,7 @@ Un fichier deep-dive par module gardé (27), groupés comme dans `CLAUDE.md` :
 
 ## 07 — Déploiement
 
+- [**Guide de déploiement simple (clone → HTTPS en une commande)**](07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md)
 - [Vue d'ensemble (CI/CD, Docker, déploiement production)](07-DEPLOIEMENT/README.md)
 - [Variables d'environnement — production](07-DEPLOIEMENT/ENV-PRODUCTION.md)
 - [Checklist go-live](07-DEPLOIEMENT/CHECKLIST-GO-LIVE.md)

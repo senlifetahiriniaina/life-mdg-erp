@@ -1,0 +1,183 @@
+# Stack de production — app + file d'attente + planificateur + MySQL + Redis +
+# Caddy (reverse-proxy avec certificat SSL Let's Encrypt automatique).
+#
+# Fichier autonome, prêt à l'emploi avec `scripts/deploy.sh` (voir
+# docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md pour le guide complet). Ce
+# fichier construit l'image depuis le `Dockerfile` racine, déjà validée par
+# `docker-build.yml` en CI — voir CLAUDE.md "Known gaps".
+#
+# MySQL et Redis ne publient volontairement AUCUN port sur l'hôte (contrairement
+# à docker-compose.redis.yml, prévu pour un usage dev/CI isolé) : dans cette
+# stack de production, seuls les conteneurs du même réseau Docker y accèdent
+# (via les noms de service `mysql`/`redis`), donc rien ne doit être exposé sur
+# Internet. Caddy est le seul service qui publie des ports (80/443).
+#
+# Le service `app-publish` copie `public/` (déjà buildé dans l'image au moment
+# du `docker build`, cf. Dockerfile) vers un volume nommé partagé, en root,
+# avant que `app`/`caddy` ne démarrent — Caddy sert ces fichiers statiques
+# directement et ne relaie vers php-fpm que les requêtes PHP (voir Caddyfile).
+# Ce détour est nécessaire parce que l'image ne déclare pas `public/` comme
+# volume : sans lui, Caddy n'aurait aucun moyen de lire les fichiers construits
+# dans l'image de l'application.
+
+services:
+  app-publish:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["mkdir -p /shared/public && cp -r /app/public/. /shared/public/"]
+    volumes:
+      - app_public:/shared/public
+    networks:
+      - life-mdg-erp
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      app-publish:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+    volumes:
+      - storage_data:/app/storage/app
+    healthcheck:
+      test: ["CMD", "php", "/app/docker/health-check.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - life-mdg-erp
+
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
+    depends_on:
+      app-publish:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+    volumes:
+      - storage_data:/app/storage/app
+    networks:
+      - life-mdg-erp
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
+    depends_on:
+      app-publish:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+    volumes:
+      - storage_data:/app/storage/app
+    networks:
+      - life-mdg-erp
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-life_mdg_erp}
+      MYSQL_USER: ${DB_USERNAME:-life_mdg}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - life-mdg-erp
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - life-mdg-erp
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      app-publish:
+        condition: service_completed_successfully
+      app:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - app_public:/srv/public:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - life-mdg-erp
+
+volumes:
+  app_public:
+  storage_data:
+  mysql_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  life-mdg-erp:
+    driver: bridge
