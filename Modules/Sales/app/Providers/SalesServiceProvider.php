@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Sales\Console\Commands\GenerateRecurringOrdersCommand;
 use Modules\Sales\Models\SalesOrder;
 use Modules\Sales\Policies\SalesOrderPolicy;
+use Modules\Sales\Services\RecurringOrderService;
 use Modules\Sales\Services\SalesService;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
@@ -43,19 +46,32 @@ class SalesServiceProvider extends ServiceProvider
     {
         $this->app->register(RouteServiceProvider::class);
         $this->app->singleton(SalesService::class);
+        $this->app->singleton(RecurringOrderService::class);
     }
 
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            GenerateRecurringOrdersCommand::class,
+        ]);
     }
 
+    /**
+     * Chantier 25 (volet E) — même mécanisme déjà éprouvé pour
+     * Modules\Analytics ('forecasting:nightly') et Modules\Helpdesk
+     * ('helpdesk:check-sla-breaches'): hooker Schedule::class directement
+     * via callAfterResolving() dans le ServiceProvider du module,
+     * indépendamment du binding du Kernel racine — confirmé fonctionner
+     * par `php artisan schedule:list` pour ces deux précédents.
+     */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('inspire')->hourly();
-        // });
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('sales:generate-recurring-orders')
+                ->name('sales:generate-recurring-orders')
+                ->dailyAt('06:00')
+                ->withoutOverlapping();
+        });
     }
 
     public function registerTranslations(): void

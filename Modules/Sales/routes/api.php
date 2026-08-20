@@ -60,6 +60,20 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:S
 
     Route::post('sales/quotations/{id}/convert', [SalesController::class, 'convertQuotation'])
         ->name('sales.quotations.convert');
+
+    // ─── Chantier 25 (volet E) — commandes récurrentes ────────────────────────
+    Route::get('sales/recurring-order-templates', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'index'])
+        ->name('sales.recurring-order-templates.index');
+    Route::get('sales/recurring-order-templates/{id}', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'show'])
+        ->name('sales.recurring-order-templates.show');
+    Route::post('sales/recurring-order-templates', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'store'])
+        ->name('sales.recurring-order-templates.store');
+    Route::match(['put', 'patch'], 'sales/recurring-order-templates/{id}', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'update'])
+        ->name('sales.recurring-order-templates.update');
+    Route::delete('sales/recurring-order-templates/{id}', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'destroy'])
+        ->name('sales.recurring-order-templates.destroy');
+    Route::post('sales/recurring-order-templates/{id}/run', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'runNow'])
+        ->name('sales.recurring-order-templates.run');
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────

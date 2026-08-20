@@ -22,4 +22,9 @@ Route::middleware(['web', 'auth', 'module:Sales'])->group(function () {
     // this repo's self-fetch routes.
     Route::get('/sales/orders/{id}', fn ($id) => Inertia::render('Sales/Orders/Show', ['orderId' => (int) $id]))
         ->name('sales.orders.show');
+
+    // Chantier 25 (volet E) — commandes récurrentes, self-fetch page,
+    // même précédent que SalesIndex.vue.
+    Route::get('/sales/recurring-orders', fn () => Inertia::render('Sales/RecurringOrders/Index'))
+        ->name('sales.recurring-orders.index');
 });
