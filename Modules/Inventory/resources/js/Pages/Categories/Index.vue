@@ -21,6 +21,12 @@
             @click="router.visit('/inventory/product-templates')"
           />
           <Button
+            icon="pi pi-calculator"
+            label="Fiches de chiffrage"
+            outlined
+            @click="router.visit('/inventory/costing-sheets')"
+          />
+          <Button
             icon="pi pi-plus"
             label="New Category"
             @click="openCreateModal"

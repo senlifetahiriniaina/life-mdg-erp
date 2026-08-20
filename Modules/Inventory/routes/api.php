@@ -305,3 +305,21 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
             ->name('inventory.sourcing-benchmarks.destroy');
     });
 });
+
+// ── Chantier 21: costing sheets (fiche de chiffrage / BOM devis) ──────────
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
+    Route::get('costing-sheets', [\Modules\Inventory\Http\Controllers\Api\CostingSheetController::class, 'index'])
+        ->name('inventory.costing-sheets.index');
+    Route::get('costing-sheets/{costingSheet}', [\Modules\Inventory\Http\Controllers\Api\CostingSheetController::class, 'show'])
+        ->name('inventory.costing-sheets.show');
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('costing-sheets', [\Modules\Inventory\Http\Controllers\Api\CostingSheetController::class, 'store'])
+            ->name('inventory.costing-sheets.store');
+        Route::match(['put', 'patch'], 'costing-sheets/{costingSheet}', [\Modules\Inventory\Http\Controllers\Api\CostingSheetController::class, 'update'])
+            ->name('inventory.costing-sheets.update');
+        Route::delete('costing-sheets/{costingSheet}', [\Modules\Inventory\Http\Controllers\Api\CostingSheetController::class, 'destroy'])
+            ->name('inventory.costing-sheets.destroy');
+        Route::post('costing-sheets/{costingSheet}/duplicate', [\Modules\Inventory\Http\Controllers\Api\CostingSheetController::class, 'duplicate'])
+            ->name('inventory.costing-sheets.duplicate');
+    });
+});

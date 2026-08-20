@@ -96,8 +96,9 @@ Un module complet de gestion des achats, du référencement fournisseur jusqu'à
 - **Analyse des dépenses (Spend Analytics)** : répartition des dépenses par fournisseur et par mois, suivi des factures fournisseurs en retard.
 - **Catalogue de templates de produits** : bibliothèque de modèles de produits pré-configurés par famille (matières premières, accessoires, produits semi-finis, produits finis), avec routage comptable suggéré à la création.
 - **Veille des prix fournisseurs** : journal de comparaison entre le coût interne d'un article et les prix observés chez différents fournisseurs de référence, avec historique et tendance mensuelle — utile pour objectiver une négociation ou une décision de sourcing.
+- **Fiche de chiffrage (nomenclature de coût)** : reproduit dans l'application le calcul de devis fait à la main pour un produit sur mesure (vêtement, EPI…) — matière, accessoires de montage, accessoires de finition, valeur ajoutée (impression, broderie), main-d'œuvre (temps de gamme × coût minute) et frais fixes, chaque ligne pouvant être libellée dans sa propre devise (converti automatiquement). Le coût de revient et un prix de vente suggéré (marge cible) sont recalculés et figés à chaque enregistrement, et une fiche déjà envoyée au client peut être dupliquée en nouvelle révision sans jamais modifier l'original — utile quand le client demande une modification après un premier chiffrage.
 
-**Comment on l'utilise :** un service achats crée ses demandes de prix, compare les offres reçues, transforme la meilleure en commande, suit la réception physique des marchandises et garde une vision consolidée de ses dépenses fournisseurs.
+**Comment on l'utilise :** un service achats crée ses demandes de prix, compare les offres reçues, transforme la meilleure en commande, suit la réception physique des marchandises et garde une vision consolidée de ses dépenses fournisseurs ; l'équipe avant-vente chiffre un nouveau produit sur mesure à partir d'un template et obtient un prix de vente proposé en quelques minutes au lieu d'un calcul Excel manuel.
 
 ---
 

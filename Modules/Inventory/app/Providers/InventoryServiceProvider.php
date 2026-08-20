@@ -5,6 +5,7 @@ namespace Modules\Inventory\Providers;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
+use Modules\Inventory\Models\CostingSheet;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\ProductTemplate;
 use Modules\Inventory\Models\SourcingBenchmark;
@@ -12,6 +13,7 @@ use Modules\Inventory\Models\Stock;
 use Modules\Inventory\Models\StockMovement;
 use Modules\Inventory\Models\Warehouse;
 use Modules\Inventory\Observers\ProductObserver;
+use Modules\Inventory\Policies\CostingSheetPolicy;
 use Modules\Inventory\Policies\ProductTemplatePolicy;
 use Modules\Inventory\Policies\SourcingBenchmarkPolicy;
 use Modules\Inventory\Policies\StockMovementPolicy;
@@ -68,5 +70,7 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         // Chantier 17
         Gate::policy(ProductTemplate::class, ProductTemplatePolicy::class);
         Gate::policy(SourcingBenchmark::class, SourcingBenchmarkPolicy::class);
+        // Chantier 21
+        Gate::policy(CostingSheet::class, CostingSheetPolicy::class);
     }
 }

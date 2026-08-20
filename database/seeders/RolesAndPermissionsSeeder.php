@@ -366,7 +366,8 @@ class RolesAndPermissionsSeeder extends Seeder
         'projects'         => ['project', 'task'],
         // Chantier 17: 'product-template' (clothing-domain catalogue) and
         // 'sourcing-benchmark' (external price observations) added.
-        'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier', 'product-template', 'sourcing-benchmark'],
+        // Chantier 21: 'costing-sheet' (fiche de chiffrage / BOM devis) added.
+        'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier', 'product-template', 'sourcing-benchmark', 'costing-sheet'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier', 'purchaseorderline'],
         'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario', 'financial-simulation'],

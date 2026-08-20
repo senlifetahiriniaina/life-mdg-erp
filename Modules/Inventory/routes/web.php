@@ -55,4 +55,12 @@ Route::middleware(['auth', 'module:Inventory'])->group(function () {
     // closure pattern as stock/movements above. Linked from Products/Show.vue
     // ("Comparer les prix") with an optional ?product_id= preselection.
     Route::get('/benchmark', fn () => Inertia::render('Inventory/Benchmark/Index'))->name('benchmark.index');
+
+    // Chantier 21: fiche de chiffrage (BOM devis) — self-contained
+    // axios-fetch list + form pages, same pattern as product-templates above.
+    // /create must be registered before /{costingSheet}/edit so it isn't
+    // swallowed as a numeric-looking route parameter.
+    Route::get('/costing-sheets', fn () => Inertia::render('Inventory/CostingSheets/Index'))->name('costing-sheets.index');
+    Route::get('/costing-sheets/create', fn () => Inertia::render('Inventory/CostingSheets/Form'))->name('costing-sheets.create');
+    Route::get('/costing-sheets/{costingSheet}/edit', fn ($costingSheet) => Inertia::render('Inventory/CostingSheets/Form', ['costingSheetId' => (int) $costingSheet]))->name('costing-sheets.edit');
 });

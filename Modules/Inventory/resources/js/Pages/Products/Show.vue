@@ -10,6 +10,9 @@
         <Link :href="`/inventory/benchmark?product_id=${productId}`" class="px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-700">
           Comparer les prix
         </Link>
+        <Link href="/inventory/costing-sheets/create" class="px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-700">
+          Nouvelle fiche de chiffrage
+        </Link>
         <Link :href="`/inventory/products/${productId}/edit`" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           Edit Product
         </Link>
