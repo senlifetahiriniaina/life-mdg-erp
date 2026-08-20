@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Head, router } from '@inertiajs/vue3'
+import { ref, reactive } from 'vue'
+import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
 
 interface Carrier { id: number; name: string; type: string }
 interface Shipment {
@@ -14,7 +16,14 @@ interface Shipment {
 }
 interface Paginated<T> { data: T[]; total: number; current_page: number; last_page: number; per_page: number }
 
-defineProps<{ carriers: Carrier[] }>()
+const props = defineProps<{ carriers: Carrier[] }>()
+
+// Chantier 19 Lot 4: this page's mutating fetch() calls (create) sent no
+// CSRF token at all — same fix pattern as Carriers/Index.vue, confirmed
+// empirically via a real php artisan serve + login session (419 without it).
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
 
 const shipments = ref<Paginated<Shipment>>({ data: [], total: 0, current_page: 1, last_page: 1, per_page: 20 })
 const loading   = ref(false)
@@ -104,6 +113,103 @@ function reset() {
 
 const onPageChange = (e: { page: number }) => load(e.page + 1)
 
+// Chantier 19 Lot 4: "Nouvelle expédition" and "Voir" both router.visit()'d
+// to /logistics/shipments/create and /logistics/shipments/{id} — neither
+// route nor page has ever existed anywhere in this app (confirmed via
+// `php artisan route:list` + a repo-wide Glob), a guaranteed 404 on every
+// click despite the real, already-tested ShipmentController store()/show()/
+// book()/dispatch()/deliver()/cancel() API existing. Fixed with a compact
+// inline create modal and a detail modal exposing the real lifecycle
+// actions (matching Carriers/DeliveryRounds precedent) — this is the TMS
+// Shipment (Modules\Logistics\Models\Shipment), a distinct, richer concept
+// from Inventory's own carrier-shipping Shipment, already documented
+// elsewhere as legitimately separate, not a duplicate.
+const showFormModal = ref(false)
+const savingShipment = ref(false)
+const shipmentForm = reactive({
+  carrier_id: null as number | null, type: null as string | null, transport_mode: null as string | null,
+  consignee_name: '', consignee_country: '', weight_kg: '',
+})
+const shipmentErrors = reactive<Record<string, string>>({})
+
+function openCreateShipment() {
+  shipmentForm.carrier_id = null
+  shipmentForm.type = null
+  shipmentForm.transport_mode = null
+  shipmentForm.consignee_name = ''
+  shipmentForm.consignee_country = ''
+  shipmentForm.weight_kg = ''
+  Object.keys(shipmentErrors).forEach(k => delete shipmentErrors[k])
+  showFormModal.value = true
+}
+
+async function submitShipmentForm() {
+  savingShipment.value = true
+  Object.keys(shipmentErrors).forEach(k => delete shipmentErrors[k])
+  try {
+    const res = await fetch('/api/v1/logistics/shipments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        ...shipmentForm,
+        weight_kg: shipmentForm.weight_kg ? Number(shipmentForm.weight_kg) : null,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      if (data.errors) Object.assign(shipmentErrors, data.errors)
+      return
+    }
+    showFormModal.value = false
+    load(shipments.value.current_page)
+  } finally {
+    savingShipment.value = false
+  }
+}
+
+const showDetailModal = ref(false)
+const detailLoading = ref(false)
+const detailShipment = ref<any>(null)
+const detailActionLoading = ref(false)
+
+async function viewShipment(shipment: Shipment) {
+  showDetailModal.value = true
+  detailLoading.value = true
+  detailShipment.value = null
+  try {
+    const res = await fetch(`/api/v1/logistics/shipments/${shipment.id}`, {
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+    if (res.ok) {
+      const json = await res.json()
+      detailShipment.value = json.data ?? json
+    }
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function runShipmentAction(action: 'book' | 'dispatch' | 'deliver' | 'cancel') {
+  if (!detailShipment.value) return
+  detailActionLoading.value = true
+  try {
+    const res = await fetch(`/api/v1/logistics/shipments/${detailShipment.value.id}/${action}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+      credentials: 'same-origin',
+    })
+    if (res.ok) {
+      const json = await res.json()
+      detailShipment.value = json.data ?? json
+      load(shipments.value.current_page)
+    }
+  } finally {
+    detailActionLoading.value = false
+  }
+}
+
 load()
 </script>
 
@@ -116,7 +222,7 @@ load()
         <p class="wh-page-subtitle">{{ shipments.total }} expédition{{ shipments.total !== 1 ? 's' : '' }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="router.visit('/logistics/shipments/create')">
+        <button class="btn btn-primary" @click="openCreateShipment">
           <i class="pi pi-plus" style="font-size:13px" /> Nouvelle expédition
         </button>
       </div>
@@ -180,7 +286,7 @@ load()
             <td>{{ formatDate(s.estimated_delivery_at) }}</td>
             <td style="font-size:12px;color:var(--fg-3)">{{ formatDate(s.created_at) }}</td>
             <td>
-              <button class="wh-row-btn" title="Voir" @click="router.visit(`/logistics/shipments/${s.id}`)">
+              <button class="wh-row-btn" title="Voir" @click="viewShipment(s)">
                 <i class="pi pi-eye" style="font-size:13px" />
               </button>
             </td>
@@ -204,6 +310,57 @@ load()
         />
       </div>
     </div>
+
+    <Dialog v-model:visible="showFormModal" header="Nouvelle expédition" modal style="width: 30rem">
+      <form class="shp-form" @submit.prevent="submitShipmentForm">
+        <div class="shp-field">
+          <label>Transporteur *</label>
+          <Select v-model="shipmentForm.carrier_id" :options="props.carriers" option-label="name" option-value="id" class="w-full" :class="{ 'p-invalid': shipmentErrors.carrier_id }" />
+          <small v-if="shipmentErrors.carrier_id" class="shp-error">{{ shipmentErrors.carrier_id }}</small>
+        </div>
+        <div class="shp-field">
+          <label>Type</label>
+          <Select v-model="shipmentForm.type" :options="typeOptions" option-label="label" option-value="value" show-clear class="w-full" />
+        </div>
+        <div class="shp-field">
+          <label>Mode de transport</label>
+          <Select v-model="shipmentForm.transport_mode" :options="modeOptions" option-label="label" option-value="value" show-clear class="w-full" />
+        </div>
+        <div class="shp-field">
+          <label>Destinataire</label>
+          <InputText v-model="shipmentForm.consignee_name" />
+        </div>
+        <div class="shp-field">
+          <label>Pays destinataire (ISO 2)</label>
+          <InputText v-model="shipmentForm.consignee_country" maxlength="2" />
+        </div>
+        <div class="shp-field">
+          <label>Poids (kg)</label>
+          <InputText v-model="shipmentForm.weight_kg" />
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button type="button" class="btn btn-secondary" @click="showFormModal = false">Annuler</button>
+          <button type="submit" class="btn btn-primary" :disabled="savingShipment">Créer</button>
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog v-model:visible="showDetailModal" :header="`Expédition ${detailShipment?.reference ?? ''}`" modal style="width: 32rem">
+      <div v-if="detailLoading" style="text-align:center;padding:24px"><i class="pi pi-spin pi-spinner" /></div>
+      <div v-else-if="detailShipment">
+        <p><strong>Statut :</strong> {{ detailShipment.status }}</p>
+        <p><strong>Transporteur :</strong> {{ detailShipment.carrier?.name ?? '—' }}</p>
+        <p><strong>Destinataire :</strong> {{ detailShipment.consignee_name ?? '—' }} ({{ detailShipment.consignee_country ?? '—' }})</p>
+        <p><strong>N° de suivi :</strong> {{ detailShipment.tracking_number ?? '—' }}</p>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <button v-if="detailShipment.status === 'draft'" class="btn btn-secondary" :disabled="detailActionLoading" @click="runShipmentAction('book')">Réserver</button>
+          <button v-if="detailShipment.status === 'booked'" class="btn btn-secondary" :disabled="detailActionLoading" @click="runShipmentAction('dispatch')">Enlever</button>
+          <button v-if="['picked_up','in_transit','out_for_delivery'].includes(detailShipment.status)" class="btn btn-secondary" :disabled="detailActionLoading" @click="runShipmentAction('deliver')">Livrer</button>
+          <button v-if="!['delivered','cancelled'].includes(detailShipment.status)" class="btn btn-secondary" :disabled="detailActionLoading" @click="runShipmentAction('cancel')">Annuler</button>
+        </div>
+      </div>
+      <p v-else style="color:var(--fg-3)">Aucune donnée disponible.</p>
+    </Dialog>
   </AppLayout>
 </template>
 
@@ -213,4 +370,8 @@ load()
 .wh-filter-input::placeholder { color:var(--fg-4); }
 .wh-row-btn { width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-subtle); background:var(--bg-canvas); color:var(--fg-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all var(--dur-fast); }
 .wh-row-btn:hover { background:var(--bg-sunken); color:var(--fg-1); border-color:var(--border-strong); }
+.shp-form { display:flex; flex-direction:column; gap:12px; }
+.shp-field { display:flex; flex-direction:column; gap:4px; }
+.shp-field label { font-size:12px; font-weight:500; color:var(--fg-2); }
+.shp-error { color:var(--red-500); font-size:11px; }
 </style>

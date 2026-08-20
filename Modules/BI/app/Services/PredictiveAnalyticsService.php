@@ -7,6 +7,7 @@ namespace Modules\BI\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\BI\Models\BiAnomaly;
 use Modules\BI\Models\Forecast;
 use Modules\BI\Models\PredictiveModel;
@@ -389,30 +390,59 @@ class PredictiveAnalyticsService
      *
      * @return array<string, float> keyed by 'Y-m'
      */
+    /**
+     * Chantier 19 Lot 5 fix: this queried `acc_journal_lines` — a table
+     * that has never existed anywhere in this app (confirmed via
+     * Schema::hasTable(); the real header+lines ledger tables, per the
+     * Chantier 15 journal-posting fix, are `acc_journal_entries`/
+     * `acc_journal_entry_lines`) — behind a `SHOW TABLES LIKE ...` guard,
+     * which is itself MySQL-only syntax and always throws on this app's
+     * sqlite dev/test/CI driver. Both bugs were silently swallowed by the
+     * surrounding try/catch, so `revenueTrend()`/`growthRates()` (both
+     * real, routed endpoints — PredictiveAnalytics/Index.vue's revenue
+     * chart) have never shown real revenue data, only synthetic fallback
+     * numbers, confirmed empirically. Repointed at the real ledger, driven
+     * by class-7 (produits) account codes — the same SYSCOHADA
+     * account-class convention already used by
+     * `Modules\Reporting\Services\OhadaReportService` — with a
+     * driver-portable date expression (same sqlite/mysql branch already
+     * used by AnalyticsController::revenueByMonth() in this module).
+     *
+     * @return array<string, float>
+     */
     private function fetchMonthlyRevenue(int $months): array
     {
         try {
-            $tableExists = DB::select("SHOW TABLES LIKE 'acc_journal_lines'");
+            if (Schema::hasTable('acc_journal_entry_lines') && Schema::hasTable('acc_journal_entries')) {
+                $driver = DB::connection()->getDriverName();
+                $dateExpr = $driver === 'sqlite'
+                    ? "strftime('%Y-%m', acc_journal_entries.entry_date)"
+                    : "DATE_FORMAT(acc_journal_entries.entry_date, '%Y-%m')";
 
-            if (! empty($tableExists)) {
-                $rows = DB::table('acc_journal_lines')
-                    ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, SUM(credit) as revenue")
-                    ->where('created_at', '>=', now()->subMonths($months)->startOfMonth())
-                    ->groupByRaw("DATE_FORMAT(created_at, '%Y-%m')")
+                $rows = DB::table('acc_journal_entry_lines')
+                    ->join('acc_journal_entries', 'acc_journal_entries.id', '=', 'acc_journal_entry_lines.entry_id')
+                    ->join('acc_chart_of_accounts', 'acc_chart_of_accounts.id', '=', 'acc_journal_entry_lines.account_id')
+                    ->where('acc_chart_of_accounts.code', 'like', '7%')
+                    ->where('acc_journal_entries.entry_date', '>=', now()->subMonths($months)->startOfMonth())
+                    ->selectRaw("{$dateExpr} as month, SUM(acc_journal_entry_lines.credit - acc_journal_entry_lines.debit) as revenue")
+                    ->groupByRaw($dateExpr)
                     ->orderBy('month')
                     ->get();
 
                 if ($rows->isNotEmpty()) {
                     $data = [];
                     foreach ($rows as $row) {
-                        $data[$row->month] = (float) $row->revenue;
+                        $data[(string) $row->month] = (float) $row->revenue;
                     }
 
                     return $data;
                 }
             }
         } catch (\Throwable) {
-            // Fall through to synthetic data
+            // Fall through to synthetic data — matches this app's
+            // fallback-first design principle for any data source that
+            // might not exist yet (e.g. a fresh tenant with no journal
+            // entries at all).
         }
 
         return $this->generateSyntheticRevenue($months);

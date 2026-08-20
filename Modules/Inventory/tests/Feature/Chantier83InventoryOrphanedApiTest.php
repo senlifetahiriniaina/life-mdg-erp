@@ -23,7 +23,13 @@ function inventoryOrphanedApiTestUser(): User
     if (\Spatie\Permission\Models\Permission::count() === 0) {
         test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
     }
-    $user = User::factory()->create();
+    // Chantier 19 Lot 4: ChannelController now scopes by the real
+    // users.company_id column (was the phantom, always-null users.tenant_id
+    // before this — see ChannelController's own docblock) — give this test
+    // user a real company so the tenant-isolation fix can be exercised
+    // meaningfully rather than everyone defaulting to the same 0 bucket.
+    $company = \App\Models\Company::factory()->create();
+    $user = User::factory()->create(['company_id' => $company->id]);
     $user->assignRole('employee');
 
     return $user;
@@ -32,12 +38,12 @@ function inventoryOrphanedApiTestUser(): User
 test('channels index lists channels for the current tenant', function () {
     $user = inventoryOrphanedApiTestUser();
     MarketplaceChannel::create([
-        'tenant_id' => $user->tenant_id ?? 0,
+        'tenant_id' => $user->company_id,
         'type' => 'amazon',
         'name' => 'My Amazon Store',
         'config' => ['api_key' => 'x'],
         'status' => 'inactive',
-        'company_id' => 1,
+        'company_id' => $user->company_id,
     ]);
 
     $response = test()->actingAs($user, 'sanctum')->getJson('/api/v1/inventory/channels');
@@ -52,11 +58,11 @@ test('channels connect creates a new marketplace channel', function () {
     $response = test()->actingAs($user, 'sanctum')->postJson('/api/v1/inventory/channels/amazon/connect', [
         'name' => 'My Amazon Store',
         'config' => ['api_key' => 'abc', 'seller_id' => '123'],
-        'company_id' => 1,
     ]);
 
     $response->assertCreated();
     expect($response->json('data.type'))->toBe('amazon');
+    expect($response->json('data.company_id'))->toBe($user->company_id);
     $this->assertDatabaseHas('marketplace_channels', ['name' => 'My Amazon Store', 'type' => 'amazon']);
 });
 
@@ -66,7 +72,6 @@ test('channels connect rejects an unknown channel type', function () {
     $response = test()->actingAs($user, 'sanctum')->postJson('/api/v1/inventory/channels/shopify/connect', [
         'name' => 'X',
         'config' => [],
-        'company_id' => 1,
     ]);
 
     $response->assertStatus(422);
@@ -75,12 +80,12 @@ test('channels connect rejects an unknown channel type', function () {
 test('channels sync dispatches a sync job', function () {
     $user = inventoryOrphanedApiTestUser();
     $channel = MarketplaceChannel::create([
-        'tenant_id' => $user->tenant_id ?? 0,
+        'tenant_id' => $user->company_id,
         'type' => 'ebay',
         'name' => 'My eBay Store',
         'config' => [],
         'status' => 'active',
-        'company_id' => 1,
+        'company_id' => $user->company_id,
     ]);
 
     \Illuminate\Support\Facades\Queue::fake();
@@ -94,12 +99,12 @@ test('channels sync dispatches a sync job', function () {
 test('channels status returns connector status', function () {
     $user = inventoryOrphanedApiTestUser();
     $channel = MarketplaceChannel::create([
-        'tenant_id' => $user->tenant_id ?? 0,
+        'tenant_id' => $user->company_id,
         'type' => 'amazon',
         'name' => 'My Amazon Store',
         'config' => ['marketplace_id' => 'ATVPDKIKX0DER'],
         'status' => 'active',
-        'company_id' => 1,
+        'company_id' => $user->company_id,
     ]);
 
     $response = test()->actingAs($user, 'sanctum')->getJson("/api/v1/inventory/channels/{$channel->id}/status");

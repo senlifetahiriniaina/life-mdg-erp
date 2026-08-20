@@ -24,12 +24,21 @@ class StrategyObjectiveLinkControllerTest extends TestCase
             $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
         }
 
-        $this->user = User::factory()->create();
+        // Chantier 19 (Lot 5): was $this->user->tenant_id — the well-documented
+        // phantom users.tenant_id column, never populated for real users. Every
+        // tenantId() helper in this module resolves the real tenant boundary
+        // from users.company_id (see StrategyPlanController::tenantId()'s own
+        // docblock), and OkrController/StrategyObjectiveLinkController now
+        // also verify an objective's own tenant ownership via its plan — a
+        // fixture using the phantom column here would 404 every mutating
+        // endpoint this test exercises.
+        $company = \App\Models\Company::factory()->create();
+        $this->user = User::factory()->create(['company_id' => $company->id]);
         $this->user->assignRole('admin');
         $this->actingAs($this->user);
 
         $this->plan = StrategyPlan::create([
-            'tenant_id' => $this->user->tenant_id,
+            'tenant_id' => (string) $this->user->company_id,
             'name' => 'Strategic Plan 2026',
             'vision' => 'Become market leader',
             'period_start' => 2026,

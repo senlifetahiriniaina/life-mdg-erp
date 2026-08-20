@@ -289,7 +289,12 @@ describe('Strategy API - OKRs', function () {
     });
 
     test('can create an objective', function () {
-        $plan = StrategyPlan::factory()->create();
+        // Chantier 19 (Lot 5): OkrController::store() now verifies the
+        // target plan belongs to the caller's own tenant (a real IDOR fix —
+        // see StrategyObjective::scopeForTenant()) — a plan created via the
+        // factory's random fake()->uuid() tenant_id would 404 against this
+        // check, so the plan must share the acting user's real company_id.
+        $plan = StrategyPlan::factory()->create(['tenant_id' => (string) ($this->user->company_id ?? 0)]);
 
         $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/v1/strategy/objectives', [

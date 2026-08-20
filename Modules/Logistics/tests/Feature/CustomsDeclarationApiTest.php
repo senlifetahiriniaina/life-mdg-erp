@@ -9,7 +9,14 @@ use Spatie\Permission\Models\Role;
 
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    // Chantier 19 Lot 4: CustomsDeclarationController now scopes every
+    // method by the real users.company_id -> logistics_customs_declarations
+    // .tenant_id boundary (this whole controller previously had zero
+    // tenant/company scoping at all — a real cross-company leak, see the
+    // controller's own docblock) — give this test user a real company so
+    // every factory-created declaration below can be tagged to match it.
+    $this->company = \App\Models\Company::factory()->create();
+    $this->user = User::factory()->create(['company_id' => $this->company->id]);
     if (\Spatie\Permission\Models\Permission::count() === 0) {
         test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
     }
@@ -36,7 +43,7 @@ test('can create customs declaration', function () {
 });
 
 test('can list customs declarations', function () {
-    CustomsDeclaration::factory(3)->create(['shipment_id' => $this->shipment->id]);
+    CustomsDeclaration::factory(3)->create(['shipment_id' => $this->shipment->id, 'tenant_id' => $this->company->id]);
 
     $response = $this->actingAs($this->user, 'sanctum')
         ->getJson('/api/v1/logistics/customs-declarations');
@@ -46,7 +53,7 @@ test('can list customs declarations', function () {
 });
 
 test('can get single declaration', function () {
-    $declaration = CustomsDeclaration::factory()->create(['shipment_id' => $this->shipment->id]);
+    $declaration = CustomsDeclaration::factory()->create(['shipment_id' => $this->shipment->id, 'tenant_id' => $this->company->id]);
 
     $response = $this->actingAs($this->user, 'sanctum')
         ->getJson("/api/v1/logistics/customs-declarations/{$declaration->id}");
@@ -84,7 +91,7 @@ test('validates declared value positive', function () {
 });
 
 test('can update declaration', function () {
-    $declaration = CustomsDeclaration::factory()->create(['declared_value' => 100]);
+    $declaration = CustomsDeclaration::factory()->create(['declared_value' => 100, 'tenant_id' => $this->company->id]);
 
     $response = $this->actingAs($this->user, 'sanctum')
         ->putJson("/api/v1/logistics/customs-declarations/{$declaration->id}", [
@@ -96,7 +103,7 @@ test('can update declaration', function () {
 });
 
 test('can delete declaration', function () {
-    $declaration = CustomsDeclaration::factory()->create();
+    $declaration = CustomsDeclaration::factory()->create(['tenant_id' => $this->company->id]);
 
     $response = $this->actingAs($this->user, 'sanctum')
         ->deleteJson("/api/v1/logistics/customs-declarations/{$declaration->id}");

@@ -412,9 +412,20 @@ class ForecastingController extends Controller
 
     // ─── Utilitaires ──────────────────────────────────────────────
 
+    /**
+     * Chantier 19 (Lot 5): confirmed empirically that this fell back to the
+     * acting user's own `id` whenever `company_id` was null — the exact
+     * "private per-user bucket" bug already documented and fixed for AI's
+     * AiUsageBudgetService and API's RequestLogController/WebhookController
+     * (Chantier 19 Lot 3): not a cross-tenant leak (no shared/guessable
+     * fallback), but two colleagues at the same real company with no
+     * `company_id` set each silently got their own forecast models/alerts/
+     * scenarios instead of sharing one company bucket. Fixed to the
+     * app-wide `?? 0` convention used everywhere else this session.
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()->company_id ?? $request->user()->id);
+        return (int) ($request->user()->company_id ?? 0);
     }
 
     private function findModel(int $id, Request $request): ForecastModel

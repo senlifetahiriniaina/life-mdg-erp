@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Head, router } from '@inertiajs/vue3'
+import { ref, reactive } from 'vue'
+import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
 
 interface Carrier {
   id: number
@@ -38,6 +40,19 @@ const activeOptions = [
   { label: 'Actif', value: true },
   { label: 'Inactif', value: false },
 ]
+
+// Chantier 19 Lot 4: this page's PUT/DELETE fetch() calls sent no CSRF token
+// at all — unlike axios (used elsewhere in this app), which auto-attaches
+// X-XSRF-TOKEN from the cookie, a raw fetch() does nothing on its own.
+// Confirmed empirically (curl against a real php artisan serve instance,
+// real login session, real Referer header matching config('sanctum.stateful'))
+// that every mutation on this page returned 419 "CSRF token mismatch" — Pest
+// tests can never catch this since VerifyCsrfToken::runningUnitTests()
+// unconditionally bypasses the check whenever app()->runningUnitTests() is
+// true. Same fix pattern already used by Inventory's Shipments/Index.vue.
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
 
 function typeBadgeClass(type: string): string {
   const map: Record<string, string> = {
@@ -79,7 +94,7 @@ async function load(page = 1) {
 async function toggleActive(carrier: Carrier) {
   await fetch(`/api/v1/logistics/carriers/${carrier.id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
     credentials: 'same-origin',
     body: JSON.stringify({ is_active: !carrier.is_active }),
   })
@@ -90,7 +105,7 @@ async function deleteCarrier(carrier: Carrier) {
   if (!confirm(`Supprimer le transporteur "${carrier.name}" ?`)) return
   const res = await fetch(`/api/v1/logistics/carriers/${carrier.id}`, {
     method: 'DELETE',
-    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
     credentials: 'same-origin',
   })
   if (res.ok) {
@@ -98,6 +113,95 @@ async function deleteCarrier(carrier: Carrier) {
   } else {
     const data = await res.json()
     alert(data.message ?? 'Impossible de supprimer ce transporteur.')
+  }
+}
+
+// Chantier 19 Lot 4: "Nouveau transporteur"/"Modifier" both router.visit()'d
+// to /logistics/carriers/create and /logistics/carriers/{id}/edit — neither
+// route (nor a Create.vue/Edit.vue page) has ever existed anywhere in this
+// app, confirmed via `php artisan route:list` and a repo-wide Glob — every
+// click was a guaranteed 404, meaning a carrier could never actually be
+// created or edited through the UI despite the real, already-tested
+// CarrierController::store()/update() API existing. Fixed with a compact
+// inline modal (matching the Categories/Warehouses/Channels precedent
+// elsewhere in this session) instead of building 2 new full pages.
+const showFormModal = ref(false)
+const editingCarrier = ref<Carrier | null>(null)
+const savingCarrier = ref(false)
+const carrierForm = reactive({
+  name: '', code: '', type: null as string | null,
+  contact_email: '', contact_phone: '', country: '', tracking_url_template: '',
+})
+const carrierErrors = reactive<Record<string, string>>({})
+
+function openCreateCarrier() {
+  editingCarrier.value = null
+  carrierForm.name = ''
+  carrierForm.code = ''
+  carrierForm.type = null
+  carrierForm.contact_email = ''
+  carrierForm.contact_phone = ''
+  carrierForm.country = ''
+  carrierForm.tracking_url_template = ''
+  Object.keys(carrierErrors).forEach(k => delete carrierErrors[k])
+  showFormModal.value = true
+}
+
+function openEditCarrier(carrier: Carrier) {
+  editingCarrier.value = carrier
+  carrierForm.name = carrier.name
+  carrierForm.code = carrier.code ?? ''
+  carrierForm.type = carrier.type ?? null
+  carrierForm.contact_email = carrier.contact_email ?? ''
+  carrierForm.contact_phone = carrier.contact_phone ?? ''
+  carrierForm.country = carrier.country ?? ''
+  carrierForm.tracking_url_template = ''
+  Object.keys(carrierErrors).forEach(k => delete carrierErrors[k])
+  showFormModal.value = true
+}
+
+const showPerfModal = ref(false)
+const perfCarrier = ref<Carrier | null>(null)
+const perfData = ref<Record<string, unknown> | null>(null)
+const perfLoading = ref(false)
+
+async function showPerformance(carrier: Carrier) {
+  perfCarrier.value = carrier
+  perfData.value = null
+  showPerfModal.value = true
+  perfLoading.value = true
+  try {
+    const res = await fetch(`/api/v1/logistics/carriers/${carrier.id}/performance`, {
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+    if (res.ok) perfData.value = await res.json()
+  } finally {
+    perfLoading.value = false
+  }
+}
+
+async function submitCarrierForm() {
+  savingCarrier.value = true
+  Object.keys(carrierErrors).forEach(k => delete carrierErrors[k])
+  const url = editingCarrier.value ? `/api/v1/logistics/carriers/${editingCarrier.value.id}` : '/api/v1/logistics/carriers'
+  const method = editingCarrier.value ? 'PUT' : 'POST'
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+      credentials: 'same-origin',
+      body: JSON.stringify(carrierForm),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      if (data.errors) Object.assign(carrierErrors, data.errors)
+      return
+    }
+    showFormModal.value = false
+    load(carriers.value.current_page)
+  } finally {
+    savingCarrier.value = false
   }
 }
 
@@ -123,7 +227,7 @@ load()
         <p class="wh-page-subtitle">{{ carriers.total }} transporteur{{ carriers.total !== 1 ? 's' : '' }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="router.visit('/logistics/carriers/create')">
+        <button class="btn btn-primary" @click="openCreateCarrier">
           <i class="pi pi-plus" style="font-size:13px" /> Nouveau transporteur
         </button>
       </div>
@@ -195,10 +299,10 @@ load()
             </td>
             <td>
               <div style="display:flex;gap:4px">
-                <button class="wh-row-btn" title="Performance" @click="router.visit(`/logistics/carriers/${c.id}/performance`)">
+                <button class="wh-row-btn" title="Performance" @click="showPerformance(c)">
                   <i class="pi pi-chart-line" style="font-size:13px" />
                 </button>
-                <button class="wh-row-btn" title="Modifier" @click="router.visit(`/logistics/carriers/${c.id}/edit`)">
+                <button class="wh-row-btn" title="Modifier" @click="openEditCarrier(c)">
                   <i class="pi pi-pencil" style="font-size:13px" />
                 </button>
                 <button class="wh-row-btn wh-row-btn-danger" title="Supprimer" @click="deleteCarrier(c)">
@@ -226,6 +330,53 @@ load()
         />
       </div>
     </div>
+
+    <Dialog v-model:visible="showFormModal" :header="editingCarrier ? 'Modifier le transporteur' : 'Nouveau transporteur'" modal style="width: 32rem">
+      <form class="carrier-form" @submit.prevent="submitCarrierForm">
+        <div class="carrier-field">
+          <label>Nom *</label>
+          <InputText v-model="carrierForm.name" :class="{ 'p-invalid': carrierErrors.name }" />
+          <small v-if="carrierErrors.name" class="carrier-error">{{ carrierErrors.name }}</small>
+        </div>
+        <div class="carrier-field">
+          <label>Code</label>
+          <InputText v-model="carrierForm.code" :class="{ 'p-invalid': carrierErrors.code }" />
+          <small v-if="carrierErrors.code" class="carrier-error">{{ carrierErrors.code }}</small>
+        </div>
+        <div class="carrier-field">
+          <label>Type</label>
+          <Select v-model="carrierForm.type" :options="typeOptions" option-label="label" option-value="value" show-clear class="w-full" />
+        </div>
+        <div class="carrier-field">
+          <label>Pays (ISO 2)</label>
+          <InputText v-model="carrierForm.country" maxlength="2" />
+        </div>
+        <div class="carrier-field">
+          <label>Email de contact</label>
+          <InputText v-model="carrierForm.contact_email" :class="{ 'p-invalid': carrierErrors.contact_email }" />
+        </div>
+        <div class="carrier-field">
+          <label>Téléphone de contact</label>
+          <InputText v-model="carrierForm.contact_phone" />
+        </div>
+        <div class="carrier-field">
+          <label>URL de suivi (template, {tracking_number} sera remplacé)</label>
+          <InputText v-model="carrierForm.tracking_url_template" />
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button type="button" class="btn btn-secondary" @click="showFormModal = false">Annuler</button>
+          <button type="submit" class="btn btn-primary" :disabled="savingCarrier">
+            {{ editingCarrier ? 'Enregistrer' : 'Créer' }}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog v-model:visible="showPerfModal" :header="`Performance — ${perfCarrier?.name ?? ''}`" modal style="width: 28rem">
+      <div v-if="perfLoading" style="text-align:center;padding:24px"><i class="pi pi-spin pi-spinner" /></div>
+      <pre v-else-if="perfData" style="white-space:pre-wrap;font-size:12px">{{ JSON.stringify(perfData, null, 2) }}</pre>
+      <p v-else style="color:var(--fg-3)">Aucune donnée disponible.</p>
+    </Dialog>
   </AppLayout>
 </template>
 
@@ -237,4 +388,8 @@ load()
 .wh-row-btn:hover { background:var(--bg-sunken); color:var(--fg-1); border-color:var(--border-strong); }
 .wh-row-btn-danger { color:var(--red-500); }
 .wh-row-btn-danger:hover { background:var(--red-50); border-color:var(--red-300); color:var(--red-600); }
+.carrier-form { display:flex; flex-direction:column; gap:12px; }
+.carrier-field { display:flex; flex-direction:column; gap:4px; }
+.carrier-field label { font-size:12px; font-weight:500; color:var(--fg-2); }
+.carrier-error { color:var(--red-500); font-size:11px; }
 </style>

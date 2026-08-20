@@ -17,7 +17,9 @@ class UpdateDataSourceRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'string', 'max:255'],
-            'type' => ['sometimes', 'string', 'in:mysql,postgres,sqlite,api,csv'],
+            // Chantier 19 Lot 5: same real-connector-registry alignment as
+            // StoreDataSourceRequest — see that file's comment.
+            'type' => ['sometimes', 'string', 'in:mysql,postgresql,rest_api,csv,google_sheets'],
             'config' => ['sometimes', 'array'],
             'description' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],

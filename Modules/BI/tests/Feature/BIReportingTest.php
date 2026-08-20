@@ -16,26 +16,19 @@ use Modules\BI\Services\ExportService;
 // and this file previously failed on `new BIService()` before a single
 // scenario ran.
 //
-// NOTE — discovered while rewriting this suite (not fixed here, out of scope
-// for a test-only rewrite): `Report`'s $fillable/$casts list `query_config`,
-// `chart_config`, `filters`, `schedule`, `schedule_recipients` and
-// `last_run_at`, but no migration anywhere actually adds those columns to
-// `bi_reports` (confirmed both in the sqlite test DB and via
-// `Schema::getColumnListing('bi_reports')` against the app's own configured
-// DB — not a test-only artifact). `bi_reports` really only has: id,
-// tenant_id, name, config, user_id, type, is_scheduled, description,
-// timestamps, deleted_at. Two consequences kept out of this suite:
-//   1. `ReportController::store()`/`update()` only work for the fields that
-//      are real columns (name, description, type, is_scheduled) — sending
-//      query_config/chart_config/filters/schedule/schedule_recipients 500s.
-//   2. `ReportController::run()` unconditionally does
-//      `$report->update(['last_run_at' => now()])`, which 500s every time
-//      since that column doesn't exist — POST /bi/reports/{report}/run is
-//      currently broken in this app, not just untested. No test below
-//      exercises `run()`; a real fix belongs in a schema-patch migration
-//      (see the existing precedent at
-//      database/migrations/2026_06_02_000002_patch_bi_helpdesk_missing_columns.php),
-//      which is a follow-up, not part of this test-rewrite task.
+// NOTE — this docblock previously claimed `bi_reports` was missing
+// `query_config`/`chart_config`/`filters`/`schedule`/`schedule_recipients`/
+// `last_run_at`, making `run()`/`store()`/`update()` guaranteed 500s. That
+// was true when this comment was written but was independently fixed the
+// same day by `2026_08_24_000001_patch_remaining_bi_stub_tables.php`
+// (Chantier 8.2's BI stub-table patch) — this comment was simply never
+// updated to match. Re-verified empirically in Chantier 19 Lot 5 via a real
+// `Schema::getColumnListing('bi_reports')` call and a real
+// `POST /bi/reports/{report}/run` HTTP request: all 6 columns exist and
+// `run()` returns 200 with real (honestly-empty, no query-execution engine
+// wired to arbitrary `query_config` — see `ReportController::computeResult()`'s
+// own docblock) data. See `it('runs a report and persists last_run_at')`
+// below, which now locks this in.
 
 // ─── Reports API ────────────────────────────────────────────────────────────
 describe('Reports API', function () {
@@ -52,6 +45,25 @@ describe('Reports API', function () {
 
         $this->assertDatabaseHas('bi_reports', ['name' => 'Sales Report']);
         expect($response->json('id'))->not->toBeNull();
+    });
+
+    // Chantier 19 Lot 5: the real, routed Reports/Index.vue "Nouveau rapport"
+    // dialog only ever sends `type` as pdf/excel/csv/dashboard (its own
+    // typeOptions/typeIcon() confirm this is an export-format concept on
+    // this page, not the chart-type vocabulary the factory/test above use)
+    // — but store()'s validation only accepted table/bar/line/pie/area/
+    // scatter, so every real "Créer le rapport" click 422'd. Confirmed
+    // empirically before the fix.
+    it('creates a report with the real Reports page export-format vocabulary', function () {
+        $this->postJson('/api/v1/bi/reports', [
+            'name' => 'Rapport PDF',
+            'type' => 'pdf',
+        ])->assertCreated()->assertJsonPath('type', 'pdf');
+
+        $this->postJson('/api/v1/bi/reports', [
+            'name' => 'Rapport Excel',
+            'type' => 'dashboard',
+        ])->assertCreated()->assertJsonPath('type', 'dashboard');
     });
 
     it('lists reports', function () {
@@ -82,6 +94,39 @@ describe('Reports API', function () {
         $this->deleteJson("/api/v1/bi/reports/{$report->id}")->assertNoContent();
         $this->assertSoftDeleted('bi_reports', ['id' => $report->id]);
     });
+
+    it('runs a report and persists last_run_at', function () {
+        $report = Report::factory()->create(['last_run_at' => null]);
+
+        $this->postJson("/api/v1/bi/reports/{$report->id}/run")
+            ->assertOk()
+            ->assertJsonStructure(['data', 'columns', 'ran_at']);
+
+        expect($report->fresh()->last_run_at)->not->toBeNull();
+    });
+
+    // Chantier 19 Lot 5: Reports/Index.vue's "Générer maintenant" button
+    // POSTs to `/generate`, a route that never existed (404 on every real
+    // click) — the routed `/run` endpoint above was never what the frontend
+    // actually called. New alias route, locked in here.
+    it('generate is a real, reachable alias for run (the route the real UI calls)', function () {
+        $report = Report::factory()->create();
+
+        $this->postJson("/api/v1/bi/reports/{$report->id}/generate")
+            ->assertOk()
+            ->assertJsonStructure(['data', 'columns', 'ran_at']);
+    });
+
+    // Chantier 19 Lot 5: Reports/Index.vue's "Exporter PDF"/"Exporter Excel"
+    // buttons GET `/export`, a route that never existed anywhere in this
+    // module (confirmed via a real 404) — every export click failed.
+    it('exports a report as CSV, XLSX and PDF via the new real /export route', function () {
+        $report = Report::factory()->create();
+
+        $this->get("/api/v1/bi/reports/{$report->id}/export?format=csv")->assertOk();
+        $this->get("/api/v1/bi/reports/{$report->id}/export?format=excel")->assertOk();
+        $this->get("/api/v1/bi/reports/{$report->id}/export?format=pdf")->assertOk();
+    });
 });
 
 it('rejects an unauthenticated request to list reports', function () {
@@ -89,13 +134,11 @@ it('rejects an unauthenticated request to list reports', function () {
 });
 
 // ─── Report export (ExportService) ──────────────────────────────────────────
+// `Report` now has its own real `GET /bi/reports/{report}/export` route too
+// (Chantier 19 Lot 5, see the describe('Reports API') block above) — kept
+// here as a lower-level unit check of the shared ExportService plumbing.
 describe('Report export via ExportService', function () {
     it('exports report-shaped data to CSV via the real ExportService', function () {
-        // `Report` itself has no dedicated export route (only Dashboards, Widgets
-        // and saved Queries do via ExportController — see ExportTest.php), but the
-        // same production ExportService that backs those endpoints handles report
-        // result sets identically: a Collection of rows + headings in, a download
-        // response out.
         $data = collect([
             ['id' => 1, 'value' => 100],
             ['id' => 2, 'value' => 200],

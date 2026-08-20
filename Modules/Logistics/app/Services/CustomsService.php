@@ -45,42 +45,59 @@ class CustomsService
         '8471' => 0.0, '8517' => 0.0, '8708' => 10.0,
     ];
 
-    private function generateReference(int $companyId): string
+    private function generateReference(int $tenantId): string
     {
         $year  = Carbon::now()->year;
-        $count = CustomsDeclaration::where('company_id', $companyId)
+        $count = CustomsDeclaration::where('tenant_id', $tenantId)
             ->whereYear('created_at', $year)->count() + 1;
 
         return sprintf('CUST-%d-%04d', $year, $count);
     }
 
+    /**
+     * Chantier 19 Lot 4: this method previously called $declaration->items()
+     * (a relation that has never existed on CustomsDeclaration — confirmed
+     * via a repo-wide Glob, no CustomsDeclarationItem model/migration/table
+     * has ever existed either) and then unconditionally ->load('items') on
+     * every return, a guaranteed RelationNotFoundException on every single
+     * call — customsStore() (the real, routed POST /logistics/customs
+     * endpoint, even though no current Vue page calls it) has never once
+     * succeeded. Fixed to stop referencing the nonexistent relation rather
+     * than invent the missing item-line-item schema this whole subsystem
+     * was clearly designed against (also confirmed broken: total_value/
+     * country_of_destination/vat_amount/other_fees, used throughout this
+     * class, are not real columns on logistics_customs_declarations either
+     * — a deeper design-drift than this contained fix addresses; see
+     * calculateDuties()'s own docblock below for the parts left broken).
+     */
     public function createDeclaration(array $data): CustomsDeclaration
     {
-        $items = $data['items'] ?? [];
         unset($data['items']);
 
-        $data['reference'] = $this->generateReference((int) $data['company_id']);
+        $data['reference'] = $this->generateReference((int) $data['tenant_id']);
         $data['status']    = 'draft';
         $data['currency']  = $data['currency'] ?? 'XOF';
 
-        $declaration = CustomsDeclaration::create($data);
-
-        foreach ($items as $item) {
-            $item['declaration_id'] = $declaration->id;
-            if (empty($item['total_value'])) {
-                $item['total_value'] = (float) ($item['qty'] ?? 1) * (float) ($item['unit_value'] ?? 0);
-            }
-            $declaration->items()->create($item);
-        }
-
-        if (! empty($items)) {
-            $declaration->update(['total_value' => $declaration->items()->sum('total_value')]);
-        }
-
-        return $declaration->load('items');
+        return CustomsDeclaration::create($data);
     }
 
     /**
+     * Chantier 19 Lot 4 — confirmed still broken, documented rather than
+     * fixed: this method (and the whole per-item duty-calculation design it
+     * implements) depends on a $declaration->items relation/model that has
+     * never existed anywhere in this repo, plus writes to
+     * duties_amount/vat_amount/other_fees, none of which are in
+     * CustomsDeclaration::$fillable (vat_amount isn't even a real column at
+     * all) — a guaranteed fatal error on every real call, unreachable from
+     * any Vue page in this repo today (confirmed: Customs/Index.vue calls
+     * the separate CustomsDeclarationController instead). Fixing this for
+     * real means designing and migrating a genuine CustomsDeclarationItem
+     * line-item schema this session has no specification for — out of
+     * scope for a bug-fix pass per this chantier's own "don't invent new
+     * business logic/schema" guidance. createDeclaration() above (the
+     * create half of this same subsystem) was fixed to at least not crash;
+     * this read/calculate half is left as a documented gap.
+     *
      * Calculate import duties + VAT per item.
      * Africa First: OHADA account Cl.6251 — Droits de douane.
      *

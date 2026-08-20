@@ -127,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Head, usePage } from '@inertiajs/vue3'
+import { Head } from '@inertiajs/vue3'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
@@ -145,7 +145,6 @@ interface Channel {
   last_synced_at: string | null
 }
 
-const page = usePage()
 const channels = ref<Channel[]>([])
 const loading = ref(false)
 const showModal = ref(false)
@@ -164,6 +163,14 @@ const channelTypeOptions = [
   { label: 'Amazon', value: 'amazon' },
   { label: 'eBay', value: 'ebay' },
 ]
+
+// Chantier 19 Lot 4: fetch() sends no CSRF token on its own (unlike axios,
+// used elsewhere in this app, which auto-attaches X-XSRF-TOKEN from the
+// cookie) — confirmed empirically that every POST here 419'd against a real
+// browser session; same fix as Categories/Warehouses/Index.vue.
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
 
 const fetchChannels = async () => {
   loading.value = true
@@ -194,11 +201,10 @@ const submitConnect = async () => {
   try {
     const response = await fetch(`/api/v1/inventory/channels/${connectForm.type}/connect`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify({
         name: connectForm.name,
         config: connectForm.config,
-        company_id: (page.props.auth as any)?.user?.company_id ?? 1,
       }),
     })
 
@@ -220,7 +226,7 @@ const syncChannel = async (channel: Channel) => {
   try {
     await fetch(`/api/v1/inventory/channels/${channel.id}/sync`, {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
     })
     fetchChannels()
   } finally {

@@ -134,6 +134,104 @@ class BiScreensWebTest extends TestCase
         );
     }
 
+    /**
+     * Chantier 19 Lot 5 — the single most severe finding of this lot:
+     * Builder.vue (the Dashboard Builder page, this module's core feature)
+     * has always POSTed its full widget array to
+     * `bi/dashboards/{dashboard}/widgets` on every save, but that route
+     * never existed anywhere — every real save 404'd on the widget half of
+     * the operation, meaning no dashboard built through the real UI has
+     * ever actually had a single widget persisted. This exercises the real
+     * end-to-end flow the frontend follows: create a dashboard, save
+     * widgets via the new real route, then reload the builder page and
+     * confirm the widgets round-trip with their real fields (not reset to
+     * defaults — see BiWebController::builder()'s position-flattening fix).
+     */
+    public function test_widgets_can_be_saved_and_round_trip_through_the_builder()
+    {
+        $user = $this->actingAsUser('manager');
+        $dashboard = Dashboard::factory()->create(['user_id' => $user->id]);
+
+        $saveResponse = $this->postJson("/api/v1/bi/dashboards/{$dashboard->id}/widgets", [
+            'widgets' => [
+                [
+                    'type' => 'kpi_card',
+                    'title' => 'Revenu mensuel',
+                    'description' => 'CA du mois',
+                    'dataSource' => 'accounting.revenue',
+                    'w' => 3,
+                    'h' => 1,
+                    'config' => ['metric' => 'revenue', 'period' => 'month'],
+                ],
+                [
+                    'type' => 'bar_chart',
+                    'title' => 'Ventes par mois',
+                    'w' => 6,
+                    'h' => 2,
+                ],
+            ],
+        ]);
+
+        $saveResponse->assertCreated();
+        $this->assertDatabaseCount('bi_widgets', 2);
+        $this->assertDatabaseHas('bi_widgets', ['dashboard_id' => $dashboard->id, 'title' => 'Revenu mensuel']);
+
+        $builderResponse = $this->get("/bi/dashboards/{$dashboard->id}/builder");
+        $builderResponse->assertOk();
+        $builderResponse->assertInertia(fn ($page) => $page
+            ->component('BI/Builder', false)
+            ->has('existingWidgets', 2)
+            ->where('existingWidgets.0.title', 'Revenu mensuel')
+            ->where('existingWidgets.0.dataSource', 'accounting.revenue')
+            ->where('existingWidgets.0.w', 3)
+            ->where('existingWidgets.1.w', 6)
+            ->where('existingWidgets.1.h', 2)
+        );
+    }
+
+    /**
+     * The builder always sends its entire current widget list on every
+     * save (create AND edit), not incremental diffs — a second save must
+     * replace, not append to, the dashboard's widgets.
+     */
+    public function test_saving_widgets_a_second_time_replaces_rather_than_appends()
+    {
+        $user = $this->actingAsUser('manager');
+        $dashboard = Dashboard::factory()->create(['user_id' => $user->id]);
+
+        $this->postJson("/api/v1/bi/dashboards/{$dashboard->id}/widgets", [
+            'widgets' => [['type' => 'kpi_card', 'title' => 'First']],
+        ])->assertCreated();
+
+        $this->postJson("/api/v1/bi/dashboards/{$dashboard->id}/widgets", [
+            'widgets' => [['type' => 'bar_chart', 'title' => 'Second']],
+        ])->assertCreated();
+
+        $this->assertDatabaseCount('bi_widgets', 1);
+        $this->assertDatabaseHas('bi_widgets', ['dashboard_id' => $dashboard->id, 'title' => 'Second']);
+    }
+
+    /**
+     * The `bi/*` route group is already gated to `role:manager,admin` at
+     * the outer middleware level (see routes/api.php), and
+     * BaseErpPolicy::isAdminOrOwner() lets both roles bypass ownership by
+     * design (the same documented behavior EmbedTokenTest.php already
+     * locks in for embed-token creation) — so every caller who can reach
+     * this endpoint at all is already allowed regardless of ownership.
+     * This documents that real, deliberate behavior rather than asserting
+     * a 403 no role able to reach the route could ever actually trigger.
+     */
+    public function test_a_manager_can_save_widgets_onto_a_dashboard_they_do_not_own()
+    {
+        $this->actingAsUser('manager');
+        $owner = User::factory()->create();
+        $dashboard = Dashboard::factory()->create(['user_id' => $owner->id, 'is_public' => false]);
+
+        $this->postJson("/api/v1/bi/dashboards/{$dashboard->id}/widgets", [
+            'widgets' => [['type' => 'kpi_card', 'title' => 'Saved by manager']],
+        ])->assertCreated();
+    }
+
     public function test_dashboard_show_renders_with_widgets()
     {
         $user = User::factory()->create();
@@ -160,6 +258,33 @@ class BiScreensWebTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->component('BI/Reports/Index', false)
             ->has('reports.data', 1)
+        );
+    }
+
+    /**
+     * Chantier 19 Lot 5: BiWebController::sqlEditor()'s `savedQueries` prop
+     * select list was missing `sql_query` — the real column, confirmed via
+     * BiQuery::$fillable — so SqlEditor.vue's loadQuery() always populated
+     * an empty editor for any saved query, no matter what SQL it actually
+     * held. Locks in that the real SQL text now reaches the page.
+     */
+    public function test_sql_editor_sends_sql_query_on_saved_queries()
+    {
+        $user = User::factory()->create();
+        \Modules\BI\Models\BiQuery::create([
+            'name' => 'Ventes du mois',
+            'sql_query' => 'SELECT 1 as total',
+            'datasource' => 'default',
+            'is_public' => true,
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->get('/bi/sql-editor');
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('BI/SqlEditor', false)
+            ->where('savedQueries.0.sql_query', 'SELECT 1 as total')
         );
     }
 

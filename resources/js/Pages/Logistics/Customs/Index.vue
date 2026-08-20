@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Head, router } from '@inertiajs/vue3'
+import { ref, reactive } from 'vue'
+import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
 
 interface CustomsDeclaration {
   id: number
@@ -63,6 +65,13 @@ function formatAmount(amount: number, currency: string): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount)
 }
 
+// Chantier 19 Lot 4: this page's POST fetch() call (submit) sent no CSRF
+// token at all — same fix pattern as Carriers/Index.vue, confirmed
+// empirically via a real php artisan serve + login session (419 without it).
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 async function load(page = 1) {
   loading.value = true
   try {
@@ -81,7 +90,7 @@ async function load(page = 1) {
 async function submitDeclaration(decl: CustomsDeclaration) {
   const res = await fetch(`/api/v1/logistics/customs-declarations/${decl.id}/submit`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
     credentials: 'same-origin',
   })
   if (res.ok) load(declarations.value.current_page)
@@ -94,6 +103,76 @@ function reset() {
 }
 
 const onPageChange = (e: { page: number }) => load(e.page + 1)
+
+// Chantier 19 Lot 4: "Nouvelle déclaration" and "Voir" both router.visit()'d
+// to /logistics/customs/create and /logistics/customs/{id} — neither route
+// nor page has ever existed anywhere in this app (confirmed via
+// `php artisan route:list` + a repo-wide Glob), a guaranteed 404 on every
+// click despite the real, already-tested CustomsDeclarationController
+// store()/show() API existing. Fixed with a compact inline create modal and
+// a read-only detail modal (matching Carriers/DeliveryRounds precedent).
+const showFormModal = ref(false)
+const savingDeclaration = ref(false)
+const declForm = reactive({
+  shipment_id: '', type: null as string | null, declared_value: '', currency: 'MGA',
+  country_export: '', country_import: '', incoterm: null as string | null,
+})
+const declErrors = reactive<Record<string, string>>({})
+
+const incotermOptions = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DDP', 'FOB', 'CFR', 'CIF'].map(v => ({ label: v, value: v }))
+
+function openCreateDeclaration() {
+  declForm.shipment_id = ''
+  declForm.type = null
+  declForm.declared_value = ''
+  declForm.currency = 'MGA'
+  declForm.country_export = ''
+  declForm.country_import = ''
+  declForm.incoterm = null
+  Object.keys(declErrors).forEach(k => delete declErrors[k])
+  showFormModal.value = true
+}
+
+async function submitDeclarationForm() {
+  savingDeclaration.value = true
+  Object.keys(declErrors).forEach(k => delete declErrors[k])
+  try {
+    const res = await fetch('/api/v1/logistics/customs-declarations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+      credentials: 'same-origin',
+      body: JSON.stringify({ ...declForm, shipment_id: Number(declForm.shipment_id), declared_value: Number(declForm.declared_value) }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      if (data.errors) Object.assign(declErrors, data.errors)
+      return
+    }
+    showFormModal.value = false
+    load(declarations.value.current_page)
+  } finally {
+    savingDeclaration.value = false
+  }
+}
+
+const showDetailModal = ref(false)
+const detailLoading = ref(false)
+const detailDeclaration = ref<any>(null)
+
+async function viewDeclaration(decl: CustomsDeclaration) {
+  showDetailModal.value = true
+  detailLoading.value = true
+  detailDeclaration.value = null
+  try {
+    const res = await fetch(`/api/v1/logistics/customs-declarations/${decl.id}`, {
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+    if (res.ok) detailDeclaration.value = await res.json()
+  } finally {
+    detailLoading.value = false
+  }
+}
 
 load()
 </script>
@@ -108,7 +187,7 @@ load()
         <p class="wh-page-subtitle">{{ declarations.total }} déclaration{{ declarations.total !== 1 ? 's' : '' }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="router.visit('/logistics/customs/create')">
+        <button class="btn btn-primary" @click="openCreateDeclaration">
           <i class="pi pi-plus" style="font-size:13px" /> Nouvelle déclaration
         </button>
       </div>
@@ -173,7 +252,7 @@ load()
                 >
                   <i class="pi pi-send" style="font-size:13px" />
                 </button>
-                <button class="wh-row-btn" title="Voir" @click="router.visit(`/logistics/customs/${d.id}`)">
+                <button class="wh-row-btn" title="Voir" @click="viewDeclaration(d)">
                   <i class="pi pi-eye" style="font-size:13px" />
                 </button>
               </div>
@@ -198,10 +277,66 @@ load()
         />
       </div>
     </div>
+
+    <Dialog v-model:visible="showFormModal" header="Nouvelle déclaration douanière" modal style="width: 30rem">
+      <form class="decl-form" @submit.prevent="submitDeclarationForm">
+        <div class="decl-field">
+          <label>Expédition (ID) *</label>
+          <InputText v-model="declForm.shipment_id" :class="{ 'p-invalid': declErrors.shipment_id }" />
+          <small v-if="declErrors.shipment_id" class="decl-error">{{ declErrors.shipment_id }}</small>
+        </div>
+        <div class="decl-field">
+          <label>Type</label>
+          <Select v-model="declForm.type" :options="typeOptions" option-label="label" option-value="value" show-clear class="w-full" />
+        </div>
+        <div class="decl-field">
+          <label>Valeur déclarée *</label>
+          <InputText v-model="declForm.declared_value" :class="{ 'p-invalid': declErrors.declared_value }" />
+          <small v-if="declErrors.declared_value" class="decl-error">{{ declErrors.declared_value }}</small>
+        </div>
+        <div class="decl-field">
+          <label>Devise (ISO 3) *</label>
+          <InputText v-model="declForm.currency" maxlength="3" :class="{ 'p-invalid': declErrors.currency }" />
+        </div>
+        <div class="decl-field">
+          <label>Pays export (ISO 2)</label>
+          <InputText v-model="declForm.country_export" maxlength="2" />
+        </div>
+        <div class="decl-field">
+          <label>Pays import (ISO 2)</label>
+          <InputText v-model="declForm.country_import" maxlength="2" />
+        </div>
+        <div class="decl-field">
+          <label>Incoterm</label>
+          <Select v-model="declForm.incoterm" :options="incotermOptions" option-label="label" option-value="value" show-clear class="w-full" />
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button type="button" class="btn btn-secondary" @click="showFormModal = false">Annuler</button>
+          <button type="submit" class="btn btn-primary" :disabled="savingDeclaration">Créer</button>
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog v-model:visible="showDetailModal" :header="`Déclaration ${detailDeclaration?.reference ?? ''}`" modal style="width: 32rem">
+      <div v-if="detailLoading" style="text-align:center;padding:24px"><i class="pi pi-spin pi-spinner" /></div>
+      <div v-else-if="detailDeclaration">
+        <p><strong>Type :</strong> {{ detailDeclaration.type }}</p>
+        <p><strong>Statut :</strong> {{ detailDeclaration.status }}</p>
+        <p><strong>Trajet :</strong> {{ detailDeclaration.country_export }} → {{ detailDeclaration.country_import }}</p>
+        <p><strong>Incoterm :</strong> {{ detailDeclaration.incoterm ?? '—' }}</p>
+        <p><strong>Valeur déclarée :</strong> {{ formatAmount(detailDeclaration.total_declared_value ?? detailDeclaration.declared_value, detailDeclaration.currency) }}</p>
+        <p><strong>Code SH :</strong> {{ detailDeclaration.hs_code ?? '—' }}</p>
+      </div>
+      <p v-else style="color:var(--fg-3)">Aucune donnée disponible.</p>
+    </Dialog>
   </AppLayout>
 </template>
 
 <style scoped>
 .wh-row-btn { width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-subtle); background:var(--bg-canvas); color:var(--fg-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all var(--dur-fast); }
 .wh-row-btn:hover { background:var(--bg-sunken); color:var(--fg-1); border-color:var(--border-strong); }
+.decl-form { display:flex; flex-direction:column; gap:12px; }
+.decl-field { display:flex; flex-direction:column; gap:4px; }
+.decl-field label { font-size:12px; font-weight:500; color:var(--fg-2); }
+.decl-error { color:var(--red-500); font-size:11px; }
 </style>

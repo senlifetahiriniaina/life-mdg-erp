@@ -11,12 +11,33 @@ use Modules\Logistics\Models\CustomsDeclaration;
 
 /**
  * @group Logistics - Customs Declarations
+ *
+ * Chantier 19 Lot 4: this whole controller — the real, live code path
+ * Customs/Index.vue actually calls (routes/api.php's separate
+ * `logistics/customs` prefix, served by CustomsRouteController, is a
+ * different, unreachable-from-any-UI-page endpoint set, already documented
+ * separately) — had zero company/tenant scoping of any kind: any
+ * authenticated Logistics-module user of any company could list, view,
+ * edit, delete, and submit every other company's customs declarations.
+ * Confirmed empirically via a real cross-company HTTP request. Fixed by
+ * scoping every method through the real `tenant_id` column on
+ * logistics_customs_declarations (this table has no `company_id` column —
+ * confirmed via Schema::getColumnListing, unlike lgx_delivery_routes/
+ * lgx_vehicles, which genuinely do — so `tenant_id` populated from the
+ * caller's real users.company_id is the correct boundary here, matching
+ * the fix already applied to CustomsRouteController/CustomsService).
  */
 class CustomsDeclarationController extends Controller
 {
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()?->company_id ?? 0);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $q = CustomsDeclaration::query()
+            ->where('tenant_id', $this->tenantId($request))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
             ->when($request->input('shipment_id'), fn ($q, $v) => $q->where('shipment_id', $v))
@@ -54,19 +75,30 @@ class CustomsDeclarationController extends Controller
         ]);
 
         $data['created_by'] = $request->user()->id;
+        $data['tenant_id'] = $this->tenantId($request);
         $data['status'] = 'draft';
 
         $declaration = CustomsDeclaration::create($data);
         return response()->json(['data' => $declaration], 201);
     }
 
-    public function show(CustomsDeclaration $customsDeclaration): JsonResponse
+    /** Resolves a declaration scoped to the caller's own company — 404, not 403, on a cross-company id (matches the ScopesToProjectCompany precedent elsewhere in this app). */
+    private function findOwned(Request $request, int $id): CustomsDeclaration
     {
-        return response()->json(['data' => $customsDeclaration]);
+        return CustomsDeclaration::where('tenant_id', $this->tenantId($request))->findOrFail($id);
+    }
+
+    public function show(Request $request, CustomsDeclaration $customsDeclaration): JsonResponse
+    {
+        $declaration = $this->findOwned($request, $customsDeclaration->id);
+
+        return response()->json(['data' => $declaration]);
     }
 
     public function update(Request $request, CustomsDeclaration $customsDeclaration): JsonResponse
     {
+        $declaration = $this->findOwned($request, $customsDeclaration->id);
+
         $data = $request->validate([
             'hs_code' => 'nullable|string',
             'item_description' => 'nullable|string',
@@ -77,27 +109,30 @@ class CustomsDeclarationController extends Controller
             'incoterm' => 'nullable|in:EXW,FCA,CPT,CIP,DAP,DDP,FOB,CFR,CIF',
         ]);
 
-        $customsDeclaration->update($data);
+        $declaration->update($data);
 
-        return response()->json(['data' => $customsDeclaration->fresh()]);
+        return response()->json(['data' => $declaration->fresh()]);
     }
 
-    public function destroy(CustomsDeclaration $customsDeclaration): JsonResponse
+    public function destroy(Request $request, CustomsDeclaration $customsDeclaration): JsonResponse
     {
-        $customsDeclaration->delete();
+        $declaration = $this->findOwned($request, $customsDeclaration->id);
+        $declaration->delete();
 
         return response()->json(['message' => 'Deleted.']);
     }
 
-    public function submit(CustomsDeclaration $customsDeclaration): JsonResponse
+    public function submit(Request $request, CustomsDeclaration $customsDeclaration): JsonResponse
     {
-        abort_if($customsDeclaration->status !== 'draft', 422, 'Only draft declarations can be submitted.');
+        $declaration = $this->findOwned($request, $customsDeclaration->id);
 
-        $customsDeclaration->update([
+        abort_if($declaration->status !== 'draft', 422, 'Only draft declarations can be submitted.');
+
+        $declaration->update([
             'status' => 'submitted',
             'submitted_at' => now(),
         ]);
 
-        return response()->json($customsDeclaration->fresh());
+        return response()->json($declaration->fresh());
     }
 }

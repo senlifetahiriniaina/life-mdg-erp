@@ -93,7 +93,28 @@ class BiWebController extends Controller
         return Inertia::render('BI/Builder', [
             'dashboardId' => $dashboard?->id,
             'dashboardName' => $dashboard?->name ?? '',
-            'existingWidgets' => $dashboard?->widgets ?? [],
+            // Chantier 19 Lot 5: Builder.vue's addWidget()/save() treat
+            // `w`/`h`/`dataSource`/`description` as flat top-level widget
+            // fields, but Widget has no such columns — the new
+            // WidgetController::store() folds them into the `position` JSON
+            // column instead (alongside render order). Flattened back out
+            // here so re-opening a saved dashboard doesn't silently reset
+            // every widget's size/data-source/description to their
+            // defaults (there was nothing real to load at all before this
+            // endpoint existed).
+            'existingWidgets' => ($dashboard?->widgets ?? collect())
+                ->sortBy(fn ($w) => $w->position['order'] ?? 0)
+                ->values()
+                ->map(fn ($w) => [
+                    'id' => $w->id,
+                    'type' => $w->type,
+                    'title' => $w->title,
+                    'description' => $w->position['description'] ?? '',
+                    'dataSource' => $w->position['dataSource'] ?? '',
+                    'w' => $w->position['w'] ?? 6,
+                    'h' => $w->position['h'] ?? 1,
+                    'config' => $w->config ?? [],
+                ]),
             'dataSources' => BiDataSource::latest()->limit(20)->get(['id', 'name', 'type']),
         ]);
     }
@@ -117,7 +138,13 @@ class BiWebController extends Controller
                 ->orWhere('is_public', true);
         })
             ->latest()
-            ->get(['id', 'name', 'description', 'datasource', 'is_public', 'last_run_at']);
+            // Chantier 19 Lot 5: 'sql_query' (the real column, confirmed via
+            // BiQuery::$fillable) was missing from this select list — every
+            // saved query the SQL editor listed had no SQL text to load back
+            // into the textarea, confirmed empirically (SqlEditor.vue's
+            // loadQuery() always populated an empty editor for any saved
+            // query, no matter what SQL it actually held).
+            ->get(['id', 'name', 'description', 'datasource', 'is_public', 'last_run_at', 'sql_query']);
 
         return Inertia::render('BI/SqlEditor', [
             'savedQueries' => $queries,

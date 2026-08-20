@@ -8,6 +8,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\BI\Models\Report;
+use Modules\BI\Services\ExportService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * @group BI - Report
@@ -31,7 +34,16 @@ class ReportController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'type' => ['nullable', 'in:table,bar,line,pie,area,scatter'],
+            // Chantier 19 Lot 5: the real, routed Reports/Index.vue page treats
+            // `type` as an export/output format (pdf/excel/csv/dashboard —
+            // confirmed via its own typeIcon()/typeOptions), not a chart type
+            // — every real "Nouveau rapport" submission through the UI 422'd
+            // against the old chart-type-only list. Widened to accept both
+            // vocabularies rather than narrowing either, since
+            // ReportFactory/BIReportingTest.php genuinely use the chart-type
+            // values (table/bar/line/pie) for a different, API-level concept
+            // of "report".
+            'type' => ['nullable', 'in:table,bar,line,pie,area,scatter,pdf,excel,csv,dashboard'],
             'query_config' => ['nullable', 'array'],
             'chart_config' => ['nullable', 'array'],
             'filters' => ['nullable', 'array'],
@@ -55,7 +67,16 @@ class ReportController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'type' => ['nullable', 'in:table,bar,line,pie,area,scatter'],
+            // Chantier 19 Lot 5: the real, routed Reports/Index.vue page treats
+            // `type` as an export/output format (pdf/excel/csv/dashboard —
+            // confirmed via its own typeIcon()/typeOptions), not a chart type
+            // — every real "Nouveau rapport" submission through the UI 422'd
+            // against the old chart-type-only list. Widened to accept both
+            // vocabularies rather than narrowing either, since
+            // ReportFactory/BIReportingTest.php genuinely use the chart-type
+            // values (table/bar/line/pie) for a different, API-level concept
+            // of "report".
+            'type' => ['nullable', 'in:table,bar,line,pie,area,scatter,pdf,excel,csv,dashboard'],
             'query_config' => ['nullable', 'array'],
             'chart_config' => ['nullable', 'array'],
             'filters' => ['nullable', 'array'],
@@ -78,12 +99,71 @@ class ReportController extends Controller
 
     public function run(Report $report): JsonResponse
     {
-        $report->update(['last_run_at' => now()]);
+        $result = $this->computeResult($report);
 
         return response()->json([
-            'data' => [],
-            'columns' => [],
+            'data' => $result['data']->all(),
+            'columns' => $result['columns'],
             'ran_at' => now(),
         ]);
+    }
+
+    /**
+     * Chantier 19 Lot 5: the real, routed Reports/Index.vue "Générer
+     * maintenant" button POSTs to `bi/reports/{report}/generate` — a route
+     * that has never existed (only `/run`, which no Vue page anywhere
+     * actually calls) — every click 404'd. Alias `generate` onto the same
+     * real `run()` behavior rather than duplicating it.
+     */
+    public function generate(Report $report): JsonResponse
+    {
+        return $this->run($report);
+    }
+
+    /**
+     * Chantier 19 Lot 5: the real, routed Reports/Index.vue "Exporter
+     * PDF"/"Exporter Excel" buttons GET `bi/reports/{report}/export` — a
+     * route that has never existed at all, confirmed via a real HTTP 404 —
+     * every click failed silently (the frontend's own catch block only
+     * showed a generic toast). Wired to the same, already-real
+     * ExportService pipeline the module's other export endpoints
+     * (Dashboard/Widget/Query) already use.
+     */
+    public function export(Request $request, Report $report): BinaryFileResponse|Response
+    {
+        $format = $request->query('format', 'csv');
+        $result = $this->computeResult($report);
+        $filename = 'report_'.$report->id.'_'.now()->format('Ymd_His');
+
+        /** @var ExportService $export */
+        $export = app(ExportService::class);
+
+        return match ($format) {
+            'excel', 'xlsx' => $export->toXlsx($result['data'], $result['columns'], $filename),
+            'pdf' => $export->toPdf('bi::exports.report', [
+                'report' => $report,
+                'rows' => $result['data'],
+                'headings' => $result['columns'],
+            ], $filename),
+            default => $export->toCsv($result['data'], $result['columns'], $filename),
+        };
+    }
+
+    /**
+     * Report execution has no query-execution engine wired to arbitrary
+     * `query_config` (same documented limitation this method already
+     * carried before this chantier, under its old name `run()`) — this
+     * honestly returns an empty result set rather than guessing at how to
+     * interpret a report's stored config, matching the fallback-first
+     * design principle used throughout this app. `last_run_at` is still
+     * genuinely persisted for real.
+     *
+     * @return array{data: \Illuminate\Support\Collection<int, mixed>, columns: list<string>}
+     */
+    private function computeResult(Report $report): array
+    {
+        $report->update(['last_run_at' => now()]);
+
+        return ['data' => collect(), 'columns' => []];
     }
 }

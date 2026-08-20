@@ -28,6 +28,7 @@ class CustomsDeclaration extends Model
     protected $table = 'logistics_customs_declarations';
 
     protected $fillable = [
+        'tenant_id',
         'reference',
         'shipment_id',
         'type',

@@ -85,7 +85,7 @@
             placeholder="Sélectionner un type"
           />
         </div>
-        <template v-if="form.type === 'mysql' || form.type === 'postgresql' || form.type === 'mssql'">
+        <template v-if="form.type === 'mysql' || form.type === 'postgresql'">
           <div style="display:grid;grid-template-columns:1fr auto;gap:10px">
             <div>
               <label class="wh-label">Hôte</label>
@@ -132,7 +132,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { Dialog, InputText, InputNumber, Select, Password } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
@@ -163,20 +163,26 @@ const form = reactive({
   connection_string: '',
 })
 
+// Chantier 19 Lot 5: this list previously used 'postgresql'/'mssql'/'api' —
+// none of which matched DataSourceService::resolve()'s real connector
+// registry ('mysql'/'postgresql'/'rest_api'/'csv'/'google_sheets', see
+// StoreDataSourceRequest's fix comment). 'postgresql' now matches (the
+// backend's own vocabulary was the one that was wrong); 'api' renamed to
+// 'rest_api' to match; 'mssql' (SQL Server) removed entirely — no
+// MssqlConnector exists anywhere in this module, so it was never a real
+// supported type, just an unreachable form option.
 const typeOptions = [
   { label: 'MySQL', value: 'mysql' },
   { label: 'PostgreSQL', value: 'postgresql' },
-  { label: 'SQL Server', value: 'mssql' },
   { label: 'Fichier CSV', value: 'csv' },
-  { label: 'API REST', value: 'api' },
+  { label: 'API REST', value: 'rest_api' },
 ]
 
 const sourceIcon = (type: string) => ({
   mysql:      'pi pi-database',
   postgresql: 'pi pi-database',
-  mssql:      'pi pi-database',
   csv:        'pi pi-file-excel',
-  api:        'pi pi-link',
+  rest_api:   'pi pi-link',
 }[type] ?? 'pi pi-database')
 
 const statusBadge = (s: string) => ({
@@ -199,12 +205,38 @@ const testConnection = async (src: DataSource) => {
 }
 
 const createSource = async () => {
-  await fetch('/api/v1/bi/data-sources', {
+  // Chantier 19 Lot 5: this used to POST the flat `form` object as-is — but
+  // StoreDataSourceRequest only reads `name`/`type`/`connection_config`
+  // (or `config`, aliased onto it), so `host`/`port`/`database_name`/
+  // `username`/`password`/`connection_string` were silently dropped on
+  // every real submission: every created source ended up with an empty
+  // connection_config, guaranteed to fail its first real "Tester"/sync/
+  // schema call. Also note `database_name` here vs the connector's real
+  // `database` config key (MysqlConnector/PostgresConnector's own
+  // buildPdo()) — mapped explicitly below.
+  const connection_config: Record<string, unknown> = {}
+  if (form.type === 'mysql' || form.type === 'postgresql') {
+    connection_config.host = form.host
+    connection_config.port = form.port
+    connection_config.database = form.database_name
+    connection_config.username = form.username
+    connection_config.password = form.password
+  } else if (form.type === 'csv') {
+    connection_config.file_path = form.connection_string
+  }
+
+  const res = await fetch('/api/v1/bi/data-sources', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(form),
+    body: JSON.stringify({ name: form.name, type: form.type, connection_config }),
   })
+  if (!res.ok) {
+    // eslint-disable-next-line no-alert
+    alert('Échec de la connexion de la source de données.')
+    return
+  }
   showCreate.value = false
+  router.reload({ only: ['dataSources'] })
 }
 </script>
 

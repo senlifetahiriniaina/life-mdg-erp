@@ -646,7 +646,9 @@ class ReportingController extends Controller
                 'name'        => $validated['name'],
                 'description' => $validated['description'] ?? null,
                 'is_default'  => $validated['is_default'] ?? false,
-                'owner_id'    => $request->user()->id,
+                // Chantier 19 (Lot 5): 'owner_id' → 'created_by', the real
+                // column — see Dashboard model's own docblock for the fix.
+                'created_by'  => $request->user()->id,
                 'shared_with' => $validated['shared_with'] ?? [],
             ]);
         }

@@ -73,7 +73,7 @@ class DashboardService
             'name'        => 'Tableau de bord principal',
             'description' => 'Dashboard par défaut — généré automatiquement',
             'is_default'  => true,
-            'owner_id'    => null,
+            'created_by'  => null,
             'layout'      => ['columns' => 4, 'rows' => 3],
             'shared_with' => ['admin', 'manager', 'director'],
         ]);
@@ -108,7 +108,7 @@ class DashboardService
             'name'        => $tpl['name'],
             'description' => $tpl['description'],
             'is_default'  => false,
-            'owner_id'    => null,
+            'created_by'  => null,
             'layout'      => $tpl['layout'] ?? ['columns' => 4, 'rows' => 3],
             'shared_with' => $tpl['shared_with'] ?? [],
         ]);
@@ -182,25 +182,46 @@ class DashboardService
         }
     }
 
+    /**
+     * Chantier 19 (Lot 5): a deeper set of bugs than the "already correct"
+     * baseline this method was assumed to be (the earlier resolvers'
+     * table-name bug happened to overshadow this one, since fixing them
+     * first is what surfaced this while writing the regression test).
+     * `sales_orders`/`sales_order_lines` are the real tables, but none of
+     * `order_date`/`total_amount`/`order_id`/`total_price` are real columns
+     * on them (real: `confirmed_at`/`total`/`sales_order_id`/`line_total`)
+     * — every one of the 3 queries here has been a guaranteed "no such
+     * column" SQL error, silently swallowed the same way as every other
+     * resolver in this file. `MONTH(order_date)` was additionally a
+     * MySQL-only function that would have fatally errored under this app's
+     * real sqlite dev/test/CI driver even with the column name fixed —
+     * grouped in PHP instead, the same portable pattern already established
+     * by Achats' PurchaseReportsController::spending() (Chantier 19 Lot 3).
+     * `top_products` joins the real product catalogue, `inventory_products`
+     * (Sales has no product model of its own; `sales_order_lines.product_id`
+     * is a bare FK with no declared relation, and every other module that
+     * references a Sales-order product already joins `inventory_products`).
+     */
     private function resolveSalesData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'monthly_revenue' => DB::table('sales_orders')
                 ->where('tenant_id', $tenantId)
                 ->where('status', 'confirmed')
-                ->whereYear('order_date', now()->year)
-                ->selectRaw('MONTH(order_date) as month, SUM(total_amount) as revenue')
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get()
+                ->whereYear('confirmed_at', now()->year)
+                ->get(['confirmed_at', 'total'])
+                ->groupBy(fn ($row) => (int) \Illuminate\Support\Carbon::parse($row->confirmed_at)->format('n'))
+                ->map(fn ($rows, $month) => ['month' => $month, 'revenue' => (float) $rows->sum('total')])
+                ->sortKeys()
+                ->values()
                 ->toArray(),
 
             'top_products' => DB::table('sales_order_lines as sol')
-                ->join('sales_orders as so', 'so.id', '=', 'sol.order_id')
-                ->join('products as p', 'p.id', '=', 'sol.product_id')
+                ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+                ->join('inventory_products as p', 'p.id', '=', 'sol.product_id')
                 ->where('so.tenant_id', $tenantId)
-                ->whereDate('so.order_date', '>=', now()->startOfMonth())
-                ->selectRaw('p.name, SUM(sol.quantity) as qty, SUM(sol.total_price) as revenue')
+                ->whereDate('so.confirmed_at', '>=', now()->startOfMonth())
+                ->selectRaw('p.name, SUM(sol.quantity) as qty, SUM(sol.line_total) as revenue')
                 ->groupBy('p.id', 'p.name')
                 ->orderByDesc('revenue')
                 ->limit(10)
@@ -210,8 +231,9 @@ class DashboardService
             'kpi_revenue_month' => [
                 'value'  => DB::table('sales_orders')
                     ->where('tenant_id', $tenantId)
-                    ->whereDate('order_date', '>=', now()->startOfMonth())
-                    ->sum('total_amount'),
+                    ->where('status', 'confirmed')
+                    ->whereDate('confirmed_at', '>=', now()->startOfMonth())
+                    ->sum('total'),
                 'label'  => 'CA ce mois',
                 'format' => 'currency',
             ],
@@ -220,32 +242,58 @@ class DashboardService
         };
     }
 
+    /**
+     * Chantier 19 (Lot 5): every one of this resolver's 3 queries targeted a
+     * bare `products` table with `stock_qty`/`reorder_point`/`cost_price`
+     * columns — but the real `products` table (from the catch-all scaffold
+     * migration, kept only for CostEngineService/ProductionForecastService)
+     * has just `id/tenant_id/name/sku/status`, none of those 3 columns, and
+     * the module's real product catalogue is a completely different table,
+     * `inventory_products` (+ per-warehouse `inventory_stock`). Confirmed
+     * empirically: every real widget call threw "no such column", silently
+     * swallowed by resolveDataSource()'s own try/catch — every Inventory
+     * dashboard widget has shown "Données temporairement indisponibles"
+     * instead of real data since this file was written. Repointed at the
+     * real tables/columns. `inventory_products.tenant_id` is itself a
+     * documented phantom column elsewhere in this app (populated from the
+     * equally-phantom `users.tenant_id`, confirmed in Chantier 19 Lot 3's
+     * AiAnomalyDetectionService fix) — not re-litigated here, since fixing
+     * Inventory's own tenant population is out of this Reporting-module
+     * fix's scope; the filter is kept only so behavior doesn't regress
+     * against whatever the real write path already does.
+     */
     private function resolveInventoryData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
-            'low_stock' => DB::table('products')
-                ->where('tenant_id', $tenantId)
-                ->whereColumn('stock_qty', '<=', 'reorder_point')
-                ->where('reorder_point', '>', 0)
-                ->select('id', 'name', 'sku', 'stock_qty', 'reorder_point')
+            'low_stock' => DB::table('inventory_products as p')
+                ->leftJoin('inventory_stock as s', 's.product_id', '=', 'p.id')
+                ->where('p.tenant_id', $tenantId)
+                ->where('p.reorder_point', '>', 0)
+                ->groupBy('p.id', 'p.name', 'p.sku', 'p.reorder_point')
+                ->havingRaw('COALESCE(SUM(s.quantity), 0) <= p.reorder_point')
+                ->selectRaw('p.id, p.name, p.sku, COALESCE(SUM(s.quantity), 0) as stock_qty, p.reorder_point')
                 ->orderBy('stock_qty')
                 ->limit(20)
                 ->get()
                 ->toArray(),
 
             'kpi_stock_value' => [
-                'value'  => DB::table('products')
-                    ->where('tenant_id', $tenantId)
-                    ->selectRaw('SUM(stock_qty * cost_price)')
-                    ->value(DB::raw('SUM(stock_qty * cost_price)')),
+                'value'  => DB::table('inventory_stock as s')
+                    ->join('inventory_products as p', 'p.id', '=', 's.product_id')
+                    ->where('p.tenant_id', $tenantId)
+                    ->selectRaw('SUM(s.quantity * p.cost_price)')
+                    ->value(DB::raw('SUM(s.quantity * p.cost_price)')) ?? 0,
                 'label'  => 'Valeur du stock',
                 'format' => 'currency',
             ],
 
             'kpi_stockout_count' => [
-                'value'  => DB::table('products')
-                    ->where('tenant_id', $tenantId)
-                    ->where('stock_qty', '<=', 0)
+                'value'  => DB::table('inventory_products as p')
+                    ->leftJoin('inventory_stock as s', 's.product_id', '=', 'p.id')
+                    ->where('p.tenant_id', $tenantId)
+                    ->groupBy('p.id')
+                    ->havingRaw('COALESCE(SUM(s.quantity), 0) <= 0')
+                    ->get()
                     ->count(),
                 'label'  => 'Produits en rupture',
                 'format' => 'integer',
@@ -255,26 +303,45 @@ class DashboardService
         };
     }
 
+    /**
+     * Chantier 19 (Lot 5): `invoices`/`supplier_invoices` never existed
+     * anywhere in this repo (confirmed via a repo-wide grep for either
+     * `Schema::create`) — a guaranteed "table not found" error on every real
+     * call, silently swallowed the same way as the Inventory resolver above.
+     * Receivables is repointed to the real `acc_invoices` table (the same
+     * one Chantier 18's OHADA financial statements read), reusing
+     * `Invoice::scopeUnpaid()`'s own `status NOT IN (paid, cancelled)` rule
+     * inline since this method uses the query builder, not Eloquent.
+     * `acc_invoices` has no tenant/company column at all — this app posts
+     * to one shared ledger by design (documented in Chantier 18's
+     * OhadaReportService fix), so $tenantId is accepted for signature
+     * parity with the other resolvers but not filtered on here, matching
+     * that same precedent. Payables has no real "supplier invoice with a
+     * payment status" concept anywhere in this app (Achats only tracks
+     * purchase orders, never invoices/payments) — approximated via
+     * not-yet-received purchase order totals rather than left querying a
+     * table that has never existed; `achats_purchase_orders.company_id` is
+     * real and populated (Chantier 19 Lot 3's Achats tenant-isolation fix).
+     */
     private function resolveAccountingData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'kpi_outstanding_receivables' => [
-                'value'  => DB::table('invoices')
-                    ->where('tenant_id', $tenantId)
-                    ->whereIn('status', ['sent', 'partial', 'overdue'])
-                    ->selectRaw('SUM(total_amount - COALESCE(paid_amount, 0))')
-                    ->value(DB::raw('SUM(total_amount - COALESCE(paid_amount, 0))')),
+                'value'  => DB::table('acc_invoices')
+                    ->whereNotIn('status', ['paid', 'cancelled'])
+                    ->selectRaw('SUM(total - COALESCE(amount_paid, 0))')
+                    ->value(DB::raw('SUM(total - COALESCE(amount_paid, 0))')) ?? 0,
                 'label'  => 'Créances en cours',
                 'format' => 'currency',
             ],
 
             'kpi_outstanding_payables' => [
-                'value'  => DB::table('supplier_invoices')
-                    ->where('tenant_id', $tenantId)
-                    ->whereIn('status', ['received', 'partial', 'overdue'])
-                    ->selectRaw('SUM(total_amount - COALESCE(paid_amount, 0))')
-                    ->value(DB::raw('SUM(total_amount - COALESCE(paid_amount, 0))')),
-                'label'  => 'Dettes fournisseurs',
+                'value'  => DB::table('achats_purchase_orders')
+                    ->where('company_id', $tenantId)
+                    ->whereNotIn('status', ['received', 'cancelled', 'rejected'])
+                    ->selectRaw('SUM(total_amount)')
+                    ->value(DB::raw('SUM(total_amount)')) ?? 0,
+                'label'  => 'Dettes fournisseurs (commandes non réceptionnées)',
                 'format' => 'currency',
             ],
 
@@ -282,12 +349,26 @@ class DashboardService
         };
     }
 
+    /**
+     * Chantier 19 (Lot 5): `employees`/`leave_requests` never existed
+     * anywhere in this repo — same guaranteed-error, silently-swallowed bug
+     * class as the two resolvers above. Repointed to the real
+     * `hr_employees`/`hr_leave_requests` tables. `hr_leave_requests` has no
+     * tenant/company column at all, and `hr_employees.tenant_id` is itself
+     * a documented, never-populated phantom column (CLAUDE.md's own
+     * Chantier 8.3hp entry: "a third, phantom column, referenced nowhere in
+     * live HR code") — HR-wide tenant isolation is a confirmed, explicitly
+     * out-of-scope gap (Chantier 19 Lot 2: "a module-wide retrofit... left
+     * undone"), not something a Reporting-module widget fix should silently
+     * paper over by inventing scoping HR itself doesn't have; left
+     * unfiltered by tenant here, matching HR's own current (documented)
+     * behavior everywhere else in the app.
+     */
     private function resolveHrData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'kpi_headcount' => [
-                'value'  => DB::table('employees')
-                    ->where('tenant_id', $tenantId)
+                'value'  => DB::table('hr_employees')
                     ->where('status', 'active')
                     ->count(),
                 'label'  => 'Effectif actif',
@@ -295,8 +376,7 @@ class DashboardService
             ],
 
             'kpi_pending_leaves' => [
-                'value'  => DB::table('leave_requests')
-                    ->where('tenant_id', $tenantId)
+                'value'  => DB::table('hr_leave_requests')
                     ->where('status', 'pending')
                     ->count(),
                 'label'  => 'Congés en attente',
@@ -307,12 +387,22 @@ class DashboardService
         };
     }
 
+    /**
+     * Chantier 19 (Lot 5): `leads` never existed anywhere in this repo —
+     * same bug class as the resolvers above. Repointed to the real
+     * `crm_leads` table, filtered by its real `company_id` column (the
+     * tenant-boundary column CRM's LeadController::store() actually
+     * populates as of Chantier 19 Lot 1's CRM re-audit — `tenant_id` on
+     * this same table is the equally-real-but-legacy column CRM's own
+     * services still write in parallel; company_id is the one every
+     * already-fixed CRM controller scopes reads by).
+     */
     private function resolveCrmData(string $query, array $params, int $tenantId): mixed
     {
         return match ($query) {
             'kpi_active_leads' => [
-                'value'  => DB::table('leads')
-                    ->where('tenant_id', $tenantId)
+                'value'  => DB::table('crm_leads')
+                    ->where('company_id', $tenantId)
                     ->whereNotIn('status', ['lost', 'converted'])
                     ->count(),
                 'label'  => 'Leads actifs',

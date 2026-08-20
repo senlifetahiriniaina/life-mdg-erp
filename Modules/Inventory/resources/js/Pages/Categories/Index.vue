@@ -204,6 +204,20 @@ const categoryForm = reactive({
 
 const categoryErrors = reactive<Record<string, string>>({})
 
+// Chantier 19 Lot 4: this page's POST/PUT/DELETE fetch() calls sent no CSRF
+// token at all — unlike axios (used elsewhere in this app), which reads the
+// XSRF-TOKEN cookie and attaches X-XSRF-TOKEN automatically, a raw fetch()
+// does nothing on its own. Confirmed empirically (curl against a real
+// php artisan serve instance, real login session, real Referer header
+// matching config('sanctum.stateful')) that every create/update/delete on
+// this page returned 419 "CSRF token mismatch" — Pest tests can never catch
+// this, since VerifyCsrfToken::runningUnitTests() unconditionally bypasses
+// the check whenever app()->runningUnitTests() is true. Same fix pattern
+// already used by Shipments/Index.vue's own getCsrf() helper.
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 const fetchCategories = async (page = 1) => {
   loading.value = true
   try {
@@ -252,7 +266,7 @@ const confirmDelete = (category: Category) => {
     accept: async () => {
       await fetch(`/api/v1/inventory/categories/${category.id}`, {
         method: 'DELETE',
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       })
       fetchCategories(pagination.current_page)
     },
@@ -275,6 +289,7 @@ const submitCategory = async () => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'X-CSRF-TOKEN': getCsrf(),
       },
       body: JSON.stringify({ ...categoryForm }),
     })

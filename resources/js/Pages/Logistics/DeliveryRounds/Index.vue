@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Head, router } from '@inertiajs/vue3'
+import { ref, reactive } from 'vue'
+import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
 
 interface DeliveryRound {
   id: number
@@ -51,6 +53,13 @@ function formatDate(d?: string) {
   return new Date(d).toLocaleDateString('fr-FR')
 }
 
+// Chantier 19 Lot 4: this page's POST fetch() calls (start/complete) sent no
+// CSRF token at all — same fix pattern as Carriers/Index.vue, confirmed
+// empirically via a real php artisan serve + login session (419 without it).
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 async function load(page = 1) {
   loading.value = true
   try {
@@ -68,7 +77,7 @@ async function load(page = 1) {
 async function startRound(round: DeliveryRound) {
   const res = await fetch(`/api/v1/logistics/delivery-rounds/${round.id}/start`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
     credentials: 'same-origin',
   })
   if (res.ok) load(rounds.value.current_page)
@@ -77,7 +86,7 @@ async function startRound(round: DeliveryRound) {
 async function completeRound(round: DeliveryRound) {
   const res = await fetch(`/api/v1/logistics/delivery-rounds/${round.id}/complete`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
     credentials: 'same-origin',
   })
   if (res.ok) load(rounds.value.current_page)
@@ -89,6 +98,78 @@ function reset() {
 }
 
 const onPageChange = (e: { page: number }) => load(e.page + 1)
+
+// Chantier 19 Lot 4: "Nouvelle tournée" and "Voir" both router.visit()'d to
+// /logistics/delivery-rounds/create and /logistics/delivery-rounds/{id} —
+// neither route nor page has ever existed anywhere in this app (confirmed
+// via `php artisan route:list` + a repo-wide Glob), a guaranteed 404 on
+// every click despite the real, already-tested DeliveryRoundController
+// store()/show() API existing. Fixed with a compact inline create modal
+// and a read-only detail modal (matching the Carriers/Index.vue precedent).
+const showFormModal = ref(false)
+const savingRound = ref(false)
+const roundForm = reactive({
+  driver_name: '', driver_phone: '', vehicle_plate: '', vehicle_type: null as string | null, planned_date: '',
+})
+const roundErrors = reactive<Record<string, string>>({})
+
+const vehicleTypeOptions = [
+  { label: 'Camionnette', value: 'van' },
+  { label: 'Camion', value: 'truck' },
+  { label: 'Moto', value: 'motorcycle' },
+  { label: 'Vélo', value: 'bicycle' },
+]
+
+function openCreateRound() {
+  roundForm.driver_name = ''
+  roundForm.driver_phone = ''
+  roundForm.vehicle_plate = ''
+  roundForm.vehicle_type = null
+  roundForm.planned_date = ''
+  Object.keys(roundErrors).forEach(k => delete roundErrors[k])
+  showFormModal.value = true
+}
+
+async function submitRoundForm() {
+  savingRound.value = true
+  Object.keys(roundErrors).forEach(k => delete roundErrors[k])
+  try {
+    const res = await fetch('/api/v1/logistics/delivery-rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+      credentials: 'same-origin',
+      body: JSON.stringify(roundForm),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      if (data.errors) Object.assign(roundErrors, data.errors)
+      return
+    }
+    showFormModal.value = false
+    load(rounds.value.current_page)
+  } finally {
+    savingRound.value = false
+  }
+}
+
+const showDetailModal = ref(false)
+const detailLoading = ref(false)
+const detailRound = ref<any>(null)
+
+async function viewRound(round: DeliveryRound) {
+  showDetailModal.value = true
+  detailLoading.value = true
+  detailRound.value = null
+  try {
+    const res = await fetch(`/api/v1/logistics/delivery-rounds/${round.id}`, {
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+    if (res.ok) detailRound.value = await res.json()
+  } finally {
+    detailLoading.value = false
+  }
+}
 
 load()
 </script>
@@ -103,7 +184,7 @@ load()
         <p class="wh-page-subtitle">{{ rounds.total }} tournée{{ rounds.total !== 1 ? 's' : '' }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="router.visit('/logistics/delivery-rounds/create')">
+        <button class="btn btn-primary" @click="openCreateRound">
           <i class="pi pi-plus" style="font-size:13px" /> Nouvelle tournée
         </button>
       </div>
@@ -173,7 +254,7 @@ load()
                 >
                   <i class="pi pi-check" style="font-size:13px" />
                 </button>
-                <button class="wh-row-btn" title="Voir" @click="router.visit(`/logistics/delivery-rounds/${r.id}`)">
+                <button class="wh-row-btn" title="Voir" @click="viewRound(r)">
                   <i class="pi pi-eye" style="font-size:13px" />
                 </button>
               </div>
@@ -198,10 +279,61 @@ load()
         />
       </div>
     </div>
+
+    <Dialog v-model:visible="showFormModal" header="Nouvelle tournée" modal style="width: 30rem">
+      <form class="round-form" @submit.prevent="submitRoundForm">
+        <div class="round-field">
+          <label>Chauffeur *</label>
+          <InputText v-model="roundForm.driver_name" :class="{ 'p-invalid': roundErrors.driver_name }" />
+          <small v-if="roundErrors.driver_name" class="round-error">{{ roundErrors.driver_name }}</small>
+        </div>
+        <div class="round-field">
+          <label>Téléphone chauffeur</label>
+          <InputText v-model="roundForm.driver_phone" />
+        </div>
+        <div class="round-field">
+          <label>Type de véhicule</label>
+          <Select v-model="roundForm.vehicle_type" :options="vehicleTypeOptions" option-label="label" option-value="value" show-clear class="w-full" />
+        </div>
+        <div class="round-field">
+          <label>Plaque</label>
+          <InputText v-model="roundForm.vehicle_plate" />
+        </div>
+        <div class="round-field">
+          <label>Date prévue</label>
+          <InputText v-model="roundForm.planned_date" type="date" />
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button type="button" class="btn btn-secondary" @click="showFormModal = false">Annuler</button>
+          <button type="submit" class="btn btn-primary" :disabled="savingRound">Créer</button>
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog v-model:visible="showDetailModal" :header="`Tournée ${detailRound?.reference ?? ''}`" modal style="width: 32rem">
+      <div v-if="detailLoading" style="text-align:center;padding:24px"><i class="pi pi-spin pi-spinner" /></div>
+      <div v-else-if="detailRound">
+        <p><strong>Chauffeur :</strong> {{ detailRound.driver_name }}</p>
+        <p><strong>Statut :</strong> {{ detailRound.status }}</p>
+        <p><strong>Transporteur :</strong> {{ detailRound.carrier?.name ?? '—' }}</p>
+        <p><strong>Créé par :</strong> {{ detailRound.creator?.name ?? '—' }}</p>
+        <p><strong>Arrêts :</strong> {{ detailRound.stops?.length ?? 0 }}</p>
+        <ul v-if="detailRound.stops?.length" style="font-size:12px;margin-top:8px">
+          <li v-for="s in detailRound.stops" :key="s.id">
+            {{ s.shipment?.consignee_name ?? s.shipment?.reference ?? `Arrêt #${s.id}` }} — {{ s.status }}
+          </li>
+        </ul>
+      </div>
+      <p v-else style="color:var(--fg-3)">Aucune donnée disponible.</p>
+    </Dialog>
   </AppLayout>
 </template>
 
 <style scoped>
 .wh-row-btn { width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-subtle); background:var(--bg-canvas); color:var(--fg-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all var(--dur-fast); }
 .wh-row-btn:hover { background:var(--bg-sunken); color:var(--fg-1); border-color:var(--border-strong); }
+.round-form { display:flex; flex-direction:column; gap:12px; }
+.round-field { display:flex; flex-direction:column; gap:4px; }
+.round-field label { font-size:12px; font-weight:500; color:var(--fg-2); }
+.round-error { color:var(--red-500); font-size:11px; }
 </style>

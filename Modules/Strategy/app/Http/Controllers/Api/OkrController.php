@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Modules\Strategy\Models\StrategyKeyResult;
 use Modules\Strategy\Models\StrategyObjective;
+use Modules\Strategy\Models\StrategyPlan;
 use Modules\Strategy\Services\OkrService;
 
 class OkrController extends Controller
@@ -15,7 +16,14 @@ class OkrController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = StrategyObjective::with(['keyResults', 'pillar']);
+        // Chantier 19 (Lot 5): confirmed empirically (Chantier19InvestigationTest)
+        // that this listed every company's objectives with no tenant filter at
+        // all whenever plan_id was omitted — the common case for the real
+        // Objectives/Index.vue page, which lists the whole OKR tree. Scoped via
+        // StrategyObjective::scopeForTenant() (new), same fix shape as every
+        // other tenantId() helper in this module.
+        $tenantId = $this->tenantId($request);
+        $query = StrategyObjective::forTenant($tenantId)->with(['keyResults', 'pillar']);
 
         if ($request->has('plan_id')) {
             $query->where('plan_id', $request->integer('plan_id'));
@@ -51,6 +59,12 @@ class OkrController extends Controller
             'status'          => 'nullable|in:draft,active,at_risk,behind,completed,cancelled',
         ]);
 
+        // Chantier 19 (Lot 5): `exists:strategy_plans,id` alone doesn't check
+        // that the plan belongs to the caller's own company — without this,
+        // any user could attach a new objective to another company's plan.
+        $tenantId = $this->tenantId($request);
+        StrategyPlan::forTenant($tenantId)->findOrFail($validated['plan_id']);
+
         $objective = $this->service->createObjective($validated);
 
         return response()->json($objective, 201);
@@ -58,7 +72,7 @@ class OkrController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $objective = StrategyObjective::findOrFail($id);
+        $objective = $this->objectiveInTenant($id, $this->tenantId($request));
 
         $this->authorize('update', $objective);
 
@@ -79,9 +93,9 @@ class OkrController extends Controller
         return response()->json($objective->fresh());
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(Request $request, int $id): JsonResponse
     {
-        $objective = StrategyObjective::findOrFail($id);
+        $objective = $this->objectiveInTenant($id, $this->tenantId($request));
 
         $this->authorize('delete', $objective);
 
@@ -93,6 +107,11 @@ class OkrController extends Controller
     public function cascade(Request $request, int $id): JsonResponse
     {
         $this->authorize('create', StrategyObjective::class);
+
+        // Chantier 19 (Lot 5): verify the parent objective is the caller's
+        // own before cascading a child under it — previously any user could
+        // attach a child objective under another company's parent by id.
+        $this->objectiveInTenant($id, $this->tenantId($request));
 
         $validated = $request->validate([
             'title'      => 'required|string|max:255',
@@ -131,6 +150,10 @@ class OkrController extends Controller
             'data_source_key'    => 'nullable|string|max:100',
         ]);
 
+        // Chantier 19 (Lot 5): without this, any user could attach a key
+        // result to another company's objective by id.
+        $this->objectiveInTenant($validated['objective_id'], $this->tenantId($request));
+
         $kr = $this->service->addKeyResult($validated['objective_id'], $validated);
 
         return response()->json($kr, 201);
@@ -146,7 +169,8 @@ class OkrController extends Controller
             'confidence'     => 'nullable|in:on_track,at_risk,behind',
         ]);
 
-        $kr = StrategyKeyResult::findOrFail($id);
+        $kr = StrategyKeyResult::with('objective')->findOrFail($id);
+        $this->objectiveInTenant($kr->objective_id, $this->tenantId($request));
         $kr->update($validated);
 
         return response()->json($kr->fresh());
@@ -158,8 +182,33 @@ class OkrController extends Controller
             'current_value' => 'required|numeric',
         ]);
 
+        // Chantier 19 (Lot 5): verify the key result's objective is the
+        // caller's own before letting them move its progress.
+        $kr = StrategyKeyResult::findOrFail($id);
+        $this->objectiveInTenant($kr->objective_id, $this->tenantId($request));
+
         $kr = $this->service->updateKeyResultProgress($id, $request->float('current_value'));
 
         return response()->json($kr);
+    }
+
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->company_id ?? 0);
+    }
+
+    /**
+     * Load an objective and 404 unless it belongs to the caller's own
+     * tenant (via its plan) — StrategyObjective has no tenant_id column of
+     * its own, and StrategyObjectivePolicy::canManage() only checks role,
+     * never ownership, so every mutating action needs this explicit check.
+     */
+    private function objectiveInTenant(int $objectiveId, string $tenantId): StrategyObjective
+    {
+        $objective = StrategyObjective::with('plan')->findOrFail($objectiveId);
+
+        abort_if((string) ($objective->plan?->tenant_id ?? '') !== $tenantId, 404);
+
+        return $objective;
     }
 }

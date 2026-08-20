@@ -42,7 +42,13 @@ class BIAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Bug fix (Chantier 19 Lot 5): users.role is a phantom column, never
+            // populated by the real registration flow — this always silently
+            // fell back to the generic 'user' tone regardless of the caller's
+            // real role. Fixed to the real Spatie role name, matching the fix
+            // already applied to API/Achats/Calendar/HR/etc.'s equivalent
+            // controllers earlier this session.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

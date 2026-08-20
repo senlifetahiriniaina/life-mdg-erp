@@ -411,8 +411,24 @@ async function createReport() {
 }
 
 async function saveSchedule() {
+  // Chantier 19 Lot 5: was POSTing to `bi/reports/{id}/schedule`, a route
+  // that never existed (404 on every click) — this app already has a real,
+  // fully-working recurring-delivery mechanism (`ScheduledReport` via
+  // `bi/scheduled-reports`, confirmed tested in BIReportingTest.php), not a
+  // second one hanging off `Report` itself. Repointed to the real endpoint,
+  // matching its real field names (`report_id`, `recipients` as an array).
+  const reportName = props.reports.data.find(r => r.id === scheduleForm.reportId)?.name ?? 'Rapport planifié'
+  const recipients = scheduleForm.recipients
+    .split(',')
+    .map(r => r.trim())
+    .filter(Boolean)
   try {
-    await axios.post(`/api/v1/bi/reports/${scheduleForm.reportId}/schedule`, scheduleForm)
+    await axios.post('/api/v1/bi/scheduled-reports', {
+      name: reportName,
+      report_id: scheduleForm.reportId,
+      schedule: scheduleForm.schedule,
+      recipients,
+    })
     showScheduleDialog.value = false
     showToast('Planification enregistrée', 'pi pi-check-circle')
   } catch (e) {

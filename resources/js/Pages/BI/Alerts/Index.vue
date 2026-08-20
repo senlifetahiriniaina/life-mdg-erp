@@ -29,7 +29,11 @@
         <tbody>
           <tr v-for="alert in alerts.data" :key="alert.id" class="wh-dt-row">
             <td style="font-weight:500;color:var(--fg-1)">{{ alert.name }}</td>
-            <td style="color:var(--fg-2)">{{ alert.condition ?? '—' }}</td>
+            <!-- Chantier 19 Lot 5: was `alert.condition`, a field BiAlert
+                 has never had (the real column is `condition_type`) — this
+                 always rendered '—' regardless of the alert's real
+                 condition. -->
+            <td style="color:var(--fg-2)">{{ alert.condition_type ?? '—' }}</td>
             <td style="color:var(--fg-2);font-variant-numeric:tabular-nums">{{ alert.threshold ?? '—' }}</td>
             <td>
               <span :class="['wh-badge', statusBadge(alert.status)]">
@@ -40,10 +44,7 @@
             <td style="color:var(--fg-3)">{{ formatDate(alert.last_checked_at ?? alert.updated_at) }}</td>
             <td>
               <div style="display:flex;gap:4px">
-                <button class="wh-row-btn" title="Modifier">
-                  <i class="pi pi-pencil" style="font-size:13px" />
-                </button>
-                <button class="wh-row-btn wh-row-btn-danger" title="Supprimer">
+                <button class="wh-row-btn wh-row-btn-danger" title="Supprimer" @click="deleteAlert(alert.id)">
                   <i class="pi pi-trash" style="font-size:13px" />
                 </button>
               </div>
@@ -83,6 +84,10 @@
           <InputText v-model="form.name" class="w-full" placeholder="ex. Revenu sous 10 000 €" />
         </div>
         <div>
+          <label class="wh-label">Métrique suivie</label>
+          <InputText v-model="form.metric_name" class="w-full" placeholder="ex. monthly_revenue" />
+        </div>
+        <div>
           <label class="wh-label">Condition</label>
           <Select
             v-model="form.condition"
@@ -101,7 +106,7 @@
       <template #footer>
         <div style="display:flex;justify-content:flex-end;gap:8px">
           <button class="btn btn-secondary" @click="showCreate = false">Annuler</button>
-          <button class="btn btn-primary" @click="createAlert" :disabled="!form.name">
+          <button class="btn btn-primary" @click="createAlert" :disabled="!form.name || !form.metric_name">
             <i class="pi pi-check" style="font-size:13px" /> Créer
           </button>
         </div>
@@ -112,7 +117,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router, usePage } from '@inertiajs/vue3'
 import { Paginator, Dialog, InputText, InputNumber, Select } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
@@ -120,13 +125,19 @@ defineProps({
   alerts: { type: Object, required: true },
 })
 
-const showCreate = ref(false)
-const form = reactive({ name: '', condition: null as string | null, threshold: null as number | null })
+const page = usePage()
 
+const showCreate = ref(false)
+const form = reactive({ name: '', metric_name: '', condition: null as string | null, threshold: null as number | null })
+
+// Chantier 19 Lot 5: AlertController::store() validates `condition_type`
+// against `in:above,below,equals,change_pct` — this list's 'lt'/'gt'/'eq'
+// values never matched (the wrong field name AND the wrong vocabulary, see
+// createAlert() below).
 const conditionOptions = [
-  { label: 'Inférieur à', value: 'lt' },
-  { label: 'Supérieur à', value: 'gt' },
-  { label: 'Égal à', value: 'eq' },
+  { label: 'Inférieur à', value: 'below' },
+  { label: 'Supérieur à', value: 'above' },
+  { label: 'Égal à', value: 'equals' },
 ]
 
 const statusBadge = (s: string) => ({
@@ -145,13 +156,44 @@ const formatDate = (v: string) =>
   v ? new Date(v).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
 const createAlert = async () => {
-  // POST to API
-  await fetch('/api/v1/bi/alerts', {
+  // Chantier 19 Lot 5: this used to POST the raw `{ name, condition,
+  // threshold }` form — but AlertController::store() requires
+  // `condition_type` (not `condition`, and with a different value
+  // vocabulary — fixed above), `metric_name` (never sent at all), and
+  // `channels`/`recipients` (both required arrays, never sent at all) —
+  // every real "Créer" click 422'd. Defaults `channels` to in-app and
+  // `recipients` to the creating user, matching this app's smart-defaults
+  // convention rather than building a full recipient-picker UI for what
+  // was, until now, a fully broken create flow.
+  const res = await fetch('/api/v1/bi/alerts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(form),
+    body: JSON.stringify({
+      name: form.name,
+      metric_name: form.metric_name,
+      condition_type: form.condition,
+      threshold: form.threshold,
+      channels: ['in_app'],
+      recipients: page.props.auth?.user?.id ? [page.props.auth.user.id] : [],
+    }),
   })
+  if (!res.ok) {
+    // eslint-disable-next-line no-alert
+    alert('Échec de la création de l\'alerte.')
+    return
+  }
   showCreate.value = false
+  router.reload({ only: ['alerts'] })
+}
+
+const deleteAlert = async (alertId: number) => {
+  // eslint-disable-next-line no-alert
+  if (!confirm('Supprimer cette alerte ?')) return
+  await fetch(`/api/v1/bi/alerts/${alertId}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  })
+  router.reload({ only: ['alerts'] })
 }
 </script>
 

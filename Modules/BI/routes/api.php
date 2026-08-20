@@ -100,6 +100,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:B
         Route::get('bi/analytics/summary', [AnalyticsController::class, 'summary']);
         Route::post('bi/queries/{query}/run', [QueryController::class, 'run']);
         Route::post('bi/reports/{report}/run', [ReportController::class, 'run']);
+        // Chantier 19 Lot 5: the real Reports/Index.vue page calls
+        // /generate + /export, neither of which existed — every "Générer
+        // maintenant"/"Exporter PDF"/"Exporter Excel" click 404'd.
+        Route::post('bi/reports/{report}/generate', [ReportController::class, 'generate']);
+        Route::get('bi/reports/{report}/export', [ReportController::class, 'export']);
         Route::get('bi/export/{dataset}', [ExportController::class, 'download']);
         Route::get('bi/dashboards/{dashboard}/export', [ExportController::class, 'exportDashboard']);
         Route::get('bi/widgets/{widget}/export', [ExportController::class, 'exportWidget']);
@@ -131,6 +136,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:B
         Route::post('bi/dashboards', [DashboardController::class, 'store']);
         Route::put('bi/dashboards/{dashboard}', [DashboardController::class, 'update']);
         Route::delete('bi/dashboards/{dashboard}', [DashboardController::class, 'destroy']);
+        // Chantier 19 Lot 5: Builder.vue (the Dashboard Builder — this
+        // module's core feature) has always POSTed here on every save; the
+        // route never existed — see WidgetController's own docblock.
+        Route::post('bi/dashboards/{dashboard}/widgets', [\Modules\BI\Http\Controllers\Api\WidgetController::class, 'store']);
 
         Route::post('bi/reports', [ReportController::class, 'store']);
         Route::put('bi/reports/{report}', [ReportController::class, 'update']);

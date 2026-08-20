@@ -10,6 +10,18 @@ use Modules\Strategy\Models\StrategyObjectiveLink;
 use Modules\Strategy\Services\StrategyObjectiveLinkService;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Chantier 19 (Lot 5): confirmed empirically (Chantier19InvestigationTest)
+ * that every mutating/read endpoint on this controller had zero tenant
+ * ownership check — `authorize('canManage'/'view', StrategyObjective::class)`
+ * is a class-level Gate call (StrategyObjectivePolicy::canManage() only
+ * checks the caller's role), never an instance-level ownership check. Any
+ * user of any company could link/unlink/read/aggregate contributions on
+ * another company's real strategic objective just by knowing or guessing
+ * its id. Fixed with an explicit tenant-ownership check (via the objective's
+ * plan.tenant_id, the same StrategyObjective::scopeForTenant() OkrController
+ * now uses) at every entry point that resolves an objective_id or link id.
+ */
 class StrategyObjectiveLinkController extends Controller
 {
     public function __construct(private StrategyObjectiveLinkService $linkService)
@@ -20,9 +32,9 @@ class StrategyObjectiveLinkController extends Controller
      * GET /resource/{type}/{id}
      * Get the strategic objective hierarchy for a resource (if linked).
      */
-    public function getResourceHierarchy(string $type, int $id): JsonResponse
+    public function getResourceHierarchy(Request $request, string $type, int $id): JsonResponse
     {
-        $hierarchy = $this->linkService->getResourceHierarchy($type, $id);
+        $hierarchy = $this->linkService->getResourceHierarchy($type, $id, $this->tenantId($request));
 
         return response()->json([
             'hierarchy' => $hierarchy,
@@ -55,7 +67,7 @@ class StrategyObjectiveLinkController extends Controller
             'unit_type'          => 'nullable|string|max:50',
         ]);
 
-        $objective = StrategyObjective::findOrFail($validated['objective_id']);
+        $objective = $this->objectiveInTenant($validated['objective_id'], $this->tenantId($request));
 
         $link = $this->linkService->link(
             $objective,
@@ -75,11 +87,12 @@ class StrategyObjectiveLinkController extends Controller
      * DELETE /objective-links/{id}
      * Unlink a resource by link ID.
      */
-    public function unlinkById(int $id): JsonResponse
+    public function unlinkById(Request $request, int $id): JsonResponse
     {
         $this->authorize('canManage', StrategyObjective::class);
 
-        $link = StrategyObjectiveLink::findOrFail($id);
+        $link = StrategyObjectiveLink::with('objective.plan')->findOrFail($id);
+        $this->assertLinkInTenant($link, $this->tenantId($request));
         $link->delete();
 
         return response()->json([
@@ -91,11 +104,14 @@ class StrategyObjectiveLinkController extends Controller
      * DELETE /resource/{type}/{id}
      * Unlink a resource by type and ID.
      */
-    public function unlink(string $type, int $id): JsonResponse
+    public function unlink(Request $request, string $type, int $id): JsonResponse
     {
         $this->authorize('canManage', StrategyObjective::class);
 
-        $this->linkService->unlink($type, $id);
+        // Chantier 19 (Lot 5): only ever delete links whose objective is the
+        // caller's own — previously this deleted every link matching
+        // type+id regardless of which company's objective it belonged to.
+        $this->linkService->unlink($type, $id, $this->tenantId($request));
 
         return response()->json([
             'message' => 'Resource unlinked successfully.',
@@ -115,6 +131,9 @@ class StrategyObjectiveLinkController extends Controller
     public function updateContribution(int $id, Request $request): JsonResponse
     {
         $this->authorize('canManage', StrategyObjective::class);
+
+        $existing = StrategyObjectiveLink::with('objective.plan')->findOrFail($id);
+        $this->assertLinkInTenant($existing, $this->tenantId($request));
 
         $validated = $request->validate([
             'contribution_value' => 'required|numeric',
@@ -157,6 +176,8 @@ class StrategyObjectiveLinkController extends Controller
             'contribution_value' => 'nullable|numeric',
         ]);
 
+        $this->objectiveInTenant($validated['objective_id'], $this->tenantId($request));
+
         $this->linkService->bulkLink(
             $validated['objective_id'],
             $validated['linkable_type'],
@@ -177,6 +198,7 @@ class StrategyObjectiveLinkController extends Controller
     public function getLinkedResources(int $id, Request $request): JsonResponse
     {
         $this->authorize('view', StrategyObjective::class);
+        $this->objectiveInTenant($id, $this->tenantId($request));
 
         $page = $request->query('page', 1);
         $perPage = $request->query('per_page', 20);
@@ -199,9 +221,10 @@ class StrategyObjectiveLinkController extends Controller
      * GET /objective/{id}/aggregated
      * Get aggregated contribution to an objective.
      */
-    public function getAggregatedContribution(int $id): JsonResponse
+    public function getAggregatedContribution(Request $request, int $id): JsonResponse
     {
         $this->authorize('view', StrategyObjective::class);
+        $this->objectiveInTenant($id, $this->tenantId($request));
 
         $aggregated = $this->linkService->getAggregatedContribution($id);
 
@@ -209,5 +232,31 @@ class StrategyObjectiveLinkController extends Controller
             'objective_id' => $id,
             'aggregated'   => $aggregated,
         ]);
+    }
+
+    private function tenantId(Request $request): string
+    {
+        return (string) ($request->user()?->company_id ?? 0);
+    }
+
+    /**
+     * Load an objective and 404 unless it belongs to the caller's own
+     * tenant (via its plan) — mirrors OkrController::objectiveInTenant().
+     */
+    private function objectiveInTenant(int $objectiveId, string $tenantId): StrategyObjective
+    {
+        $objective = StrategyObjective::with('plan')->findOrFail($objectiveId);
+
+        abort_if((string) ($objective->plan?->tenant_id ?? '') !== $tenantId, 404);
+
+        return $objective;
+    }
+
+    private function assertLinkInTenant(StrategyObjectiveLink $link, string $tenantId): void
+    {
+        abort_if(
+            (string) ($link->objective?->plan?->tenant_id ?? '') !== $tenantId,
+            404
+        );
     }
 }

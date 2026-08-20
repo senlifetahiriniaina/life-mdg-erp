@@ -11,16 +11,30 @@ class ReportWidgetFactory extends Factory
 
     /**
      * Define the model's default state.
+     *
+     * Chantier 19 (Lot 5): scaffold boilerplate — fake()->word() (a string)
+     * into the unsignedBigInteger `dashboard_id` FK and the integer
+     * `refresh_interval_seconds` column, plus a `name` field that isn't in
+     * ReportWidget's real $fillable at all (the real column is `title`) —
+     * confirmed zero real consumers anywhere in the app, but rewritten to
+     * match the model's real schema anyway, closing the landmine before a
+     * future caller trips it (same precedent as this session's many other
+     * zero-consumer-but-still-fixed factory rewrites).
      */
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'dashboard_id' => fake()->word(),
-            'widget_type' => fake()->word(),
-            'data_source' => fake()->word(),
-            'refresh_interval_seconds' => fake()->word(),
-            'name' => fake()->word(),
+            'tenant_id'                => fake()->numberBetween(1, 1000),
+            'dashboard_id'             => \Modules\Reporting\Models\Dashboard::factory(),
+            'widget_type'              => fake()->randomElement(['kpi', 'chart', 'table']),
+            'title'                    => fake()->words(2, true),
+            'data_source'              => ['module' => 'Sales', 'query' => 'kpi_revenue_month'],
+            'config'                   => [],
+            'position_x'               => 0,
+            'position_y'               => 0,
+            'width'                    => 1,
+            'height'                   => 1,
+            'refresh_interval_seconds' => 300,
         ];
     }
 

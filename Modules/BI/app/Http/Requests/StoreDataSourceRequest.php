@@ -17,7 +17,18 @@ class StoreDataSourceRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', 'in:mysql,postgres,sqlite,api,csv'],
+            // Chantier 19 Lot 5: was `in:mysql,postgres,sqlite,api,csv` — a
+            // vocabulary that matches none of DataSourceService::resolve()'s
+            // real connector registry ('mysql','postgresql','rest_api','csv',
+            // 'google_sheets', confirmed via DataSourceService's own
+            // supportedTypes()). 'postgres' (not 'postgresql') and 'api' (not
+            // 'rest_api') meant the real DataSources/Index.vue create form
+            // 422'd on PostgreSQL and silently created an unusable source on
+            // "API REST" (would 422 later at test/sync/schema time instead,
+            // once DataSourceService::resolve() threw on the unknown type);
+            // 'sqlite' has never had any connector at all. Aligned to the
+            // real, working connector registry.
+            'type' => ['required', 'string', 'in:mysql,postgresql,rest_api,csv,google_sheets'],
             'config' => ['nullable', 'array'],
             'connection_config' => ['nullable', 'array'],
             'description' => ['nullable', 'string'],

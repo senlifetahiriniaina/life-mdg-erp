@@ -42,7 +42,12 @@ class AnalyticsAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19 (Lot 5): $request->user()?->role read the phantom
+            // users.role column (real DB column, never in User::$fillable, never
+            // populated by any real registration path) instead of the real Spatie
+            // role — the same bug class already fixed repeatedly elsewhere this
+            // session (AI, Security, AuditLog, Achats, Sales, Calendar, ...).
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

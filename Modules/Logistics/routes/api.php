@@ -173,9 +173,25 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:L
 });
 
 // ── Phase 47 — Customs Clearance + Route Optimization + Vehicles + Carrier Integrations ──
-// NOTE: routesIndex()/routesStore() (GET/POST logistics/routes) are deliberately NOT routed
-// here — they collide with the already-active RouteController::index/store on the same path.
+// Chantier 19 Lot 4: CustomsRouteController::routesIndex()/routesStore() were
+// real (and, per this file's own prior comment, deliberately not registered
+// at GET/POST logistics/routes — they collide with the already-active
+// RouteController::index/store on that same path) — but they were the ONLY
+// code in this app that can ever create/list a `DeliveryRoute` (the model
+// Chantier 8.3il part 4 gave real tables to, `lgx_delivery_routes`/
+// `lgx_route_stops`), which the already-routed routesOptimize()/
+// routesStart()/routeStopComplete()/routesComplete() endpoints all operate
+// on by id. With zero create path, those 4 already-real endpoints could
+// never actually be reached in practice (a fresh DeliveryRoute could never
+// exist) — confirmed empirically. Registered under a non-colliding
+// `logistics/delivery-routes` prefix instead of un-colliding the original
+// `logistics/routes` path, closing the gap without touching RouteController.
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Logistics', 'role:logistics-manager,warehouse-operator,manager,admin', 'throttle:simple_get'])->prefix('v1')->group(function () {
+    Route::get('logistics/delivery-routes', [CustomsRouteController::class, 'routesIndex']);
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('logistics/delivery-routes', [CustomsRouteController::class, 'routesStore']);
+    });
+
     Route::get('logistics/customs', [CustomsRouteController::class, 'customsIndex']);
     Route::get('logistics/customs/document-checklist', [CustomsRouteController::class, 'customsDocumentChecklist']);
     Route::get('logistics/customs/{id}', [CustomsRouteController::class, 'customsShow']);

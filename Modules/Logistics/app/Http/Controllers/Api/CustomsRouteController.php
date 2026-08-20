@@ -30,10 +30,9 @@ class CustomsRouteController extends Controller
     /** GET /api/v1/logistics/customs */
     public function customsIndex(Request $request): JsonResponse
     {
-        $companyId = $request->user()->company_id ?? 1;
+        $companyId = $request->user()->company_id ?? 0;
 
-        $declarations = CustomsDeclaration::where('company_id', $companyId)
-            ->with('items')
+        $declarations = CustomsDeclaration::where('tenant_id', $companyId)
             ->when($request->input('status'), fn($q, $v) => $q->where('status', $v))
             ->when($request->input('type'),   fn($q, $v) => $q->where('type', $v))
             ->when($request->input('search'), fn($q, $v) =>
@@ -72,7 +71,7 @@ class CustomsRouteController extends Controller
             'items.*.weight_kg'         => 'nullable|numeric|min:0',
         ]);
 
-        $data['company_id'] = $request->user()->company_id ?? 1;
+        $data['tenant_id'] = $request->user()->company_id ?? 0;
 
         $declaration = $this->customs->createDeclaration($data);
 
@@ -82,7 +81,7 @@ class CustomsRouteController extends Controller
     /** GET /api/v1/logistics/customs/{id} */
     public function customsShow(int $id): JsonResponse
     {
-        $declaration = CustomsDeclaration::with('items')->findOrFail($id);
+        $declaration = CustomsDeclaration::findOrFail($id);
 
         $checklist = [];
         if ($declaration->incoterm && $declaration->country_of_destination) {
@@ -143,7 +142,7 @@ class CustomsRouteController extends Controller
     /** GET /api/v1/logistics/routes */
     public function routesIndex(Request $request): JsonResponse
     {
-        $companyId = $request->user()->company_id ?? 1;
+        $companyId = $request->user()->company_id ?? 0;
 
         $routes = DeliveryRoute::where('company_id', $companyId)
             ->with(['stops', 'vehicle'])
@@ -175,7 +174,7 @@ class CustomsRouteController extends Controller
             'stops.*.notes'                => 'nullable|string',
         ]);
 
-        $data['company_id'] = $request->user()->company_id ?? 1;
+        $data['company_id'] = $request->user()->company_id ?? 0;
 
         return response()->json($this->routeOpt->createRoute($data), 201);
     }
@@ -225,7 +224,7 @@ class CustomsRouteController extends Controller
     /** GET /api/v1/logistics/vehicles */
     public function vehiclesIndex(Request $request): JsonResponse
     {
-        $companyId = $request->user()->company_id ?? 1;
+        $companyId = $request->user()->company_id ?? 0;
 
         $vehicles = Vehicle::where('company_id', $companyId)
             ->when($request->input('status'), fn($q, $v) => $q->where('status', $v))

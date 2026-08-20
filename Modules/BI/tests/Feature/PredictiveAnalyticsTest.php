@@ -343,6 +343,39 @@ test('revenueTrend forecast entries have month and forecast_value', function () 
     }
 });
 
+// Chantier 19 Lot 5: fetchMonthlyRevenue() queried `acc_journal_lines` (a
+// table that has never existed anywhere in this app — the real ledger is
+// `acc_journal_entries`/`acc_journal_entry_lines`) behind a MySQL-only
+// `SHOW TABLES LIKE ...` guard that always throws on this app's sqlite
+// driver — both silently caught, so revenueTrend()/growthRates() have
+// never once returned real revenue, only synthetic fallback numbers, even
+// with real posted revenue in the ledger. Confirmed empirically before the
+// fix (this exact scenario returned synthetic ~50000-base data instead of
+// the real 12345.67 posted below).
+test('revenueTrend surfaces real class-7 (produits) revenue from the real ledger, not synthetic fallback data', function () {
+    $client = \Modules\Accounting\Models\ChartOfAccount::factory()->create(['code' => '411', 'type' => 'asset']);
+    $ventes = \Modules\Accounting\Models\ChartOfAccount::factory()->create(['code' => '707', 'type' => 'revenue']);
+
+    $entry = \Modules\Accounting\Models\JournalEntry::create([
+        'entry_number' => 'BI-TEST-1',
+        'date' => now()->toDateString(),
+        'entry_date' => now()->toDateString(),
+        'description' => 'Vente test BI',
+        'status' => 'posted',
+        'currency' => 'MGA',
+    ]);
+    $entry->lines()->create(['account_id' => $client->id, 'debit' => 12345.67, 'credit' => 0]);
+    $entry->lines()->create(['account_id' => $ventes->id, 'debit' => 0, 'credit' => 12345.67]);
+
+    $service = predictiveService();
+    $result = $service->revenueTrend(3);
+
+    $currentMonth = collect($result['months'])->firstWhere('month', now()->format('Y-m'));
+
+    expect($currentMonth)->not->toBeNull()
+        ->and((float) $currentMonth['revenue'])->toBe(12345.67);
+});
+
 // ── PredictiveAnalyticsService: getActiveAnomalies ───────────────────────────
 
 test('getActiveAnomalies returns only new anomalies at or above threshold', function () {

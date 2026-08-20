@@ -43,11 +43,26 @@ class StrategyObjectiveLinkService
      * @param int $linkableId
      * @return void
      */
-    public function unlink(string $linkableType, int $linkableId): void
+    /**
+     * @param string|null $tenantId Chantier 19 (Lot 5): when given, only
+     *   deletes links whose objective belongs to this tenant (via its
+     *   plan.tenant_id) — previously this deleted every link matching
+     *   linkable_type+linkable_id regardless of which company's objective
+     *   it belonged to, a real cross-tenant IDOR since resource ids are not
+     *   guaranteed unique across companies.
+     */
+    public function unlink(string $linkableType, int $linkableId, ?string $tenantId = null): void
     {
-        StrategyObjectiveLink::where('linkable_type', $linkableType)
-            ->where('linkable_id', $linkableId)
-            ->delete();
+        $query = StrategyObjectiveLink::where('linkable_type', $linkableType)
+            ->where('linkable_id', $linkableId);
+
+        if ($tenantId !== null) {
+            $query->whereHas('objective.plan', function ($q) use ($tenantId) {
+                $q->where('tenant_id', $tenantId);
+            });
+        }
+
+        $query->delete();
     }
 
     /**
@@ -57,13 +72,26 @@ class StrategyObjectiveLinkService
      * @param int $linkableId
      * @return StrategyObjective|null
      */
-    public function getObjectiveForResource(string $linkableType, int $linkableId): ?StrategyObjective
+    public function getObjectiveForResource(string $linkableType, int $linkableId, ?string $tenantId = null): ?StrategyObjective
     {
         $link = StrategyObjectiveLink::where('linkable_type', $linkableType)
             ->where('linkable_id', $linkableId)
+            ->with('objective.plan')
             ->first();
 
-        return $link ? $link->objective : null;
+        $objective = $link ? $link->objective : null;
+
+        // Chantier 19 (Lot 5): confirmed empirically that a resource linked
+        // to another company's objective leaked that objective's title/plan/
+        // pillar name to any caller who guessed the resource's type+id —
+        // treat a link belonging to a different tenant as "not linked" at
+        // all, the same safe shape this method already returns for a
+        // genuinely-unlinked resource.
+        if ($tenantId !== null && $objective && (string) ($objective->plan?->tenant_id ?? '') !== $tenantId) {
+            return null;
+        }
+
+        return $objective;
     }
 
     /**
@@ -71,11 +99,12 @@ class StrategyObjectiveLinkService
      *
      * @param string $linkableType
      * @param int $linkableId
+     * @param string|null $tenantId
      * @return array { vision, pillar, objective, progress, health_score }
      */
-    public function getResourceHierarchy(string $linkableType, int $linkableId): array
+    public function getResourceHierarchy(string $linkableType, int $linkableId, ?string $tenantId = null): array
     {
-        $objective = $this->getObjectiveForResource($linkableType, $linkableId);
+        $objective = $this->getObjectiveForResource($linkableType, $linkableId, $tenantId);
 
         if (!$objective) {
             return [

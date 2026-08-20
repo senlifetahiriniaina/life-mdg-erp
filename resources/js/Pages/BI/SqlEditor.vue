@@ -127,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { InputText, Select } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
@@ -139,7 +139,7 @@ interface SavedQuery {
   is_public: boolean
   last_run_at?: string
   updated_at?: string
-  sql?: string
+  sql_query?: string
 }
 
 const props = defineProps({
@@ -169,7 +169,11 @@ const loadQuery = (q: SavedQuery) => {
   activeQuery.value      = q
   queryName.value        = q.name
   selectedDatasource.value = q.datasource ?? null
-  sqlCode.value          = q.sql ?? ''
+  // Chantier 19 Lot 5: was `q.sql` — the real column (and the real
+  // BiQuery::$fillable field the backend validates on save) is `sql_query`,
+  // confirmed empirically that this always loaded an empty editor for every
+  // saved query regardless of its real stored SQL.
+  sqlCode.value          = q.sql_query ?? ''
 }
 
 const runQuery = async () => {
@@ -193,8 +197,22 @@ const runQuery = async () => {
     })
     const data = await res.json()
     executionTime.value = Date.now() - t0
-    if (!res.ok) { error.value = data.message ?? 'Erreur inconnue' }
-    else { results.value = Array.isArray(data) ? data : (data.data ?? []) }
+    if (!res.ok) {
+      error.value = data.message ?? 'Erreur inconnue'
+    } else {
+      // Chantier 19 Lot 5: was `Array.isArray(data) ? data : (data.data ?? [])`
+      // — but QueryController::runRaw()'s real response shape is
+      // `{ columns: string[], rows: any[][], duration_ms: number }`, neither
+      // a bare array nor `{ data: [...] }` — every real query silently
+      // rendered "0 ligne retournée" no matter what the query actually
+      // returned. Reshape rows (arrays of values) into the row objects
+      // (keyed by column name) this page's table/CSV export already expect.
+      const columns: string[] = data.columns ?? []
+      const rows: any[][] = data.rows ?? []
+      results.value = rows.map((row) =>
+        Object.fromEntries(columns.map((col, i) => [col, row[i]]))
+      )
+    }
   } catch (e: any) {
     error.value = e.message
   } finally {
@@ -203,11 +221,23 @@ const runQuery = async () => {
 }
 
 const saveQuery = async () => {
-  await fetch('/api/v1/bi/queries', {
+  // Chantier 19 Lot 5: was `{ name, sql: sqlCode.value, datasource }` — but
+  // QueryController::store() validates `sql_query` as `required|string`
+  // (BiQuery::$fillable has no `sql` column at all) — every "Sauvegarder"
+  // click 422'd silently (the response was never checked either), so this
+  // button has never actually saved a query since the page was built.
+  const res = await fetch('/api/v1/bi/queries', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ name: queryName.value, sql: sqlCode.value, datasource: selectedDatasource.value }),
+    body: JSON.stringify({ name: queryName.value, sql_query: sqlCode.value, datasource: selectedDatasource.value }),
   })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    error.value = data.message ?? 'Échec de la sauvegarde de la requête'
+    hasRun.value = true
+    return
+  }
+  router.reload({ only: ['savedQueries'] })
 }
 
 const exportCsv = () => {
