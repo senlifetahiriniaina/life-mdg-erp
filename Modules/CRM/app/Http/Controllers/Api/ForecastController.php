@@ -18,6 +18,11 @@ class ForecastController extends Controller
 
     /**
      * List all forecasts.
+     *
+     * Chantier "CRM tenant-isolation follow-up": a manager with no user_id filter previously
+     * got allForecasts(null), a fully tenant-unfiltered query — every company's "manager view"
+     * forecasts, confirmed empirically via a real cross-company HTTP request before this fix.
+     * Now always scoped by the acting user's own company_id, regardless of role.
      */
     public function index(Request $request): JsonResponse
     {
@@ -26,13 +31,13 @@ class ForecastController extends Controller
         if ($isManager && $request->filled('user_id')) {
             $userId = (int) $request->user_id;
         } elseif ($isManager) {
-            // Managers see all forecasts when no user_id filter is applied
+            // Managers see all of their own company's forecasts when no user_id filter applied
             $userId = null;
         } else {
             $userId = $request->user()->id;
         }
 
-        $forecasts = $this->forecastService->allForecasts($userId);
+        $forecasts = $this->forecastService->allForecasts($userId, $request->user()->company_id);
 
         return response()->json(['data' => $forecasts]);
     }
@@ -52,7 +57,7 @@ class ForecastController extends Controller
             ? (int) $validated['user_id']
             : $request->user()->id;
 
-        $forecast = $this->forecastService->generateForecast($validated['period'], $userId);
+        $forecast = $this->forecastService->generateForecast($validated['period'], $userId, $request->user()->company_id);
 
         return response()->json($forecast, 201);
     }

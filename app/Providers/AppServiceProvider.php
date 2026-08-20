@@ -77,10 +77,14 @@ use Modules\Accounting\Models\Journal;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\BI\Models\Dashboard;
 use Modules\CRM\Models\Account;
+use Modules\CRM\Models\Activity as CrmActivity;
 use Modules\CRM\Models\Contact;
 use Modules\CRM\Models\Lead;
 use Modules\CRM\Models\Opportunity;
+use Modules\CRM\Models\Pipeline as CrmPipeline;
 use Modules\CRM\Models\ScoringRule;
+use App\Policies\ActivityPolicy;
+use App\Policies\PipelinePolicy;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\Folder;
 use Modules\Ecommerce\Models\Cart;
@@ -146,6 +150,8 @@ class AppServiceProvider extends ServiceProvider
         Contact::class          => ContactPolicy::class,
         Lead::class             => LeadPolicy::class,
         Opportunity::class      => OpportunityPolicy::class,
+        CrmActivity::class      => ActivityPolicy::class,
+        CrmPipeline::class      => PipelinePolicy::class,
         ScoringRule::class      => ScoringRulePolicy::class,
         Invoice::class          => InvoicePolicy::class,
         Journal::class          => JournalPolicy::class,

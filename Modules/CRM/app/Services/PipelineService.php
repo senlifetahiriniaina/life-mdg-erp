@@ -9,6 +9,25 @@ use Illuminate\Support\Facades\DB;
 use Modules\CRM\Models\Opportunity;
 use Modules\CRM\Models\LeadStatusLog;
 
+/**
+ * Chantier "CRM tenant-isolation follow-up": every public method here ran a fully
+ * tenant-unfiltered Opportunity aggregate (confirmed via read + grep before this fix) — flagged
+ * in CLAUDE.md's Chantier 19 Lot 1 entry alongside CRMForecastingService/
+ * EinsteinForecastingService/ForecastService/OpportunityScoringService/
+ * CampaignOrchestrationService. Unlike those, this class was found to have **zero callers
+ * anywhere in the app** (confirmed via a repo-wide grep — no controller, route, job, console
+ * command, or test references it; the module's real, live "pipeline" endpoints —
+ * PipelineController for stage CRUD, PipelineAnalyticsController for win-rate/conversion/
+ * velocity/trend dashboards — are both built on entirely different, real, already-tenant-scoped
+ * code paths, not this class). CLAUDE.md's characterization of this service as one that "runs
+ * tenant-unfiltered... aggregates" was accurate about the code but implied live exposure that
+ * does not exist today. Fixed anyway rather than deleted, on the same "close the landmine
+ * before a future chantier wires it up and trips it" precedent already used throughout this
+ * session (e.g. HR's ReorderRule, Achats' PoReceiptLine/ReorderRule) — every method now accepts
+ * an optional $companyId and filters Opportunity via the real `tenant_id` column
+ * (crm_opportunities.tenant_id, added Chantier 10, populated from the acting user's company_id
+ * at Opportunity::store() time) exactly the way CRMForecastingService's own methods already do.
+ */
 class PipelineService
 {
     protected LeadStatusService $statusService;
@@ -21,7 +40,7 @@ class PipelineService
     /**
      * Get opportunities grouped by status (stage).
      */
-    public function getByStage(?string $pipelineId = null, ?int $ownerId = null): array
+    public function getByStage(?string $pipelineId = null, ?int $ownerId = null, ?int $companyId = null): array
     {
         $query = Opportunity::query();
 
@@ -31,6 +50,10 @@ class PipelineService
 
         if ($ownerId) {
             $query->where('owner_id', $ownerId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $opportunities = $query->get();
@@ -49,16 +72,20 @@ class PipelineService
     /**
      * Get pipeline visualization data.
      */
-    public function getPipelineData(?string $pipelineId = null, ?int $ownerId = null): array
+    public function getPipelineData(?string $pipelineId = null, ?int $ownerId = null, ?int $companyId = null): array
     {
         $opportunities = Opportunity::query();
 
         if ($pipelineId) {
-            $opportunities = $opportunities->where('pipeline_id', $pipelineId);
+            $opportunities->where('pipeline_id', $pipelineId);
         }
 
         if ($ownerId) {
-            $opportunities = $opportunities->where('owner_id', $ownerId);
+            $opportunities->where('owner_id', $ownerId);
+        }
+
+        if ($companyId) {
+            $opportunities->where('tenant_id', $companyId);
         }
 
         $opportunities = $opportunities->get();
@@ -99,12 +126,16 @@ class PipelineService
     /**
      * Calculate conversion rates between stages.
      */
-    public function getConversionRates(?string $pipelineId = null): array
+    public function getConversionRates(?string $pipelineId = null, ?int $companyId = null): array
     {
         $query = Opportunity::query();
 
         if ($pipelineId) {
             $query->where('pipeline_id', $pipelineId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $opportunities = $query->get();
@@ -131,12 +162,16 @@ class PipelineService
     /**
      * Get revenue forecast based on pipeline.
      */
-    public function getRevenueForecast(?string $pipelineId = null): array
+    public function getRevenueForecast(?string $pipelineId = null, ?int $companyId = null): array
     {
         $query = Opportunity::where('status', 'won');
 
         if ($pipelineId) {
             $query->where('pipeline_id', $pipelineId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $wonOpportunitiesValue = $query->sum(DB::raw('CAST(amount AS DECIMAL(15,2))'));
@@ -147,6 +182,10 @@ class PipelineService
 
         if ($pipelineId) {
             $query->where('pipeline_id', $pipelineId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $pipelineOpportunities = $query->get();
@@ -166,7 +205,7 @@ class PipelineService
     /**
      * Get pipeline velocity - average time in each stage.
      */
-    public function getPipelineVelocity(?string $pipelineId = null): array
+    public function getPipelineVelocity(?string $pipelineId = null, ?int $companyId = null): array
     {
         $statuses = LeadStatusService::VALID_STATUSES;
         $velocity = [];
@@ -174,6 +213,13 @@ class PipelineService
         foreach ($statuses as $status) {
             // Find all transitions TO this status
             $logs = LeadStatusLog::where('to_status', $status);
+
+            if ($companyId) {
+                // crm_lead_status_logs has no tenant/company column of its own — it only ever
+                // makes sense in the context of its owning Opportunity, so scope through that
+                // real, already-tenant-scoped relation rather than inventing a new column here.
+                $logs->whereHas('opportunity', fn ($q) => $q->where('tenant_id', $companyId));
+            }
 
             $daysInStage = $logs
                 ->leftJoin('crm_lead_status_logs as next_log', function ($join) {
@@ -197,12 +243,16 @@ class PipelineService
     /**
      * Get opportunities by owner with pipeline summary.
      */
-    public function getByOwner(int $ownerId, ?string $pipelineId = null): array
+    public function getByOwner(int $ownerId, ?string $pipelineId = null, ?int $companyId = null): array
     {
         $query = Opportunity::where('owner_id', $ownerId);
 
         if ($pipelineId) {
             $query->where('pipeline_id', $pipelineId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $opportunities = $query->get();
@@ -231,7 +281,7 @@ class PipelineService
     /**
      * Get stalled opportunities (not moved in X days).
      */
-    public function getStalledOpportunities(?string $pipelineId = null, int $days = 30): Collection
+    public function getStalledOpportunities(?string $pipelineId = null, int $days = 30, ?int $companyId = null): Collection
     {
         $stalledDate = now()->subDays($days);
 
@@ -243,13 +293,17 @@ class PipelineService
             $query->where('pipeline_id', $pipelineId);
         }
 
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
+        }
+
         return $query->get();
     }
 
     /**
      * Get opportunities nearing close date.
      */
-    public function getClosingOpportunities(?string $pipelineId = null, int $days = 7): Collection
+    public function getClosingOpportunities(?string $pipelineId = null, int $days = 7, ?int $companyId = null): Collection
     {
         $endDate = now()->addDays($days);
         $startDate = now();
@@ -262,18 +316,26 @@ class PipelineService
             $query->where('pipeline_id', $pipelineId);
         }
 
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
+        }
+
         return $query->get();
     }
 
     /**
      * Get win/loss analysis.
      */
-    public function getWinLossAnalysis(?string $pipelineId = null): array
+    public function getWinLossAnalysis(?string $pipelineId = null, ?int $companyId = null): array
     {
         $query = Opportunity::whereIn('status', ['won', 'lost']);
 
         if ($pipelineId) {
             $query->where('pipeline_id', $pipelineId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $opportunities = $query->get();
@@ -297,12 +359,16 @@ class PipelineService
     /**
      * Get stage distribution (count and value).
      */
-    public function getStageDistribution(?string $pipelineId = null): array
+    public function getStageDistribution(?string $pipelineId = null, ?int $companyId = null): array
     {
         $query = Opportunity::query();
 
         if ($pipelineId) {
             $query->where('pipeline_id', $pipelineId);
+        }
+
+        if ($companyId) {
+            $query->where('tenant_id', $companyId);
         }
 
         $opportunities = $query->get();

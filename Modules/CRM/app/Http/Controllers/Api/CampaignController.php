@@ -10,11 +10,19 @@ use Modules\CRM\Models\CampaignEnrollment;
 
 class CampaignController extends Controller
 {
+    /**
+     * Chantier "CRM tenant-isolation follow-up": crm_campaigns had zero company/tenant column
+     * of any kind, and this index() listed every company's campaigns regardless of caller —
+     * found while investigating the (now-deleted) CampaignOrchestrationService, a fully dead
+     * duplicate that had been written against a schema that never matched this controller's
+     * real one. Now scoped by the new, additive `company_id` column.
+     */
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Campaign::class);
 
         $campaigns = Campaign::query()
+            ->where('company_id', $request->user()->company_id)
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->type, fn ($q) => $q->where('type', $request->type))
             ->with('owner')
@@ -37,6 +45,7 @@ class CampaignController extends Controller
 
         $campaign = Campaign::create(array_merge($validated, [
             'owner_id' => auth()->id(),
+            'company_id' => $request->user()->company_id,
             'status'   => 'draft',
         ]));
 

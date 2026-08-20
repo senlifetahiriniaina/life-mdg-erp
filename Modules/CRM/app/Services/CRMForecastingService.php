@@ -79,7 +79,12 @@ class CRMForecastingService extends BaseService
                 'ai_prediction'   => round($aiPrediction, 2),
                 'confidence_pct'  => $confidence,
                 'generated_at'    => now(),
-                'tenant_id'       => $tenantId ?? auth()->user()->tenant_id ?? null,
+                // Chantier "CRM tenant-isolation follow-up": previously fell back to
+                // auth()->user()->tenant_id, the well-documented phantom column (real,
+                // migrated, never populated by any real registration path) — dropped in
+                // favor of the explicit $tenantId parameter only, matching the fix pattern
+                // established repeatedly elsewhere in this session.
+                'tenant_id'       => $tenantId,
             ]
         );
     }
@@ -535,14 +540,22 @@ class CRMForecastingService extends BaseService
      */
     public function forecastByTerritory(string $period, ?int $tenantId = null): array
     {
-        $query = Territory::query()
-            ->where('is_active', true);
-
-        if ($tenantId) {
-            $query->where('tenant_id', $tenantId);
-        }
-
-        $territories = $query->with('opportunities')->get();
+        // Chantier "CRM tenant-isolation follow-up": crm_territories has never had a
+        // tenant_id/company_id column of any kind (confirmed via Schema::hasColumn) — the
+        // ->where('tenant_id', $tenantId) filter that used to sit here was a guaranteed SQL
+        // error the moment this method was ever called with a real, non-null $tenantId. This
+        // method has zero callers anywhere in the app (confirmed via grep — CRMForecastingService
+        // is only reached through EinsteinForecastingService, which never calls this one), so
+        // the bug was dormant, not active. Not fixed by inventing a new Territory tenant column
+        // (that's a real, separate module-wide Territory retrofit, matching the same "flagged,
+        // not built" treatment this session gives comparably-sized gaps found in dead code) —
+        // the broken filter is simply removed so the method degrades safely (no tenant
+        // isolation on territories, same as the rest of this codebase's Territory handling
+        // today) rather than fatally erroring, should a future chantier wire this method up.
+        $territories = Territory::query()
+            ->where('is_active', true)
+            ->with('opportunities')
+            ->get();
 
         return $territories->map(function (Territory $territory) use ($period, $tenantId) {
             $forecast = $this->generateForecast($period, $territory->assigned_to, $tenantId);

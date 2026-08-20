@@ -38,7 +38,7 @@ class Campaign extends Model
     protected array $auditableFields = ['status', 'name', 'enrolled_count', 'converted_count'];
 
     protected $fillable = [
-        'name', 'description', 'type', 'status', 'owner_id',
+        'name', 'description', 'type', 'status', 'owner_id', 'company_id',
         'target_count', 'enrolled_count', 'converted_count', 'conversion_rate',
         'start_date', 'end_date', 'channels', 'segments', 'metadata',
     ];

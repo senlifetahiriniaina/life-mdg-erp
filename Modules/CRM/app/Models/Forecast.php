@@ -32,9 +32,22 @@ class Forecast extends Model
 
     protected $table = 'crm_forecasts';
 
+    /**
+     * `tenant_id` is a real, migrated column on crm_forecasts (part of the original catch-all
+     * stub scaffold) that was never in $fillable — every Forecast row created via
+     * CRMForecastingService::generateForecast()/ForecastService::generateForecast() has always
+     * had it silently dropped by mass-assignment protection, confirmed via tinker: every
+     * existing row's tenant_id is NULL. This made getForecastAccuracy()'s
+     * ->where('tenant_id', $tenantId) read filter permanently vacuous (matches nothing, not a
+     * cross-tenant leak but a silent "always no data" bug) and, worse, made
+     * ForecastService::generateForecast()'s updateOrCreate(['period'=>...,'user_id'=>$userId])
+     * match-key collide across every company for the shared null-$userId "manager view"
+     * forecast row. Added to $fillable so both real write paths can finally populate it.
+     */
     protected $fillable = [
         'period',
         'user_id',
+        'tenant_id',
         'forecast_amount',
         'commit_amount',
         'best_case',

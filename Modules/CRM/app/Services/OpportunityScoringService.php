@@ -61,12 +61,19 @@ class OpportunityScoringService
 
     /**
      * Score all open opportunities in bulk (for scheduled job).
+     *
+     * Chantier "CRM tenant-isolation follow-up": previously ran across every company's open
+     * opportunities unconditionally — confirmed via read + grep before this fix (crm_opportunity_
+     * scores has no company scoping of its own, so this happily wrote/updated scores for
+     * records belonging to any tenant). $companyId now filters via Opportunity's own real
+     * tenant_id column when given.
      */
-    public function scoreAll(): array
+    public function scoreAll(?int $companyId = null): array
     {
         $results = ['scored' => 0, 'errors' => []];
 
         Opportunity::whereIn('stage', ['prospecting', 'qualification', 'proposal', 'negotiation'])
+            ->when($companyId, fn ($q) => $q->where('tenant_id', $companyId))
             ->each(function (Opportunity $opp) use (&$results) {
                 try {
                     $this->score($opp);
@@ -124,10 +131,18 @@ class OpportunityScoringService
 
     /**
      * Return leaderboard: top N opportunities by score.
+     *
+     * Chantier "CRM tenant-isolation follow-up": previously listed the highest-scored
+     * opportunities across every company in the app, confirmed empirically via a real
+     * cross-company HTTP request before this fix — every company's `crm/opportunity-scores/
+     * leaderboard` call (gated only by a class-level `viewAny` check, which says nothing about
+     * *whose* records) returned the same global top-N regardless of caller. $companyId now
+     * scopes via a real whereHas on the owning, already-tenant-scoped Opportunity.
      */
-    public function leaderboard(int $limit = 20): Collection
+    public function leaderboard(int $limit = 20, ?int $companyId = null): Collection
     {
         return OpportunityScore::with('opportunity.account')
+            ->when($companyId, fn ($q) => $q->whereHas('opportunity', fn ($oq) => $oq->where('tenant_id', $companyId)))
             ->orderByDesc('total_score')
             ->limit($limit)
             ->get()
@@ -147,10 +162,17 @@ class OpportunityScoringService
 
     /**
      * Pipeline forecast: aggregate weighted_amount by probability across all scored opps.
+     *
+     * Chantier "CRM tenant-isolation follow-up": same gap as leaderboard() above — this
+     * aggregated every company's scored opportunities into one shared committed/upside/
+     * pipeline total, confirmed via read before this fix. $companyId scopes via the same
+     * whereHas pattern.
      */
-    public function pipelineForecast(): array
+    public function pipelineForecast(?int $companyId = null): array
     {
-        $scores = OpportunityScore::with('opportunity')->get();
+        $scores = OpportunityScore::with('opportunity')
+            ->when($companyId, fn ($q) => $q->whereHas('opportunity', fn ($oq) => $oq->where('tenant_id', $companyId)))
+            ->get();
 
         $committed = $scores->where('win_probability', '>=', 0.7)
             ->sum(fn ($s) => (float) ($s->opportunity?->amount ?? 0) * (float) $s->win_probability);

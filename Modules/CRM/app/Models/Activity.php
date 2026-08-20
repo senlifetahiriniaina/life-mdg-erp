@@ -29,8 +29,8 @@ class Activity extends Model
     protected $table = 'crm_activities';
 
     protected $fillable = [
-        'user_id', 'type', 'title', 'description',
-        'status', 'due_at', 'done_at',
+        'user_id', 'company_id', 'type', 'title', 'description',
+        'status', 'due_at', 'done_at', 'subject_type', 'subject_id',
     ];
 
     protected $casts = [

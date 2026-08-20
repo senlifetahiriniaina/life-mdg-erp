@@ -107,7 +107,7 @@ class OpportunityScoringController extends Controller
         $this->authorize('viewAny', Opportunity::class);
 
         $limit = (int) $request->get('limit', 20);
-        $leaderboard = $this->scoringService->leaderboard($limit);
+        $leaderboard = $this->scoringService->leaderboard($limit, $request->user()->company_id);
 
         return response()->json(['data' => $leaderboard->values()]);
     }
@@ -116,7 +116,7 @@ class OpportunityScoringController extends Controller
     {
         $this->authorize('viewAny', Opportunity::class);
 
-        $forecast = $this->scoringService->pipelineForecast();
+        $forecast = $this->scoringService->pipelineForecast($request->user()->company_id);
 
         return response()->json($forecast);
     }
@@ -213,7 +213,7 @@ class OpportunityScoringController extends Controller
     {
         $this->authorize('viewAny', Opportunity::class);
 
-        $results = $this->scoringService->scoreAll();
+        $results = $this->scoringService->scoreAll($request->user()->company_id);
 
         return response()->json($results);
     }
@@ -222,7 +222,10 @@ class OpportunityScoringController extends Controller
     {
         $this->authorize('viewAny', Opportunity::class);
 
-        $scores = OpportunityScore::query();
+        // Chantier "CRM tenant-isolation follow-up": previously listed every company's scores
+        // (only a class-level `viewAny` check, no per-record/tenant scoping at all).
+        $scores = OpportunityScore::query()
+            ->whereHas('opportunity', fn ($q) => $q->where('tenant_id', $request->user()->company_id));
 
         if ($request->has('min_score')) {
             $scores->where('total_score', '>=', (int) $request->min_score);

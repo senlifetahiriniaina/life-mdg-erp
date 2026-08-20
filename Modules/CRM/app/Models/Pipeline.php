@@ -24,7 +24,7 @@ class Pipeline extends Model
 
     protected $table = 'crm_pipelines';
 
-    protected $fillable = ['name', 'is_default', 'stages'];
+    protected $fillable = ['name', 'is_default', 'stages', 'company_id'];
 
     protected $casts = [
         'stages' => 'array',
