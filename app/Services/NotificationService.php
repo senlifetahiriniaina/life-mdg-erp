@@ -5,43 +5,38 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\User;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Notifications\Notification as BaseNotification;
+use Illuminate\Support\Str;
 
 class NotificationService
 {
+    /**
+     * Write a real database notification (Laravel's default Notifiable shape — the
+     * `notifications` table only has `id/type/notifiable/data/read_at`, no separate
+     * `title`/`message` columns) and broadcast it in real time via Reverb.
+     */
     public function sendToUser(User $user, string $title, string $message, array $data = []): void
     {
-        // Store in database
-        $notification = $user->notifications()->create([
+        $user->notifications()->create([
+            'id' => (string) Str::uuid(),
             'type' => 'broadcast',
-            'title' => $title,
-            'message' => $message,
-            'data' => json_encode($data),
+            'data' => json_encode(['title' => $title, 'body' => $message, 'meta' => $data]),
             'read_at' => null,
         ]);
 
-        // Broadcast to user via Laravel Reverb WebSocket (configured in config/broadcasting.php)
-        broadcast(new \App\Events\NotificationSent($notification, $user))->toOthers();
+        broadcast(new \App\Events\NotificationCreated($user->id, $title, $message, $data['type'] ?? 'info', $data));
     }
 
-    public function sendTenantNotification(int $tenantId, string $title, string $message, array $data = []): void
+    public function sendTenantNotification(int $companyId, string $title, string $message, array $data = []): void
     {
-        $users = User::whereTenantId($tenantId)->get();
-
-        foreach ($users as $user) {
-            $this->sendToUser($user, $title, $message, $data);
-        }
+        User::where('company_id', $companyId)->each(
+            fn (User $user) => $this->sendToUser($user, $title, $message, $data)
+        );
     }
 
-    public function sendToRole(int $tenantId, string $role, string $title, string $message, array $data = []): void
+    public function sendToRole(int $companyId, string $role, string $title, string $message, array $data = []): void
     {
-        $users = User::whereTenantId($tenantId)
+        User::where('company_id', $companyId)
             ->role($role)
-            ->get();
-
-        foreach ($users as $user) {
-            $this->sendToUser($user, $title, $message, $data);
-        }
+            ->each(fn (User $user) => $this->sendToUser($user, $title, $message, $data));
     }
 }

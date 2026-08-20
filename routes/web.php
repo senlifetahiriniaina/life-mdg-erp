@@ -19,6 +19,12 @@ Route::get('/dashboard', [DashboardWebController::class, 'index'])
     ->middleware(['auth'])
     ->name('dashboard');
 
+// Notifications list (NotificationBell.vue's "Voir toutes les notifications" link)
+// — self-fetching page, calls the real Modules\Core\NotificationController API.
+Route::get('/notifications', fn () => Inertia::render('Notifications/Index'))
+    ->middleware(['auth'])
+    ->name('notifications.index');
+
 // Auth routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');

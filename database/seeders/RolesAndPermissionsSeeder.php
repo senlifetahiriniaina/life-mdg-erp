@@ -380,6 +380,11 @@ class RolesAndPermissionsSeeder extends Seeder
         'integration'      => ['connector', 'webhook', 'sync-log'],
         'settings'         => ['setting', 'group'],
         'validation'       => ['workflow', 'rule', 'hierarchy', 'request'],
+        // Chantier 20: internal team messaging — every seeded role picks this
+        // up automatically via the generic loop below (employee gets it minus
+        // .delete, matching this app's established "basic communication tool,
+        // broad role" convention already used for Helpdesk's QuickTicketButton).
+        'messaging'        => ['conversation'],
     ];
 
     private const ACTIONS = ['view-any', 'view', 'create', 'update', 'delete'];

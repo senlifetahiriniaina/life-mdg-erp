@@ -51,6 +51,7 @@ uses(Tests\TestCase::class)->in(
     '../Modules/Projects/tests/Unit',
     '../Modules/Helpdesk/tests/Feature',
     '../Modules/Helpdesk/tests/Unit',
+    '../Modules/Messaging/tests/Feature',
 );
 
 // ─── Custom expectations ──────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ function actingAsUser(string $role = 'admin'): \App\Models\User
         'Inventory', 'Logistics', 'Achats',
         'BI', 'Analytics', 'Reporting', 'Strategy',
         'HR', 'Payroll', 'Timesheets', 'Projects',
-        'Helpdesk',
+        'Helpdesk', 'Messaging',
     ];
 
     foreach ($modules as $module) {

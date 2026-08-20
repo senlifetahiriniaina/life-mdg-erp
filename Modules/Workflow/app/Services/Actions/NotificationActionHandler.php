@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Workflow\Services\Actions;
 
+use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -181,31 +183,27 @@ class NotificationActionHandler
         }
 
         try {
-            $notificationIds = [];
+            // Delegates to the real Laravel-notifiable write path instead of a raw
+            // insert against columns (tenant_id/user_id/is_read/action_url) that
+            // don't exist on the real `notifications` table (id/type/notifiable/
+            // data/read_at) — this action has previously fataled with "no such
+            // column" on every real dispatch.
+            $notificationService = app(NotificationService::class);
+            $users = User::whereIn('id', $userIds)->get();
 
-            foreach ($userIds as $userId) {
-                $notifId = DB::table('notifications')->insertGetId([
-                    'tenant_id'   => $tenantId,
-                    'user_id'     => $userId,
-                    'type'        => $type,
-                    'module'      => $module,
-                    'title'       => $title,
-                    'body'        => $body,
-                    'action_url'  => $actionUrl,
-                    'is_read'     => false,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+            foreach ($users as $user) {
+                $notificationService->sendToUser($user, $title, $body, [
+                    'type' => $type,
+                    'module' => $module,
+                    'action_url' => $actionUrl,
                 ]);
-
-                $notificationIds[] = $notifId;
             }
 
             return [
                 'status'           => 'success',
                 'action'           => 'notify.in_app',
-                'notification_ids' => $notificationIds,
-                'user_count'       => count($userIds),
-                'message'          => sprintf('%d notification(s) in-app créée(s).', count($notificationIds)),
+                'user_count'       => $users->count(),
+                'message'          => sprintf('%d notification(s) in-app créée(s).', $users->count()),
             ];
         } catch (\Throwable $e) {
             Log::error('NotificationActionHandler::sendInAppNotification error', [

@@ -19,6 +19,13 @@ class ValidationServiceProvider extends ServiceProvider {
     public function register(): void
     {
         $this->app->register(RouteServiceProvider::class);
+        // Chantier 20: this was scaffolded (Modules\Validation\Providers\EventServiceProvider,
+        // with an empty $listen array) but never actually registered anywhere — the module's
+        // module.json only lists ValidationServiceProvider as a provider, so Laravel never
+        // booted it and the 4 approval events (ApprovalRequestCreated/Approved/Rejected/
+        // Completed) have always fired into the void. Registering it for real is what makes
+        // the notification listeners below actually run.
+        $this->app->register(EventServiceProvider::class);
 
         $this->registerServices();
     }

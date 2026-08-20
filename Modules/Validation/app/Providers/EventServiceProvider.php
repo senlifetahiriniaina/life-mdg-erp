@@ -7,22 +7,23 @@ use Modules\Validation\Events\ApprovalApproved;
 use Modules\Validation\Events\ApprovalCompleted;
 use Modules\Validation\Events\ApprovalRejected;
 use Modules\Validation\Events\ApprovalRequestCreated;
+use Modules\Validation\Listeners\NotifyApprovalParticipants;
 
 class EventServiceProvider extends ServiceProvider
 {
     protected $listen = [
         // Approval request events
         ApprovalRequestCreated::class => [
-            // Event listeners will be added as they're created
+            [NotifyApprovalParticipants::class, 'handleRequestCreated'],
         ],
         ApprovalApproved::class => [
-            // Event listeners
+            [NotifyApprovalParticipants::class, 'handleApproved'],
         ],
         ApprovalRejected::class => [
-            // Event listeners
+            [NotifyApprovalParticipants::class, 'handleRejected'],
         ],
         ApprovalCompleted::class => [
-            // Event listeners
+            [NotifyApprovalParticipants::class, 'handleCompleted'],
         ],
     ];
 

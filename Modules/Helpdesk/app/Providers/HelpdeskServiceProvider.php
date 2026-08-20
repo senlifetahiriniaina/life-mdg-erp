@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\Helpdesk\Console\Commands\CheckSlaBreachesCommand;
+use Modules\Helpdesk\Models\Ticket;
+use Modules\Helpdesk\Models\TicketComment;
+use Modules\Helpdesk\Observers\TicketCommentObserver;
+use Modules\Helpdesk\Observers\TicketObserver;
 use Modules\Helpdesk\Policies\CustomerServiceAIPolicy;
 use Modules\Helpdesk\Services\AI\HelpdeskAIService;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -34,6 +38,11 @@ class HelpdeskServiceProvider extends ServiceProvider
         $this->registerViews();
         $this->registerTicketSourceMorphMap();
         $this->registerCustomerServiceAiGates();
+
+        // Chantier 20: notify assignee/reporter/commenters + the action owner's
+        // manager on ticket create/status-change/reassign/comment.
+        Ticket::observe(TicketObserver::class);
+        TicketComment::observe(TicketCommentObserver::class);
 
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
     }

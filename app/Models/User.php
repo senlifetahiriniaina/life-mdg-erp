@@ -168,4 +168,11 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Company::class);
     }
+
+    public function conversations(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(\Modules\Messaging\Models\Conversation::class, 'msg_conversation_participants')
+            ->withPivot('last_read_at')
+            ->withTimestamps();
+    }
 }

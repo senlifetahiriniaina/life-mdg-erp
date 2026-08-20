@@ -36,7 +36,7 @@ L'application est construite autour de sept principes fondateurs :
 | **AI Assisted First** | Un assistant IA contextuel accompagne l'utilisateur sur chaque écran, chaque action, dans sa langue |
 | **Strategy First** | Un tableau de bord d'indicateurs stratégiques (KPI/ratios) est présent dans chaque module, comparé aux repères du secteur, avec des recommandations générées par IA |
 
-L'application couvre **27 modules interconnectés**, organisés en huit grands domaines fonctionnels décrits ci-dessous. Chaque module communique nativement avec les autres : une facture de vente peut déclencher un mouvement de stock, une opportunité commerciale peut ouvrir un ticket support, une commande d'achat peut alimenter automatiquement la comptabilité.
+L'application couvre **28 modules interconnectés**, organisés en huit grands domaines fonctionnels décrits ci-dessous. Chaque module communique nativement avec les autres : une facture de vente peut déclencher un mouvement de stock, une opportunité commerciale peut ouvrir un ticket support, une commande d'achat peut alimenter automatiquement la comptabilité.
 
 ---
 
@@ -208,11 +208,13 @@ Le socle technique et fonctionnel qui rend l'ensemble cohérent, simple à déma
 - **Import de données assisté par IA** : import de fichiers Excel/CSV/PDF existants (contacts, produits, employés…) avec proposition automatique de correspondance des colonnes par intelligence artificielle.
 - **Moteur d'automatisation de type « no-code »** : création de règles d'automatisation (« si telle condition alors telle action ») entre modules par un constructeur visuel glisser-déposer façon n8n, avec bibliothèque de modèles prêts à l'emploi et plus de 70 déclencheurs / 50 actions couvrant tous les modules.
 - **Calendrier centralisé** : agenda unique agrégeant automatiquement les échéances de tous les modules (congés RH, tâches projet, échéances comptables, SLA support…), synchronisation bidirectionnelle avec Google Calendar, Outlook et Apple Calendar.
+- **Messagerie interne d'équipe en temps réel** : discussions directes ou de groupe entre collègues, accessibles depuis n'importe quel écran via un bouton dans la barre supérieure, avec badge de messages non lus et réception instantanée (sans recharger la page) grâce au canal temps réel déjà utilisé par les notifications.
+- **Notifications intelligentes et étendues à tous les modules** : chaque étape importante d'un processus (une facture qui attend une validation, une demande de congé, un ticket support réassigné, un commentaire…) notifie en temps réel toutes les personnes qui y sont réellement intervenues, ainsi que le supérieur hiérarchique direct de la personne à l'origine de l'action — pas seulement l'auteur ou le destinataire final. Centre de notifications accessible depuis n'importe quel écran, avec historique complet et marquage lu/non lu.
 - **Intégrations externes** : connecteurs mobile money (Orange Money, MTN MoMo, Mvola, Airtel Money), API REST complète et documentée pour connecter des outils tiers, système de webhooks, mise en relation inter-entreprises (partenaires) sécurisée.
 - **Paramétrage central** : gestion des paramètres de l'entreprise, activation/désactivation des modules à la demande, gestion multi-entreprises (multi-tenant).
 - **Champs personnalisés** et modèles de workflow adaptables au métier de chaque client.
 
-**Comment on l'utilise :** une entreprise s'inscrit, répond à quelques questions de configuration, importe ses données existantes, active les modules dont elle a besoin, et peut ensuite automatiser ses processus répétitifs sans écrire une ligne de code.
+**Comment on l'utilise :** une entreprise s'inscrit, répond à quelques questions de configuration, importe ses données existantes, active les modules dont elle a besoin, et peut ensuite automatiser ses processus répétitifs sans écrire une ligne de code. Pour communiquer en interne, il suffit de cliquer sur l'icône de messagerie dans la barre supérieure, disponible partout dans l'application.
 
 ---
 
@@ -252,7 +254,7 @@ Une plateforme pensée pour être exploitée en toute confiance par des entrepri
 
 ## Roadmap — Extensions futures
 
-Life MDG ERP est issu d'une plateforme plus large (WideHalo ERP, 49 modules), volontairement recentrée sur les 27 modules essentiels au démarrage d'une PME africaine. Les extensions ci-dessous représentent des axes d'évolution réalistes, soit parce que la brique existe déjà sur la plateforme mère et peut être réintégrée, soit parce qu'elles complètent naturellement le périmètre actuel.
+Life MDG ERP est issu d'une plateforme plus large (WideHalo ERP, 49 modules), volontairement recentrée sur les 27 modules essentiels au démarrage d'une PME africaine, complétés depuis par une messagerie interne d'équipe (28e module). Les extensions ci-dessous représentent des axes d'évolution réalistes, soit parce que la brique existe déjà sur la plateforme mère et peut être réintégrée, soit parce qu'elles complètent naturellement le périmètre actuel.
 
 ### Nouveaux modules métier envisageables
 
@@ -266,7 +268,6 @@ Life MDG ERP est issu d'une plateforme plus large (WideHalo ERP, 49 modules), vo
 - **Gestion de la qualité (ISO)** : audits qualité, documents contrôlés, catalogue de normes applicables par secteur (textile, BTP, industrie).
 - **Cycle de vie produit (PLM)** et nomenclatures techniques avancées.
 - **Gestion des immobilisations physiques (Assets)** et **gestion des contrats** (suivi des échéances, alertes de renouvellement).
-- **Messagerie interne d'équipe** (discussion, notifications temps réel).
 - **RH avancée** : recrutement (ATS) avec suivi de candidature façon Kanban, évaluations de performance à 360°, catalogue de formations, plans de succession et organigramme de mobilité interne.
 
 ### Application mobile
@@ -286,4 +287,4 @@ Une application mobile native (iOS/Android) reprenant les fonctions clés de ter
 
 ---
 
-*Document généré à partir de l'état réel et vérifié de l'application (audits fonctionnels successifs, tests automatisés couvrant l'ensemble des 27 modules). À utiliser comme base de contenu pour la conception du site commercial — les formulations peuvent être adaptées au ton marketing souhaité, le contenu fonctionnel reflète les capacités réelles du produit.*
+*Document généré à partir de l'état réel et vérifié de l'application (audits fonctionnels successifs, tests automatisés couvrant l'ensemble des 28 modules). À utiliser comme base de contenu pour la conception du site commercial — les formulations peuvent être adaptées au ton marketing souhaité, le contenu fonctionnel reflète les capacités réelles du produit.*

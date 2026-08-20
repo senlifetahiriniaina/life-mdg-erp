@@ -66,6 +66,7 @@
         <button class="wh-pill wh-pill-ai" @click="toggleAI" :aria-label="$t('ai.assistant')" :aria-pressed="aiPanelOpen" title="WideHalo IA · ⌘J"><i class="pi pi-sparkles" style="font-size: 12px" aria-hidden="true" /><span>IA</span></button>
         <QuickTicketButton />
         <ThemeSwitcher />
+        <MessagingLauncher />
         <NotificationBell />
         <UserMenu />
       </div>
@@ -100,6 +101,7 @@ import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import QuickTicketButton from '@/Components/Helpdesk/QuickTicketButton.vue'
 import UserMenu from '@/Components/UI/UserMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
+import MessagingLauncher from '@/Components/Messaging/MessagingLauncher.vue'
 import CookieConsentBanner from '@/Components/UI/CookieConsentBanner.vue'
 import ModuleAssistant from '@/Components/AI/ModuleAssistant.vue'
 import SimplifiedMode from '@/Components/AI/SimplifiedMode.vue'

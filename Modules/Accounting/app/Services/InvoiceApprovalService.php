@@ -301,8 +301,9 @@ class InvoiceApprovalService
      * Fixed: previously queried whereJsonContains('roles', $role), which
      * doesn't reflect how spatie/laravel-permission actually stores role
      * assignments (a pivot table, not a JSON column on users) — this never
-     * matched anyone. Sending is still a no-op pending a real notification
-     * class, matching this codebase's existing degrade-gracefully pattern.
+     * matched anyone. Chantier 20 wires the send itself for real, onto the
+     * generic participant+hierarchy notifier — this was the exact TODO that
+     * service was built for.
      */
     private function notifyApprovers(Invoice $invoice, int $level): void
     {
@@ -314,8 +315,18 @@ class InvoiceApprovalService
 
         $approvers = User::role($role)->get();
 
-        foreach ($approvers as $approver) {
-            // Notification::send($approver, new InvoiceApprovalNotification($invoice, $level));
-        }
+        app(\Modules\Core\Services\ParticipantNotificationService::class)->notifyProcess(
+            $approvers,
+            $invoice->createdBy,
+            'Facture en attente d\'approbation',
+            sprintf(
+                'La facture %s (%s %s) attend votre validation au niveau %d.',
+                $invoice->number ?? "#{$invoice->id}",
+                number_format((float) $invoice->total, 0, ',', ' '),
+                $invoice->currency ?? '',
+                $level,
+            ),
+            ['type' => 'warning', 'action_url' => "/accounting/invoices/{$invoice->id}"],
+        );
     }
 }

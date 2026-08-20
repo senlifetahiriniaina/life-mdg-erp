@@ -86,8 +86,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { router } from '@inertiajs/vue3'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import axios from 'axios'
 
 // State
 const isOpen       = ref(false)
@@ -99,15 +100,21 @@ const dropdownStyle = ref({})
 
 let pollInterval = null
 
-// Demo data
-const DEMO_NOTIFICATIONS = [
-  { id: 1, type: 'info',    title: 'Nouvelle commande reçue', body: 'Commande CMD-2026-0042 de Mamadou Diop • 450 000 XOF', is_read: false, created_at: new Date(Date.now() - 3 * 60000).toISOString(), meta: { action_url: '/sales/orders/42' } },
-  { id: 2, type: 'warning', title: 'Stock critique : Tissu wax', body: 'Le stock du produit "Tissu wax bleu" est tombé sous le seuil minimal (5 rouleaux).', is_read: false, created_at: new Date(Date.now() - 18 * 60000).toISOString(), meta: { action_url: '/inventory/products/12' } },
-  { id: 3, type: 'success', title: 'Paiement reçu', body: 'Facture FAC-2026-0128 • 1 200 000 XOF — Orange Money', is_read: false, created_at: new Date(Date.now() - 45 * 60000).toISOString(), meta: { action_url: '/accounting/invoices/128' } },
-  { id: 4, type: 'error',   title: 'Échec d\'envoi de campagne', body: '55 messages WhatsApp n\'ont pas pu être livrés dans la campagne "Promo Ramadan".', is_read: true, created_at: new Date(Date.now() - 2 * 3600000).toISOString(), meta: { action_url: '/messaging/campaigns/1' } },
-  { id: 5, type: 'info',    title: 'Congé approuvé', body: 'Votre demande de congé du 01/06 au 07/06/2026 a été approuvée par Marie Diallo.', is_read: true, created_at: new Date(Date.now() - 5 * 3600000).toISOString(), meta: { action_url: '/hr/leaves' } },
-  { id: 6, type: 'warning', title: 'Approbation requise', body: 'Facture fournisseur FA-2026-0078 • 3 500 000 XOF attend votre validation.', is_read: true, created_at: new Date(Date.now() - 24 * 3600000).toISOString(), meta: { action_url: '/accounting/invoices/78' } },
-]
+// Real notifications live in Laravel's default `notifications` table (see
+// Modules\Core\Http\Controllers\Api\NotificationController) — each row's
+// `data` JSON carries {title, body, meta}, written by App\Services\NotificationService.
+function mapNotification(row) {
+  const data = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {})
+  return {
+    id: row.id,
+    type: data.meta?.type || 'info',
+    title: data.title || '',
+    body: data.body || '',
+    is_read: !!row.read_at,
+    created_at: row.created_at,
+    meta: data.meta || {},
+  }
+}
 
 // Actions
 function toggleDropdown() {
@@ -133,26 +140,39 @@ function positionDropdown() {
 
 async function loadNotifications() {
   loading.value = true
-  await new Promise(r => setTimeout(r, 300))
-  notifications.value = DEMO_NOTIFICATIONS
-  unreadCount.value   = DEMO_NOTIFICATIONS.filter(n => !n.is_read).length
-  loading.value = false
+  try {
+    const { data } = await axios.get('/api/v1/notifications', { params: { per_page: 10 } })
+    notifications.value = (data.data || []).map(mapNotification)
+  } catch {
+    notifications.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 async function fetchUnreadCount() {
-  // In production: GET /api/v1/notifications/unread-count
-  unreadCount.value = DEMO_NOTIFICATIONS.filter(n => !n.is_read).length
+  try {
+    const { data } = await axios.get('/api/v1/notifications/unread-count')
+    unreadCount.value = data.count ?? 0
+  } catch {
+    // AI First fallback-first principle: a failed fetch degrades to 0, never an error
+  }
 }
 
 async function markAllRead() {
+  try {
+    await axios.post('/api/v1/notifications/read-all')
+  } catch { /* best-effort */ }
   notifications.value.forEach(n => { n.is_read = true })
   unreadCount.value = 0
-  // In production: POST /api/v1/notifications/mark-read
 }
 
 function handleNotifClick(notif) {
-  notif.is_read = true
-  unreadCount.value = Math.max(0, unreadCount.value - 1)
+  if (!notif.is_read) {
+    axios.post(`/api/v1/notifications/${notif.id}/read`).catch(() => {})
+    notif.is_read = true
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  }
   isOpen.value = false
   const url = notif.meta?.action_url
   if (url) router.visit(url)
@@ -178,14 +198,27 @@ function relativeTime(iso) {
 }
 
 // Lifecycle
+const userId = usePage().props.auth?.user?.id
+let echoChannel = null
+
 onMounted(() => {
   fetchUnreadCount()
-  // Poll every 30 seconds
+  // Poll every 30 seconds as a fallback in case Echo/Reverb isn't configured
+  // (window.Echo is only set up when VITE_REVERB_APP_KEY is present).
   pollInterval = setInterval(fetchUnreadCount, 30000)
+
+  if (window.Echo && userId) {
+    echoChannel = window.Echo.private(`user.${userId}`)
+      .listen('.notification.created', () => {
+        unreadCount.value += 1
+        if (isOpen.value) loadNotifications()
+      })
+  }
 })
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
+  if (echoChannel && window.Echo) window.Echo.leave(`user.${userId}`)
 })
 </script>
 

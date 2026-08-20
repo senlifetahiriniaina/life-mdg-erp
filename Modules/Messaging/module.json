@@ -1,0 +1,11 @@
+{
+    "name": "Messaging",
+    "alias": "messaging",
+    "description": "Real-time internal team messaging — direct/group conversations, broadcast over Reverb",
+    "keywords": ["messaging", "chat", "conversation", "realtime"],
+    "priority": 0,
+    "providers": [
+        "Modules\\Messaging\\Providers\\MessagingServiceProvider"
+    ],
+    "files": []
+}
