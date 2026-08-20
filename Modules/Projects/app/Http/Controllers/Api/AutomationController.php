@@ -7,6 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\AutomationRule;
 use Modules\Projects\Models\Project;
 
@@ -17,11 +18,15 @@ use Modules\Projects\Models\Project;
  */
 class AutomationController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * List automation rules for a project.
      */
-    public function index(Project $project): JsonResponse
+    public function index(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $rules = AutomationRule::where('project_id', $project->id)
             ->orderByDesc('created_at')
             ->get();
@@ -34,6 +39,8 @@ class AutomationController extends Controller
      */
     public function store(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'trigger' => ['required', 'string', 'in:task_created,task_status_changed,task_assigned,comment_added'],
@@ -53,8 +60,10 @@ class AutomationController extends Controller
     /**
      * Show a single rule.
      */
-    public function show(Project $project, AutomationRule $automation): JsonResponse
+    public function show(Request $request, Project $project, AutomationRule $automation): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($automation->project_id !== $project->id) {
             abort(404);
         }
@@ -67,6 +76,8 @@ class AutomationController extends Controller
      */
     public function update(Request $request, Project $project, AutomationRule $automation): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($automation->project_id !== $project->id) {
             abort(404);
         }
@@ -87,8 +98,10 @@ class AutomationController extends Controller
     /**
      * Delete a rule.
      */
-    public function destroy(Project $project, AutomationRule $automation): JsonResponse
+    public function destroy(Request $request, Project $project, AutomationRule $automation): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($automation->project_id !== $project->id) {
             abort(404);
         }

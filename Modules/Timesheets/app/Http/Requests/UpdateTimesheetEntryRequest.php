@@ -19,6 +19,10 @@ class UpdateTimesheetEntryRequest extends FormRequest
             // Chantier 8.4: "tasks" table doesn't exist in this app — real
             // table is prj_tasks (same fix as StoreTimesheetEntryRequest).
             'task_id' => 'nullable|exists:prj_tasks,id',
+            // Chantier 19 (Lot 2): same fix as StoreTimesheetEntryRequest.
+            'project_id' => 'nullable|integer|exists:prj_projects,id',
+            'billable' => 'sometimes|boolean',
+            'hourly_rate' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ];
     }

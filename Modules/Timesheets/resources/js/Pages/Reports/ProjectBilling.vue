@@ -202,7 +202,11 @@ const exportReport = () => {
 
 onMounted(async () => {
   try {
-    const response = await axios.get('/api/v1/projects/projects?per_page=999')
+    // Chantier 19 (Lot 2): was /api/v1/projects/projects (double
+    // "projects") — the real route is /api/v1/projects — every load of
+    // this report page 404'd here, silently caught, leaving the Project
+    // filter dropdown always empty.
+    const response = await axios.get('/api/v1/projects?per_page=999')
     projects.value = response.data.data
   } catch (error) {
     console.error('Error loading projects:', error)

@@ -9,20 +9,43 @@ use Modules\Timesheets\Models\TimeTrackingProject;
 
 class TimesheetService
 {
+    /**
+     * Chantier 19 (Lot 2): project_id/billable_hours/hourly_rate/tenant_id
+     * were never accepted here at all — every entry created through the
+     * real TimesheetEntryController::store() endpoint (the only real
+     * write path into this table) silently dropped the caller's project
+     * selection and billable/rate input, and never populated tenant_id.
+     * The latter isn't cosmetic: TimesheetAdvancedController::utilization()
+     * filters TimesheetEntry::where('tenant_id', $companyId) — with every
+     * real entry's tenant_id left null, that endpoint has always returned
+     * an empty (not erroring, just silently wrong) result set.
+     */
     public function createEntry(
         int $employee_id,
         $entry_date,
         float $hours_worked,
         string $description,
         ?int $task_id = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?int $project_id = null,
+        ?float $billable_hours = null,
+        ?float $hourly_rate = null,
+        ?int $tenant_id = null
     ): TimesheetEntry {
         return TimesheetEntry::create([
+            'tenant_id' => $tenant_id,
             'employee_id' => $employee_id,
             'entry_date' => $entry_date,
             'hours_worked' => $hours_worked,
             'description' => $description,
             'task_id' => $task_id,
+            'project_id' => $project_id,
+            // billable_hours is a NOT NULL column (DB default 0) —
+            // passing a raw null bypasses the column default entirely and
+            // violates the constraint, confirmed empirically while running
+            // this session's regression suite.
+            'billable_hours' => $billable_hours ?? 0.0,
+            'hourly_rate' => $hourly_rate,
             'notes' => $notes,
             'status' => 'draft',
         ]);
@@ -33,7 +56,10 @@ class TimesheetService
         ?float $hours_worked = null,
         ?string $description = null,
         ?int $task_id = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?int $project_id = null,
+        ?float $billable_hours = null,
+        ?float $hourly_rate = null
     ): TimesheetEntry {
         if (! $entry->canEdit()) {
             throw new \Exception('Cannot edit submitted or approved timesheets');
@@ -44,6 +70,9 @@ class TimesheetService
             'description' => $description,
             'task_id' => $task_id,
             'notes' => $notes,
+            'project_id' => $project_id,
+            'billable_hours' => $billable_hours,
+            'hourly_rate' => $hourly_rate,
         ], fn ($v) => $v !== null));
 
         return $entry->refresh();

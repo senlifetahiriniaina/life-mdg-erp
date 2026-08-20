@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 
 /**
@@ -16,11 +17,15 @@ use Modules\Projects\Models\Project;
  */
 class ProjectMemberController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * List members of a project.
      */
     public function index(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $members = DB::table('users')
             ->select('users.id', 'users.name', 'users.email', 'prj_members.role')
             ->join('prj_members', 'prj_members.user_id', '=', 'users.id')
@@ -35,6 +40,8 @@ class ProjectMemberController extends Controller
      */
     public function store(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'role' => ['required', 'in:owner,admin,member,viewer'],
@@ -52,6 +59,8 @@ class ProjectMemberController extends Controller
      */
     public function update(Request $request, Project $project, User $user): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'role' => ['required', 'in:owner,admin,member,viewer'],
         ]);
@@ -64,8 +73,10 @@ class ProjectMemberController extends Controller
     /**
      * Remove a member from a project.
      */
-    public function destroy(Project $project, User $user): JsonResponse
+    public function destroy(Request $request, Project $project, User $user): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $project->members()->detach($user->id);
 
         return response()->json(null, 204);

@@ -14,12 +14,20 @@ use Modules\HR\Models\LeaveRequest;
  * @group HR - Leave
  *
  * Submit, approve and reject leave requests.
+ *
+ * Chantier 19 (HR): index()/approve()/update() all eager-loaded/fresh()'d a
+ * nonexistent 'approvedBy' relation — LeaveRequest's real relation is
+ * approver() — a guaranteed RelationNotFoundException on every real call to
+ * 3 of this controller's 6 endpoints, confirmed empirically (this exact
+ * page's index() backs HR/Dashboard.vue's own leaves widget and
+ * Leaves/Index.vue's admin list, both of which would have fatal'd on
+ * every load). Fixed throughout to the real relation name.
  */
 class LeaveController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = LeaveRequest::with('employee', 'leaveType', 'approvedBy')
+        $query = LeaveRequest::with('employee', 'leaveType', 'approver')
             ->when($request->employee_id, fn ($q, $v) => $q->where('employee_id', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->year, fn ($q, $v) => $q->whereYear('start_date', $v));
@@ -55,7 +63,7 @@ class LeaveController extends Controller
             'approved_at' => now(),
         ]);
 
-        return response()->json($leaveRequest->fresh('employee', 'leaveType', 'approvedBy'));
+        return response()->json($leaveRequest->fresh('employee', 'leaveType', 'approver'));
     }
 
     public function reject(Request $request, LeaveRequest $leaveRequest): JsonResponse
@@ -91,7 +99,7 @@ class LeaveController extends Controller
 
         $leaveRequest->update($validated);
 
-        return response()->json(new LeaveRequestResource($leaveRequest->fresh()->load('employee', 'leaveType', 'approvedBy')));
+        return response()->json(new LeaveRequestResource($leaveRequest->fresh()->load('employee', 'leaveType', 'approver')));
     }
 
     public function destroy(LeaveRequest $leaveRequest): JsonResponse

@@ -7,6 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 
 /**
@@ -16,6 +17,8 @@ use Modules\Projects\Models\Project;
  */
 class ProjectController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * List projects
      *
@@ -106,7 +109,7 @@ class ProjectController extends Controller
     public function show(Request $request, Project $project): JsonResponse
     {
         $this->authorize('view', $project);
-        $this->assertSameCompany($request, $project);
+        $this->assertSameCompanyAsProject($request, $project);
 
         return response()->json(
             $project->load('owner', 'members', 'milestones')
@@ -139,7 +142,7 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project): JsonResponse
     {
         $this->authorize('update', $project);
-        $this->assertSameCompany($request, $project);
+        $this->assertSameCompanyAsProject($request, $project);
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'code' => ['sometimes', 'nullable', 'string', 'max:50', 'unique:prj_projects,code,'.$project->id],
@@ -171,26 +174,13 @@ class ProjectController extends Controller
     public function destroy(Request $request, Project $project): JsonResponse
     {
         $this->authorize('delete', $project);
-        $this->assertSameCompany($request, $project);
+        $this->assertSameCompanyAsProject($request, $project);
         $project->delete();
 
         return response()->json(null, 204);
     }
 
-    /**
-     * Chantier 10: 404s (not 403 — avoids confirming another company's
-     * project id even exists) when both the caller and the project carry a
-     * real company_id and they don't match. Deliberately a no-op when
-     * either side is null (pre-chantier data / not-yet-provisioned user),
-     * matching index()'s same graceful-degradation guard above.
-     */
-    private function assertSameCompany(Request $request, Project $project): void
-    {
-        $userCompanyId = $request->user()?->company_id;
-
-        if ($userCompanyId !== null && $project->company_id !== null
-            && (int) $project->company_id !== (int) $userCompanyId) {
-            abort(404);
-        }
-    }
+    // assertSameCompanyAsProject() now lives on the shared
+    // Concerns\ScopesToProjectCompany trait (Chantier 19 Lot 2) — every
+    // other Projects sub-resource controller needed the identical check.
 }

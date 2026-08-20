@@ -42,7 +42,14 @@ class TimesheetsAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19 (Lot 2): users.role is the well-documented
+            // phantom column (real, migrated, never populated by any real
+            // registration path) — this always resolved to the 'user'
+            // fallback regardless of the caller's real Spatie role,
+            // silently defeating the AI-assist tone/depth logic on every
+            // call. Same fix pattern already used by SalesAiAssistController/
+            // AiActionAdvisorController.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

@@ -7,6 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Task;
 
 /**
@@ -16,6 +17,8 @@ use Modules\Projects\Models\Task;
  */
 class TaskController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function index(Request $request): JsonResponse
     {
         // Chantier 10: scoped via the parent project's company_id, same
@@ -56,7 +59,7 @@ class TaskController extends Controller
     public function show(Request $request, Task $task): JsonResponse
     {
         $this->authorize('view', $task);
-        $this->assertSameCompany($request, $task);
+        $this->assertSameCompanyAsTask($request, $task);
 
         return response()->json($task->load('project', 'assignee'));
     }
@@ -64,7 +67,7 @@ class TaskController extends Controller
     public function update(Request $request, Task $task): JsonResponse
     {
         $this->authorize('update', $task);
-        $this->assertSameCompany($request, $task);
+        $this->assertSameCompanyAsTask($request, $task);
         $validated = $request->validate([
             'project_id' => ['sometimes', 'exists:prj_projects,id'],
             'title' => ['sometimes', 'string', 'max:255'],
@@ -83,24 +86,13 @@ class TaskController extends Controller
     public function destroy(Request $request, Task $task): JsonResponse
     {
         $this->authorize('delete', $task);
-        $this->assertSameCompany($request, $task);
+        $this->assertSameCompanyAsTask($request, $task);
         $task->delete();
 
         return response()->json(null, 204);
     }
 
-    /**
-     * Chantier 10: same guard as ProjectController::assertSameCompany(),
-     * applied via the task's parent project.
-     */
-    private function assertSameCompany(Request $request, Task $task): void
-    {
-        $userCompanyId = $request->user()?->company_id;
-        $projectCompanyId = $task->project?->company_id;
-
-        if ($userCompanyId !== null && $projectCompanyId !== null
-            && (int) $projectCompanyId !== (int) $userCompanyId) {
-            abort(404);
-        }
-    }
+    // assertSameCompanyAsTask() now lives on the shared
+    // Concerns\ScopesToProjectCompany trait (Chantier 19 Lot 2) — every
+    // other Projects sub-resource controller needed the identical check.
 }

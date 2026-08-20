@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\ResourceAllocation;
 use Modules\Projects\Services\ResourceCapacityService;
 
@@ -18,6 +19,8 @@ use Modules\Projects\Services\ResourceCapacityService;
  */
 class ResourceCapacityController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function __construct(private readonly ResourceCapacityService $service) {}
 
     // -------------------------------------------------------------------------
@@ -173,8 +176,18 @@ class ResourceCapacityController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Chantier 19 Lot 2: took a bare project id straight into the service
+     * with zero company-ownership check — any authenticated employee/
+     * manager/admin of ANY company could read another company's resource
+     * demand by guessing a project id. Fixed to resolve+assert company
+     * ownership first, matching the same fix applied to
+     * ProjectAdvancedController's budget/kpis/risks endpoints.
+     */
     public function getProjectDemand(Request $request, int $project): JsonResponse
     {
+        $this->resolveCompanyScopedProject($request, $project);
+
         $request->validate([
             'from' => 'sometimes|date',
             'to' => 'sometimes|date|after_or_equal:from',

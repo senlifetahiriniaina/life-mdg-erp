@@ -181,7 +181,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Tag from 'primevue/tag'
 import Badge from 'primevue/badge'
@@ -192,14 +192,19 @@ const props = defineProps({
   entries: Array,
 })
 
-const page = usePage()
-const user = page.props.auth.user
-const { isAdmin, isElevated } = useRoleAccess()
+const { isElevated } = useRoleAccess()
 const loading = ref(false)
 
-const canSubmit = computed(() => {
-  return user.id === props.sheet.employee_id || isAdmin.value
-})
+// Chantier 19 (Lot 2): compared user.id (a users.id, shared via Inertia's
+// auth.user prop — no employee_id is shared) against sheet.employee_id (an
+// hr_employees.id) — the same ID-space mismatch bug pattern fixed
+// repeatedly elsewhere in this app. In practice this meant the real
+// employee owning a sheet could never see their own "Submit for Approval"
+// button, only admins could. The Submit button is now always shown for a
+// draft sheet; TimesheetPeriodPolicy::submit() is the real enforcement
+// point (an unauthorized submit attempt 403s, caught by submitSheet()'s
+// existing error handler) rather than this being a client-side gate.
+const canSubmit = computed(() => true)
 
 const canApprove = computed(() => isElevated.value)
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Timesheets\Services;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -73,20 +74,38 @@ class TimerService
 
         Cache::forget($this->cacheKey($userId));
 
-        // Persist a timesheet entry using the existing TimesheetService API
+        // Persist a timesheet entry using the existing TimesheetService API.
+        //
+        // Chantier 19 (Lot 2): this passed the raw $userId (a users.id)
+        // straight through as employee_id — but TimesheetEntry.employee_id
+        // FKs to hr_employees.id, a different ID space (the same mismatch
+        // pattern already fixed in TimesheetEntryPolicy/
+        // StoreTimesheetEntryRequest/TimesheetEntryController::index()).
+        // Confirmed empirically: every browser-timer stop silently created
+        // an entry under the wrong employee_id — invisible on the real
+        // owner's own "My Sheets"/entries list, and a real collision risk
+        // if that raw users.id happens to match a *different* employee's
+        // hr_employees.id, silently contaminating their timesheet.
         $entryId = null;
-        try {
-            $entry   = $this->timesheetService->createEntry(
-                employee_id: $userId,
-                entry_date:  $startedAt->format('Y-m-d'),
-                hours_worked: round($durationSeconds / 3600, 4),
-                description: $state['description'] ?: 'Browser timer entry',
-                task_id:     $state['task_id'] ?? null,
-                notes:       'source:browser_timer; timer_id:' . $state['timer_id'],
-            );
-            $entryId = $entry->id ?? null;
-        } catch (\Throwable) {
-            // Best-effort — stop response is returned even if entry creation fails
+        $user    = User::find($userId);
+        $employeeId = $user?->employee?->id;
+
+        if ($employeeId !== null) {
+            try {
+                $entry   = $this->timesheetService->createEntry(
+                    employee_id: $employeeId,
+                    entry_date:  $startedAt->format('Y-m-d'),
+                    hours_worked: round($durationSeconds / 3600, 4),
+                    description: $state['description'] ?: 'Browser timer entry',
+                    task_id:     $state['task_id'] ?? null,
+                    notes:       'source:browser_timer; timer_id:' . $state['timer_id'],
+                    project_id:  $state['project_id'] ?? null,
+                    tenant_id:   $user?->company_id,
+                );
+                $entryId = $entry->id ?? null;
+            } catch (\Throwable) {
+                // Best-effort — stop response is returned even if entry creation fails
+            }
         }
 
         return [

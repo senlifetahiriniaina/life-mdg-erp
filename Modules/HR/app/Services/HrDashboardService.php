@@ -30,12 +30,38 @@ class HrDashboardService
             ->count();
 
         // Average tenure in months for active employees who have a hire_date
+        // Chantier 19 (HR): was now()->diffInMonths(Carbon::parse($e->hire_date))
+        // — Carbon 3 changed diffInMonths()'s $absolute default from true
+        // (Carbon 2) to false, so $this->diffInMonths($other) now returns
+        // $other-$this rather than an always-positive magnitude. With
+        // $this=now() and $other=a past hire_date, every real employee
+        // produced a *negative* tenure, confirmed empirically via tinker —
+        // dashboard/HR/Dashboard.vue's "avg_tenure_months" KPI was always
+        // negative for any real, seeded company. Fixed by computing from
+        // the hire_date's own perspective (matching the already-correct
+        // CompensationService::calculateMonthsEmployed() pattern), which
+        // yields other(now)-this(hire_date) = a positive value.
         $avgTenureMonths = Employee::where('status', 'active')
             ->whereNotNull('hire_date')
             ->get()
-            ->avg(fn (Employee $e) => $e->hire_date ? now()->diffInMonths(Carbon::parse($e->hire_date)) : 0);
+            ->avg(fn (Employee $e) => $e->hire_date ? Carbon::parse($e->hire_date)->diffInMonths(now()) : 0);
 
-        $openPositions = (int) Position::sum('headcount') - $headcount;
+        // Chantier 19 (HR): Modules\HR\Models\Position (table hr_positions) is
+        // a confirmed-dead, always-empty model — zero routes/controllers
+        // anywhere reference it (only JobPosition, a genuinely different,
+        // real/populated model with no headcount-target field of its own,
+        // is actually routed/used) and nothing in this app's real write
+        // paths (DemoSeeder included) ever populates hr_positions. Position::
+        // sum('headcount') therefore always returns 0, so this always
+        // computed a nonsensical negative "open positions" count on every
+        // real dashboard load. There's no real per-position headcount-target
+        // data source anywhere in this trimmed HR scope to compute a
+        // genuine open-positions figure from (building one would mean
+        // adding a new field/UI, not fixing existing wiring) — clamped to 0
+        // rather than surfacing a misleading negative number, matching this
+        // app's established fallback-first degradation pattern (see
+        // Strategy's training_roi/time_to_fill ratios).
+        $openPositions = max(0, (int) Position::sum('headcount') - $headcount);
 
         return [
             'headcount' => $headcount,

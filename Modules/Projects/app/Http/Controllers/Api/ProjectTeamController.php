@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\ProjectTeamMember;
 use Modules\Projects\Models\ProjectTimeLog;
@@ -18,13 +19,17 @@ use Modules\Projects\Services\ProjectTeamService;
  */
 class ProjectTeamController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function __construct(private readonly ProjectTeamService $teamService) {}
 
     /**
      * List team members of a project.
      */
-    public function index(Project $project): JsonResponse
+    public function index(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $members = ProjectTeamMember::with('user')
             ->where('project_id', $project->id)
             ->whereNull('left_at')
@@ -48,6 +53,8 @@ class ProjectTeamController extends Controller
      */
     public function store(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'role' => ['required', 'in:owner,manager,member,viewer'],
@@ -75,6 +82,7 @@ class ProjectTeamController extends Controller
      */
     public function update(Request $request, Project $project, ProjectTeamMember $member): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
         abort_if($member->project_id !== $project->id, 404);
 
         $validated = $request->validate([
@@ -98,8 +106,9 @@ class ProjectTeamController extends Controller
     /**
      * Remove a team member.
      */
-    public function destroy(Project $project, ProjectTeamMember $member): JsonResponse
+    public function destroy(Request $request, Project $project, ProjectTeamMember $member): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
         abort_if($member->project_id !== $project->id, 404);
 
         $user = User::find($member->user_id);
@@ -115,6 +124,8 @@ class ProjectTeamController extends Controller
      */
     public function timeLogs(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $logs = ProjectTimeLog::with(['user', 'task'])
             ->where('project_id', $project->id)
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
@@ -130,6 +141,8 @@ class ProjectTeamController extends Controller
      */
     public function storeTimeLog(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'task_id' => ['nullable', 'exists:prj_tasks,id'],
             'started_at' => ['required', 'date'],
@@ -150,8 +163,10 @@ class ProjectTeamController extends Controller
     /**
      * Stop an active timer.
      */
-    public function stopTimer(ProjectTimeLog $log): JsonResponse
+    public function stopTimer(Request $request, ProjectTimeLog $log): JsonResponse
     {
+        $this->assertSameCompanyAsTimeLog($request, $log);
+
         if ($log->ended_at !== null) {
             return response()->json(['message' => 'Timer already stopped.'], 422);
         }
@@ -165,8 +180,10 @@ class ProjectTeamController extends Controller
     /**
      * Aggregated time report for a project.
      */
-    public function timeReport(Project $project): JsonResponse
+    public function timeReport(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $data = $this->teamService->getProjectHours($project);
 
         return response()->json($data);

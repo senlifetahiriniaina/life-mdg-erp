@@ -72,14 +72,42 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     Route::middleware('cache.api:5')->group(function () {
         Route::get('leave-requests/pending', [LeaveRequestController::class, 'pending']);
         Route::apiResource('leave-requests', LeaveRequestController::class)->only(['index', 'show']);
-        Route::apiResource('leaves', LeaveController::class)->only(['index', 'show']);
+        // Chantier 19 (HR): Route::apiResource('leaves', ...) with no explicit
+        // ->parameters() override lets Laravel derive the route-model-binding
+        // parameter name from Str::singular('leaves') — which is the English
+        // word "leaf" (plural of "leaf", not of "leave"), not "leave"/
+        // "leaveRequest". Every dynamically-bound "leaves/{id}/..." route
+        // therefore captured a {leaf} parameter that could never implicitly
+        // bind to any of LeaveController's $leaveRequest-typed parameters —
+        // confirmed empirically: PUT/DELETE/approve/reject on this resource
+        // silently received a fresh, unbound LeaveRequest instance instead of
+        // the real record (update()/fresh() both no-op against a
+        // non-existent model, so the request "succeeds" with HTTP 200 and an
+        // empty body while never touching the real row). Also dropped 'show'
+        // here — LeaveController has no show() method at all (confirmed via
+        // grep and unused by any real page), so it was a second, independent
+        // "call to undefined method" landmine on this same route.
+        Route::apiResource('leaves', LeaveController::class)->parameters(['leaves' => 'leaveRequest'])->only(['index']);
         Route::apiResource('leave-types', LeaveTypeController::class)->only(['index', 'show']);
     });
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('leave-requests/{leaveRequest}/approve', [LeaveRequestController::class, 'approve']);
         Route::post('leave-requests/{leaveRequest}/reject', [LeaveRequestController::class, 'reject']);
         Route::apiResource('leave-requests', LeaveRequestController::class)->only(['store', 'update', 'destroy']);
-        Route::apiResource('leaves', LeaveController::class)->only(['store', 'update', 'destroy']);
+        // Chantier 19 (HR): LeaveController::approve()/reject() are real, correctly
+        // implemented methods (both already call authorize('approve', ...)) that
+        // Modules/HR/resources/js/Pages/Leaves/Index.vue's admin approve/reject
+        // buttons already call (POST /api/v1/hr/leaves/{id}/approve|reject) — but
+        // no route registered either verb, a guaranteed 404 on every click,
+        // confirmed empirically. {leaveRequest} (not {leave}/{leaf}) to match
+        // the controller's real parameter name — see the ->parameters()
+        // override above for the full explanation of why the plain
+        // Str::singular('leaves') wildcard is unusable here. Registered
+        // before the apiResource below so "approve"/"reject" aren't
+        // swallowed as a {leaveRequest} route parameter.
+        Route::post('leaves/{leaveRequest}/approve', [LeaveController::class, 'approve']);
+        Route::post('leaves/{leaveRequest}/reject', [LeaveController::class, 'reject']);
+        Route::apiResource('leaves', LeaveController::class)->parameters(['leaves' => 'leaveRequest'])->only(['store', 'update', 'destroy']);
         Route::apiResource('leave-types', LeaveTypeController::class)->only(['store', 'update', 'destroy']);
     });
 
@@ -189,6 +217,15 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     Route::middleware('throttle:create_post')->group(function () {
         Route::put('me', [EmployeeSelfServiceController::class, 'updateMe']);
         Route::post('self-service/leave-requests', [EmployeeSelfServiceController::class, 'submitLeaveRequest']);
+        // Chantier 19 (HR): resources/js/Pages/HR/Attendance/Index.vue's own
+        // "request leave" quick action posts to /api/v1/hr/me/leave-requests
+        // (matching the me/* naming already used by the sibling GET me/*
+        // routes above), but only self-service/leave-requests was ever
+        // registered — a guaranteed 404 on every real submission from this
+        // page, confirmed empirically. Same real EmployeeSelfServiceController::
+        // submitLeaveRequest() method, just reachable at the URL the page
+        // actually calls.
+        Route::post('me/leave-requests', [EmployeeSelfServiceController::class, 'submitLeaveRequest']);
     });
 
     // ── Document Expiry Compliance Tracker ─────────────────────────────────

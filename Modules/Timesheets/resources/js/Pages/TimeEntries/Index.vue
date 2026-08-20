@@ -81,15 +81,15 @@
         responsive-layout="scroll"
         class="w-full"
       >
-        <Column field="work_date" header="Date" sortable style="width: 12%">
+        <Column field="entry_date" header="Date" sortable style="width: 12%">
           <template #body="{ data }">
-            {{ formatDate(data.work_date) }}
+            {{ formatDate(data.entry_date) }}
           </template>
         </Column>
 
-        <Column field="task_description" header="Task" sortable style="width: 25%">
+        <Column field="description" header="Task" sortable style="width: 25%">
           <template #body="{ data }">
-            <span class="font-semibold">{{ data.task_description }}</span>
+            <span class="font-semibold">{{ data.description }}</span>
           </template>
         </Column>
 
@@ -99,9 +99,9 @@
           </template>
         </Column>
 
-        <Column field="hours" header="Hours" sortable style="width: 10%">
+        <Column field="hours_worked" header="Hours" sortable style="width: 10%">
           <template #body="{ data }">
-            <span class="font-semibold">{{ data.hours }}</span>
+            <span class="font-semibold">{{ data.hours_worked }}</span>
           </template>
         </Column>
 
@@ -111,9 +111,9 @@
           </template>
         </Column>
 
-        <Column field="rate" header="Rate" style="width: 10%">
+        <Column field="hourly_rate" header="Rate" style="width: 10%">
           <template #body="{ data }">
-            <span class="text-sm">${{ data.rate || '-' }}</span>
+            <span class="text-sm">${{ data.hourly_rate || '-' }}</span>
           </template>
         </Column>
 
@@ -151,18 +151,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
+import { ref, reactive, onMounted } from 'vue'
+import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Badge from 'primevue/badge'
-import { useRoleAccess } from '@/composables/useRoleAccess'
-
-const page = usePage()
-const user = page.props.auth.user
-const { isAdmin, isElevated } = useRoleAccess()
 
 const entries = ref([])
 const loading = ref(false)
@@ -174,9 +169,15 @@ const lazyState = reactive({
   sortOrder: null,
 })
 
+// Chantier 19 (Lot 2): allows Dashboard.vue's "Pending Approvals" quick
+// action to deep-link here pre-filtered to submitted entries (this closure
+// route has no Inertia controller/props to pass a query param through, so
+// the initial value is read directly off the URL).
+const initialParams = new URLSearchParams(window.location.search)
+
 const filters = reactive({
   search: '',
-  status: '',
+  status: initialParams.get('status') || '',
   billable: '',
 })
 
@@ -199,12 +200,21 @@ const statusSeverity = (status) => {
   }[status] || 'secondary'
 }
 
+// Chantier 19 (Lot 2): these compared user.id (a users.id, shared via
+// Inertia's auth.user prop) against entry.employee_id (an hr_employees.id)
+// — the same ID-space mismatch bug pattern already fixed on the backend
+// (TimesheetEntryPolicy, TimesheetEntryController::index()). Since the
+// backend already scopes the entries a non-elevated caller can even see to
+// their own (see loadEntries()/GET timesheets/entries), every entry
+// visible here to a non-elevated user already IS their own — so the edit
+// button never needs an ownership check on the frontend, only the status
+// gate the real TimesheetEntryPolicy::update()/delete() also enforce.
 const canEdit = (entry) => {
-  return entry.status === 'draft' && (user.id === entry.employee_id || isElevated.value)
+  return entry.status === 'draft'
 }
 
 const canDelete = (entry) => {
-  return entry.status === 'draft' && isAdmin.value
+  return entry.status === 'draft'
 }
 
 const loadEntries = async () => {
@@ -221,16 +231,21 @@ const loadEntries = async () => {
       },
     })
     entries.value = response.data.data
-    totalRecords.value = response.data.total
+    // Chantier 19 (Lot 2): index() returns a Resource collection wrapping
+    // a paginator — pagination metadata lands under top-level `meta`
+    // (Laravel's default), not a flat `total` key. The pager silently
+    // never rendered a real count, the same bug pattern already fixed for
+    // Inventory's Warehouses/Index.vue.
+    totalRecords.value = response.data.meta?.total ?? 0
 
     // Load stats
     const allResponse = await axios.get('/api/v1/timesheets/entries?per_page=10000')
     const all = allResponse.data.data
     stats.total = all.length
-    stats.hours = all.reduce((sum, e) => sum + parseFloat(e.hours || 0), 0).toFixed(2)
+    stats.hours = all.reduce((sum, e) => sum + parseFloat(e.hours_worked || 0), 0).toFixed(2)
     const billable = all.filter(e => e.billable)
-    stats.billableHours = billable.reduce((sum, e) => sum + parseFloat(e.hours || 0), 0).toFixed(2)
-    stats.billableAmount = billable.reduce((sum, e) => sum + (parseFloat(e.hours || 0) * parseFloat(e.rate || 0)), 0).toFixed(2)
+    stats.billableHours = billable.reduce((sum, e) => sum + parseFloat(e.hours_worked || 0), 0).toFixed(2)
+    stats.billableAmount = billable.reduce((sum, e) => sum + parseFloat(e.billable_amount || 0), 0).toFixed(2)
   } catch (error) {
     console.error('Error loading entries:', error)
   } finally {

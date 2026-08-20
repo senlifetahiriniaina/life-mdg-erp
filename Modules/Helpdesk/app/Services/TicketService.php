@@ -33,7 +33,17 @@ class TicketService
         $attributes['priority'] = $attributes['priority'] ?? 'medium';
 
         if ($source) {
-            $attributes['source_type'] = $source::class;
+            // Use the model's morph class (the short alias registered in
+            // HelpdeskServiceProvider::registerTicketSourceMorphMap(), e.g.
+            // 'employee', 'invoice') rather than the raw FQCN. Eloquent's
+            // MorphMany::getMorphClass() resolves to the alias whenever the
+            // source model's class is registered as a morph-map value, so
+            // $model->tickets (the HelpdeskLinkable trait's own documented
+            // contract) would otherwise query source_type='employee' against
+            // rows written with source_type='Modules\HR\Models\Employee' —
+            // never matching, so raiseTicket() succeeded but the reverse
+            // ->tickets relation always came back empty.
+            $attributes['source_type'] = $source->getMorphClass();
             $attributes['source_id'] = $source->getKey();
         }
 

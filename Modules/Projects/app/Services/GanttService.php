@@ -6,6 +6,7 @@ namespace Modules\Projects\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Modules\HR\Models\Employee;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\ProjectTeamMember;
 use Modules\Projects\Models\Task;
@@ -203,6 +204,23 @@ class GanttService
      * fallback-first pattern for the same underlying table) since ts_*
      * timesheet linkage is not this service's core responsibility.
      *
+     * Chantier 19 Lot 2: the original build above queried a `ts_timesheets`
+     * table with `user_id`/`work_date`/`hours_logged` columns — confirmed
+     * via Schema::hasTable() this table has never existed anywhere in the
+     * repo under that name/shape at all. The real, live timesheet table is
+     * Modules\Timesheets\Models\TimesheetEntry's `timesheet_entries`,
+     * keyed by `employee_id`/`entry_date`/`hours_worked` (`employee_id`
+     * FKs to hr_employees, not users). The surrounding try/catch meant this
+     * never fataled, but logged_hours was guaranteed 0 for every member on
+     * every call, forever — not a hypothetical degradation, a guaranteed
+     * one, since the table it read could never exist. Repointed at the
+     * real table via the team member's linked Employee record, approved
+     * entries only for the current month (matching the same
+     * approved-entries convention PayrollIntegrationService::
+     * calculateOvertime() already established for reading this table) —
+     * still wrapped defensively, since timesheet linkage remains a
+     * best-effort secondary source, not this service's core responsibility.
+     *
      * @return array{members: array<int, mixed>, member_count: int}
      */
     public function getResourceHeatmap(int $companyId): array
@@ -222,14 +240,20 @@ class GanttService
         $heatmap = $members->map(function ($rows, $userId) use ($capacityHours) {
             $loggedHours = 0.0;
             try {
-                $loggedHours = (float) DB::table('ts_timesheets')
-                    ->whereIn('project_id', $rows->pluck('project_id'))
-                    ->where('user_id', $userId)
-                    ->whereMonth('work_date', now()->month)
-                    ->sum('hours_logged');
+                $employeeId = Employee::where('user_id', $userId)->value('id');
+                if ($employeeId) {
+                    $loggedHours = (float) DB::table('timesheet_entries')
+                        ->whereIn('project_id', $rows->pluck('project_id'))
+                        ->where('employee_id', $employeeId)
+                        ->where('status', 'approved')
+                        ->whereMonth('entry_date', now()->month)
+                        ->whereYear('entry_date', now()->year)
+                        ->sum('hours_worked');
+                }
             } catch (\Exception) {
-                // ts_timesheets is a best-effort, possibly-absent source —
-                // degrade to 0 logged hours rather than fail the endpoint.
+                // timesheet_entries is a best-effort, possibly-absent
+                // source — degrade to 0 logged hours rather than fail the
+                // endpoint.
             }
 
             return [

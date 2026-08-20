@@ -4,6 +4,7 @@ namespace Modules\Timesheets\Tests\Feature;
 
 use App\Models\User;
 use Modules\HR\Models\Department;
+use Modules\HR\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Timesheets\Models\TimeTrackingProject;
@@ -193,20 +194,33 @@ class MetricsControllerTest extends TestCase
     #[Test]
     public function summary_metrics_can_filter_by_department()
     {
+        // Chantier 19 (Lot 2): this test used to compare users.department_id
+        // against TimesheetEntry.employee_id set directly to a users.id —
+        // the exact same ID-space mismatch bug (hr_employees.id vs
+        // users.id) already fixed elsewhere in this app, and the real bug
+        // MetricsController::summary()'s department filter had (it queried
+        // \App\Models\User::where('department_id', ...)->pluck('id') and
+        // compared those against employee_id, which is an hr_employees.id
+        // — never a real match). Fixed to build a real, linked Employee
+        // per user, with department_id on the Employee record (the real
+        // HR model), matching how production data actually looks.
         $dept1 = Department::factory()->create();
         $dept2 = Department::factory()->create();
 
-        $user1 = User::factory()->create(['department_id' => $dept1->id]);
+        $user1 = User::factory()->create();
         $user1->assignRole('employee');
-        $user2 = User::factory()->create(['department_id' => $dept2->id]);
+        $employee1 = Employee::factory()->create(['user_id' => $user1->id, 'department_id' => $dept1->id]);
+
+        $user2 = User::factory()->create();
         $user2->assignRole('employee');
+        $employee2 = Employee::factory()->create(['user_id' => $user2->id, 'department_id' => $dept2->id]);
 
         TimesheetEntry::factory()->count(5)->create([
-            'employee_id' => $user1->id,
+            'employee_id' => $employee1->id,
             'hours_worked' => 8,
         ]);
         TimesheetEntry::factory()->count(3)->create([
-            'employee_id' => $user2->id,
+            'employee_id' => $employee2->id,
             'hours_worked' => 8,
         ]);
 

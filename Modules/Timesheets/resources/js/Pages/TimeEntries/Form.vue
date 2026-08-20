@@ -12,7 +12,7 @@
         <div>
           <label for="date" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">Date *</label>
           <input id="date"
-            v-model="form.work_date"
+            v-model="form.entry_date"
             type="date"
             required
             class="w-full px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -23,7 +23,7 @@
         <div>
           <label for="task-description" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">Task Description *</label>
           <textarea id="task-description"
-            v-model="form.task_description"
+            v-model="form.description"
             required
             rows="3"
             placeholder="Describe the work performed..."
@@ -49,7 +49,7 @@
         <div>
           <label for="hours" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">Hours *</label>
           <input id="hours"
-            v-model.number="form.hours"
+            v-model.number="form.hours_worked"
             type="number"
             required
             step="0.25"
@@ -76,15 +76,15 @@
         <div v-if="form.billable">
           <label for="hourly-rate" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">Hourly Rate</label>
           <input id="hourly-rate"
-            v-model.number="form.rate"
+            v-model.number="form.hourly_rate"
             type="number"
             step="0.01"
             min="0"
             placeholder="Billable rate per hour"
             class="w-full px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
-          <p v-if="form.hours && form.rate" class="text-sm text-surface-600 dark:text-surface-400 mt-1">
-            Total: ${{ (form.hours * form.rate).toFixed(2) }}
+          <p v-if="form.hours_worked && form.hourly_rate" class="text-sm text-surface-600 dark:text-surface-400 mt-1">
+            Total: ${{ (form.hours_worked * form.hourly_rate).toFixed(2) }}
           </p>
         </div>
 
@@ -133,13 +133,20 @@ const props = defineProps({
 const loading = ref(false)
 const projects = ref(props.projects || [])
 
+// Chantier 19 (Lot 2): this form used to submit work_date/task_description/
+// hours/rate — field names that matched none of StoreTimesheetEntryRequest's
+// real validation rules (entry_date/description/hours_worked), and never
+// sent employee_id at all despite it being `required` — every real
+// submission through this form 422'd. Renamed to the real API field names
+// (entry_date/description/hours_worked/hourly_rate); employee_id is now
+// resolved server-side from the caller's own linked employee record.
 const form = reactive({
-  work_date: props.entry?.work_date || new Date().toISOString().split('T')[0],
-  task_description: props.entry?.task_description || '',
+  entry_date: props.entry?.entry_date || new Date().toISOString().split('T')[0],
+  description: props.entry?.description || '',
   project_id: props.entry?.project_id || '',
-  hours: props.entry?.hours || 1,
+  hours_worked: props.entry?.hours_worked || 1,
   billable: props.entry?.billable ?? true,
-  rate: props.entry?.rate || null,
+  hourly_rate: props.entry?.hourly_rate || null,
   notes: props.entry?.notes || '',
 })
 
@@ -147,12 +154,12 @@ const submitForm = async () => {
   loading.value = true
   try {
     const data = {
-      work_date: form.work_date,
-      task_description: form.task_description,
+      entry_date: form.entry_date,
+      description: form.description,
       project_id: form.project_id || null,
-      hours: form.hours,
+      hours_worked: form.hours_worked,
       billable: form.billable,
-      rate: form.rate,
+      hourly_rate: form.hourly_rate,
       notes: form.notes,
     }
 
@@ -173,7 +180,12 @@ const submitForm = async () => {
 onMounted(async () => {
   if (!projects.value || projects.value.length === 0) {
     try {
-      const response = await axios.get('/api/v1/projects/projects?per_page=999')
+      // Chantier 19 (Lot 2): was /api/v1/projects/projects (double
+      // "projects") — the real route is /api/v1/projects (ProjectController
+      // ::index, Modules/Projects/routes/api.php inside the `v1` prefix
+      // group) — every load of this form 404'd here, silently caught,
+      // leaving the Project dropdown always empty.
+      const response = await axios.get('/api/v1/projects?per_page=999')
       projects.value = response.data.data
     } catch (error) {
       console.error('Error loading projects:', error)

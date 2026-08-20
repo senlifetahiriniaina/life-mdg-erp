@@ -5,6 +5,7 @@ namespace Modules\Timesheets\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\HR\Models\Employee;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Timesheets\Services\TimesheetService;
 
@@ -39,8 +40,12 @@ class MetricsController extends Controller
 
     public function summary(Request $request): JsonResponse
     {
+        // Chantier 19 (Lot 2): compared TimesheetEntry.employee_id (an
+        // hr_employees.id) against a subquery of users.id — the same
+        // ID-space mismatch bug pattern fixed repeatedly elsewhere in this
+        // app — so the department filter never matched any real entry.
         $entries = TimesheetEntry::query()
-            ->when($request->department_id, fn ($q) => $q->whereIn('employee_id', \App\Models\User::where('department_id', $request->department_id)->pluck('id'))
+            ->when($request->department_id, fn ($q) => $q->whereIn('employee_id', Employee::where('department_id', $request->department_id)->pluck('id'))
             )
             ->when($request->from_date, fn ($q) => $q->whereDate('entry_date', '>=', $request->from_date))
             ->when($request->to_date, fn ($q) => $q->whereDate('entry_date', '<=', $request->to_date))

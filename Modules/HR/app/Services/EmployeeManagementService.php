@@ -41,7 +41,7 @@ class EmployeeManagementService
         // Create onboarding checklist
         $this->createOnboardingChecklist($employee->id);
 
-        $this->clearCache();
+        $this->clearCache($employee->id);
 
         return [
             'employee_id' => $employee->id,
@@ -59,7 +59,7 @@ class EmployeeManagementService
         $employee = Employee::findOrFail($employeeId);
         $employee->update(['status' => 'active']);
 
-        $this->clearCache();
+        $this->clearCache($employeeId);
 
         return [
             'employee_id' => $employee->id,
@@ -112,7 +112,7 @@ class EmployeeManagementService
         // Create offboarding checklist
         $this->createOffboardingChecklist($employee->id);
 
-        $this->clearCache();
+        $this->clearCache($employee->id);
 
         return [
             'employee_id' => $employee->id,
@@ -124,10 +124,18 @@ class EmployeeManagementService
 
     /**
      * Calculate tenure in days
+     *
+     * Chantier 19 (HR): Carbon 3 changed diffInDays()'s $absolute default
+     * from true (Carbon 2) to false — now()->diffInDays($hireDate) returned
+     * a *negative* float for every real (past) hire date, confirmed
+     * empirically via tinker (e.g. -1633.1 for a 2022 hire date), plus a
+     * PHP deprecation notice on every call from the implicit float->int
+     * narrowing against this method's own return type. Fixed by passing
+     * $absolute=true explicitly and rounding to an int.
      */
     private function calculateTenure(string $hireDate): int
     {
-        return now()->diffInDays($hireDate);
+        return (int) round(now()->diffInDays($hireDate, true));
     }
 
     /**
@@ -194,9 +202,18 @@ class EmployeeManagementService
 
     /**
      * Clear cache
+     *
+     * Chantier 19 (HR): was Cache::tags(['employees'])->flush() — this app's
+     * real default cache driver is 'file' (CACHE_STORE=file in .env), which
+     * doesn't support tagging, so onboard()/completeOnboarding()/terminate()
+     * fatalled with BadMethodCallException on every real call, confirmed
+     * empirically via tinker. The only cached artifact this service ever
+     * reads back is the single per-employee profile key set by
+     * getEmployeeProfile() below, so a plain, driver-agnostic forget() of
+     * that one key is both correct and sufficient — no tag support needed.
      */
-    private function clearCache(): void
+    private function clearCache(int $employeeId): void
     {
-        Cache::tags(['employees'])->flush();
+        Cache::forget("employee:{$employeeId}:profile");
     }
 }

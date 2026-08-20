@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Task;
 use Modules\Projects\Models\TaskDependency;
@@ -21,6 +22,8 @@ use Modules\Projects\Services\DependencyCycleDetectionService;
  */
 class GanttController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function __construct(
         private readonly GanttService $ganttService,
         private readonly DependencyCycleDetectionService $cycleService,
@@ -30,8 +33,10 @@ class GanttController extends Controller
      * GET /api/v1/projects/{project}/gantt
      * Full Gantt data: tasks (topologically sorted) + dependencies + critical path
      */
-    public function show(Project $project): JsonResponse
+    public function show(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         return response()->json($this->ganttService->buildGanttData($project));
     }
 
@@ -41,6 +46,8 @@ class GanttController extends Controller
      */
     public function addDependency(Request $request, Task $task): JsonResponse
     {
+        $this->assertSameCompanyAsTask($request, $task);
+
         $validated = $request->validate([
             'depends_on_task_id' => ['required', 'integer', 'exists:prj_tasks,id', 'different:task_id'],
             'type' => ['nullable', 'string', 'in:FS,SS,FF,SF'],
@@ -76,8 +83,10 @@ class GanttController extends Controller
      * DELETE /api/v1/projects/tasks/{task}/dependencies/{dependency}
      * Remove a dependency from a task
      */
-    public function removeDependency(Task $task, TaskDependency $dependency): JsonResponse
+    public function removeDependency(Request $request, Task $task, TaskDependency $dependency): JsonResponse
     {
+        $this->assertSameCompanyAsTask($request, $task);
+
         if ($dependency->task_id !== $task->id) {
             return response()->json(['message' => 'Dependency does not belong to this task.'], 403);
         }
@@ -93,6 +102,8 @@ class GanttController extends Controller
      */
     public function updateDates(Request $request, Task $task): JsonResponse
     {
+        $this->assertSameCompanyAsTask($request, $task);
+
         $validated = $request->validate([
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:start_date'],

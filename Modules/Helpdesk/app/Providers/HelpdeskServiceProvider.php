@@ -2,10 +2,12 @@
 
 namespace Modules\Helpdesk\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Helpdesk\Console\Commands\CheckSlaBreachesCommand;
 use Modules\Helpdesk\Policies\CustomerServiceAIPolicy;
 use Modules\Helpdesk\Services\AI\HelpdeskAIService;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -85,21 +87,55 @@ class HelpdeskServiceProvider extends ServiceProvider
 
     /**
      * Register commands in the format of Command::class
+     *
+     * CheckSlaBreachesCommand ('helpdesk:check-sla-breaches') existed,
+     * fully functional (its real logic, SlaService::checkBreaches(), is
+     * also correctly reachable via POST helpdesk/sla/check), but was never
+     * registered here — this stub was left as a no-op comment — so the
+     * command didn't exist as far as Artisan was concerned at all
+     * (confirmed empirically: `php artisan helpdesk:check-sla-breaches`
+     * failed with "no commands defined in the helpdesk namespace"). It also
+     * physically lived at Modules/Helpdesk/Console/Commands/... while
+     * declaring namespace Modules\Helpdesk\Console\Commands — composer.json
+     * only maps Modules\Helpdesk\ to Modules/Helpdesk/app/, so even a
+     * manual $this->commands([...]) call would have failed to autoload the
+     * class; moved to Modules/Helpdesk/app/Console/Commands/ to match.
      */
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            CheckSlaBreachesCommand::class,
+        ]);
     }
 
     /**
      * Register command Schedules.
+     *
+     * app/Console/Kernel.php's schedule() method is never actually invoked
+     * by this app — bootstrap/app.php's Application::configure() never
+     * binds Illuminate\Contracts\Console\Kernel to App\Console\Kernel, so
+     * the framework's own default Illuminate\Foundation\Console\Kernel
+     * (an empty schedule()) is what runs (confirmed empirically: none of
+     * that file's entries, including backups, ever appear in
+     * `php artisan schedule:list`) — a real, severe, app-wide gap flagged
+     * for a dedicated future chantier, out of this module's scope to fix.
+     * The one schedule entry that *does* work anywhere in this app
+     * (Modules\Analytics\Providers\AnalyticsServiceProvider's
+     * 'forecasting:nightly') proves the actual working mechanism: hooking
+     * Schedule::class directly via callAfterResolving() inside a module's
+     * own service provider, independent of which Kernel class is bound.
+     * Mirrored here so SLA-breach checking is genuinely scheduled rather
+     * than only reachable via a manual `php artisan
+     * helpdesk:check-sla-breaches` or POST helpdesk/sla/check call.
      */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('inspire')->hourly();
-        // });
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('helpdesk:check-sla-breaches')
+                ->name('helpdesk:check-sla-breaches')
+                ->everyFifteenMinutes()
+                ->withoutOverlapping();
+        });
     }
 
     /**

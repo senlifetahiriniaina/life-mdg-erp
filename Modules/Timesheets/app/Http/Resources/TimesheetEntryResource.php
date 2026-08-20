@@ -19,6 +19,14 @@ class TimesheetEntryResource extends JsonResource
             ]),
             'entry_date' => $this->entry_date->format('Y-m-d'),
             'hours_worked' => $this->hours_worked,
+            // Chantier 19 (Lot 2): billable_hours/hourly_rate are real
+            // TimesheetEntry columns (used throughout the billing/
+            // utilization reports) that this resource never exposed at
+            // all — TimeEntries/Index.vue had nowhere to read them from.
+            'billable_hours' => $this->billable_hours !== null ? (float) $this->billable_hours : null,
+            'billable' => (float) ($this->billable_hours ?? 0) > 0,
+            'hourly_rate' => $this->hourly_rate !== null ? (float) $this->hourly_rate : null,
+            'billable_amount' => $this->billable_amount,
             'description' => $this->description,
             'status' => $this->status,
             'task_id' => $this->task_id,

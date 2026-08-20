@@ -6,6 +6,8 @@ namespace Modules\Projects\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Task;
 
@@ -16,13 +18,17 @@ use Modules\Projects\Models\Task;
  */
 class ProjectViewsController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * Kanban view data — tasks grouped by status.
      *
      * Returns columns: todo, in_progress, review, done, cancelled.
      */
-    public function kanban(Project $project): JsonResponse
+    public function kanban(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $statuses = ['todo', 'in_progress', 'review', 'done', 'cancelled'];
 
         $tasks = Task::with('assignee:id,name,email', 'milestone:id,name')
@@ -51,8 +57,10 @@ class ProjectViewsController extends Controller
      * @queryParam from date Start of visible range. Example: 2026-06-01
      * @queryParam to date End of visible range. Example: 2026-06-30
      */
-    public function calendar(Project $project): JsonResponse
+    public function calendar(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $tasks = Task::with('assignee:id,name')
             ->where('project_id', $project->id)
             ->whereNull('deleted_at')
@@ -91,8 +99,10 @@ class ProjectViewsController extends Controller
     /**
      * Gantt view data — tasks with start/end dates and dependencies.
      */
-    public function gantt(Project $project): JsonResponse
+    public function gantt(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $tasks = Task::with('assignee:id,name', 'milestone:id,name')
             ->where('project_id', $project->id)
             ->whereNull('deleted_at')

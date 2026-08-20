@@ -18,7 +18,8 @@ class UpdateTrackingProjectRequest extends FormRequest
             'code' => 'sometimes|string|max:50|unique:time_tracking_projects,code,'.$this->route('project')->id,
             'description' => 'nullable|string|max:1000',
             'budget_hours' => 'sometimes|numeric|min:1',
-            'department_id' => 'nullable|exists:departments,id',
+            // Chantier 19 (Lot 2): same fix as StoreTrackingProjectRequest.
+            'department_id' => 'nullable|exists:hr_departments,id',
             'start_date' => 'sometimes|date',
             'end_date' => 'sometimes|date|after_or_equal:start_date',
             'status' => 'sometimes|in:active,paused,completed,archived',

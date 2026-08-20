@@ -5,7 +5,9 @@ namespace Modules\Timesheets\Providers;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\Timesheets\Models\TimesheetEntry;
+use Modules\Timesheets\Models\TimesheetPeriod;
 use Modules\Timesheets\Policies\TimesheetEntryPolicy;
+use Modules\Timesheets\Policies\TimesheetPeriodPolicy;
 use Nwidart\Modules\Traits\PathNamespace;
 
 class TimesheetsServiceProvider extends ServiceProvider {
@@ -40,5 +42,10 @@ class TimesheetsServiceProvider extends ServiceProvider {
     private function registerPolicies(): void
     {
         Gate::policy(TimesheetEntry::class, TimesheetEntryPolicy::class);
+
+        // Chantier 19 (Lot 2): TimesheetPeriod ("sheets") had no Policy at
+        // all — see TimesheetPeriodPolicy's own docblock for the active
+        // RBAC gap this closes.
+        Gate::policy(TimesheetPeriod::class, TimesheetPeriodPolicy::class);
     }
 }

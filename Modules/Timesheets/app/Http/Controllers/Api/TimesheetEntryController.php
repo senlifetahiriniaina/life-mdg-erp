@@ -51,13 +51,27 @@ class TimesheetEntryController extends Controller
 
     public function store(StoreTimesheetEntryRequest $request): \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\JsonResource
     {
+        // Chantier 19 (Lot 2): the real TimeEntries/Form.vue create form
+        // never sent employee_id at all (it has no way to know its own
+        // caller's hr_employees.id — nothing shares it via Inertia), and
+        // this field was `required` — every real entry creation through
+        // the UI 422'd. Defaults to the caller's own linked employee,
+        // matching the identical pattern already used by
+        // TimesheetAdvancedController::storeSheet().
+        $employeeId = $request->employee_id ?? $request->user()?->employee?->id;
+        abort_unless($employeeId, 422, 'This user has no linked employee record.');
+
         $entry = $this->service->createEntry(
-            employee_id: $request->employee_id,
+            employee_id: $employeeId,
             entry_date: $request->entry_date,
             hours_worked: $request->hours_worked,
             description: $request->description,
             task_id: $request->task_id,
-            notes: $request->notes
+            notes: $request->notes,
+            project_id: $request->project_id,
+            billable_hours: $request->boolean('billable') ? (float) $request->hours_worked : 0.0,
+            hourly_rate: $request->hourly_rate,
+            tenant_id: $request->user()?->company_id,
         );
 
         return (new TimesheetEntryResource($entry))->response()->setStatusCode(201);
@@ -79,7 +93,10 @@ class TimesheetEntryController extends Controller
             hours_worked: $request->hours_worked,
             description: $request->description,
             task_id: $request->task_id,
-            notes: $request->notes
+            notes: $request->notes,
+            project_id: $request->project_id,
+            billable_hours: $request->has('billable') ? ($request->boolean('billable') ? (float) ($request->hours_worked ?? $entry->hours_worked) : 0.0) : null,
+            hourly_rate: $request->hourly_rate,
         );
 
         return new TimesheetEntryResource($updated);

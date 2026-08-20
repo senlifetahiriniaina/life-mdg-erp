@@ -11,7 +11,7 @@
       </div>
       <div class="page-actions">
         <button class="btn btn-secondary"><i class="pi pi-download" style="font-size:13px" /> Exporter</button>
-        <button class="btn btn-primary"><i class="pi pi-plus" style="font-size:13px" /> Nouveau projet</button>
+        <button class="btn btn-primary" @click="showCreateModal = true"><i class="pi pi-plus" style="font-size:13px" /> Nouveau projet</button>
       </div>
     </div>
 
@@ -47,7 +47,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in filteredProjects" :key="p.id" class="wh-dt-row">
+          <tr v-for="p in filteredProjects" :key="p.id" class="wh-dt-row" @click="router.visit(`/projects/${p.id}`)">
             <td>
               <div style="font-weight:500;color:var(--fg-1)">{{ p.name }}</div>
               <div v-if="p.description" style="font-size:12px;color:var(--fg-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">{{ p.description }}</div>
@@ -73,7 +73,7 @@
               {{ formatMoney(p.spent_budget) }} / {{ formatMoney(p.budget) }}
             </td>
             <td>
-              <button class="wh-row-btn" title="Voir"><i class="pi pi-eye" style="font-size:13px" /></button>
+              <button class="wh-row-btn" title="Voir" @click.stop="router.visit(`/projects/${p.id}`)"><i class="pi pi-eye" style="font-size:13px" /></button>
             </td>
           </tr>
           <tr v-if="filteredProjects.length === 0">
@@ -86,18 +86,100 @@
         <Paginator :rows="projects.per_page" :total-records="projects.total" :first="(projects.current_page - 1) * projects.per_page" />
       </div>
     </div>
+
+    <!-- Create project modal -->
+    <div v-if="showCreateModal" class="modal-backdrop" @click.self="showCreateModal = false">
+      <div class="modal-panel">
+        <h3 style="margin:0 0 16px;font-size:16px;font-weight:600;color:var(--fg-1)">Nouveau projet</h3>
+        <div v-if="createError" style="margin-bottom:12px;padding:8px 12px;border-radius:var(--r-sm);background:var(--danger-bg);color:var(--danger-fg);font-size:13px">{{ createError }}</div>
+        <div class="modal-field">
+          <label>Nom *</label>
+          <input v-model="createForm.name" type="text" class="modal-input" />
+        </div>
+        <div class="modal-field">
+          <label>Description</label>
+          <textarea v-model="createForm.description" class="modal-input" rows="2" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="modal-field">
+            <label>Début</label>
+            <input v-model="createForm.start_date" type="date" class="modal-input" />
+          </div>
+          <div class="modal-field">
+            <label>Fin</label>
+            <input v-model="createForm.end_date" type="date" class="modal-input" />
+          </div>
+          <div class="modal-field">
+            <label>Budget</label>
+            <input v-model.number="createForm.budget" type="number" min="0" class="modal-input" />
+          </div>
+          <div class="modal-field">
+            <label>Statut</label>
+            <select v-model="createForm.status" class="modal-input">
+              <option value="draft">Brouillon</option>
+              <option value="planning">Planifié</option>
+              <option value="active">Actif</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button class="btn btn-secondary" @click="showCreateModal = false">Annuler</button>
+          <button class="btn btn-primary" :disabled="creating || !createForm.name" @click="submitCreateProject">
+            {{ creating ? 'Création…' : 'Créer' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </AppLayout>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import Paginator from 'primevue/paginator'
+import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'
 import { useHelpStore } from '@/stores/help'
 
 const help = useHelpStore()
+
+// Chantier 19 Lot 2: this page had a "Nouveau projet" button with no click
+// handler, a per-row "Voir" button with no click handler, and no row-click
+// navigation of any kind — confirmed via a full grep of this file for
+// @click/router./Link/<a before this fix: zero matches beyond the filter
+// pills. There was no way to reach a project's detail page, or to create a
+// new project, from anywhere in the UI (confirmed via grep across the
+// whole app — no other page links to project creation either). Fixed with
+// real row/button navigation to the already-live projects.show web route,
+// and a real create modal against the already-live, already-tested
+// POST /api/v1/projects endpoint.
+const showCreateModal = ref(false)
+const creating = ref(false)
+const createError = ref('')
+const createForm = ref({
+  name: '',
+  description: '',
+  start_date: '',
+  end_date: '',
+  budget: null,
+  status: 'draft',
+})
+
+async function submitCreateProject() {
+  if (!createForm.value.name) return
+  creating.value = true
+  createError.value = ''
+  try {
+    const { data } = await axios.post('/api/v1/projects', createForm.value)
+    showCreateModal.value = false
+    router.visit(`/projects/${data.id}`)
+  } catch (e) {
+    createError.value = e.response?.data?.message ?? 'La création du projet a échoué.'
+  } finally {
+    creating.value = false
+  }
+}
 
 const projectsTourSteps = [
   { tag: 'Projects', icon: 'pi pi-folder',      title: 'Project List',     description: 'Every project your team is working on appears here. Click a project to see its tasks, timeline, and budget consumption.' },
@@ -171,6 +253,11 @@ const formatMoney = (v) => v != null ? Number(v).toLocaleString('fr-FR', { minim
 </script>
 
 <style scoped>
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; }
+.modal-panel { background:var(--bg-canvas); border-radius:var(--r-md); border:1px solid var(--border-subtle); padding:20px; width:440px; max-width:calc(100vw - 32px); box-shadow:0 12px 32px rgba(0,0,0,0.2); }
+.modal-field { margin-bottom:12px; }
+.modal-field label { display:block; font-size:12px; font-weight:500; color:var(--fg-2); margin-bottom:4px; }
+.modal-input { width:100%; box-sizing:border-box; padding:8px 10px; border-radius:var(--r-sm); border:1px solid var(--border-subtle); background:var(--bg-sunken); color:var(--fg-1); font-size:14px; font-family:var(--font-sans); }
 .page-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:24px; gap:16px; }
 .wh-page-title { margin:0; font-family:var(--font-display); font-size:28px; font-weight:600; letter-spacing:-0.022em; color:var(--fg-1); }
 .wh-page-subtitle { margin:4px 0 0; font-size:14px; color:var(--fg-2); }

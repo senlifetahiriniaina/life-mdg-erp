@@ -143,7 +143,13 @@ class SentimentAnalysisService
     {
         $timeline = [];
 
-        $messages = $ticket->messages()
+        // Ticket has no `messages()` relation (only `comments()` — see
+        // Ticket::comments()), the same bug already fixed in
+        // SatisfactionPredictionService/PredictiveEscalationService — this
+        // call site was missed and 500'd every AgentPerformanceController
+        // ::benchmarking()/::coaching() request via
+        // calculateSentimentImprovement() -> trackSentimentImprovement().
+        $messages = $ticket->comments()
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -156,7 +162,10 @@ class SentimentAnalysisService
                 'sentiment' => $sentiment,
                 'score' => $score,
                 'message_id' => $message->id,
-                'author_type' => $message->author_type,
+                // TicketComment has no author_type column (only user_id) —
+                // left null rather than guessed, matching the fallback-first
+                // convention used elsewhere in this file.
+                'author_type' => $message->author_type ?? null,
             ];
         }
 

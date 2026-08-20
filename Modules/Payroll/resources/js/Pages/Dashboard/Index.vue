@@ -16,7 +16,10 @@ interface PayslipSummary {
   net_salary: number
   currency: string
   status: 'draft' | 'approved' | 'paid'
-  payment_date?: string
+  // Chantier 19 Lot 2: the real Payslip model's column is `paid_at`, not
+  // `payment_date` — this field has never once matched the real API
+  // response, so the "Paid on ..." badge below silently never rendered.
+  paid_at?: string
 }
 
 interface CountryTaxSummary {
@@ -30,13 +33,24 @@ interface CountryTaxSummary {
   health_insurance: number
 }
 
+// Chantier 19 Lot 2: this interface's field names never matched what
+// PayrollController::statistics()/PayrollIntegrationService::getPayrollSummary()
+// actually return (employee_count/total_gross/payslips_draft/payslips_approved/
+// payslips_paid/average_salary/currency — confirmed against the real service,
+// itself locked in by PayrollIntegrationServiceTest's own key assertions) — the
+// statistics cards below have silently rendered blank/undefined since this page
+// was first built, not a hypothetical mismatch. Renamed to the real backend
+// shape rather than changing the backend (which has its own test coverage and
+// no other consumer expecting these wrong names).
 interface PayrollStatistics {
-  total_employees: number
-  payroll_pending: number
-  payroll_processed: number
-  payroll_paid: number
+  employee_count: number
+  payslips_draft: number
+  payslips_approved: number
+  payslips_paid: number
   average_salary: number
-  total_payroll: number
+  total_gross: number
+  total_deductions: number
+  total_net: number
   currency: string
 }
 
@@ -118,7 +132,20 @@ const loadPayslips = async () => {
     const response = await axios.get('/api/v1/payroll/payslips', {
       params: { period: selectedPeriod.value },
     })
-    payslips.value = response.data.payslips || []
+    // Chantier 19 Lot 2: PayrollController::index() wraps a Laravel
+    // paginator inside { payslips: <paginator> } — response.data.payslips
+    // is the paginator object itself ({ data: [...], current_page, ... }),
+    // not a flat array. Assigning it directly to a typed PayslipSummary[]
+    // ref made filteredPayslips.value silently become that object instead
+    // of an array on every page load: with the default "all" status filter
+    // it never called .filter() so v-for iterated the paginator's own
+    // properties (current_page, per_page, links, ...) as if each were a
+    // payslip row, and selecting any other status filter threw a runtime
+    // TypeError (".filter is not a function" on a plain object) — confirmed
+    // by reading the real API response shape against this page's own
+    // typed usage. Same "paginated response read as a flat array" bug
+    // class already fixed for Inventory's Warehouses/Index.vue.
+    payslips.value = response.data.payslips?.data ?? []
   } catch (error) {
     console.error('Failed to load payslips:', error)
   }
@@ -162,12 +189,14 @@ const loadStatistics = async () => {
       params: { period: selectedPeriod.value },
     })
     statistics.value = response.data.statistics || {
-      total_employees: 43,
-      payroll_pending: 5,
-      payroll_processed: 38,
-      payroll_paid: 35,
+      employee_count: 43,
+      payslips_draft: 5,
+      payslips_approved: 38,
+      payslips_paid: 35,
       average_salary: 650000,
-      total_payroll: 27500000,
+      total_gross: 27500000,
+      total_deductions: 0,
+      total_net: 27500000,
       currency: 'XOF',
     }
   } catch (error) {
@@ -245,16 +274,16 @@ onMounted(() => {
     <div v-if="statistics" class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
         <p class="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Employees</p>
-        <p class="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-1">{{ statistics.total_employees }}</p>
+        <p class="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-1">{{ statistics.employee_count }}</p>
         <p class="text-xs text-blue-600 dark:text-blue-400 mt-2">
-          {{ statistics.payroll_paid }} paid • {{ statistics.payroll_pending }} pending
+          {{ statistics.payslips_paid }} paid • {{ statistics.payslips_draft }} pending
         </p>
       </div>
 
       <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
         <p class="text-sm text-green-600 dark:text-green-400 font-medium">Total Payroll</p>
         <p class="text-3xl font-bold text-green-700 dark:text-green-300 mt-1">
-          {{ formatCurrency(statistics.total_payroll, statistics.currency) }}
+          {{ formatCurrency(statistics.total_gross, statistics.currency) }}
         </p>
       </div>
 
@@ -390,8 +419,8 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div v-if="payslip.payment_date" class="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                Paid on {{ formatDate(payslip.payment_date) }}
+              <div v-if="payslip.paid_at" class="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                Paid on {{ formatDate(payslip.paid_at) }}
               </div>
 
               <div class="flex gap-2 mt-3">
@@ -466,17 +495,17 @@ onMounted(() => {
           <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
               <p class="text-xs text-blue-600 dark:text-blue-400 font-medium">Payslips Processed</p>
-              <p class="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-1">{{ statistics?.payroll_processed }}</p>
+              <p class="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-1">{{ statistics?.payslips_approved }}</p>
             </div>
 
             <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
               <p class="text-xs text-green-600 dark:text-green-400 font-medium">Payslips Paid</p>
-              <p class="text-2xl font-bold text-green-700 dark:text-green-300 mt-1">{{ statistics?.payroll_paid }}</p>
+              <p class="text-2xl font-bold text-green-700 dark:text-green-300 mt-1">{{ statistics?.payslips_paid }}</p>
             </div>
 
             <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
               <p class="text-xs text-yellow-600 dark:text-yellow-400 font-medium">Pending Approval</p>
-              <p class="text-2xl font-bold text-yellow-700 dark:text-yellow-300 mt-1">{{ statistics?.payroll_pending }}</p>
+              <p class="text-2xl font-bold text-yellow-700 dark:text-yellow-300 mt-1">{{ statistics?.payslips_draft }}</p>
             </div>
           </div>
 

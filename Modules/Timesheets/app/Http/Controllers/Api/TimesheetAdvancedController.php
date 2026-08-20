@@ -74,7 +74,18 @@ class TimesheetAdvancedController extends Controller
      */
     public function sheetsIndex(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', TimesheetPeriod::class);
+
         $query = TimesheetPeriod::query()->with('employee');
+
+        // Chantier 19 (Lot 2): this endpoint had zero authorize() call and
+        // zero ownership filtering at all — any authenticated "employee"
+        // could list every other employee's weekly timesheets. Mirrors the
+        // same non-manager scoping already used by
+        // TimesheetEntryController::index().
+        if (! $request->user()->hasAnyRole(['admin', 'manager', 'hr-manager'])) {
+            $query->where('employee_id', $request->user()->employee?->id ?? 0);
+        }
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -124,6 +135,8 @@ class TimesheetAdvancedController extends Controller
      */
     public function storeSheet(Request $request): JsonResponse
     {
+        $this->authorize('create', TimesheetPeriod::class);
+
         $validated = $request->validate([
             'period_start' => ['required', 'date'],
             'period_end'   => ['required', 'date', 'after_or_equal:period_start'],
@@ -132,6 +145,14 @@ class TimesheetAdvancedController extends Controller
 
         $employeeId = $validated['employee_id'] ?? $request->user()?->employee?->id;
         abort_unless($employeeId, 422, 'This user has no linked employee record.');
+
+        // Chantier 19 (Lot 2): creating a sheet for someone else's
+        // employee_id had zero role check — any "employee" could create
+        // (and, since storeSheet had no ownership tie afterward, later
+        // submit) a sheet on behalf of any other employee.
+        if ($employeeId !== $request->user()?->employee?->id) {
+            abort_unless($request->user()->hasAnyRole(['admin', 'manager']), 403);
+        }
 
         $period = TimesheetPeriod::create([
             // Chantier 10: was $request->user()?->tenant_id — the phantom
@@ -156,9 +177,12 @@ class TimesheetAdvancedController extends Controller
     {
         $period = TimesheetPeriod::findOrFail($id);
 
-        if ($period->status !== 'draft' && ! $request->user()->hasAnyRole(['admin', 'manager'])) {
-            abort(403, 'Only draft sheets can be edited.');
-        }
+        // Chantier 19 (Lot 2): the previous inline check only gated
+        // non-draft edits behind admin/manager — a draft sheet belonging
+        // to a *different* employee could be edited by any "employee"
+        // caller. TimesheetPeriodPolicy::update() covers both the
+        // status-gate and ownership.
+        $this->authorize('update', $period);
 
         $validated = $request->validate([
             'period_start' => ['sometimes', 'date'],
@@ -177,6 +201,10 @@ class TimesheetAdvancedController extends Controller
     public function submitSheet(Request $request, int $id): JsonResponse
     {
         $period = TimesheetPeriod::findOrFail($id);
+
+        // Chantier 19 (Lot 2): zero authorize() call — any authenticated
+        // "employee" could submit any other employee's draft sheet.
+        $this->authorize('submit', $period);
 
         if (! $period->canBeSubmitted()) {
             return response()->json([
@@ -202,6 +230,14 @@ class TimesheetAdvancedController extends Controller
     {
         $employeeId = $request->input('employee_id', $request->user()?->employee?->id ?? 1);
         $weekEnd    = Carbon::parse($weekStart)->endOfWeek()->format('Y-m-d');
+
+        // Chantier 19 (Lot 2): the client-controlled employee_id param had
+        // no role check at all — any "employee" could submit (and,
+        // firstOrCreate-ing the period, silently create) any other
+        // employee's period by weekStart.
+        if ($employeeId !== ($request->user()?->employee?->id ?? 1)) {
+            abort_unless($request->user()->hasAnyRole(['admin', 'manager']), 403);
+        }
 
         $period = TimesheetPeriod::firstOrCreate(
             ['employee_id' => $employeeId, 'period_start' => $weekStart],
@@ -244,6 +280,15 @@ class TimesheetAdvancedController extends Controller
             return response()->json(['error' => 'Period not found'], 404);
         }
 
+        // Chantier 19 (Lot 2): the headline finding of this re-audit —
+        // zero role check of any kind here beyond the outer
+        // role:employee,manager,admin route gate, so any "employee" could
+        // approve ANY other employee's submitted weekly timesheet.
+        // TimesheetPeriodPolicy::approve() restricts this to
+        // admin/manager/hr-manager, matching the LeaveRequestController
+        // approve()/reject() precedent elsewhere in this app.
+        $this->authorize('approve', $period);
+
         if (! $period->canBeApproved()) {
             return response()->json([
                 'error'  => "Period cannot be approved (current status: {$period->status})",
@@ -279,6 +324,12 @@ class TimesheetAdvancedController extends Controller
             return response()->json(['error' => 'Period not found'], 404);
         }
 
+        // Chantier 19 (Lot 2): same missing-authorize() gap as
+        // approvePeriod() above — reuses the 'approve' ability (reject is
+        // the same privilege level), matching TimesheetEntryPolicy's own
+        // convention of gating reject() on the approve ability.
+        $this->authorize('approve', $period);
+
         $validated = $request->validate([
             'reason' => 'required|string|max:500',
         ]);
@@ -303,8 +354,17 @@ class TimesheetAdvancedController extends Controller
     /**
      * GET /api/v1/timesheets/weekly/{employeeId}/{weekStart}
      */
-    public function weeklyView(int $employeeId, string $weekStart): JsonResponse
+    public function weeklyView(Request $request, int $employeeId, string $weekStart): JsonResponse
     {
+        // Chantier 19 (Lot 2): zero ownership check — any authenticated
+        // "employee" could read any other employee's weekly hours/billable
+        // breakdown by id. No frontend caller today (API First — kept as a
+        // real, working alternate entry point), but real, reachable PII
+        // exposure regardless.
+        if ($employeeId !== ($request->user()?->employee?->id)) {
+            abort_unless($request->user()->hasAnyRole(['admin', 'manager', 'hr-manager']), 403);
+        }
+
         $weekEnd = Carbon::parse($weekStart)->endOfWeek()->format('Y-m-d');
 
         $entries = TimesheetEntry::where('employee_id', $employeeId)
@@ -338,6 +398,14 @@ class TimesheetAdvancedController extends Controller
      */
     public function teamView(Request $request, int $managerId): JsonResponse
     {
+        // Chantier 19 (Lot 2): same class of gap as weeklyView() — any
+        // "employee" could read any manager's whole team's hours/
+        // utilization by id. managerId here is a users.id (prj_team_members
+        // .manager_id), so compared directly against the caller's own id.
+        if ($managerId !== $request->user()?->id) {
+            abort_unless($request->user()->hasAnyRole(['admin', 'manager', 'hr-manager']), 403);
+        }
+
         $from = $request->query('from', now()->startOfMonth()->format('Y-m-d'));
         $to   = $request->query('to', now()->endOfMonth()->format('Y-m-d'));
 

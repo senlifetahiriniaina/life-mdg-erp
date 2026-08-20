@@ -7,6 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\TimeEntry;
 use Modules\Projects\Services\TimeTrackingService;
@@ -18,14 +19,26 @@ use Modules\Projects\Services\TimeTrackingService;
  */
 class TimeTrackingController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function __construct(private readonly TimeTrackingService $service) {}
 
     /**
      * List time entries (optionally filtered by project_id or user_id).
+     *
+     * Chantier 19 Lot 2: had zero company scoping — any authenticated
+     * employee/manager/admin could list every company's time entries by
+     * default. Scoped to the caller's own company when one is present,
+     * matching this app's established graceful-degradation when()-guard
+     * convention.
      */
     public function index(Request $request): JsonResponse
     {
         $query = TimeEntry::with(['project:id,name', 'user:id,name,email'])
+            ->when(
+                $request->user()?->company_id,
+                fn ($q, $companyId) => $q->whereHas('project', fn ($p) => $p->where('company_id', $companyId))
+            )
             ->when($request->project_id, fn ($q, $v) => $q->where('project_id', $v))
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
             ->latest('started_at');
@@ -48,6 +61,8 @@ class TimeTrackingController extends Controller
             'billable' => ['nullable', 'boolean'],
         ]);
 
+        $this->resolveCompanyScopedProject($request, (int) $validated['project_id']);
+
         $entry = $this->service->logTime(
             $validated['project_id'],
             $request->user()->id,
@@ -60,8 +75,10 @@ class TimeTrackingController extends Controller
     /**
      * Show a time entry.
      */
-    public function show(TimeEntry $timeEntry): JsonResponse
+    public function show(Request $request, TimeEntry $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsTimeEntry($request, $timeEntry);
+
         return response()->json($timeEntry->load(['project:id,name', 'user:id,name,email']));
     }
 
@@ -70,6 +87,8 @@ class TimeTrackingController extends Controller
      */
     public function update(Request $request, TimeEntry $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsTimeEntry($request, $timeEntry);
+
         if ($timeEntry->user_id !== $request->user()->id && ! $request->user()->hasAnyRole(['super-admin', 'admin'])) {
             abort(403, 'You can only edit your own time entries.');
         }
@@ -92,6 +111,8 @@ class TimeTrackingController extends Controller
      */
     public function destroy(Request $request, TimeEntry $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsTimeEntry($request, $timeEntry);
+
         if ($timeEntry->user_id !== $request->user()->id && ! $request->user()->hasAnyRole(['super-admin', 'admin'])) {
             abort(403, 'You can only delete your own time entries.');
         }
@@ -114,6 +135,8 @@ class TimeTrackingController extends Controller
             'billable' => ['nullable', 'boolean'],
         ]);
 
+        $this->resolveCompanyScopedProject($request, (int) $validated['project_id']);
+
         $entry = $this->service->startTimer(
             $validated['project_id'],
             $request->user()->id,
@@ -126,8 +149,10 @@ class TimeTrackingController extends Controller
     /**
      * Stop a running timer.
      */
-    public function stop(TimeEntry $timeEntry): JsonResponse
+    public function stop(Request $request, TimeEntry $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsTimeEntry($request, $timeEntry);
+
         if (! $timeEntry->isRunning()) {
             return response()->json(['message' => 'Timer is not running.'], 422);
         }
@@ -140,8 +165,10 @@ class TimeTrackingController extends Controller
     /**
      * Mark a time entry as billed.
      */
-    public function bill(TimeEntry $timeEntry): JsonResponse
+    public function bill(Request $request, TimeEntry $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsTimeEntry($request, $timeEntry);
+
         $timeEntry->markBilled();
 
         return response()->json($timeEntry->fresh()->load(['project:id,name', 'user:id,name,email']));
@@ -152,6 +179,8 @@ class TimeTrackingController extends Controller
      */
     public function projectTimeEntries(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $entries = TimeEntry::with(['user:id,name,email'])
             ->where('project_id', $project->id)
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
@@ -164,8 +193,10 @@ class TimeTrackingController extends Controller
     /**
      * Get billing stats for a project.
      */
-    public function projectBilling(Project $project): JsonResponse
+    public function projectBilling(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $billing = $project->billing ?? null;
         $stats = $this->service->getProjectBillingStats($project->id);
 
@@ -180,6 +211,8 @@ class TimeTrackingController extends Controller
      */
     public function setupBilling(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'billing_type' => ['required', 'in:fixed,hourly,milestone'],
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
@@ -196,8 +229,10 @@ class TimeTrackingController extends Controller
     /**
      * Mark all billable unbilled entries for a project as billed.
      */
-    public function markBilled(Project $project): JsonResponse
+    public function markBilled(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $count = $this->service->markEntriesAsBilled($project->id);
 
         return response()->json(['marked_billed' => $count]);
@@ -214,6 +249,11 @@ class TimeTrackingController extends Controller
      * the one cross-project aggregate, and this controller already owns
      * the global (non-project-scoped) time-entries endpoints against the
      * real TimeEntry model this report needs.
+     *
+     * Chantier 19 Lot 2: had zero company scoping — every company's time
+     * entries were aggregated together for whoever called this. Scoped to
+     * the caller's own company when one is present, matching this app's
+     * established graceful-degradation when()-guard convention.
      */
     public function globalReport(Request $request): JsonResponse
     {
@@ -222,6 +262,10 @@ class TimeTrackingController extends Controller
             : 'member';
 
         $entries = TimeEntry::with(['project:id,name', 'user:id,name', 'task:id,title'])
+            ->when(
+                $request->user()?->company_id,
+                fn ($q, $companyId) => $q->whereHas('project', fn ($p) => $p->where('company_id', $companyId))
+            )
             ->whereNotNull('ended_at')
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('started_at', '>=', $request->date('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('started_at', '<=', $request->date('date_to')))

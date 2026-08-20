@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\ProjectTimeLog;
 use Modules\Projects\Models\Task;
@@ -39,6 +40,8 @@ use Modules\Projects\Models\Task;
  */
 class TimeEntryController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * List time entries for a task.
      *
@@ -46,6 +49,8 @@ class TimeEntryController extends Controller
      */
     public function index(Request $request, Project $project, Task $task): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $entries = ProjectTimeLog::with('user:id,name,email')
             ->where('task_id', $task->id)
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
@@ -69,6 +74,8 @@ class TimeEntryController extends Controller
      */
     public function store(Request $request, Project $project, Task $task): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'hours' => ['required', 'numeric', 'min:0.01', 'max:24'],
             'date' => ['required', 'date'],
@@ -94,8 +101,10 @@ class TimeEntryController extends Controller
      * @urlParam task int required The task ID. Example: 1
      * @urlParam timeEntry int required The time entry ID. Example: 1
      */
-    public function show(Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
+    public function show(Request $request, Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
         }
@@ -111,6 +120,8 @@ class TimeEntryController extends Controller
      */
     public function update(Request $request, Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
         }
@@ -141,6 +152,8 @@ class TimeEntryController extends Controller
      */
     public function destroy(Request $request, Project $project, Task $task, ProjectTimeLog $timeEntry): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($timeEntry->task_id !== $task->id) {
             abort(404);
         }

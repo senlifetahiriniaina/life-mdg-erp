@@ -7,6 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\ProjectRisk;
 use Modules\Projects\Services\GanttService;
 use Modules\Projects\Services\ProjectBudgetService;
@@ -26,6 +27,8 @@ use Modules\Projects\Services\ProjectKpiService;
  */
 class ProjectAdvancedController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function __construct(
         private readonly GanttService         $ganttService,
         private readonly ProjectBudgetService $budgetService,
@@ -58,9 +61,28 @@ class ProjectAdvancedController extends Controller
 
     /**
      * GET /api/v1/projects/{id}/budget
+     *
+     * Chantier 19 Lot 2: this method (and kpis()/risks() below) took a
+     * bare int $id and passed it straight to the service layer with ZERO
+     * company-ownership check anywhere in the call chain —
+     * ProjectBudgetService::getBudgetSummary()/computeEarnedValue()/
+     * checkBudgetAlerts()/getBurndownData() and ProjectKpiService's
+     * per-project methods all filter only by project_id, never company_id
+     * (unlike their own portfolio-level siblings, which Chantier 10 did
+     * scope correctly). Confirmed via code read that any authenticated
+     * employee/manager/admin of ANY company could read another company's
+     * project budget/EVM/KPI/risk data just by guessing a project id — a
+     * real cross-tenant leak, not a hypothetical one, and more severe than
+     * the identical-shaped gap already fixed on ProjectController/
+     * TaskController in Chantier 10. Fixed by resolving+asserting company
+     * ownership before calling the service layer, matching this app's
+     * established 404-not-403 (avoid confirming another company's project
+     * id exists) convention.
      */
-    public function budget(int $id): JsonResponse
+    public function budget(Request $request, int $id): JsonResponse
     {
+        $this->resolveCompanyScopedProject($request, $id);
+
         $summary = $this->budgetService->getBudgetSummary($id);
         $evm     = $this->budgetService->computeEarnedValue($id);
         $alerts  = $this->budgetService->checkBudgetAlerts($id);
@@ -83,8 +105,10 @@ class ProjectAdvancedController extends Controller
     /**
      * GET /api/v1/projects/{id}/kpis
      */
-    public function kpis(int $id): JsonResponse
+    public function kpis(Request $request, int $id): JsonResponse
     {
+        $this->resolveCompanyScopedProject($request, $id);
+
         $kpis     = $this->kpiService->getProjectKpis($id);
         $velocity = $this->kpiService->getVelocityTrend($id);
         $strategy = $this->kpiService->linkToStrategy($id);
@@ -104,8 +128,10 @@ class ProjectAdvancedController extends Controller
     /**
      * GET /api/v1/projects/{id}/risks
      */
-    public function risks(int $id): JsonResponse
+    public function risks(Request $request, int $id): JsonResponse
     {
+        $this->resolveCompanyScopedProject($request, $id);
+
         $risks = ProjectRisk::where('project_id', $id)
             ->orderByDesc('created_at')
             ->get()

@@ -8,6 +8,7 @@ use Modules\HR\Models\Employee;
 use Modules\HR\Models\EmployeeCompensation;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Models\PayrollRun;
+use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Payroll\Data\StatutorySchemes;
@@ -81,15 +82,6 @@ class PayrollIntegrationService
         string $payrollCycle = 'monthly',
         ?int $tenantId = null
     ): ?Payslip {
-        // Idempotent — skip if already exists for this period
-        $existing = Payslip::where('employee_id', $employee->id)
-            ->whereDate('period', $startDate->toDateString())
-            ->first();
-
-        if ($existing) {
-            return $existing;
-        }
-
         // Chantier 8.3: hr_employees.tenant_id/salary_currency are real
         // columns but not in Employee's $fillable — never populated by any
         // real create()/update() call, so this always resolved to 0/'XOF'
@@ -105,7 +97,46 @@ class PayrollIntegrationService
         // never in User::$fillable, never populated by the real registration
         // flow) already fixed repeatedly elsewhere in this session. Switched
         // to company_id, the real tenant boundary column.
+        //
+        // Chantier 19 Lot 2: resolved BEFORE the idempotency check now
+        // (previously resolved after) — see the tenant-scoping fix on that
+        // check immediately below.
         $tenantId ??= (int) ($employee->user?->company_id ?? 0);
+
+        // Idempotent — skip if already exists for this tenant+period.
+        // Confirmed empirically (php artisan tinker, 2 real companies) that
+        // this check used to match by employee_id+period ALONE, with no
+        // tenant_id filter — Modules\HR\Models\Employee has no company/
+        // tenant-scoping column of its own at all (confirmed via
+        // Schema::hasColumn: no company_id anywhere in hr_employees, nor on
+        // Department/JobPosition), so generatePayslips() already pulls in
+        // every active employee system-wide regardless of which tenant
+        // called it (see that method's own pre-existing comment). Without
+        // this fix, that gap compounded into something worse: once ANY
+        // tenant generated a payslip for a given employee+period, every
+        // OTHER tenant's later call for the same employee+period silently
+        // returned that first tenant's payslip (tagged with the WRONG
+        // tenant_id) instead of ever creating its own correctly-tenant-
+        // tagged one — permanently blocking that tenant from generating a
+        // payslip of its own for that employee/period. Scoping the
+        // idempotency lookup by tenant_id makes payroll generation
+        // independent per tenant, matching PayrollRun's own
+        // ['tenant_id','period'] uniqueness. This does NOT fully close the
+        // underlying gap — Employee still has no real per-company
+        // ownership, so a tenant's "generate payslips" call still pulls in
+        // every active employee in the whole system, including other
+        // companies' — that root cause lives in Modules\HR\Models\Employee
+        // (no company_id column anywhere in that module) and is out of
+        // this module's scope to fix; documented in the chantier report.
+        $existing = Payslip::where('employee_id', $employee->id)
+            ->where('tenant_id', $tenantId)
+            ->whereDate('period', $startDate->toDateString())
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
         $compensation = $this->getCurrentCompensation($employee, $startDate);
         $currency = $compensation?->currency ?? 'XOF';
 
@@ -293,6 +324,26 @@ class PayrollIntegrationService
      */
     private function calculateProgressiveIncomeTax(float $grossSalary, array $incomeTax): float
     {
+        // Chantier 19 Lot 2 (Payroll re-verification): confirmed empirically
+        // (php artisan tinker) that an employee with no EmployeeCompensation
+        // record at all — gross_salary correctly resolves to 0 per the
+        // Chantier 8.3 zero-salary fix — was still charged a flat monthly
+        // tax (SN's TRIMF fixed_tax=300) or a statutory minimum (MG's IRSA
+        // minimum_tax=3000) unconditionally, since neither the fixed_tax
+        // addition nor the minimum_tax floor below were gated on there
+        // being any real taxable income at all. That produced a NEGATIVE
+        // net_salary payslip for a zero-salary employee (confirmed live:
+        // a demo employee resolved to net_salary=-300.00) — the pre-existing
+        // Chantier83PayrollZeroSalaryTest only ever asserted gross_salary,
+        // never net_salary, so this went undetected. A flat/minimum tax is
+        // only ever meant to apply to an actually-paid salary — with zero
+        // real income data for this employee/period, there is no tax
+        // liability to compute, matching this app's fallback-first
+        // "?? 0"/graceful-degradation convention rather than inventing one.
+        if ($grossSalary <= 0.0) {
+            return 0.0;
+        }
+
         $deduction = $grossSalary * (float) ($incomeTax['abatement_rate'] ?? 0.0);
         if (($incomeTax['abatement_cap'] ?? null) !== null) {
             $deduction = min($deduction, (float) $incomeTax['abatement_cap']);
@@ -491,6 +542,34 @@ class PayrollIntegrationService
 
     /**
      * Post approved payslips as OHADA journal entries.
+     *
+     * Chantier 19 Lot 2 (empirical re-verification): confirmed via
+     * php artisan tinker that this method — called on every real
+     * "Process Payment" action (PayrollController::processPayment()) —
+     * never wrote to the real ledger at all. It created two separate
+     * JournalEntry HEADER rows per payslip using the deprecated flat
+     * `entry_type`/`amount` fields and zero `acc_journal_entry_lines`
+     * rows — the real posting scheme this app's actual financial
+     * statements read from (JournalEntryApiController::store(), Chantier
+     * 15; OhadaReportService/FinancialReportService, Chantier 18: one
+     * JournalEntry header + 2+ balanced JournalEntryLine rows, each
+     * carrying a real account_id). Two bare header rows with no lines,
+     * no account link, and not even debit==credit balanced against each
+     * other as a single entry is not a real accounting posting — it never
+     * appeared anywhere in the Bilan/Compte de Résultat regardless of
+     * this being called. Rewritten onto the real header+lines scheme,
+     * resolving real seeded OHADA-adapted account codes: 641
+     * (Rémunérations du personnel, expense) debited for the full gross
+     * salary, 421 (Personnel — Rémunérations dues, liability) credited
+     * for the net amount owed to the employee, and — only when there are
+     * real deductions to balance — 447 (État — IRSA, liability) credited
+     * for the total withheld. Lumping every deduction category (income
+     * tax, social security, pension, etc.) into the single 447 line
+     * rather than splitting across 431/437/447 individually is a
+     * documented simplification, matching the same HT-only/no-VAT-split
+     * precedent already established for Chantier 15's TreasuryImportService
+     * and Chantier 18's FinancialSimulationService — a real per-category
+     * split is a future enhancement, not invented here.
      */
     public function postPayslipsToAccounting(array $payslipIds): array
     {
@@ -498,35 +577,50 @@ class PayrollIntegrationService
             ->where('status', 'approved')
             ->get();
 
+        $salaryExpenseAccountId = ChartOfAccount::where('code', '641')->value('id');
+        $salaryPayableAccountId = ChartOfAccount::where('code', '421')->value('id');
+        $withholdingsAccountId  = ChartOfAccount::where('code', '447')->value('id');
+
         $posted = [];
 
         foreach ($records as $record) {
             $name = $record->employee_name;
             $ref  = "PAYROLL-{$record->id}";
 
-            // Debit: Salary expense (OHADA Cl.6161)
-            JournalEntry::create([
+            $entry = JournalEntry::create([
                 'entry_date'     => now(),
-                'entry_type'     => 'debit',
-                'amount'         => $record->gross_salary,
+                'date'           => now(),
+                'description'    => "Paie — {$name} — {$ref}",
                 'reference_type' => 'Payslip',
                 'reference_id'   => $record->id,
-                'description'    => "Salaire brut — {$name}",
+                'currency'       => $record->currency,
                 'status'         => 'posted',
+                'posted_at'      => now(),
                 'notes'          => $ref,
             ]);
 
-            // Credit: Salary payable (OHADA Cl.4210)
-            JournalEntry::create([
-                'entry_date'     => now(),
-                'entry_type'     => 'credit',
-                'amount'         => $record->net_salary,
-                'reference_type' => 'Payslip',
-                'reference_id'   => $record->id,
-                'description'    => "Salaire net à payer — {$name}",
-                'status'         => 'posted',
-                'notes'          => $ref,
+            $entry->lines()->create([
+                'account_id'  => $salaryExpenseAccountId,
+                'description' => "Salaire brut — {$name}",
+                'debit'       => $record->gross_salary,
+                'credit'      => 0,
             ]);
+
+            $entry->lines()->create([
+                'account_id'  => $salaryPayableAccountId,
+                'description' => "Salaire net à payer — {$name}",
+                'debit'       => 0,
+                'credit'      => $record->net_salary,
+            ]);
+
+            if ((float) $record->total_deductions > 0) {
+                $entry->lines()->create([
+                    'account_id'  => $withholdingsAccountId,
+                    'description' => "Retenues sur salaire — {$name}",
+                    'debit'       => 0,
+                    'credit'      => $record->total_deductions,
+                ]);
+            }
 
             $posted[] = $record->id;
         }

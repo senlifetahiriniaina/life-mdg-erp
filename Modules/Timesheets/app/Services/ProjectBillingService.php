@@ -366,8 +366,18 @@ class ProjectBillingService
         $projects = [];
 
         try {
+            // Chantier 19 (Lot 2): prj_projects has never had a tenant_id
+            // column at all (confirmed via Schema::getColumnListing) — only
+            // company_id (added by Chantier 10's 2026_09_05_000001
+            // migration). This query has been a guaranteed "Unknown
+            // column" SQL error on every real call since before this
+            // session started tracking Accounting/Timesheets bugs,
+            // silently swallowed by the surrounding try/catch and replaced
+            // with demoRevenueRecognition() — GET
+            // /api/v1/timesheets/revenue-recognition has never returned
+            // real data.
             $rows = DB::table('prj_projects')
-                ->where('tenant_id', $companyId)
+                ->where('company_id', $companyId)
                 ->whereNull('deleted_at')
                 ->whereIn('status', ['active', 'in_progress', 'completed'])
                 ->get();

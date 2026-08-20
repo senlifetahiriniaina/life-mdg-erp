@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Sprint;
 use Modules\Projects\Models\Task;
@@ -20,13 +21,17 @@ use Modules\Projects\Services\SprintService;
  */
 class SprintController extends Controller
 {
+    use ScopesToProjectCompany;
+
     public function __construct(private readonly SprintService $sprintService) {}
 
     /**
      * List all sprints for a project.
      */
-    public function index(Project $project): JsonResponse
+    public function index(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $sprints = Sprint::where('project_id', $project->id)
             ->with(['tasks' => fn ($q) => $q->select('id', 'sprint_id', 'status', 'story_points')])
             ->orderBy('created_at')
@@ -53,6 +58,8 @@ class SprintController extends Controller
      */
     public function store(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'goal' => ['nullable', 'string'],
@@ -72,8 +79,10 @@ class SprintController extends Controller
     /**
      * Show a single sprint.
      */
-    public function show(Project $project, Sprint $sprint): JsonResponse
+    public function show(Request $request, Project $project, Sprint $sprint): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($sprint->project_id !== $project->id) {
             abort(404);
         }
@@ -88,6 +97,8 @@ class SprintController extends Controller
      */
     public function update(Request $request, Project $project, Sprint $sprint): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($sprint->project_id !== $project->id) {
             abort(404);
         }
@@ -109,8 +120,10 @@ class SprintController extends Controller
     /**
      * Delete a sprint.
      */
-    public function destroy(Project $project, Sprint $sprint): JsonResponse
+    public function destroy(Request $request, Project $project, Sprint $sprint): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($sprint->project_id !== $project->id) {
             abort(404);
         }
@@ -124,8 +137,10 @@ class SprintController extends Controller
      * Start a sprint.
      * POST /projects/{project}/sprints/{sprint}/start
      */
-    public function start(Project $project, Sprint $sprint): JsonResponse
+    public function start(Request $request, Project $project, Sprint $sprint): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($sprint->project_id !== $project->id) {
             abort(404);
         }
@@ -139,8 +154,10 @@ class SprintController extends Controller
      * Complete a sprint and return incomplete tasks.
      * POST /projects/{project}/sprints/{sprint}/complete
      */
-    public function complete(Project $project, Sprint $sprint): JsonResponse
+    public function complete(Request $request, Project $project, Sprint $sprint): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($sprint->project_id !== $project->id) {
             abort(404);
         }
@@ -154,8 +171,10 @@ class SprintController extends Controller
      * Get burndown chart data.
      * GET /projects/{project}/sprints/{sprint}/burndown
      */
-    public function burndown(Project $project, Sprint $sprint): JsonResponse
+    public function burndown(Request $request, Project $project, Sprint $sprint): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($sprint->project_id !== $project->id) {
             abort(404);
         }
@@ -167,8 +186,10 @@ class SprintController extends Controller
      * Get velocity data for this project (last 5 completed sprints).
      * GET /projects/{project}/velocity
      */
-    public function velocity(Project $project): JsonResponse
+    public function velocity(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         return response()->json($this->sprintService->getVelocity($project->id));
     }
 
@@ -176,8 +197,10 @@ class SprintController extends Controller
      * Get backlog for this project (tasks without a sprint).
      * GET /projects/{project}/backlog
      */
-    public function backlog(Project $project): JsonResponse
+    public function backlog(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $tasks = $this->sprintService->getBacklog($project->id);
 
         return response()->json(['data' => $tasks]);

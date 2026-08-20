@@ -43,12 +43,22 @@ class PayrollAiAssistController extends Controller
         // AI-assist endpoint, and AiContextualAssistantService's static
         // fallback table has a real 'Payroll' module entry (generate_payslips/
         // approve_payroll/...) that this endpoint was never actually reaching.
+        //
+        // Chantier 19 Lot 2: `$request->user()->role` reads the well-
+        // documented phantom `users.role` column (real, migrated, never in
+        // User::$fillable, never populated by the real registration flow —
+        // already fixed for this exact bug in AiActionAdvisorController and
+        // SalesAiAssistController) — always null, so this endpoint always
+        // passed the literal fallback string 'user' regardless of the
+        // caller's real role, silently defeating the guidance tone/depth
+        // this parameter exists to tune. Fixed to the real Spatie role via
+        // getRoleNames(), matching the established fix pattern.
         $guidance = $this->assistant->getGuidance(
             module:   'Payroll',
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()->role ?? 'user',
+            userRole: $request->user()->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

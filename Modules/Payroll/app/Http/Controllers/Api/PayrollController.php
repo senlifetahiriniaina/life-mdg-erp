@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\HR\Models\Employee;
+use Modules\Payroll\Data\StatutorySchemes;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Services\PayrollIntegrationService;
 
@@ -170,7 +171,24 @@ class PayrollController extends Controller
         $countryByEmployee = Employee::whereIn('id', $records->pluck('employee_id')->unique())
             ->pluck('nationality', 'id');
 
+        // Chantier 19 Lot 2: $records is an Illuminate\Database\Eloquent\
+        // Collection — groupBy() on it returns another Eloquent Collection
+        // whose "items" are themselves per-group Collections, not models.
+        // Eloquent\Collection::only() overrides the base Collection's
+        // array-key filtering to instead assume every item is a model with
+        // a real getKey() — confirmed via a real request with ?country=SN
+        // against real seeded payslip data: a guaranteed
+        // BadMethodCallException("Method ...Collection::getKey does not
+        // exist") on every call that both has at least one payslip AND
+        // filters by ?country=, invisible until now because the only
+        // pre-existing test hitting this branch (PayrollApiTest) always ran
+        // against an empty Payslip table, where the dictionary build inside
+        // only() short-circuits before ever touching an item. toBase()
+        // demotes the collection to a plain Illuminate\Support\Collection
+        // right after fetching, so groupBy()/only() both use the base,
+        // array-key-based semantics this code actually relies on.
         $taxes = $records
+            ->toBase()
             ->groupBy(fn ($r) => $countryByEmployee->get($r->employee_id) ?? 'SN')
             ->when(
                 $request->filled('country'),
@@ -181,6 +199,15 @@ class PayrollController extends Controller
 
                 return [
                     'country_code'     => $country,
+                    // Chantier 19 Lot 2: Dashboard/Index.vue's "Taxes by
+                    // Country" tab renders country.country_name, but this
+                    // response never included it (only the raw code) — the
+                    // card header always rendered blank for real data.
+                    // StatutorySchemes already carries a real localized
+                    // name per country (reused, not invented); any code
+                    // outside its 8 supported countries falls back to the
+                    // code itself rather than a guessed name.
+                    'country_name'     => StatutorySchemes::country($country)['name'] ?? $country,
                     'employee_count'   => $group->count(),
                     'total_gross'      => $totalGross,
                     'total_tax'        => $this->service->calculateIncomeTax($totalGross, $country),

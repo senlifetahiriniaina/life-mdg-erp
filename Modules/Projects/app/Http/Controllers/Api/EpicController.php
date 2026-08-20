@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Epic;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Models\Task;
@@ -19,13 +20,25 @@ use Modules\Projects\Models\Task;
  */
 class EpicController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * List all epics.
      * Supports optional ?project_id filter for roadmap use.
+     *
+     * Chantier 19 Lot 2: had zero company scoping at all — any
+     * authenticated employee/manager/admin could list every company's
+     * epics (this backs the cross-project Roadmap.vue page). Scoped to the
+     * caller's own company when one is present, matching this app's
+     * established graceful-degradation when()-guard convention.
      */
     public function all(Request $request): JsonResponse
     {
-        $query = Epic::query()->with('project');
+        $query = Epic::query()->with('project')
+            ->when(
+                $request->user()?->company_id,
+                fn ($q, $companyId) => $q->whereHas('project', fn ($p) => $p->where('company_id', $companyId))
+            );
 
         if ($request->filled('project_id')) {
             $query->where('project_id', (int) $request->query('project_id'));
@@ -37,8 +50,10 @@ class EpicController extends Controller
     /**
      * List epics for a project.
      */
-    public function index(Project $project): JsonResponse
+    public function index(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $epics = Epic::where('project_id', $project->id)
             ->with(['tasks' => fn ($q) => $q->select('id', 'epic_id', 'status', 'story_points')])
             ->orderBy('start_date')
@@ -68,6 +83,8 @@ class EpicController extends Controller
      */
     public function store(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -85,8 +102,10 @@ class EpicController extends Controller
     /**
      * Get a single epic.
      */
-    public function show(Project $project, Epic $epic): JsonResponse
+    public function show(Request $request, Project $project, Epic $epic): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($epic->project_id !== $project->id) {
             abort(404);
         }
@@ -101,6 +120,8 @@ class EpicController extends Controller
      */
     public function update(Request $request, Project $project, Epic $epic): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($epic->project_id !== $project->id) {
             abort(404);
         }
@@ -122,8 +143,10 @@ class EpicController extends Controller
     /**
      * Delete an epic.
      */
-    public function destroy(Project $project, Epic $epic): JsonResponse
+    public function destroy(Request $request, Project $project, Epic $epic): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($epic->project_id !== $project->id) {
             abort(404);
         }

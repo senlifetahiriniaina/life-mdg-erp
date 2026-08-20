@@ -65,6 +65,25 @@ class KbPortalArticle extends Model
         return $this->belongsTo(KbPortalCategory::class, 'category_id');
     }
 
+    /**
+     * Portal/Index.vue's openArticle() calls
+     * GET .../kb/portal/articles/${article.slug || article.id} — since
+     * every real row always has a slug (see the creating hook above), the
+     * frontend always sends the slug, not the numeric id. Without this
+     * override, Laravel's default implicit route-model binding looks the
+     * value up by the primary key ('id') only, so every real click on a KB
+     * portal article 404'd. giveFeedback() sends the numeric id on the
+     * follow-up /helpful call, so both id and slug must resolve.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if ($field !== null) {
+            return $this->where($field, $value)->first();
+        }
+
+        return $this->where('id', $value)->orWhere('slug', $value)->first();
+    }
+
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');

@@ -120,7 +120,7 @@
             label="New Entry"
             icon="pi pi-plus"
             class="p-button-primary"
-            @click="navigateTo('/timesheets/entries/new')"
+            @click="navigateTo('/timesheets/entries/create')"
           />
           <Button
             label="View All Entries"
@@ -136,7 +136,7 @@
             label="Pending Approvals"
             icon="pi pi-inbox"
             class="p-button-warning"
-            @click="navigateTo('/timesheets/approvals')"
+            @click="navigateTo('/timesheets/entries?status=submitted')"
           />
         </div>
       </template>
@@ -176,6 +176,12 @@ const getStatusSeverity = (status: string) => {
   return severities[status] || 'info'
 }
 
+// Chantier 19 (Lot 2): "New Entry" pointed at /timesheets/entries/new — the
+// real web route is /timesheets/entries/create (routes/web.php) — a 404 on
+// every click. "Pending Approvals" pointed at /timesheets/approvals, which
+// has never had a route or page anywhere in this module — repointed at the
+// real, already-routed entries list, pre-filtered to submitted status
+// (TimeEntries/Index.vue reads the initial ?status= off the URL).
 const navigateTo = (path: string) => {
   router.visit(path)
 }

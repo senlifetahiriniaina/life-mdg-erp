@@ -7,6 +7,7 @@ namespace Modules\Projects\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Milestone;
 use Modules\Projects\Models\Project;
 
@@ -17,13 +18,17 @@ use Modules\Projects\Models\Project;
  */
 class MilestoneController extends Controller
 {
+    use ScopesToProjectCompany;
+
     /**
      * List milestones for a project.
      *
      * @urlParam project int required The project ID. Example: 1
      */
-    public function index(Project $project): JsonResponse
+    public function index(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $milestones = Milestone::where('project_id', $project->id)
             ->orderBy('due_date')
             ->get();
@@ -41,6 +46,8 @@ class MilestoneController extends Controller
      */
     public function store(Request $request, Project $project): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'due_date' => ['nullable', 'date'],
@@ -60,8 +67,10 @@ class MilestoneController extends Controller
      * @urlParam project int required The project ID. Example: 1
      * @urlParam milestone int required The milestone ID. Example: 1
      */
-    public function show(Project $project, Milestone $milestone): JsonResponse
+    public function show(Request $request, Project $project, Milestone $milestone): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($milestone->project_id !== $project->id) {
             abort(404);
         }
@@ -77,6 +86,8 @@ class MilestoneController extends Controller
      */
     public function update(Request $request, Project $project, Milestone $milestone): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($milestone->project_id !== $project->id) {
             abort(404);
         }
@@ -99,8 +110,10 @@ class MilestoneController extends Controller
      * @urlParam project int required The project ID. Example: 1
      * @urlParam milestone int required The milestone ID. Example: 1
      */
-    public function destroy(Project $project, Milestone $milestone): JsonResponse
+    public function destroy(Request $request, Project $project, Milestone $milestone): JsonResponse
     {
+        $this->assertSameCompanyAsProject($request, $project);
+
         if ($milestone->project_id !== $project->id) {
             abort(404);
         }
