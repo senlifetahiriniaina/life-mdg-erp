@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Sales\Models\SalesOrder;
 use Modules\Sales\Models\SalesQuotation;
+use Modules\Sales\Services\SalesDepositService;
 use Modules\Sales\Services\SalesService;
 
 /**
@@ -18,7 +19,10 @@ use Modules\Sales\Services\SalesService;
  */
 class SalesController extends Controller
 {
-    public function __construct(private readonly SalesService $service) {}
+    public function __construct(
+        private readonly SalesService $service,
+        private readonly SalesDepositService $depositService,
+    ) {}
 
     /**
      * Chantier 8 (Sales) tenant leak fix: users.tenant_id is a phantom
@@ -136,8 +140,11 @@ class SalesController extends Controller
     {
         abort_unless($request->user()->can('sales.read'), 403);
 
+        // Chantier 22 (volet B): depositInvoice/balanceInvoice eager-loaded
+        // so Orders/Show.vue's deposit/balance panel doesn't need a second
+        // round trip for each invoice's amount/status.
         $order = SalesOrder::forTenant($this->tenantId($request))
-            ->with(['lines', 'createdBy:id,name,email'])
+            ->with(['lines', 'createdBy:id,name,email', 'depositInvoice', 'balanceInvoice'])
             ->findOrFail($id);
 
         return response()->json($order);
@@ -408,6 +415,109 @@ class SalesController extends Controller
                 $order->update($updates);
                 $order = $order->fresh();
             }
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($order);
+    }
+
+    // ─── Chantier 22 (volet B) — cycle acompte/solde ─────────────────────────────
+
+    /**
+     * Demander un acompte (crée et lie une facture d'acompte réelle).
+     *
+     * @bodyParam percent number required Pourcentage d'acompte (0-100). Example: 30
+     */
+    public function requestDeposit(Request $request, int $id): JsonResponse
+    {
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
+        $validated = $request->validate(['percent' => 'required|numeric|min:0.01|max:100']);
+
+        try {
+            $order = $this->depositService->requestDeposit($order, (float) $validated['percent'], $request->user()->id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($order);
+    }
+
+    /**
+     * Demander le solde restant (crée et lie une facture de solde réelle).
+     */
+    public function requestBalance(Request $request, int $id): JsonResponse
+    {
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
+
+        try {
+            $order = $this->depositService->requestBalance($order, $request->user()->id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($order);
+    }
+
+    /**
+     * Enregistrer le paiement de l'acompte (facture + écriture comptable réelles).
+     *
+     * @bodyParam amount number required Montant encaissé. Example: 300000
+     * @bodyParam method string Moyen de paiement (mvola, virement, espèces, ...). Example: mvola
+     * @bodyParam reference string Référence du paiement. Example: MVOLA-12345
+     */
+    public function payDeposit(Request $request, int $id): JsonResponse
+    {
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'method' => 'nullable|string|max:50',
+            'reference' => 'nullable|string|max:100',
+        ]);
+
+        try {
+            $order = $this->depositService->recordDepositPayment(
+                $order,
+                (float) $validated['amount'],
+                $validated['method'] ?? null,
+                $validated['reference'] ?? null,
+                $request->user()->id,
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($order);
+    }
+
+    /**
+     * Enregistrer le paiement du solde (facture + écriture comptable réelles).
+     */
+    public function payBalance(Request $request, int $id): JsonResponse
+    {
+        abort_unless($request->user()->can('sales.update'), 403);
+
+        $order = SalesOrder::forTenant($this->tenantId($request))->findOrFail($id);
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'method' => 'nullable|string|max:50',
+            'reference' => 'nullable|string|max:100',
+        ]);
+
+        try {
+            $order = $this->depositService->recordBalancePayment(
+                $order,
+                (float) $validated['amount'],
+                $validated['method'] ?? null,
+                $validated['reference'] ?? null,
+                $request->user()->id,
+            );
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

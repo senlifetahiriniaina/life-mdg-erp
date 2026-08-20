@@ -65,6 +65,11 @@ class SalesOrder extends Model
         'confirmed_at',
         'cancelled_at',
         'created_by',
+        // Chantier 22 (volet B — cycle acompte/solde).
+        'deposit_percent',
+        'deposit_required_amount',
+        'deposit_invoice_id',
+        'balance_invoice_id',
     ];
 
     protected $casts = [
@@ -76,7 +81,11 @@ class SalesOrder extends Model
         'expected_delivery_date' => 'date',
         'confirmed_at'          => 'datetime',
         'cancelled_at'          => 'datetime',
+        'deposit_percent'       => 'decimal:2',
+        'deposit_required_amount' => 'decimal:2',
     ];
+
+    protected $appends = ['payment_stage'];
 
     // ─── Relationships ─────────────────────────────────────────────────────────
 
@@ -88,6 +97,43 @@ class SalesOrder extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
+    public function depositInvoice(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\Accounting\Models\Invoice::class, 'deposit_invoice_id');
+    }
+
+    public function balanceInvoice(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\Accounting\Models\Invoice::class, 'balance_invoice_id');
+    }
+
+    /**
+     * Dérivé des 2 factures liées plutôt que stocké — une seule source de
+     * vérité (le statut/amount_paid réel de chaque Invoice), pas de
+     * double comptabilité à synchroniser. Valeurs : none, deposit_invoiced,
+     * deposit_paid, balance_invoiced, paid_in_full.
+     */
+    public function getPaymentStageAttribute(): string
+    {
+        $deposit = $this->depositInvoice;
+        $balance = $this->balanceInvoice;
+
+        if ($balance !== null && (float) $balance->amount_paid >= (float) $balance->total && (float) $balance->total > 0) {
+            return 'paid_in_full';
+        }
+        if ($balance !== null) {
+            return 'balance_invoiced';
+        }
+        if ($deposit !== null && (float) $deposit->amount_paid >= (float) $deposit->total && (float) $deposit->total > 0) {
+            return 'deposit_paid';
+        }
+        if ($deposit !== null) {
+            return 'deposit_invoiced';
+        }
+
+        return 'none';
     }
 
     // ─── Scopes ────────────────────────────────────────────────────────────────

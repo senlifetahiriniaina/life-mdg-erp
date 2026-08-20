@@ -52,6 +52,70 @@
         <ApprovalPanel :instance="instance" :steps="steps" :decisions="decisions" :can-approve="purchaseOrder.can_approve" @decide="onDecide" />
       </div>
 
+      <!-- Chantier 22 (volet B) — cycle acompte/solde -->
+      <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-50 mb-4">Acompte / Solde</h3>
+
+        <div v-if="!purchaseOrder.deposit_invoice_id" class="flex items-center gap-3">
+          <input v-model.number="depositPercent" type="number" min="1" max="100" step="1"
+                 class="w-24 rounded border border-gray-300 dark:border-surface-600 bg-transparent px-2 py-1 text-sm" />
+          <span class="text-sm text-surface-600 dark:text-surface-400">% du total</span>
+          <button @click="requestDeposit" :disabled="actionPending"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50">
+            Demander un acompte
+          </button>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Acompte ({{ purchaseOrder.deposit_percent }}%)</p>
+              <p class="text-lg font-medium text-surface-900 dark:text-surface-50">
+                {{ purchaseOrder.deposit_invoice?.total }} {{ purchaseOrder.currency }}
+                <span :class="['ml-2 px-2 py-0.5 rounded text-xs', purchaseOrder.deposit_invoice?.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800']">
+                  {{ purchaseOrder.deposit_invoice?.status === 'paid' ? 'Payé' : 'En attente' }}
+                </span>
+              </p>
+            </div>
+            <div v-if="purchaseOrder.deposit_invoice?.status !== 'paid'" class="flex items-center gap-2">
+              <input v-model.number="depositPayAmount" type="number" min="0.01" step="0.01"
+                     class="w-32 rounded border border-gray-300 dark:border-surface-600 bg-transparent px-2 py-1 text-sm" />
+              <button @click="payDeposit" :disabled="actionPending"
+                      class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50">
+                Enregistrer le paiement
+              </button>
+            </div>
+          </div>
+
+          <div v-if="purchaseOrder.deposit_invoice?.status === 'paid' && !purchaseOrder.balance_invoice_id">
+            <button @click="requestBalance" :disabled="actionPending"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50">
+              Demander le solde
+            </button>
+          </div>
+
+          <div v-if="purchaseOrder.balance_invoice_id" class="flex items-center justify-between border-t border-gray-200 dark:border-surface-700 pt-4">
+            <div>
+              <p class="text-sm text-surface-600 dark:text-surface-400">Solde</p>
+              <p class="text-lg font-medium text-surface-900 dark:text-surface-50">
+                {{ purchaseOrder.balance_invoice?.total }} {{ purchaseOrder.currency }}
+                <span :class="['ml-2 px-2 py-0.5 rounded text-xs', purchaseOrder.balance_invoice?.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800']">
+                  {{ purchaseOrder.balance_invoice?.status === 'paid' ? 'Payé' : 'En attente' }}
+                </span>
+              </p>
+            </div>
+            <div v-if="purchaseOrder.balance_invoice?.status !== 'paid'" class="flex items-center gap-2">
+              <input v-model.number="balancePayAmount" type="number" min="0.01" step="0.01"
+                     class="w-32 rounded border border-gray-300 dark:border-surface-600 bg-transparent px-2 py-1 text-sm" />
+              <button @click="payBalance" :disabled="actionPending"
+                      class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50">
+                Enregistrer le paiement
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Order Details -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-surface-800 rounded-lg shadow p-6">
@@ -170,6 +234,63 @@ const props = defineProps({
 
 const error = ref('')
 const actionPending = ref(false)
+
+// Chantier 22 (volet B) — cycle acompte/solde
+const depositPercent = ref(30)
+const depositPayAmount = ref(props.purchaseOrder.deposit_required_amount || 0)
+const balancePayAmount = ref((props.purchaseOrder.total || 0) - (props.purchaseOrder.deposit_required_amount || 0))
+
+const requestDeposit = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/deposit/request`, { percent: depositPercent.value })
+    router.reload()
+  } catch (err) {
+    error.value = err.response?.data?.message || "Échec de la demande d'acompte."
+  } finally {
+    actionPending.value = false
+  }
+}
+
+const payDeposit = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/deposit/pay`, { amount: depositPayAmount.value })
+    router.reload()
+  } catch (err) {
+    error.value = err.response?.data?.message || "Échec de l'enregistrement du paiement."
+  } finally {
+    actionPending.value = false
+  }
+}
+
+const requestBalance = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/balance/request`)
+    router.reload()
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Échec de la demande de solde.'
+  } finally {
+    actionPending.value = false
+  }
+}
+
+const payBalance = async () => {
+  actionPending.value = true
+  error.value = ''
+  try {
+    await axios.post(`/api/v1/achats/purchase-orders/${props.purchaseOrder.id}/balance/pay`, { amount: balancePayAmount.value })
+    router.reload()
+  } catch (err) {
+    error.value = err.response?.data?.message || "Échec de l'enregistrement du paiement."
+  } finally {
+    actionPending.value = false
+  }
+}
 
 const statusClasses = {
   draft: 'bg-surface-100 dark:bg-surface-700 text-surface-900 dark:text-surface-100',

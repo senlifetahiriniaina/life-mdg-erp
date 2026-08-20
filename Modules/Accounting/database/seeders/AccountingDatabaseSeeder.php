@@ -75,6 +75,11 @@ class AccountingDatabaseSeeder extends Seeder
             ['code' => '401', 'name' => 'Fournisseurs',                         'type' => 'liability',  'is_active' => true],
             ['code' => '403', 'name' => 'Fournisseurs — Effets à payer',        'type' => 'liability',  'is_active' => true],
             ['code' => '408', 'name' => 'Fournisseurs — Factures non parvenues', 'type' => 'liability',  'is_active' => true],
+            // Chantier 22 (volet B — cycle acompte/solde) : pendant de 419 côté
+            // achats, jusque-là seulement documenté comme manquant dans
+            // CLAUDE.md ("No OHADA 409x account seeded"). Un acompte versé à
+            // un fournisseur est une créance (actif), pas une dette.
+            ['code' => '4091', 'name' => 'Fournisseurs — Avances et acomptes versés', 'type' => 'asset', 'is_active' => true],
             ['code' => '411', 'name' => 'Clients',                              'type' => 'asset',      'is_active' => true],
             ['code' => '413', 'name' => 'Clients — Effets à recevoir',          'type' => 'asset',      'is_active' => true],
             ['code' => '416', 'name' => 'Clients douteux ou litigieux',         'type' => 'asset',      'is_active' => true],

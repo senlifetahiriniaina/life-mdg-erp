@@ -55,6 +55,12 @@ class PurchaseOrderResource extends JsonResource
             ])),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
+            // Chantier 22 (volet B — cycle acompte/solde).
+            'deposit_percent' => $this->deposit_percent !== null ? (float) $this->deposit_percent : null,
+            'deposit_required_amount' => $this->deposit_required_amount !== null ? (float) $this->deposit_required_amount : null,
+            'deposit_invoice_id' => $this->deposit_invoice_id,
+            'balance_invoice_id' => $this->balance_invoice_id,
+            'payment_stage' => $this->payment_stage,
         ];
     }
 }

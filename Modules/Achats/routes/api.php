@@ -76,6 +76,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
         Route::post('purchase-orders/{purchase_order}/reject', [PurchaseOrderController::class, 'reject']);
         Route::post('purchase-orders/{purchase_order}/cancel', [PurchaseOrderController::class, 'cancel']);
 
+        // Chantier 22 (volet B) — cycle acompte/solde.
+        Route::post('purchase-orders/{purchase_order}/deposit/request', [PurchaseOrderController::class, 'requestDeposit']);
+        Route::post('purchase-orders/{purchase_order}/deposit/pay', [PurchaseOrderController::class, 'payDeposit']);
+        Route::post('purchase-orders/{purchase_order}/balance/request', [PurchaseOrderController::class, 'requestBalance']);
+        Route::post('purchase-orders/{purchase_order}/balance/pay', [PurchaseOrderController::class, 'payBalance']);
+
         Route::post('purchase-orders/{purchase_order}/lines', [PurchaseOrderLineController::class, 'store']);
         Route::put('purchase-orders/{purchase_order}/lines/{line}', [PurchaseOrderLineController::class, 'update']);
         Route::delete('purchase-orders/{purchase_order}/lines/{line}', [PurchaseOrderLineController::class, 'destroy']);

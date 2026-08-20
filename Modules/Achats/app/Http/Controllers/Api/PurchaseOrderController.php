@@ -10,6 +10,7 @@ use Modules\Achats\Http\Requests\StorePurchaseOrderRequest;
 use Modules\Achats\Http\Requests\UpdatePurchaseOrderRequest;
 use Modules\Achats\Http\Resources\PurchaseOrderResource;
 use Modules\Achats\Models\PurchaseOrder;
+use Modules\Achats\Services\PurchaseDepositService;
 use Modules\Achats\Services\PurchaseOrderService;
 
 /**
@@ -22,7 +23,10 @@ class PurchaseOrderController extends Controller
     use AuthorizesRequests;
     use ScopesToCompany;
 
-    public function __construct(protected PurchaseOrderService $service) {}
+    public function __construct(
+        protected PurchaseOrderService $service,
+        protected PurchaseDepositService $depositService,
+    ) {}
 
     public function index(Request $request)
     {
@@ -161,5 +165,94 @@ class PurchaseOrderController extends Controller
         $this->service->cancelPurchaseOrder($purchase_order, $request->get('reason', 'Cancelled'));
 
         return new PurchaseOrderResource($purchase_order->refresh());
+    }
+
+    // ─── Chantier 22 (volet B) — cycle acompte/solde ─────────────────────────────
+
+    public function requestDeposit(Request $request, PurchaseOrder $purchase_order)
+    {
+        $this->authorize('update', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
+
+        $validated = $request->validate(['percent' => 'required|numeric|min:0.01|max:100']);
+
+        try {
+            $purchase_order = $this->depositService->requestDeposit($purchase_order, (float) $validated['percent'], auth()->id());
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return new PurchaseOrderResource($purchase_order);
+    }
+
+    public function requestBalance(Request $request, PurchaseOrder $purchase_order)
+    {
+        $this->authorize('update', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
+
+        try {
+            $purchase_order = $this->depositService->requestBalance($purchase_order, auth()->id());
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return new PurchaseOrderResource($purchase_order);
+    }
+
+    /**
+     * Enregistrer un paiement (acompte ou solde) est un acte financier —
+     * gaté sur la même permission qu'approve()/reject(), pas sur 'update'
+     * (permissif, ouvert à tout utilisateur authentifié sur ce modèle).
+     */
+    public function payDeposit(Request $request, PurchaseOrder $purchase_order)
+    {
+        $this->authorize('approve', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'method' => 'nullable|string|max:50',
+            'reference' => 'nullable|string|max:100',
+        ]);
+
+        try {
+            $purchase_order = $this->depositService->recordDepositPayment(
+                $purchase_order,
+                (float) $validated['amount'],
+                $validated['method'] ?? null,
+                $validated['reference'] ?? null,
+                auth()->id(),
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return new PurchaseOrderResource($purchase_order);
+    }
+
+    public function payBalance(Request $request, PurchaseOrder $purchase_order)
+    {
+        $this->authorize('approve', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'method' => 'nullable|string|max:50',
+            'reference' => 'nullable|string|max:100',
+        ]);
+
+        try {
+            $purchase_order = $this->depositService->recordBalancePayment(
+                $purchase_order,
+                (float) $validated['amount'],
+                $validated['method'] ?? null,
+                $validated['reference'] ?? null,
+                auth()->id(),
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return new PurchaseOrderResource($purchase_order);
     }
 }

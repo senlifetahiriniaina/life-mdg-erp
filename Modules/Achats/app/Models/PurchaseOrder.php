@@ -74,6 +74,11 @@ class PurchaseOrder extends Model
         'created_by',
         // Chantier 19: this module had no company scoping at all.
         'company_id',
+        // Chantier 22 (volet B — cycle acompte/solde).
+        'deposit_percent',
+        'deposit_required_amount',
+        'deposit_invoice_id',
+        'balance_invoice_id',
     ];
 
     protected $casts = [
@@ -85,7 +90,11 @@ class PurchaseOrder extends Model
         'tax_amount' => 'decimal:4',
         'shipping_cost' => 'decimal:4',
         'total' => 'decimal:4',
+        'deposit_percent' => 'decimal:2',
+        'deposit_required_amount' => 'decimal:2',
     ];
+
+    protected $appends = ['payment_stage'];
 
     public function supplier(): BelongsTo
     {
@@ -140,6 +149,43 @@ class PurchaseOrder extends Model
     public function budgetAllocation(): HasOne
     {
         return $this->hasOne(PoBudgetAllocation::class, 'purchase_order_id');
+    }
+
+    public function depositInvoice(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\Accounting\Models\Invoice::class, 'deposit_invoice_id');
+    }
+
+    public function balanceInvoice(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\Accounting\Models\Invoice::class, 'balance_invoice_id');
+    }
+
+    /**
+     * Same derivation logic as Modules\Sales\Models\SalesOrder — see its
+     * own docblock. Deliberately duplicated rather than shared, matching
+     * this app's established precedent of duplicating small per-module
+     * logic (e.g. currency conversion) rather than a cross-module trait.
+     */
+    public function getPaymentStageAttribute(): string
+    {
+        $deposit = $this->depositInvoice;
+        $balance = $this->balanceInvoice;
+
+        if ($balance !== null && (float) $balance->amount_paid >= (float) $balance->total && (float) $balance->total > 0) {
+            return 'paid_in_full';
+        }
+        if ($balance !== null) {
+            return 'balance_invoiced';
+        }
+        if ($deposit !== null && (float) $deposit->amount_paid >= (float) $deposit->total && (float) $deposit->total > 0) {
+            return 'deposit_paid';
+        }
+        if ($deposit !== null) {
+            return 'deposit_invoiced';
+        }
+
+        return 'none';
     }
 
     public function scopeDraft(Builder $query): Builder

@@ -26,7 +26,10 @@ class PurchaseOrderController extends Controller
         // API-layer fix.
         abort_unless($purchase_order->company_id === request()->user()?->company_id, 404);
 
-        $purchase_order->load(['supplier', 'lines', 'requester', 'approver', 'approval.hierarchy.levels', 'approval.actions.approver']);
+        // Chantier 22 (volet B): depositInvoice/balanceInvoice eager-loaded
+        // so the Show.vue deposit/balance panel doesn't need a second
+        // round trip just to display each invoice's amount/status.
+        $purchase_order->load(['supplier', 'lines', 'requester', 'approver', 'approval.hierarchy.levels', 'approval.actions.approver', 'depositInvoice', 'balanceInvoice']);
 
         return Inertia::render('Achats/PurchaseOrders/Show', [
             'purchaseOrder' => array_merge($purchase_order->toArray(), [

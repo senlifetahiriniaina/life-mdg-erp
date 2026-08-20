@@ -29,6 +29,19 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:S
     Route::post('sales/orders/{id}/cancel', [SalesController::class, 'cancelOrder'])
         ->name('sales.orders.cancel');
 
+    // ─── Chantier 22 (volet B) — cycle acompte/solde ──────────────────────────
+    Route::post('sales/orders/{id}/deposit/request', [SalesController::class, 'requestDeposit'])
+        ->name('sales.orders.deposit.request');
+
+    Route::post('sales/orders/{id}/deposit/pay', [SalesController::class, 'payDeposit'])
+        ->name('sales.orders.deposit.pay');
+
+    Route::post('sales/orders/{id}/balance/request', [SalesController::class, 'requestBalance'])
+        ->name('sales.orders.balance.request');
+
+    Route::post('sales/orders/{id}/balance/pay', [SalesController::class, 'payBalance'])
+        ->name('sales.orders.balance.pay');
+
     // ─── Quotations ────────────────────────────────────────────────────────────
     Route::get('sales/quotations', [SalesController::class, 'indexQuotations'])
         ->name('sales.quotations.index');
