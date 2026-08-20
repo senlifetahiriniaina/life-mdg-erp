@@ -63,4 +63,8 @@ Route::middleware(['auth', 'module:Inventory'])->group(function () {
     Route::get('/costing-sheets', fn () => Inertia::render('Inventory/CostingSheets/Index'))->name('costing-sheets.index');
     Route::get('/costing-sheets/create', fn () => Inertia::render('Inventory/CostingSheets/Form'))->name('costing-sheets.create');
     Route::get('/costing-sheets/{costingSheet}/edit', fn ($costingSheet) => Inertia::render('Inventory/CostingSheets/Form', ['costingSheetId' => (int) $costingSheet]))->name('costing-sheets.edit');
+
+    // Chantier 23 (volet C): commandes de production simplifiées — page
+    // self-contained list+modal-CRUD, même précédent que Categories/Index.vue.
+    Route::get('/production-orders', fn () => Inertia::render('Inventory/ProductionOrders/Index'))->name('production-orders.index');
 });

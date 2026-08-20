@@ -12,7 +12,10 @@
             Nomenclature de coût (matière + accessoires + main-d'œuvre + frais fixes) pour chiffrer un article avant devis client.
           </p>
         </div>
-        <Button icon="pi pi-plus" label="Nouvelle fiche" @click="router.visit('/inventory/costing-sheets/create')" />
+        <div class="flex gap-2">
+          <Button icon="pi pi-cog" label="Commandes de production" severity="secondary" outlined @click="router.visit('/inventory/production-orders')" />
+          <Button icon="pi pi-plus" label="Nouvelle fiche" @click="router.visit('/inventory/costing-sheets/create')" />
+        </div>
       </div>
 
       <div class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 flex gap-3 items-center">

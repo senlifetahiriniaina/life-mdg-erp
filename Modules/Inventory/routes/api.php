@@ -323,3 +323,21 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
             ->name('inventory.costing-sheets.duplicate');
     });
 });
+
+// ── Chantier 23 (volet C): commandes de production simplifiées ────────────
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
+    Route::get('production-orders', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'index'])
+        ->name('inventory.production-orders.index');
+    Route::get('production-orders/{productionOrder}', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'show'])
+        ->name('inventory.production-orders.show');
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('production-orders', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'store'])
+            ->name('inventory.production-orders.store');
+        Route::match(['put', 'patch'], 'production-orders/{productionOrder}', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'update'])
+            ->name('inventory.production-orders.update');
+        Route::delete('production-orders/{productionOrder}', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'destroy'])
+            ->name('inventory.production-orders.destroy');
+        Route::post('production-orders/{productionOrder}/transition', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'transition'])
+            ->name('inventory.production-orders.transition');
+    });
+});
