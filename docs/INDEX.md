@@ -2,6 +2,8 @@
 
 Documentation technique de life-mdg-erp, adaptée depuis celle de Widehalo-ERP et widehalo-erp-core, réduite au périmètre des 27 modules retenus pour le lancement de Life MDG. Voir aussi `CLAUDE.md` (périmètre exact, décisions de trim, gaps connus) et `README.md` (démarrage rapide) à la racine.
 
+- [**Catalogue des fonctionnalités**](CATALOGUE-FONCTIONNALITES.md) — vue commerciale/produit de ce que l'application permet de faire, module par module, avec une roadmap des extensions futures (base de contenu pour le site web commercial)
+
 ## 01 — Démarrage
 
 - [Installation](01-DEMARRAGE/01-installation.md)
