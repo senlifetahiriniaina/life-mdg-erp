@@ -330,6 +330,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         ->name('inventory.production-orders.index');
     Route::get('production-orders/{productionOrder}', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'show'])
         ->name('inventory.production-orders.show');
+    // Chantier 24 (volet D): traçabilité bout-en-bout.
+    Route::get('production-orders/{productionOrder}/trace', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'trace'])
+        ->name('inventory.production-orders.trace');
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('production-orders', [\Modules\Inventory\Http\Controllers\Api\ProductionOrderController::class, 'store'])
             ->name('inventory.production-orders.store');

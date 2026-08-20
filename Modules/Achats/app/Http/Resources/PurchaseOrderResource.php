@@ -61,6 +61,8 @@ class PurchaseOrderResource extends JsonResource
             'deposit_invoice_id' => $this->deposit_invoice_id,
             'balance_invoice_id' => $this->balance_invoice_id,
             'payment_stage' => $this->payment_stage,
+            // Chantier 24 (volet D — traçabilité bout-en-bout).
+            'production_order_id' => $this->production_order_id,
         ];
     }
 }

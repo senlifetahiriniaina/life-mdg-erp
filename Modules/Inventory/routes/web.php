@@ -67,4 +67,9 @@ Route::middleware(['auth', 'module:Inventory'])->group(function () {
     // Chantier 23 (volet C): commandes de production simplifiées — page
     // self-contained list+modal-CRUD, même précédent que Categories/Index.vue.
     Route::get('/production-orders', fn () => Inertia::render('Inventory/ProductionOrders/Index'))->name('production-orders.index');
+
+    // Chantier 24 (volet D): traçabilité bout-en-bout — self-fetch page,
+    // même précédent que /stock/movements.
+    Route::get('/production-orders/{productionOrder}/trace', fn ($productionOrder) => Inertia::render('Inventory/ProductionOrders/Trace', ['productionOrderId' => (int) $productionOrder]))
+        ->name('production-orders.trace');
 });

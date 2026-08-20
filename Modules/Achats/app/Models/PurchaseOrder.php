@@ -79,6 +79,9 @@ class PurchaseOrder extends Model
         'deposit_required_amount',
         'deposit_invoice_id',
         'balance_invoice_id',
+        // Chantier 24 (volet D — traçabilité bout-en-bout). Lien souple,
+        // pas de contrainte FK — voir la migration pour le rationnel.
+        'production_order_id',
     ];
 
     protected $casts = [

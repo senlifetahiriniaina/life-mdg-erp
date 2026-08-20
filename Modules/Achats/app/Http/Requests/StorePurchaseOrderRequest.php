@@ -20,6 +20,10 @@ class StorePurchaseOrderRequest extends FormRequest
             'currency' => 'nullable|string|size:3',
             'shipping_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            // Chantier 24 (volet D — traçabilité bout-en-bout) : lien
+            // souple, pas de exists: contre inventory_production_orders,
+            // pour ne pas coupler la validation Achats à Inventory.
+            'production_order_id' => 'nullable|integer',
             // Chantier 10: PurchaseOrders/Form.vue always submits a `lines`
             // array in the same request body as the PO header — these rules
             // were previously entirely absent, so `lines` silently vanished

@@ -11,6 +11,7 @@ use Modules\Inventory\Http\Requests\StoreProductionOrderRequest;
 use Modules\Inventory\Http\Requests\UpdateProductionOrderRequest;
 use Modules\Inventory\Models\ProductionOrder;
 use Modules\Inventory\Services\ProductionOrderService;
+use Modules\Inventory\Services\TraceabilityService;
 
 /**
  * Chantier 23 (volet C de la feuille de route Chantier 21) — commande de
@@ -21,8 +22,10 @@ class ProductionOrderController extends Controller
 {
     private const WITH = ['costingSheet:id,reference,name', 'subcontractor:id,name'];
 
-    public function __construct(private readonly ProductionOrderService $service)
-    {
+    public function __construct(
+        private readonly ProductionOrderService $service,
+        private readonly TraceabilityService $traceability,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
@@ -86,5 +89,12 @@ class ProductionOrderController extends Controller
         }
 
         return response()->json(['data' => $order->load(self::WITH)]);
+    }
+
+    public function trace(ProductionOrder $productionOrder): JsonResponse
+    {
+        $this->authorize('view', $productionOrder);
+
+        return response()->json(['data' => $this->traceability->build($productionOrder)]);
     }
 }

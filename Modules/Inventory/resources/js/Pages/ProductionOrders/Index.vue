@@ -50,6 +50,13 @@
             <template #body="{ data }">
               <div class="flex gap-2 items-center">
                 <Button
+                  icon="pi pi-sitemap"
+                  text
+                  size="small"
+                  title="Traçabilité"
+                  @click="router.visit(`/inventory/production-orders/${data.id}/trace`)"
+                />
+                <Button
                   v-if="nextStatus(data.status)"
                   size="small"
                   :label="`→ ${statusLabel(nextStatus(data.status))}`"
