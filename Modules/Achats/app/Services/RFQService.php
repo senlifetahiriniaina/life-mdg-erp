@@ -70,6 +70,9 @@ class RFQService
                 'quote_number' => $this->generateQuoteNumber(),
                 'status' => 'draft',
                 'created_by' => auth()->id(),
+                // Chantier 19: a quote has no independent tenant identity —
+                // inherits its parent RFQ's company.
+                'company_id' => $rfq->company_id,
             ]);
         }
 
@@ -84,6 +87,7 @@ class RFQService
                 'status' => 'submitted',
                 'quote_number' => $this->generateQuoteNumber(),
                 'created_by' => auth()->id(),
+                'company_id' => $rfq->company_id,
             ])
         );
 

@@ -42,7 +42,9 @@ class SharedAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19 Lot 3: phantom users.role column fix (see
+            // APIAiAssistController's identical fix for the full rationale).
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

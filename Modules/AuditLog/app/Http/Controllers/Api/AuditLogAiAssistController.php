@@ -44,7 +44,11 @@ class AuditLogAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()->role ?? 'user',
+            // Chantier 19 Lot 3: same phantom `users.role` bug fixed
+            // identically on the sibling AI/Security AI-assist controllers
+            // in this same pass — `role` is never populated by the real
+            // registration flow (real RBAC is Spatie roles).
+            userRole: $request->user()->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

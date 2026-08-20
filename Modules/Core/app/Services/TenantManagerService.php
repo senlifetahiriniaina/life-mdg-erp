@@ -483,11 +483,30 @@ class TenantManagerService
         // Enrich with timezone and locale (not in SmartDefaultsService yet)
         $extra = self::COUNTRY_EXTRA[strtoupper($countryCode)] ?? self::COUNTRY_EXTRA['SN'];
 
+        // Chantier 19 Lot 3: SmartDefaultsService::getDefaults() returns
+        // camelCase keys only (taxRate/paymentMethods/accountingStd/
+        // fiscalYearStart/mobileCountryCode — confirmed empirically via a
+        // real GET /api/v1/core/defaults call) — this method's own docblock
+        // promises a snake_case return shape (tax_rate/payment_methods/
+        // fiscal_year_start/tax_label/mobile_country_code), but only
+        // accounting_std/accounting_standard were ever actually aliased.
+        // provision() below reads $defaults['payment_methods'] and
+        // $defaults['tax_rate'] directly — both were always undefined,
+        // fataling every single real POST /api/v1/superadmin/tenants call
+        // with "Undefined array key" (confirmed via a real HTTP request),
+        // not a hypothetical gap. Added the missing aliases to match the
+        // documented contract, rather than patching provision()'s two call
+        // sites in isolation and leaving the same trap for the next reader.
         return array_merge($base, [
-            'locale'             => $extra['locale'],
-            'timezone'           => $extra['timezone'],
-            'accounting_std'     => $base['accountingStd'],
-            'accounting_standard'=> $base['accountingStd'],
+            'locale'               => $extra['locale'],
+            'timezone'             => $extra['timezone'],
+            'accounting_std'       => $base['accountingStd'],
+            'accounting_standard'  => $base['accountingStd'],
+            'tax_rate'             => $base['taxRate'],
+            'tax_label'            => $base['taxLabel'],
+            'payment_methods'      => $base['paymentMethods'],
+            'fiscal_year_start'    => $base['fiscalYearStart'],
+            'mobile_country_code'  => $base['mobileCountryCode'],
         ]);
     }
 

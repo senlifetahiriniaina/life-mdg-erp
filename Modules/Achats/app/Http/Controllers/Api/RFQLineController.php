@@ -4,6 +4,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Models\RFQ;
 use Modules\Achats\Models\RFQLine;
 use Modules\Achats\Services\RFQService;
@@ -15,10 +16,14 @@ use Modules\Achats\Services\RFQService;
  */
 class RFQLineController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected RFQService $service) {}
 
-    public function index(RFQ $rfq)
+    public function index(Request $request, RFQ $rfq)
     {
+        $this->assertSameCompany($request, $rfq);
+
         return $rfq->lines()->get();
     }
 
@@ -31,6 +36,8 @@ class RFQLineController extends Controller
      */
     public function store(Request $request, RFQ $rfq)
     {
+        $this->assertSameCompany($request, $rfq);
+
         $data = $request->validate([
             'product_id' => 'nullable|exists:inventory_products,id',
             'description' => 'required|string',
@@ -46,8 +53,10 @@ class RFQLineController extends Controller
         return response()->json($line, 201);
     }
 
-    public function show(RFQ $rfq, RFQLine $rfq_line)
+    public function show(Request $request, RFQ $rfq, RFQLine $rfq_line)
     {
+        $this->assertSameCompany($request, $rfq);
+
         return $rfq_line;
     }
 
@@ -60,6 +69,8 @@ class RFQLineController extends Controller
      */
     public function update(Request $request, RFQ $rfq, RFQLine $rfq_line)
     {
+        $this->assertSameCompany($request, $rfq);
+
         abort_if(! $rfq->isDraft(), 422, 'Cannot update lines on a non-draft RFQ');
 
         $data = $request->validate([
@@ -81,8 +92,10 @@ class RFQLineController extends Controller
      * Chantier 10: was a stub. Wired onto the real
      * RFQService::removeLineFromRFQ().
      */
-    public function destroy(RFQ $rfq, RFQLine $rfq_line)
+    public function destroy(Request $request, RFQ $rfq, RFQLine $rfq_line)
     {
+        $this->assertSameCompany($request, $rfq);
+
         $this->service->removeLineFromRFQ($rfq_line);
 
         return response()->noContent();

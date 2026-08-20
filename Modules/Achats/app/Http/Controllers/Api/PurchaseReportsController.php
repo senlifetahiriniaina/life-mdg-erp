@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Accounting\Models\Invoice;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\Supplier;
 
@@ -17,17 +18,24 @@ use Modules\Achats\Models\Supplier;
  */
 class PurchaseReportsController extends Controller
 {
+    use ScopesToCompany;
+
     /**
      * Real spend aggregation for the SpendAnalytics dashboard: total spend,
      * spend broken down by supplier (Achats has no product-category taxonomy
      * on POs, so "by category" is reconciled to "by supplier"), and a
      * monthly trend — all off real, non-cancelled PurchaseOrder totals.
+     *
+     * Chantier 19: had zero company scoping — every tenant's spend
+     * dashboard silently aggregated every other company's purchase orders
+     * too.
      */
     public function spending(Request $request)
     {
         [$start, $end] = $this->resolvePeriod($request->get('period', 'ytd'));
 
-        $baseQuery = PurchaseOrder::whereNotIn('status', ['cancelled', 'rejected', 'draft'])
+        $baseQuery = PurchaseOrder::where('company_id', $this->companyId($request))
+            ->whereNotIn('status', ['cancelled', 'rejected', 'draft'])
             ->whereBetween('order_date', [$start, $end]);
 
         $totalSpend = (float) (clone $baseQuery)->sum('total');
@@ -47,16 +55,23 @@ class PurchaseReportsController extends Controller
             ])
             ->values();
 
+        // Chantier 19: `DATE_FORMAT()` is MySQL-only — this endpoint had
+        // never been exercised by any test before this chantier, so it went
+        // undetected that every real call would fatal under this app's
+        // sqlite dev/CI/test driver (confirmed empirically writing the
+        // regression test below). Grouped in PHP instead, portable across
+        // both drivers this app actually runs on.
         $monthlyTrend = (clone $baseQuery)
-            ->select(DB::raw("DATE_FORMAT(order_date, '%Y-%m') as ym"), DB::raw('SUM(total) as amount'))
-            ->groupBy('ym')
-            ->orderBy('ym')
-            ->get()
-            ->map(fn ($row) => ['month' => $row->ym, 'amount' => (float) $row->amount])
+            ->get(['order_date', 'total'])
+            ->groupBy(fn ($po) => \Illuminate\Support\Carbon::parse($po->order_date)->format('Y-m'))
+            ->map(fn ($rows, $ym) => ['month' => $ym, 'amount' => (float) $rows->sum('total')])
+            ->sortKeys()
             ->values();
 
-        $activeSuppliers = Supplier::where('is_active', true)->count();
-        $newSuppliers = Supplier::where('is_active', true)
+        $activeSuppliers = Supplier::where('company_id', $this->companyId($request))
+            ->where('is_active', true)->count();
+        $newSuppliers = Supplier::where('company_id', $this->companyId($request))
+            ->where('is_active', true)
             ->whereBetween('created_at', [$start, $end])
             ->count();
 
@@ -70,9 +85,10 @@ class PurchaseReportsController extends Controller
         ]);
     }
 
-    public function pendingReceipts()
+    public function pendingReceipts(Request $request)
     {
-        $pos = PurchaseOrder::where('status', 'approved')
+        $pos = PurchaseOrder::where('company_id', $this->companyId($request))
+            ->where('status', 'approved')
             ->whereDoesntHave('receipt')
             ->with('supplier')
             ->get();

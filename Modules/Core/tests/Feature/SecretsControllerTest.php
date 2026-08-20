@@ -97,4 +97,81 @@ class SecretsControllerTest extends TestCase
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['scopes.1']);
     }
+
+    /**
+     * Chantier 19 Lot 3: empirical re-verification of the Chantier 10
+     * cross-tenant fix (SecretsService::getTenantId() -> company_id, no
+     * X-Tenant-ID header fallback) — the fix was code-read-verified before
+     * but never actually exercised over the real HTTP route with two real
+     * companies. Confirmed still correct here.
+     */
+    public function test_secret_created_by_one_company_is_invisible_to_another()
+    {
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+
+        $companyA = \App\Models\Company::create(['name' => 'SecretsCo A', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+        $companyB = \App\Models\Company::create(['name' => 'SecretsCo B', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+
+        $userA = $this->actingAsUser('admin');
+        $userA->forceFill(['company_id' => $companyA->id])->save();
+
+        $this->actingAs($userA, 'sanctum')->postJson('/api/v1/secrets', [
+            'name' => 'xtenant_secret',
+            'value' => 'company_a_value',
+            'type' => 'api_key',
+        ])->assertCreated();
+
+        $userB = \App\Models\User::factory()->create(['company_id' => $companyB->id]);
+        $userB->assignRole('admin');
+
+        // Company B's admin cannot see it in their list, and a direct GET by
+        // name 404s the underlying secret entirely (real isolation, not just
+        // an authorization denial that would leak existence).
+        $list = $this->actingAs($userB, 'sanctum')->getJson('/api/v1/secrets');
+        $list->assertOk();
+        $names = collect($list->json('data'))->pluck('name');
+        expect($names)->not->toContain('xtenant_secret');
+
+        $show = $this->actingAs($userB, 'sanctum')->getJson('/api/v1/secrets/xtenant_secret');
+        $show->assertStatus(403);
+    }
+
+    /**
+     * Chantier 19 Lot 3: real bug found via empirical execution — the
+     * secrets routes' own route-level gate is
+     * `role:security-admin,admin,super-admin` (routes/secrets.php), and
+     * that file's own docblock names security-admin as this vault's
+     * intended day-to-day operator, but
+     * SecretAccessControl::canAccessSecret()'s admin bypass only checked
+     * `hasRole(['admin', 'super-admin'])` — a security-admin who created a
+     * secret through this very route could not then retrieve, rotate, or
+     * revoke that same secret (every one of those calls denied with 403),
+     * since storing a secret never self-grants access and role-based access
+     * fell through to nothing. Confirmed via tinker before the fix, fixed
+     * in SecretAccessControl::canAccessSecret()/grantSecretAccess().
+     */
+    public function test_security_admin_can_retrieve_a_secret_they_just_created()
+    {
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'security-admin', 'guard_name' => 'web']);
+        $user = \App\Models\User::factory()->create();
+        $user->forceFill([
+            'two_factor_enabled' => true,
+            'google2fa_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+        $user->assignRole('security-admin');
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/secrets', [
+            'name' => 'secadmin_http_secret',
+            'value' => 'sk_owned_by_secadmin',
+            'type' => 'api_key',
+        ])->assertCreated();
+
+        $show = $this->actingAs($user, 'sanctum')->getJson('/api/v1/secrets/secadmin_http_secret');
+        $show->assertOk();
+        $show->assertJsonPath('data.value', 'sk_owned_by_secadmin');
+
+        $rotate = $this->actingAs($user, 'sanctum')->putJson('/api/v1/secrets/secadmin_http_secret/rotate', []);
+        $rotate->assertOk();
+    }
 }

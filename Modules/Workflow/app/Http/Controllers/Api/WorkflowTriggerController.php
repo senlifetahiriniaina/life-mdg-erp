@@ -85,7 +85,12 @@ class WorkflowTriggerController extends Controller
 
         $perPage = min((int) ($request->per_page ?? 20), 100);
 
+        // Chantier 19 Lot 3: had zero tenant scoping at all despite
+        // wfd_executions carrying a real tenant_id column — any caller
+        // could read every company's trigger execution history for a given
+        // key. Scoped to match every other query in this controller/module.
         $executions = WorkflowExecution::query()
+            ->where('tenant_id', (int) ($request->user()?->company_id ?? 0))
             ->where('trigger_key', $request->key)
             ->latest()
             ->paginate($perPage);
@@ -98,7 +103,10 @@ class WorkflowTriggerController extends Controller
      */
     public function listeners(Request $request, string $key): JsonResponse
     {
-        $tenantId   = $request->user()?->tenant_id ?? 1;
+        // Chantier 19 Lot 3: was `$request->user()?->tenant_id ?? 1` — the
+        // same phantom-column bug already fixed 3 lines above in fire(),
+        // just missed here. Fixed to match.
+        $tenantId   = (int) ($request->user()?->company_id ?? 0);
         $workflows  = WorkflowDefinition::forTenant($tenantId)
             ->where('trigger_key', $key)
             ->get();

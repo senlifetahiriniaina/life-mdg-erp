@@ -199,6 +199,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const supplier = ref({})
@@ -230,16 +231,8 @@ const formatDate = (date) => {
 
 const loadSupplier = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      supplier.value = await response.json()
-    } else {
-      error.value = 'Failed to load supplier'
-    }
+    const { data } = await axios.get(`/api/v1/achats/suppliers/${routeId.value}`)
+    supplier.value = data
   } catch (err) {
     console.error('Failed to load supplier:', err)
     error.value = 'An error occurred while loading the supplier'
@@ -250,31 +243,25 @@ const loadSupplier = async () => {
 
 const loadMetrics = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}/performance`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      metrics.value = data.metrics || {}
-    }
+    const { data } = await axios.get(`/api/v1/achats/suppliers/${routeId.value}/performance`)
+    metrics.value = data.metrics || {}
   } catch (err) {
     console.error('Failed to load metrics:', err)
   }
 }
 
+// Chantier 19: this used to call `suppliers/{id}/quotes` (SupplierQuote
+// records — rfq_id/unit_price/total_price) while labeling the section
+// "Recent Purchase Orders" and reading `order.po_number`/`order.order_date`/
+// `order.total` — fields that don't exist on a quote at all, so the table
+// always rendered blank. Repointed to the real purchase-orders endpoint,
+// filtered to this supplier.
 const loadRecentOrders = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}/quotes`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
+    const { data } = await axios.get('/api/v1/achats/purchase-orders', {
+      params: { supplier_id: routeId.value, per_page: 5 },
     })
-    if (response.ok) {
-      const data = await response.json()
-      recentOrders.value = (data.data || []).slice(0, 5)
-    }
+    recentOrders.value = (data.data || []).slice(0, 5)
   } catch (err) {
     console.error('Failed to load recent orders:', err)
   }
@@ -284,15 +271,8 @@ const deleteSupplier = async () => {
   if (!confirm('Are you sure you want to delete this supplier?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      window.location.href = '/suppliers'
-    }
+    await axios.delete(`/api/v1/achats/suppliers/${routeId.value}`)
+    window.location.href = '/suppliers'
   } catch (err) {
     console.error('Failed to delete supplier:', err)
     error.value = 'Failed to delete supplier'

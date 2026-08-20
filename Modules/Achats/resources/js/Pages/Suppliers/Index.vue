@@ -119,6 +119,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 
 const suppliers = ref([])
 const loading = ref(false)
@@ -132,21 +133,19 @@ const filters = ref({
 const loadSuppliers = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({
+    const params = {
       page: currentPage.value,
       per_page: 15,
       search: search.value,
-    })
-    if (filters.isActive) {
-      params.append('is_active', filters.isActive)
+    }
+    // Chantier 19: was reading `filters.isActive` directly on the ref
+    // object instead of `filters.value.isActive` — always undefined, so
+    // the Active/Inactive dropdown silently had no effect on the list.
+    if (filters.value.isActive) {
+      params.is_active = filters.value.isActive
     }
 
-    const response = await fetch(`/api/v1/achats/suppliers?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const data = await response.json()
+    const { data } = await axios.get('/api/v1/achats/suppliers', { params })
     suppliers.value = data.data
     pagination.value = data.meta
   } catch (error) {
@@ -160,15 +159,8 @@ const deleteSupplier = async (id) => {
   if (!confirm('Are you sure you want to delete this supplier?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      loadSuppliers()
-    }
+    await axios.delete(`/api/v1/achats/suppliers/${id}`)
+    loadSuppliers()
   } catch (error) {
     console.error('Failed to delete supplier:', error)
   }

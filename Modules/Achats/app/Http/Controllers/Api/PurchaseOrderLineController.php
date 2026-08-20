@@ -5,6 +5,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\PurchaseOrderLine;
 use Modules\Achats\Services\PurchaseOrderService;
@@ -25,11 +26,14 @@ use Modules\Achats\Services\PurchaseOrderService;
 class PurchaseOrderLineController extends Controller
 {
     use AuthorizesRequests;
+    use ScopesToCompany;
 
     public function __construct(protected PurchaseOrderService $service) {}
 
-    public function index(PurchaseOrder $purchase_order)
+    public function index(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         return $purchase_order->lines()->get();
     }
 
@@ -42,6 +46,7 @@ class PurchaseOrderLineController extends Controller
     public function store(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('create', PurchaseOrderLine::class);
+        $this->assertSameCompany($request, $purchase_order);
 
         $data = $request->validate([
             'product_id' => 'nullable|exists:inventory_products,id',
@@ -57,8 +62,10 @@ class PurchaseOrderLineController extends Controller
         return response()->json($line, 201);
     }
 
-    public function show(PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line)
+    public function show(Request $request, PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         return $purchase_order_line;
     }
 
@@ -73,6 +80,7 @@ class PurchaseOrderLineController extends Controller
     public function update(Request $request, PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line)
     {
         $this->authorize('update', $purchase_order_line);
+        $this->assertSameCompany($request, $purchase_order);
 
         abort_if(! $purchase_order->isDraft(), 422, 'Cannot update lines on a non-draft purchase order');
 
@@ -97,9 +105,10 @@ class PurchaseOrderLineController extends Controller
     /**
      * Chantier 10: was a stub.
      */
-    public function destroy(PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line)
+    public function destroy(Request $request, PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line)
     {
         $this->authorize('delete', $purchase_order_line);
+        $this->assertSameCompany($request, $purchase_order);
 
         abort_if(! $purchase_order->isDraft(), 422, 'Cannot remove lines from a non-draft purchase order');
 

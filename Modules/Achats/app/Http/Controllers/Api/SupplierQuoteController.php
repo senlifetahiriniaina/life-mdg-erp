@@ -5,6 +5,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Models\RFQ;
 use Modules\Achats\Models\SupplierQuote;
 use Modules\Achats\Services\RFQService;
@@ -17,6 +18,7 @@ use Modules\Achats\Services\RFQService;
 class SupplierQuoteController extends Controller
 {
     use AuthorizesRequests;
+    use ScopesToCompany;
 
     public function __construct(protected RFQService $service) {}
 
@@ -24,10 +26,14 @@ class SupplierQuoteController extends Controller
      * Chantier 10: was a literal "// Implementation to follow" stub
      * returning null on every call — GET supplier-quotes never actually
      * listed anything.
+     *
+     * Chantier 19: had zero company scoping — any authenticated user could
+     * list every other company's quotes.
      */
     public function index(Request $request)
     {
-        $query = SupplierQuote::with(['rfq', 'supplier']);
+        $query = SupplierQuote::with(['rfq', 'supplier'])
+            ->where('company_id', $this->companyId($request));
 
         if ($request->filled('rfq_id')) {
             $query->where('rfq_id', $request->rfq_id);
@@ -44,9 +50,10 @@ class SupplierQuoteController extends Controller
         return $query->latest()->paginate($request->get('per_page', 15));
     }
 
-    public function show(SupplierQuote $supplier_quote)
+    public function show(Request $request, SupplierQuote $supplier_quote)
     {
         $this->authorize('view', $supplier_quote);
+        $this->assertSameCompany($request, $supplier_quote);
 
         return $supplier_quote->load(['rfq', 'supplier']);
     }
@@ -62,6 +69,7 @@ class SupplierQuoteController extends Controller
     public function store(Request $request, RFQ $rfq)
     {
         $this->authorize('create', SupplierQuote::class);
+        $this->assertSameCompany($request, $rfq);
 
         $supplierId = (int) $request->route('supplier');
 
@@ -78,18 +86,20 @@ class SupplierQuoteController extends Controller
         return response()->json($quote->load(['rfq', 'supplier']), 201);
     }
 
-    public function accept(SupplierQuote $supplier_quote)
+    public function accept(Request $request, SupplierQuote $supplier_quote)
     {
         $this->authorize('update', $supplier_quote);
+        $this->assertSameCompany($request, $supplier_quote);
 
         $this->service->selectWinningQuote($supplier_quote);
 
         return $supplier_quote->refresh();
     }
 
-    public function reject(SupplierQuote $supplier_quote)
+    public function reject(Request $request, SupplierQuote $supplier_quote)
     {
         $this->authorize('update', $supplier_quote);
+        $this->assertSameCompany($request, $supplier_quote);
 
         $this->service->rejectQuote($supplier_quote, 'Rejected');
 

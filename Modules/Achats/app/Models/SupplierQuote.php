@@ -51,6 +51,9 @@ class SupplierQuote extends Model
         'validity_date',
         'status',
         'created_by',
+        // Chantier 19: populated from the parent RFQ's company at creation
+        // time — a quote has no independent tenant identity of its own.
+        'company_id',
     ];
 
     protected $casts = [

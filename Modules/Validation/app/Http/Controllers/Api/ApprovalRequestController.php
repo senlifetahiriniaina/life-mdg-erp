@@ -128,8 +128,18 @@ class ApprovalRequestController extends Controller
         return $approval_request->refresh();
     }
 
+    /**
+     * Chantier 19 Lot 3: index()/show() were already gated by
+     * ApprovalRequestPolicy (Chantier 8.5sv), but history() — a sibling
+     * endpoint exposing the exact same requester/approver/reason detail —
+     * had zero authorize() call at all. Any authenticated user could read
+     * any approval request's full decision history by id, bypassing the
+     * view() ability entirely. Fixed to match show()'s existing gate.
+     */
     public function history(ApprovalRequest $approval_request)
     {
+        $this->authorize('view', $approval_request);
+
         return $approval_request->history()->get();
     }
 }

@@ -50,20 +50,41 @@ class Setting extends Model
      * Boot tenant scope: automatically filter by the authenticated user's
      * company_id when present, but allow null tenant_id rows through as well
      * (global settings).
+     *
+     * Chantier 19 Lot 3: this and the 3 sibling methods below (get()/set()/
+     * SettingsService::currentTenantId()) all resolved the tenant boundary
+     * as `auth()?->user()?->company_id ?? request()?->header('X-Company-ID')`
+     * — the exact client-controlled-header IDOR pattern already fixed for
+     * Setup's identical vulnerability in Chantier 8.5sv ("since company_id
+     * is commonly null for ordinary users, the client-controlled header
+     * fallback was reached in the common case"). Any authenticated user
+     * whose own company_id is null (an unprovisioned/newly-registered
+     * account) could set `X-Company-ID: <victim>` to read or write another
+     * company's settings. This scope had a second, independent bug on top
+     * of that: when no tenant id resolved at all (no header, no real
+     * company_id), the `if ($tenantId)` guard skipped adding any filter
+     * whatsoever, returning every tenant's every setting completely
+     * unfiltered to such a caller — worse than the header override, since
+     * it needed no attacker action at all. Fixed to drop the header
+     * fallback entirely and to always filter to tenant-or-global rows
+     * (falling back to global-only when there is no real tenant), matching
+     * the already-correct pattern SettingsService::getModule() uses inline.
      */
     protected static function boot(): void
     {
         parent::boot();
 
         static::addGlobalScope('tenant', function (Builder $builder) {
-            $tenantId = auth()?->user()?->company_id ?? request()?->header('X-Company-ID');
+            $tenantId = auth()?->user()?->company_id;
 
-            if ($tenantId) {
-                $builder->where(function (Builder $q) use ($tenantId) {
+            $builder->where(function (Builder $q) use ($tenantId) {
+                if ($tenantId) {
                     $q->where('tenant_id', $tenantId)
                       ->orWhereNull('tenant_id');
-                });
-            }
+                } else {
+                    $q->whereNull('tenant_id');
+                }
+            });
         });
 
         static::creating(function (self $model) {
@@ -117,7 +138,10 @@ class Setting extends Model
             ->where('module', $module)
             ->where('key', $key)
             ->where(function (Builder $q) {
-                $tenantId = auth()?->user()?->company_id ?? request()?->header('X-Company-ID');
+                // Chantier 19 Lot 3: dropped the client-controlled
+                // X-Company-ID header fallback — see boot()'s docblock
+                // above for the full rationale.
+                $tenantId = auth()?->user()?->company_id;
                 if ($tenantId) {
                     $q->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
                 } else {
@@ -139,7 +163,11 @@ class Setting extends Model
      */
     public static function set(string $module, string $key, mixed $value): void
     {
-        $tenantId  = auth()?->user()?->company_id ?? request()?->header('X-Company-ID');
+        // Chantier 19 Lot 3: dropped the client-controlled X-Company-ID
+        // header fallback — see boot()'s docblock above for the full
+        // rationale. This is the write path, so it was the more severe of
+        // the two static-method instances of this bug.
+        $tenantId  = auth()?->user()?->company_id;
         $valueType = match (true) {
             is_bool($value)  => 'boolean',
             is_int($value)   => 'integer',

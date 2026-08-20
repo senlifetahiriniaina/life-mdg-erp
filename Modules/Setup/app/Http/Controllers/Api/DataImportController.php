@@ -48,7 +48,6 @@ class DataImportController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'file'      => 'required|file|mimes:xlsx,xls,csv,pdf,txt|max:51200',
-            'tenant_id' => 'nullable|string|max:64',
         ]);
 
         if ($validator->fails()) {
@@ -132,7 +131,6 @@ class DataImportController extends Controller
             'mapping'   => 'required|array|min:1',
             'mapping.*.source' => 'required|string',
             'mapping.*.target' => 'required|string',
-            'tenant_id' => 'nullable|string|max:64',
         ]);
 
         if ($validator->fails()) {
@@ -203,19 +201,24 @@ class DataImportController extends Controller
     // Helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: was `$request->input('tenant_id') ?: ($user->tenant_id
+     * ?? 'default')` — two compounding bugs. First, a fully client-controlled
+     * `tenant_id` request field was trusted outright (any authenticated user
+     * could set `tenant_id` to a victim tenant's id and analyze/import into
+     * their bucket) — the same client-controlled-override IDOR pattern already
+     * fixed for Projects' `ProjectAdvancedController::store()` (Chantier 10)
+     * and IntegrationController (Chantier 8.5-light). Second, the fallback read
+     * `users.tenant_id`, the well-documented phantom column (real DB column,
+     * never in `User::$fillable`, never populated by any real registration
+     * path — see SetupController::tenantId()'s docblock in this same module
+     * for the full investigation), collapsing every tenant that hit the
+     * fallback into one shared `'default'` bucket. Both closed: the tenant is
+     * now derived solely from the authenticated user's real `company_id`,
+     * matching every other tenant-scoping helper in this module.
+     */
     private function resolveTenantId(Request $request): string
     {
-        // Try explicit param, then auth user's tenant, then default
-        $tenantId = $request->input('tenant_id');
-        if ($tenantId) {
-            return $tenantId;
-        }
-
-        $user = $request->user();
-        if ($user && isset($user->tenant_id)) {
-            return (string) $user->tenant_id;
-        }
-
-        return 'default';
+        return (string) ($request->user()?->company_id ?? 0);
     }
 }

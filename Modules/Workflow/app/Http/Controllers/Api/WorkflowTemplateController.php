@@ -7,7 +7,11 @@ namespace Modules\Workflow\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Workflow\Models\AutomationFlowTemplate;
+// Chantier 19 Lot 3: was `use Modules\Workflow\Models\AutomationFlowTemplate;`
+// — same fatal class-not-found bug as WorkflowScheduleController (see its
+// own docblock), the real model is one namespace level deeper. Dormant only
+// because this controller also has zero routes registered anywhere.
+use Modules\Workflow\Models\Automation\AutomationFlowTemplate;
 
 /**
  * @group Workflow - Templates
@@ -95,7 +99,10 @@ class WorkflowTemplateController extends Controller
      */
     public function apply(Request $request, AutomationFlowTemplate $template): JsonResponse
     {
-        $tenantId = $request->user()?->tenant_id ?? 1;
+        // Chantier 19 Lot 3: was `$request->user()?->tenant_id ?? 1` — the
+        // phantom tenant_id column, matching every other tenantId() fix in
+        // this module.
+        $tenantId = (int) ($request->user()?->company_id ?? 0);
         $userId   = $request->user()?->id;
 
         $flow = $template->instantiateForTenant($tenantId, $userId);

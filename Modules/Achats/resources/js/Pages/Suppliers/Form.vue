@@ -286,6 +286,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const isEditing = computed(() => !!routeId.value)
@@ -318,15 +319,8 @@ const loadSupplier = async () => {
   if (!isEditing.value) return
 
   try {
-    const response = await fetch(`/api/v1/achats/suppliers/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      Object.assign(form.value, data)
-    }
+    const { data } = await axios.get(`/api/v1/achats/suppliers/${routeId.value}`)
+    Object.assign(form.value, data)
   } catch (error) {
     console.error('Failed to load supplier:', error)
     submitError.value = 'Failed to load supplier data'
@@ -342,31 +336,22 @@ const handleSubmit = async () => {
     const url = isEditing.value
       ? `/api/v1/achats/suppliers/${routeId.value}`
       : '/api/v1/achats/suppliers'
-    const method = isEditing.value ? 'PATCH' : 'POST'
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(form.value)
-    })
-
-    if (!response.ok) {
-      const data = await response.json()
-      if (data.errors) {
-        errors.value = data.errors
-      } else {
-        submitError.value = data.message || 'Failed to save supplier'
-      }
-      return
+    if (isEditing.value) {
+      await axios.patch(url, form.value)
+    } else {
+      await axios.post(url, form.value)
     }
 
     window.location.href = '/suppliers'
   } catch (error) {
     console.error('Failed to save supplier:', error)
-    submitError.value = 'An error occurred while saving'
+    const data = error.response?.data
+    if (data?.errors) {
+      errors.value = data.errors
+    } else {
+      submitError.value = data?.message || 'An error occurred while saving'
+    }
   } finally {
     loading.value = false
   }

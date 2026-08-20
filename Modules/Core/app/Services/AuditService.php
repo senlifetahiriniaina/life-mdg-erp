@@ -26,6 +26,7 @@ class AuditService
         $subjectId   = null;
         $userName    = null;
         $userRole    = null;
+        $companyId   = null;
 
         if ($subject !== null) {
             $subjectType = get_class($subject);
@@ -33,15 +34,38 @@ class AuditService
         }
 
         if ($userId !== null) {
-            $user     = User::find($userId);
-            $userName = $user?->name;
-            $userRole = $user?->getRoleNames()->first();
+            $user      = User::find($userId);
+            $userName  = $user?->name;
+            $userRole  = $user?->getRoleNames()->first();
+            $companyId = $user?->company_id;
         }
+
+        // Chantier 19 Lot 3: this generic, DI-injected logger — called
+        // throughout the app, including several sites inside this very
+        // module (SecretsService::storeSecret/rotateSecret/revokeSecret,
+        // SecretAccessControl::grantSecretAccess/revokeSecretAccess/
+        // generateApiKey/revokeApiKey, TenantManagerService's own
+        // provision/suspend/reactivate/... audit trail) — never set
+        // company_id at all, unlike the other 3 real writers this app's
+        // audit trail relies on (RecordsActivity, the root AuditableActions
+        // trait, AuditAuthListener), all fixed in Chantier 8.5-light. Every
+        // entry logged through this path landed with company_id NULL,
+        // invisible under GET /api/v1/audit-logs' `where('company_id', ...)`
+        // filter for every company — confirmed empirically via a real
+        // AuditService::log() call whose row came back with a NULL
+        // company_id instead of the acting user's real one. Falls back to
+        // the currently-authenticated actor when no $userId was resolved
+        // (matching AuditableActions'/RecordsActivity's own
+        // auth()->user()?->company_id ?? 0 convention) rather than leaving
+        // it null, since a null company_id is functionally indistinguishable
+        // from "belongs to no company" for the controller's int-keyed filter.
+        $companyId ??= auth()->user()?->company_id;
 
         return AuditLog::create([
             'user_id'      => $userId,
             'user_name'    => $userName,
             'user_role'    => $userRole,
+            'company_id'   => $companyId ?? 0,
             'action'       => $action,
             'module'       => $module ?? ($subject !== null ? $this->inferModule($subject) : null),
             'event_type'   => $eventType ?? $action,

@@ -27,9 +27,7 @@
           >
             <option value="">All Statuses</option>
             <option value="draft">Draft</option>
-            <option value="issued">Issued</option>
-            <option value="quotes_received">Quotes Received</option>
-            <option value="evaluated">Evaluated</option>
+            <option value="sent">Sent</option>
             <option value="closed">Closed</option>
           </select>
           <div></div>
@@ -62,9 +60,9 @@
           </tr>
           <tr v-for="rfq in rfqs" :key="rfq.id" class="border-b border-gray-200 dark:border-surface-700 hover:bg-gray-50 dark:bg-surface-800 dark:bg-surface-800">
             <td class="px-6 py-4 text-sm font-mono font-medium text-surface-900 dark:text-surface-50">{{ rfq.rfq_number }}</td>
-            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ rfq.item_description }}</td>
+            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ rfq.description }}</td>
             <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ formatDate(rfq.issued_date) }}</td>
-            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ formatDate(rfq.response_deadline) }}</td>
+            <td class="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{{ formatDate(rfq.deadline_date) }}</td>
             <td class="px-6 py-4 text-sm">
               <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 {{ rfq.quotes_count || 0 }}
@@ -95,7 +93,7 @@
                 Issue
               </button>
               <button
-                v-if="rfq.status === 'quotes_received'"
+                v-if="rfq.status === 'sent'"
                 @click="evaluateQuotes(rfq.id)"
                 class="text-violet-700 dark:text-violet-300 hover:underline"
               >
@@ -135,6 +133,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 
 const rfqs = ref([])
 const loading = ref(false)
@@ -145,20 +144,20 @@ const filters = ref({
   status: ''
 })
 
+// Chantier 19: RFQService only ever sets `draft`/`sent`/`closed` (issueRFQ()/
+// closeRfq()) — `issued`/`quotes_received`/`evaluated` were never real
+// values, so the "Compare Quotes" action could never appear after issuing
+// a real RFQ (its status becomes `sent`, which matched none of these).
 const statusClasses = {
   draft: 'bg-surface-100 dark:bg-surface-700 text-surface-900 dark:text-surface-100',
-  issued: 'bg-blue-100 text-blue-800',
-  quotes_received: 'bg-purple-100 text-purple-800',
-  evaluated: 'bg-yellow-100 text-yellow-800',
+  sent: 'bg-blue-100 text-blue-800',
   closed: 'bg-green-100 text-green-800'
 }
 
 const formatStatus = (status) => {
   const statusMap = {
     draft: 'Draft',
-    issued: 'Issued',
-    quotes_received: 'Quotes Received',
-    evaluated: 'Evaluated',
+    sent: 'Sent',
     closed: 'Closed'
   }
   return statusMap[status] || status
@@ -175,21 +174,19 @@ const formatDate = (date) => {
 const loadRFQs = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({
+    const params = {
       page: currentPage.value,
       per_page: 15,
       search: search.value,
-    })
-    if (filters.status) {
-      params.append('status', filters.status)
+    }
+    // Chantier 19: was reading `filters.status` on the ref object itself
+    // instead of `filters.value.status` — always undefined, so the status
+    // dropdown silently had no effect on the list.
+    if (filters.value.status) {
+      params.status = filters.value.status
     }
 
-    const response = await fetch(`/api/v1/achats/rfqs?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const data = await response.json()
+    const { data } = await axios.get('/api/v1/achats/rfqs', { params })
     rfqs.value = data.data
     pagination.value = data.meta
   } catch (error) {
@@ -199,22 +196,22 @@ const loadRFQs = async () => {
   }
 }
 
+// Documented gap (Chantier 19): RFQController::issue() requires a real
+// `supplier_ids` array, but neither this list page nor RFQs/Show.vue's own
+// "Issue RFQ" button collects one — RFQs/Form.vue's create-time supplier
+// picker is deliberately not wired to this endpoint either (see that
+// controller's own docblock). Every click here will 422 until a supplier
+// picker is built for this action — surfacing the failure rather than
+// inventing that UI here.
 const issueRFQ = async (id) => {
   if (!confirm('Issue this RFQ to suppliers?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${id}/issue`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      loadRFQs()
-    }
+    await axios.post(`/api/v1/achats/rfqs/${id}/issue`)
+    loadRFQs()
   } catch (error) {
     console.error('Failed to issue RFQ:', error)
+    alert(error.response?.data?.message || 'Failed to issue RFQ — no suppliers selected.')
   }
 }
 

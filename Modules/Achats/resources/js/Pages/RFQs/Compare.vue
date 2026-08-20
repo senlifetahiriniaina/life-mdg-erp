@@ -145,14 +145,14 @@
         <div class="flex gap-3">
           <button
             @click="acceptQuote(selectedQuote.id)"
-            :disabled="selectedQuote.status !== 'pending' || actioning"
+            :disabled="selectedQuote.status !== 'submitted' || actioning"
             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
           >
             {{ actioning ? 'Processing...' : 'Accept Quote' }}
           </button>
           <button
             @click="rejectQuote(selectedQuote.id)"
-            :disabled="selectedQuote.status !== 'pending' || actioning"
+            :disabled="selectedQuote.status !== 'submitted' || actioning"
             class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
           >
             {{ actioning ? 'Processing...' : 'Reject Quote' }}
@@ -194,6 +194,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const rfq = ref({})
@@ -203,15 +204,18 @@ const loading = ref(true)
 const actioning = ref(false)
 const error = ref('')
 
+// Chantier 19: real SupplierQuote statuses are `submitted` (set by
+// RFQService::recordSupplierQuote() — the DB column's `pending` default is
+// never actually used by any real write path) then `accepted`/`rejected`.
 const quoteStatusClasses = {
-  pending: 'bg-yellow-100 text-yellow-800',
+  submitted: 'bg-yellow-100 text-yellow-800',
   accepted: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800'
 }
 
 const formatQuoteStatus = (status) => {
   const statusMap = {
-    pending: 'Pending',
+    submitted: 'Submitted',
     accepted: 'Accepted',
     rejected: 'Rejected'
   }
@@ -251,7 +255,7 @@ const fastestDelivery = computed(() => {
 })
 
 const pendingQuotesCount = computed(() => {
-  return quotes.value.filter(q => q.status === 'pending').length
+  return quotes.value.filter(q => q.status === 'submitted').length
 })
 
 const acceptedQuotesCount = computed(() => {
@@ -260,20 +264,11 @@ const acceptedQuotesCount = computed(() => {
 
 const loadRFQAndQuotes = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      rfq.value = data
-      quotes.value = data.quotes || []
-      if (quotes.value.length > 0) {
-        selectedQuote.value = quotes.value[0]
-      }
-    } else {
-      error.value = 'Failed to load RFQ and quotes'
+    const { data } = await axios.get(`/api/v1/achats/rfqs/${routeId.value}`)
+    rfq.value = data
+    quotes.value = data.quotes || []
+    if (quotes.value.length > 0) {
+      selectedQuote.value = quotes.value[0]
     }
   } catch (err) {
     console.error('Failed to load RFQ:', err)
@@ -292,18 +287,8 @@ const acceptQuote = async (quoteId) => {
     // `rfqs/{id}/accept-quote` endpoint that doesn't exist anywhere in
     // routes/api.php. The real, already-working equivalent is
     // SupplierQuoteController::accept() -> RFQService::selectWinningQuote().
-    const response = await fetch(`/api/v1/achats/supplier-quotes/${quoteId}/accept`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      loadRFQAndQuotes()
-    } else {
-      error.value = 'Failed to accept quote'
-    }
+    await axios.post(`/api/v1/achats/supplier-quotes/${quoteId}/accept`)
+    loadRFQAndQuotes()
   } catch (err) {
     console.error('Failed to accept quote:', err)
     error.value = 'An error occurred while accepting the quote'
@@ -319,18 +304,8 @@ const rejectQuote = async (quoteId) => {
   try {
     // Chantier 10: same fix as acceptQuote() above — real equivalent is
     // SupplierQuoteController::reject() -> RFQService::rejectQuote().
-    const response = await fetch(`/api/v1/achats/supplier-quotes/${quoteId}/reject`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      loadRFQAndQuotes()
-    } else {
-      error.value = 'Failed to reject quote'
-    }
+    await axios.post(`/api/v1/achats/supplier-quotes/${quoteId}/reject`)
+    loadRFQAndQuotes()
   } catch (err) {
     console.error('Failed to reject quote:', err)
     error.value = 'An error occurred while rejecting the quote'

@@ -60,14 +60,30 @@ class AiAnomalyDetectionService
         // Real table is `inventory_products` (not bare `products`), and stock
         // quantity lives on the separate `inventory_stock` table (per-warehouse
         // rows), not a `stock_quantity` column on the product itself — this join
-        // sums quantity across all warehouses. `inventory_products.tenant_id` is
-        // a real, populated column (see `ProductController::store()`), unlike
-        // several other modules' phantom tenant_id columns in this app.
+        // sums quantity across all warehouses.
+        //
+        // Chantier 19 Lot 3: this method's own prior comment claimed
+        // `inventory_products.tenant_id` was "a real, populated column (see
+        // ProductController::store())" — false, confirmed empirically (every
+        // real row has it NULL). `ProductController::store()` actually sets it
+        // from `auth()->user()->tenant_id`, this app's well-documented phantom
+        // column (real DB column, never in `User::$fillable`, never populated
+        // by the real registration flow). The result: this filter compared a
+        // real int `$tenantId` (`company_id`) against a column that's always
+        // NULL, so `checkInventoryAnomalies()` silently returned zero rows for
+        // every tenant regardless of real low-stock data — confirmed by
+        // creating a genuinely low-stock product the same way the real write
+        // path does (tenant_id null) and observing 0 anomalies returned.
+        // `inventory_products` has no `company_id` column at all (only the
+        // dead `tenant_id`), so there is no real per-tenant column to filter on
+        // here today — dropped the filter entirely, matching the identical,
+        // already-documented precedent set by the accounting/HR checks below
+        // in this same file (both explicitly don't filter by tenant for the
+        // same reason) rather than leaving this one check silently dead.
         try {
             /** @var \Illuminate\Database\Eloquent\Collection $products */
             $products = \DB::table('inventory_products')
                 ->join('inventory_stock', 'inventory_stock.product_id', '=', 'inventory_products.id')
-                ->where('inventory_products.tenant_id', $tenantId)
                 ->where('inventory_products.is_active', true)
                 ->groupBy('inventory_products.id', 'inventory_products.name', 'inventory_products.reorder_point')
                 ->havingRaw('SUM(inventory_stock.quantity) <= inventory_products.reorder_point')

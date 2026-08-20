@@ -72,6 +72,8 @@ class PurchaseOrder extends Model
         'rejected_by',
         'rejected_at',
         'created_by',
+        // Chantier 19: this module had no company scoping at all.
+        'company_id',
     ];
 
     protected $casts = [

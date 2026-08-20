@@ -4,6 +4,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Models\RFQ;
 use Modules\Achats\Services\RFQService;
 
@@ -14,6 +15,8 @@ use Modules\Achats\Services\RFQService;
  */
 class RFQController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected RFQService $service) {}
 
     /**
@@ -26,7 +29,10 @@ class RFQController extends Controller
      */
     public function index(Request $request)
     {
+        // Chantier 19: had zero company scoping — any authenticated user
+        // could list every other company's RFQs.
         $paginator = RFQ::query()
+            ->where('company_id', $this->companyId($request))
             ->latest()
             ->paginate($request->get('per_page', 15));
 
@@ -74,6 +80,7 @@ class RFQController extends Controller
         $lines = $data['lines'] ?? [];
         unset($data['lines']);
         $data['created_by'] = auth()->id();
+        $data['company_id'] = $this->companyId($request);
 
         $rfq = $this->service->createRFQ($data);
 
@@ -84,9 +91,11 @@ class RFQController extends Controller
         return response()->json($rfq->load('lines'), 201);
     }
 
-    public function show(RFQ $rfq)
+    public function show(Request $request, RFQ $rfq)
     {
-        return $rfq->load(['lines', 'quotes']);
+        $this->assertSameCompany($request, $rfq);
+
+        return $rfq->load(['lines', 'quotes.supplier']);
     }
 
     /**
@@ -97,6 +106,8 @@ class RFQController extends Controller
      */
     public function update(Request $request, RFQ $rfq)
     {
+        $this->assertSameCompany($request, $rfq);
+
         $data = $request->validate([
             'description' => 'nullable|string',
             'required_by_date' => 'sometimes|date',
@@ -128,6 +139,8 @@ class RFQController extends Controller
 
     public function issue(Request $request, RFQ $rfq)
     {
+        $this->assertSameCompany($request, $rfq);
+
         $data = $request->validate([
             'supplier_ids' => 'required|array|min:1',
             'supplier_ids.*' => 'exists:achats_suppliers,id',
@@ -138,15 +151,19 @@ class RFQController extends Controller
         return $rfq->fresh();
     }
 
-    public function closeRfq(RFQ $rfq)
+    public function closeRfq(Request $request, RFQ $rfq)
     {
+        $this->assertSameCompany($request, $rfq);
+
         $this->service->closeRFQ($rfq);
 
         return $rfq;
     }
 
-    public function comparison(RFQ $rfq)
+    public function comparison(Request $request, RFQ $rfq)
     {
+        $this->assertSameCompany($request, $rfq);
+
         $comparison = $this->service->getQuoteComparison($rfq);
 
         return response()->json($comparison);

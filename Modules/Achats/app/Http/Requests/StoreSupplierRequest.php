@@ -24,7 +24,14 @@ class StoreSupplierRequest extends FormRequest
             'country' => 'nullable|string|max:100',
             'tax_number' => 'nullable|string|max:50',
             'currency' => 'nullable|string|size:3',
-            'payment_terms' => 'nullable|string',
+            // Chantier 19: Suppliers/Form.vue's field defaults to (and its
+            // `type="number"` input sends) a real JSON number — `nullable|
+            // string` rejected it (Laravel's `string` rule is `is_string()`,
+            // which a decoded JSON int fails), so every real supplier
+            // creation/update with the default 30-day value 422'd. The
+            // column itself (`achats_suppliers.payment_terms`) is a plain
+            // string, so either shape stores fine; no type rule needed.
+            'payment_terms' => 'nullable',
             'lead_time_days' => 'nullable|integer|min:1',
         ];
     }

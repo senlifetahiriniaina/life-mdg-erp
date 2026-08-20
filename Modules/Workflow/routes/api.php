@@ -139,6 +139,28 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:W
     // Modules/Projects and Modules/Validation respectively.
 });
 
+// Chantier 19 Lot 3: AutomationFlowController (n8n-like flow/node CRUD +
+// execution + webhook trigger, its own docblock lists the full intended
+// route set), WorkflowScheduleController (cron-based flow scheduling via
+// FlowSchedulerService), and WorkflowTemplateController (template CRUD +
+// apply-to-flow) are all real, fully-written, and back real, live models
+// (AutomationFlow/AutomationNode/AutomationFlowTemplate, used by the tested
+// FlowExecutionEngine) — but none has ever had a route registered anywhere
+// in this file, and none has a test or a real Vue consumer
+// (AIWorkflowBuilder/Index.vue and RPA/Index.vue, the two pages that would
+// naturally call this, are both already documented as 100% mock with zero
+// fetch calls). A real fatal class-not-found bug in
+// WorkflowScheduleController/WorkflowTemplateController and a header-based
+// tenant IDOR in AutomationFlowController (plus a phantom-tenant_id bug in
+// WorkflowTemplateController::apply()) were all fixed in place (see each
+// controller's own docblock) since they're landmines regardless of routing
+// status, but
+// wiring these up into full routes + RBAC + a real Vue builder UI is a
+// genuinely separate, feature-sized effort (matching the scale of the BI
+// 5-orphan-subsystem build-out, not a routing fix) — left as a documented
+// gap rather than attempted half-built under this pass's re-verification
+// scope.
+
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/workflow')->group(function () {
     Route::post('ai/assist', [\Modules\Workflow\Http\Controllers\Api\WorkflowAiAssistController::class, 'assist'])

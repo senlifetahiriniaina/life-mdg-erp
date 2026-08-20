@@ -42,7 +42,13 @@ class APIAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19 Lot 3: the phantom users.role column (real DB
+            // column, never in User::$fillable, never populated) was always
+            // null here, silently defeating the AI-assist tone/depth logic
+            // for every user of every role — same bug class already fixed
+            // in Sales/HR/Payroll/Calendar/Projects/Setup/Timesheets/
+            // Workflow's own AI-assist controllers elsewhere this session.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

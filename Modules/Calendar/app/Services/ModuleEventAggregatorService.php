@@ -62,21 +62,29 @@ class ModuleEventAggregatorService
     // HR: approved leaves
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: queried `hr_leaves`, a table that has never existed
+     * in this app — confirmed via `Schema::hasTable()` — the real table is
+     * `hr_leave_requests`. Silently degraded to 0 events on every call
+     * (caught by aggregateForUser()'s own try/catch), invisible because it
+     * never threw — this "HR Congés" module calendar has never once shown
+     * a real leave, confirmed empirically.
+     */
     private function importHrLeaves(int $userId): int
     {
-        if (! Schema::hasTable('hr_leaves')) {
+        if (! Schema::hasTable('hr_leave_requests')) {
             return 0;
         }
 
         $calendar = $this->getOrCreateModuleCalendar($userId, 'HR Congés', '#8B5CF6', 'hr_leaves');
         $synced   = 0;
 
-        $leaves = DB::table('hr_leaves')
-            ->join('hr_employees', 'hr_leaves.employee_id', '=', 'hr_employees.id')
+        $leaves = DB::table('hr_leave_requests')
+            ->join('hr_employees', 'hr_leave_requests.employee_id', '=', 'hr_employees.id')
             ->where('hr_employees.user_id', $userId)
-            ->where('hr_leaves.status', 'approved')
-            ->whereNotNull('hr_leaves.start_date')
-            ->select('hr_leaves.*', 'hr_employees.first_name', 'hr_employees.last_name')
+            ->where('hr_leave_requests.status', 'approved')
+            ->whereNotNull('hr_leave_requests.start_date')
+            ->select('hr_leave_requests.*', 'hr_employees.first_name', 'hr_employees.last_name')
             ->get();
 
         foreach ($leaves as $leave) {
@@ -108,17 +116,25 @@ class ModuleEventAggregatorService
     // Projects: tasks with due dates
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: queried `project_tasks` (real table: `prj_tasks`)
+     * filtered by an `assigned_to` column that doesn't exist either (real
+     * column: `assignee_id`) — a compounding, guaranteed-empty bug: even a
+     * naive table-name-only fix would have kept silently failing on the
+     * column mismatch (caught by the same outer try/catch, still 0 rows,
+     * still invisible). Confirmed both against `Schema::getColumnListing()`.
+     */
     private function importProjectTasks(int $userId): int
     {
-        if (! Schema::hasTable('project_tasks')) {
+        if (! Schema::hasTable('prj_tasks')) {
             return 0;
         }
 
         $calendar = $this->getOrCreateModuleCalendar($userId, 'Tâches Projets', '#0EA5E9', 'project_tasks');
         $synced   = 0;
 
-        $tasks = DB::table('project_tasks')
-            ->where('assigned_to', $userId)
+        $tasks = DB::table('prj_tasks')
+            ->where('assignee_id', $userId)
             ->whereNotNull('due_date')
             ->whereIn('status', ['todo', 'in_progress', 'review'])
             ->select('id', 'title', 'due_date', 'status', 'project_id')
@@ -196,28 +212,43 @@ class ModuleEventAggregatorService
     // Strategy: plan milestones
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: queried `strategy_kros` for `name`/`target_date`/
+     * `status` columns — `strategy_kros` (Key Result Objectives, per
+     * CLAUDE.md's own Strategy model table: "linking objectives to KPIs")
+     * is a pure numeric target/baseline/current tracker with no name or
+     * date of its own at all (confirmed via `Schema::getColumnListing()` —
+     * its real columns are `objective_id, kpi_id, target, baseline,
+     * current, weight`), so this was a guaranteed "unknown column" SQL
+     * error on every call, silently swallowed. The real dated, titled,
+     * status-bearing entity for "plan milestones" is `StrategyObjective`
+     * (table `strategy_objectives` — has `title`/`end_date`/`status`, and
+     * is the actual OKR-tree node this feature was describing). Rewired
+     * onto the real model rather than guessing new columns onto the wrong
+     * one.
+     */
     private function importStrategyMilestones(int $userId): int
     {
-        if (! Schema::hasTable('strategy_kros')) {
+        if (! Schema::hasTable('strategy_objectives')) {
             return 0;
         }
 
         $calendar = $this->getOrCreateModuleCalendar($userId, 'Jalons Stratégiques', '#10B981', 'strategy_milestones');
         $synced   = 0;
 
-        $kros = DB::table('strategy_kros')
-            ->whereNotNull('target_date')
+        $objectives = DB::table('strategy_objectives')
+            ->whereNotNull('end_date')
             ->where('status', '!=', 'completed')
-            ->select('id', 'name', 'target_date', 'status')
+            ->select('id', 'title', 'end_date', 'status')
             ->get();
 
-        foreach ($kros as $kro) {
-            $date = Carbon::parse($kro->target_date);
+        foreach ($objectives as $objective) {
+            $date = Carbon::parse($objective->end_date);
 
             CalendarEvent::updateOrCreate(
-                ['module_type' => 'KRO', 'module_id' => $kro->id, 'calendar_id' => $calendar->id],
+                ['module_type' => 'StrategyObjective', 'module_id' => $objective->id, 'calendar_id' => $calendar->id],
                 [
-                    'title'      => "Jalon: {$kro->name}",
+                    'title'      => "Jalon: {$objective->title}",
                     'start_at'   => $date->startOfDay(),
                     'end_at'     => $date->endOfDay(),
                     'all_day'    => true,
@@ -238,6 +269,23 @@ class ModuleEventAggregatorService
     // Manufacturing: production orders
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: queried `manufacturing_orders`, a table that has
+     * never existed (real leftover table: `mfg_production_orders`) —
+     * confirmed, but deliberately NOT fixed to point at it. Manufacturing
+     * is explicitly excluded from Life MDG's 27-module scope (see
+     * CLAUDE.md's "Scope: 27 modules" section); `mfg_production_orders` is
+     * itself only a dead-but-kept leftover table with no real writer in
+     * this app, read solely by Strategy's KPIRegistryService for a TRS/
+     * defect-rate ratio — already flagged in CLAUDE.md's Chantier 9 entry
+     * as an unresolved "Manufacturing-only ratios were dropped" doc/code
+     * discrepancy, deliberately left rather than silently fixed. Wiring
+     * this reader up to that same phantom table would mean building new
+     * Calendar integration for a module this app doesn't ship, matching
+     * neither of this session's "fix a real live bug" or "wire up a real
+     * unrouted feature" precedents — left silently degrading (returns 0)
+     * exactly as it already does, same as every module this app excludes.
+     */
     private function importManufacturingOrders(int $userId): int
     {
         if (! Schema::hasTable('manufacturing_orders')) {
@@ -280,9 +328,18 @@ class ModuleEventAggregatorService
     // Accounting: payment dues, tax deadlines
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: queried `accounting_invoices`, a table that has
+     * never existed (real table: `acc_invoices` — the identical wrong-name
+     * mistake already documented and fixed once in this exact spot for
+     * Setup's `ImportDataJob::entityToTable()`, apparently made
+     * independently a second time here) with a `total_amount` column that
+     * doesn't exist either (real: `total`). Silently 0 events on every
+     * call, confirmed via `Schema::hasTable()`/`getColumnListing()`.
+     */
     private function importAccountingDeadlines(int $userId): int
     {
-        if (! Schema::hasTable('accounting_invoices')) {
+        if (! Schema::hasTable('acc_invoices')) {
             return 0;
         }
 
@@ -290,11 +347,11 @@ class ModuleEventAggregatorService
         $synced   = 0;
 
         // Overdue/upcoming invoices
-        $invoices = DB::table('accounting_invoices')
+        $invoices = DB::table('acc_invoices')
             ->whereNotNull('due_date')
             ->whereIn('status', ['sent', 'partial'])
             ->where('due_date', '<=', now()->addDays(30))
-            ->select('id', 'number', 'due_date', 'total_amount', 'currency', 'status')
+            ->select('id', 'number', 'due_date', 'total', 'currency', 'status')
             ->get();
 
         foreach ($invoices as $invoice) {

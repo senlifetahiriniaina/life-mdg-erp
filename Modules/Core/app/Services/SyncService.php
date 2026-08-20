@@ -148,7 +148,19 @@ class SyncService
 
     private function resolveModel(string $entityType): string
     {
-        // Map entity_type slugs to model classes
+        // Map entity_type slugs to model classes.
+        //
+        // Chantier 19 Lot 3: dropped 'pos_order'/'pos_order_item' —
+        // \Modules\POS doesn't exist anywhere in this repo (POS is not part
+        // of Life MDG's 27-module scope, see CLAUDE.md's scope table), so
+        // both entries always referenced a nonexistent class. The
+        // `class_exists()` guard right after this map already turned that
+        // into a clean "Unknown entity type" RuntimeException rather than a
+        // hard crash, so this was never a live 500-on-every-call bug like
+        // the AI module's identical dead-POS-reference cleanup elsewhere
+        // this session — just confirmed-dead map entries no real offline
+        // client could ever legitimately send, removed to match that same
+        // precedent rather than left as noise.
         $map = [
             'crm_contact' => \Modules\CRM\Models\Contact::class,
             'crm_lead' => \Modules\CRM\Models\Lead::class,
@@ -156,8 +168,6 @@ class SyncService
             'inventory_product' => \Modules\Inventory\Models\Product::class,
             'inventory_movement' => \Modules\Inventory\Models\StockMovement::class,
             'hr_employee' => \Modules\HR\Models\Employee::class,
-            'pos_order' => \Modules\POS\Models\PosOrder::class,
-            'pos_order_item' => \Modules\POS\Models\PosOrderItem::class,
             'helpdesk_ticket' => \Modules\Helpdesk\Models\Ticket::class,
             'project_task' => \Modules\Projects\Models\Task::class,
         ];

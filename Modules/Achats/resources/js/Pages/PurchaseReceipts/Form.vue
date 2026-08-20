@@ -252,6 +252,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const isEditing = ref(!!routeId.value)
@@ -281,12 +282,9 @@ const formatDate = (date) => {
 
 const loadPurchaseOrders = async () => {
   try {
-    const response = await fetch('/api/v1/achats/purchase-orders?status=approved&per_page=999', {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
+    const { data } = await axios.get('/api/v1/achats/purchase-orders', {
+      params: { status: 'approved', per_page: 999 },
     })
-    const data = await response.json()
     purchaseOrders.value = data.data
   } catch (error) {
     console.error('Failed to load POs:', error)
@@ -301,12 +299,7 @@ const loadPODetails = async () => {
   }
 
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${form.value.purchase_order_id}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const po = await response.json()
+    const { data: po } = await axios.get(`/api/v1/achats/purchase-orders/${form.value.purchase_order_id}`)
     selectedPO.value = po
     form.value.lines = po.lines.map(line => ({
       po_line_id: line.id,
@@ -318,6 +311,42 @@ const loadPODetails = async () => {
   } catch (error) {
     console.error('Failed to load PO details:', error)
     submitError.value = 'Failed to load PO details'
+  }
+}
+
+// Chantier 19: this method never existed at all — editing a receipt always
+// started from a blank form (empty lines, no purchase_order_id), so saving
+// an "edit" silently created a brand-new, unrelated line set via
+// loadPODetails()'s zeroed-out quantities rather than showing what was
+// actually already received. Loads the real receipt, then reuses
+// loadPODetails() (which itself derives from `Ordered` qty) as a base and
+// overlays the real recorded quantity_received/quality_status per line.
+const loadReceipt = async () => {
+  if (!isEditing.value) return
+
+  try {
+    const { data } = await axios.get(`/api/v1/achats/purchase-receipts/${routeId.value}`)
+    form.value.receipt_number = data.receipt_number
+    form.value.purchase_order_id = data.purchase_order_id
+    form.value.receipt_date = data.receipt_date
+    form.value.notes = data.notes
+
+    await loadPODetails()
+
+    const recorded = new Map((data.lines || []).map((l) => [l.purchase_order_line_id, l]))
+    form.value.lines = form.value.lines.map((line) => {
+      const existing = recorded.get(line.po_line_id)
+      if (!existing) return line
+      return {
+        ...line,
+        quantity_received: existing.quantity_received,
+        variance: existing.variance,
+        quality_status: existing.quality_status,
+      }
+    })
+  } catch (error) {
+    console.error('Failed to load receipt:', error)
+    submitError.value = 'Failed to load receipt data'
   }
 }
 
@@ -359,37 +388,29 @@ const handleSubmit = async () => {
     const url = isEditing.value
       ? `/api/v1/achats/purchase-receipts/${routeId.value}`
       : '/api/v1/achats/purchase-receipts'
-    const method = isEditing.value ? 'PATCH' : 'POST'
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(form.value)
-    })
-
-    if (!response.ok) {
-      const data = await response.json()
-      if (data.errors) {
-        errors.value = data.errors
-      } else {
-        submitError.value = data.message || 'Failed to save receipt'
-      }
-      return
+    if (isEditing.value) {
+      await axios.patch(url, form.value)
+    } else {
+      await axios.post(url, form.value)
     }
 
     window.location.href = '/purchase-receipts'
   } catch (error) {
     console.error('Failed to save receipt:', error)
-    submitError.value = 'An error occurred while saving'
+    const data = error.response?.data
+    if (data?.errors) {
+      errors.value = data.errors
+    } else {
+      submitError.value = data?.message || 'An error occurred while saving'
+    }
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  loadPurchaseOrders()
+onMounted(async () => {
+  await loadPurchaseOrders()
+  await loadReceipt()
 })
 </script>

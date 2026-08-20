@@ -24,6 +24,22 @@ use Throwable;
  * Step 4 → POST /workflows      — workflow config
  * Step 5 → POST /apps           — app config
  * Step 6 → POST /complete       — finalize wizard
+ *
+ * Chantier 19 Lot 3: every tenantId() lookup below used to read
+ * `$request->user()->tenant_id ?? 'default'` — the well-documented
+ * phantom `users.tenant_id` column (real DB column, never in
+ * `User::$fillable`, never populated by any real registration path —
+ * see SetupController::tenantId()'s docblock in this same module for
+ * the full investigation). Every company that ever hit the fallback
+ * (i.e. every company, since the column is never populated) silently
+ * collapsed the entire 6-step onboarding wizard's draft state — company
+ * profile, admin, module selection, workflow config, app config — into
+ * one shared 'default' bucket, meaning Company A's onboarding wizard
+ * could read/overwrite Company B's in-progress wizard state. Fixed to
+ * derive the tenant from the user's real `company_id`, matching
+ * AdminCompanyController/AdminModulesController/SetupController's
+ * already-fixed pattern in this same module — this controller was
+ * simply missed by that earlier pass.
  */
 class SetupWizardController extends Controller
 {
@@ -38,7 +54,7 @@ class SetupWizardController extends Controller
 
     public function getState(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $state = $this->wizardService->getState($tenantId);
 
@@ -72,7 +88,7 @@ class SetupWizardController extends Controller
             'vat_number'        => 'nullable|string|max:50',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $profile = $this->wizardService->saveCompany($tenantId, $validated);
 
@@ -95,7 +111,7 @@ class SetupWizardController extends Controller
             'timezone' => 'nullable|string|max:100',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
         $userId   = $request->user()->id;
 
         $this->wizardService->saveAdmin($tenantId, $validated, $userId);
@@ -118,7 +134,7 @@ class SetupWizardController extends Controller
             'modules.*' => 'required|string|max:100',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $this->wizardService->saveModules($tenantId, $validated['modules']);
 
@@ -141,7 +157,7 @@ class SetupWizardController extends Controller
             'notification_channels.*'=> 'string|in:email,sms,whatsapp,push',
         ]);
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $this->wizardService->saveWorkflows($tenantId, $validated);
 
@@ -174,7 +190,7 @@ class SetupWizardController extends Controller
             }
         }
 
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $this->wizardService->saveApps($tenantId, $validated['apps']);
 
@@ -191,7 +207,7 @@ class SetupWizardController extends Controller
 
     public function complete(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         try {
             $profile = $this->wizardService->complete($tenantId);
@@ -215,7 +231,7 @@ class SetupWizardController extends Controller
 
     public function getModuleCatalog(Request $request): JsonResponse
     {
-        $tenantId = $request->user()->tenant_id ?? 'default';
+        $tenantId = (string) ($request->user()->company_id ?? 0);
 
         $catalog = $this->moduleManager->getAll($tenantId);
 

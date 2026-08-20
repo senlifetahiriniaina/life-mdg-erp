@@ -62,6 +62,9 @@ class Supplier extends Model
         'lead_time_days',
         'is_active',
         'created_by',
+        // Chantier 19: was a real column with zero code reference anywhere —
+        // this module had no company scoping at all.
+        'company_id',
     ];
 
     protected $casts = [

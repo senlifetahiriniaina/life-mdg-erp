@@ -86,7 +86,68 @@ class DefaultDataSeeder extends Seeder
         );
 
         $this->seedCurrencies();
+        $this->seedCountries();
         $this->seedInventoryDefaults();
+    }
+
+    /**
+     * Chantier 19 Lot 3 — `shared_countries` (backing
+     * Modules\Shared\Http\Controllers\Api\CountryController::index()/
+     * show()) had a real table and real endpoints but was never actually
+     * seeded anywhere in the app (confirmed: zero rows on a fresh install)
+     * — the same gap already found and fixed for shared_currencies in
+     * Chantier 17, plus a real active bug in the controller itself (fixed
+     * alongside, see CountryController's own docblock): the controller
+     * queried columns (`active`, `code`, `ohada_member`) that never
+     * existed on this table at all.
+     *
+     * Data is not invented here — it's the same real per-country dataset
+     * Modules\Core\Services\SmartDefaultsService::COUNTRIES already ships
+     * (label/currency/tax_rate/fiscal_year_start/accounting_std/mobile
+     * prefix), reshaped onto shared_countries' real columns. Only the 12
+     * countries that constant already covers are seeded — no new country
+     * data was guessed. `is_ohada` is set true only for the 3 the source
+     * constant itself labels 'OHADA' (SN/CI/CM) — MG is intentionally left
+     * false here since SmartDefaultsService labels its accounting_std
+     * 'PCG', not 'OHADA', despite this app's Accounting module targeting
+     * OHADA/SYSCOHADA elsewhere; reconciling that naming is out of this
+     * chantier's scope.
+     */
+    private function seedCountries(): void
+    {
+        $countries = [
+            ['iso2' => 'SN', 'iso3' => 'SEN', 'name' => 'Senegal',      'name_fr' => 'Sénégal',        'currency' => 'XOF', 'phone' => '+221', 'region' => 'Africa', 'ohada' => true,  'vat' => 18.0,  'fys' => 1],
+            ['iso2' => 'CI', 'iso3' => 'CIV', 'name' => "Cote d'Ivoire",'name_fr' => "Côte d'Ivoire",  'currency' => 'XOF', 'phone' => '+225', 'region' => 'Africa', 'ohada' => true,  'vat' => 18.0,  'fys' => 1],
+            ['iso2' => 'CM', 'iso3' => 'CMR', 'name' => 'Cameroon',     'name_fr' => 'Cameroun',       'currency' => 'XAF', 'phone' => '+237', 'region' => 'Africa', 'ohada' => true,  'vat' => 19.25, 'fys' => 1],
+            ['iso2' => 'MA', 'iso3' => 'MAR', 'name' => 'Morocco',      'name_fr' => 'Maroc',          'currency' => 'MAD', 'phone' => '+212', 'region' => 'Africa', 'ohada' => false, 'vat' => 20.0,  'fys' => 1],
+            ['iso2' => 'NG', 'iso3' => 'NGA', 'name' => 'Nigeria',      'name_fr' => 'Nigéria',        'currency' => 'NGN', 'phone' => '+234', 'region' => 'Africa', 'ohada' => false, 'vat' => 7.5,   'fys' => 1],
+            ['iso2' => 'GH', 'iso3' => 'GHA', 'name' => 'Ghana',        'name_fr' => 'Ghana',          'currency' => 'GHS', 'phone' => '+233', 'region' => 'Africa', 'ohada' => false, 'vat' => 15.0,  'fys' => 1],
+            ['iso2' => 'KE', 'iso3' => 'KEN', 'name' => 'Kenya',        'name_fr' => 'Kenya',          'currency' => 'KES', 'phone' => '+254', 'region' => 'Africa', 'ohada' => false, 'vat' => 16.0,  'fys' => 7],
+            ['iso2' => 'TZ', 'iso3' => 'TZA', 'name' => 'Tanzania',     'name_fr' => 'Tanzanie',       'currency' => 'TZS', 'phone' => '+255', 'region' => 'Africa', 'ohada' => false, 'vat' => 18.0,  'fys' => 7],
+            ['iso2' => 'MG', 'iso3' => 'MDG', 'name' => 'Madagascar',   'name_fr' => 'Madagascar',     'currency' => 'MGA', 'phone' => '+261', 'region' => 'Africa', 'ohada' => false, 'vat' => 20.0,  'fys' => 1],
+            ['iso2' => 'IN', 'iso3' => 'IND', 'name' => 'India',        'name_fr' => 'Inde',           'currency' => 'INR', 'phone' => '+91',  'region' => 'Asia',   'ohada' => false, 'vat' => 18.0,  'fys' => 4],
+            ['iso2' => 'CN', 'iso3' => 'CHN', 'name' => 'China',        'name_fr' => 'Chine',          'currency' => 'CNY', 'phone' => '+86',  'region' => 'Asia',   'ohada' => false, 'vat' => 13.0,  'fys' => 1],
+            ['iso2' => 'EG', 'iso3' => 'EGY', 'name' => 'Egypt',        'name_fr' => 'Égypte',         'currency' => 'EGP', 'phone' => '+20',  'region' => 'Africa', 'ohada' => false, 'vat' => 14.0,  'fys' => 7],
+        ];
+
+        foreach ($countries as $c) {
+            \Illuminate\Support\Facades\DB::table('shared_countries')->updateOrInsert(
+                ['iso_alpha2' => $c['iso2']],
+                [
+                    'iso_alpha3'        => $c['iso3'],
+                    'name'              => $c['name'],
+                    'name_fr'           => $c['name_fr'],
+                    'currency_code'     => $c['currency'],
+                    'phone_prefix'      => $c['phone'],
+                    'region'            => $c['region'],
+                    'is_ohada'          => $c['ohada'],
+                    'is_uemoa'          => in_array($c['iso2'], ['SN', 'CI'], true),
+                    'is_cemac'          => $c['iso2'] === 'CM',
+                    'vat_rate'          => $c['vat'],
+                    'fiscal_year_start' => sprintf('%02d-01', $c['fys']),
+                ]
+            );
+        }
     }
 
     /**

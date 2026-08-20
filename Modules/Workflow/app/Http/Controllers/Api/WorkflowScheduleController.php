@@ -7,7 +7,19 @@ namespace Modules\Workflow\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Workflow\Models\AutomationFlow;
+// Chantier 19 Lot 3: was `use Modules\Workflow\Models\AutomationFlow;` — that
+// class does not exist anywhere in the repo (confirmed via `class_exists()`)
+// — the real model lives one namespace level deeper, at
+// Modules\Workflow\Models\Automation\AutomationFlow, and is what
+// AutomationFlowController/FlowExecutionEngine/AutomationFlowTemplate all
+// actually use. Every method on this controller (index/show/update/enable/
+// disable, either via the AutomationFlow::query() call or the AutomationFlow
+// $flow route-model-binding type-hint) was a guaranteed fatal
+// "Class not found" error the moment it was ever hit — currently dormant
+// only because this controller has zero routes registered anywhere (see
+// the docblock on the unrouted-controllers note below), not because the
+// bug isn't real.
+use Modules\Workflow\Models\Automation\AutomationFlow;
 use Modules\Workflow\Services\Automation\FlowSchedulerService;
 
 /**

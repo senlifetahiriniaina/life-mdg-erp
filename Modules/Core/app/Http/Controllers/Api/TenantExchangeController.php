@@ -30,19 +30,32 @@ class TenantExchangeController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        // Chantier 19 Lot 3: real, confirmed-empirically active-breakage bug —
+        // the only real caller of this endpoint, resources/js/Pages/Admin/
+        // TenantExchanges/Index.vue (confirmed via repo-wide grep: zero other
+        // callers, server or client, reference `target_tenant`), has always
+        // sent `target_tenant_id` (matching the response shape's own
+        // `source_tenant_id`/`target_tenant_id` column names, which the same
+        // page already reads correctly for display) — every real "send
+        // exchange request" submission through the actual admin UI 422'd
+        // with "The target tenant field is required." Accepting both keys
+        // (not renaming outright) keeps any other, not-yet-written caller
+        // that already matches the old field name working too.
         $data = $request->validate([
-            'target_tenant' => ['required', 'string'],
+            'target_tenant' => ['required_without:target_tenant_id', 'string'],
+            'target_tenant_id' => ['required_without:target_tenant', 'string'],
             'exchange_type' => ['required', 'string', 'in:catalog_share,contact_share,order_reference,quote_share,product_share'],
             'payload' => ['required', 'array'],
             'message' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $targetTenant = $data['target_tenant'] ?? $data['target_tenant_id'];
         $sourceTenantId = (string) $request->user()->id;
 
         try {
             $exchange = $this->service->sendExchange(
                 $sourceTenantId,
-                $data['target_tenant'],
+                $targetTenant,
                 $data['exchange_type'],
                 $data['payload'],
                 $request->user()->id,

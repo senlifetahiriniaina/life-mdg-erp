@@ -43,6 +43,9 @@ class PurchaseReceipt extends Model
         'notes',
         'total_received_value',
         'status',
+        // Chantier 19: this module had no company scoping at all —
+        // achats_purchase_receipts never even had a tenant_id column.
+        'company_id',
     ];
 
     protected $casts = [

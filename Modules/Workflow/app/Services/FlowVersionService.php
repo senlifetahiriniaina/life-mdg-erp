@@ -32,9 +32,9 @@ class FlowVersionService
      * @param  int|null    $createdBy User id that published the version.
      * @throws RuntimeException when the flow is not found.
      */
-    public function createVersion(int $flowId, ?string $label = null, ?int $createdBy = null): FlowVersion
+    public function createVersion(int $flowId, ?string $label = null, ?int $createdBy = null, ?int $tenantId = null): FlowVersion
     {
-        $flow = $this->findFlowOrFail($flowId);
+        $flow = $this->findFlowOrFail($flowId, $tenantId);
 
         return DB::transaction(function () use ($flow, $label, $createdBy): FlowVersion {
             // Determine next version_number
@@ -81,9 +81,9 @@ class FlowVersionService
      *
      * @return Collection<int, FlowVersion>
      */
-    public function listVersions(int $flowId): Collection
+    public function listVersions(int $flowId, ?int $tenantId = null): Collection
     {
-        $this->findFlowOrFail($flowId);
+        $this->findFlowOrFail($flowId, $tenantId);
 
         return FlowVersion::where('flow_id', $flowId)
             ->orderByDesc('version_number')
@@ -102,9 +102,9 @@ class FlowVersionService
      * @throws RuntimeException when flow or version is not found, or the version
      *                          does not belong to the given flow.
      */
-    public function rollback(int $flowId, int $versionId): FlowVersion
+    public function rollback(int $flowId, int $versionId, ?int $tenantId = null): FlowVersion
     {
-        $flow    = $this->findFlowOrFail($flowId);
+        $flow    = $this->findFlowOrFail($flowId, $tenantId);
         $version = FlowVersion::find($versionId);
 
         if (!$version || $version->flow_id !== $flow->id) {
@@ -150,9 +150,28 @@ class FlowVersionService
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    private function findFlowOrFail(int $flowId): AutomationFlow
+    /**
+     * Chantier 19 Lot 3: `flows/{id}/versions*` is a live, routed
+     * (`role:manager,admin`) endpoint with zero per-record ownership check
+     * — any manager/admin of any company could list/create/restore version
+     * snapshots for any other company's AutomationFlow just by guessing a
+     * small integer id, confirmed via `AutomationFlow::scopeForTenant()`
+     * existing but never being used anywhere in this service. Currently
+     * inert in practice (AutomationFlow rows can only ever be created via
+     * the unrouted AutomationFlowController/AutomationFlowTemplate::
+     * instantiateForTenant(), so no real flow data exists to leak today —
+     * see routes/api.php's own note on those two controllers) but fixed
+     * regardless since this route itself is live and the IDOR becomes real
+     * the moment flow creation is ever wired up. `$tenantId === null` skips
+     * the check for rollback()'s own internal re-snapshot call, where the
+     * flow's ownership was already validated one line above.
+     */
+    private function findFlowOrFail(int $flowId, ?int $tenantId = null): AutomationFlow
     {
-        $flow = AutomationFlow::find($flowId);
+        $flow = $tenantId === null
+            ? AutomationFlow::find($flowId)
+            : AutomationFlow::forTenant($tenantId)->find($flowId);
+
         if (!$flow) {
             throw new RuntimeException("AutomationFlow #{$flowId} not found.");
         }

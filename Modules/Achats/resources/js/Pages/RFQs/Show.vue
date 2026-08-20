@@ -40,7 +40,7 @@
               Issue RFQ
             </button>
             <button
-              v-if="rfq.status === 'quotes_received'"
+              v-if="rfq.status === 'sent'"
               @click="goToComparison"
               class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
             >
@@ -61,11 +61,7 @@
             </div>
             <div>
               <p class="text-sm text-surface-600 dark:text-surface-400">Item Description</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ rfq.item_description }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-surface-600 dark:text-surface-400">Expected Quantity</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ rfq.expected_quantity }}</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ rfq.description }}</p>
             </div>
             <div>
               <p class="text-sm text-surface-600 dark:text-surface-400">Currency</p>
@@ -83,7 +79,7 @@
             </div>
             <div>
               <p class="text-sm text-surface-600 dark:text-surface-400">Response Deadline</p>
-              <p class="text-base text-surface-900 dark:text-surface-50">{{ formatDate(rfq.response_deadline) }}</p>
+              <p class="text-base text-surface-900 dark:text-surface-50">{{ formatDate(rfq.deadline_date) }}</p>
             </div>
             <div>
               <p class="text-sm text-surface-600 dark:text-surface-400">Quotes Received</p>
@@ -191,6 +187,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const rfq = ref({})
@@ -199,16 +196,19 @@ const suppliers = ref([])
 const loading = ref(true)
 const error = ref('')
 
+// Chantier 19: RFQService only ever sets `draft`/`sent`/`closed`.
 const statusClasses = {
   draft: 'bg-surface-100 dark:bg-surface-700 text-surface-900 dark:text-surface-100',
-  issued: 'bg-blue-100 text-blue-800',
-  quotes_received: 'bg-purple-100 text-purple-800',
-  evaluated: 'bg-yellow-100 text-yellow-800',
+  sent: 'bg-blue-100 text-blue-800',
   closed: 'bg-green-100 text-green-800'
 }
 
+// Chantier 19: SupplierQuote::accept()/reject() set `accepted`/`rejected`,
+// but RFQService::recordSupplierQuote() always creates a quote with status
+// `submitted` (never `pending`, the DB column's unused default) — `pending`
+// was dead here.
 const quoteStatusClasses = {
-  pending: 'bg-yellow-100 text-yellow-800',
+  submitted: 'bg-yellow-100 text-yellow-800',
   accepted: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800'
 }
@@ -216,9 +216,7 @@ const quoteStatusClasses = {
 const formatStatus = (status) => {
   const statusMap = {
     draft: 'Draft',
-    issued: 'Issued',
-    quotes_received: 'Quotes Received',
-    evaluated: 'Evaluated',
+    sent: 'Sent',
     closed: 'Closed'
   }
   return statusMap[status] || status
@@ -226,7 +224,7 @@ const formatStatus = (status) => {
 
 const formatQuoteStatus = (status) => {
   const statusMap = {
-    pending: 'Pending',
+    submitted: 'Submitted',
     accepted: 'Accepted',
     rejected: 'Rejected'
   }
@@ -241,20 +239,20 @@ const formatDate = (date) => {
   })
 }
 
+// Chantier 19: RFQ has no `suppliers` relation/attribute at all (only
+// `quotes`, each carrying its own `supplier`) — `rfq.value.suppliers` was
+// always undefined, so "Suppliers" always showed "No suppliers added yet"
+// even after a real issue. Derived from the real quotes instead (unique by
+// supplier id), which is exactly who the RFQ was actually issued to.
 const loadRFQ = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      rfq.value = await response.json()
-      suppliers.value = rfq.value.suppliers || []
-      quotes.value = rfq.value.quotes || []
-    } else {
-      error.value = 'Failed to load RFQ'
-    }
+    const { data } = await axios.get(`/api/v1/achats/rfqs/${routeId.value}`)
+    rfq.value = data
+    quotes.value = data.quotes || []
+    const seen = new Set()
+    suppliers.value = quotes.value
+      .map((q) => q.supplier)
+      .filter((s) => s && !seen.has(s.id) && seen.add(s.id))
   } catch (err) {
     console.error('Failed to load RFQ:', err)
     error.value = 'An error occurred while loading the RFQ'
@@ -263,23 +261,18 @@ const loadRFQ = async () => {
   }
 }
 
+// Documented gap (Chantier 19): see RFQs/Index.vue's issueRFQ() docblock —
+// this button has no supplier-selection UI, so the real endpoint's required
+// `supplier_ids` is never sent.
 const issueRFQ = async () => {
   if (!confirm('Issue this RFQ to suppliers?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}/issue`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      loadRFQ()
-    }
+    await axios.post(`/api/v1/achats/rfqs/${routeId.value}/issue`)
+    loadRFQ()
   } catch (err) {
     console.error('Failed to issue RFQ:', err)
-    error.value = 'Failed to issue RFQ'
+    error.value = err.response?.data?.message || 'Failed to issue RFQ — no suppliers selected.'
   }
 }
 

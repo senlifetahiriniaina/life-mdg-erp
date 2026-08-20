@@ -48,6 +48,8 @@ class RFQ extends Model
         'issued_date',
         'deadline_date',
         'created_by',
+        // Chantier 19: this module had no company scoping at all.
+        'company_id',
     ];
 
     protected $casts = [

@@ -52,8 +52,21 @@ class SecretAccessControl
                 return false;
             }
 
-            // Admins can always access
-            if ($user->hasRole(['admin', 'super-admin'])) {
+            // Admins can always access.
+            //
+            // Chantier 19 Lot 3: this bypass omitted 'security-admin' —
+            // routes/secrets.php's own route-level gate is
+            // `role:security-admin,admin,super-admin`, and its own docblock
+            // explicitly documents security-admin as the intended day-to-day
+            // operator of this vault. Confirmed empirically: a security-admin
+            // could create a secret via the real HTTP route (passes the
+            // route gate) but could not then retrieve/rotate/revoke that
+            // same secret they just created, since every one of those calls
+            // routes through this method and security-admin fell through to
+            // the explicit-grant/role-based-access path below, which grants
+            // nothing by default. Added 'security-admin' to the bypass to
+            // match the role the route itself already trusts.
+            if ($user->hasRole(['admin', 'super-admin', 'security-admin'])) {
                 return true;
             }
 
@@ -112,9 +125,10 @@ class SecretAccessControl
             $tenantId = $this->getTenantId();
             $grantedBy = auth()->id() ?? 1;
 
-            // Verify grantor is admin
+            // Verify grantor is admin (or security-admin — see the identical
+            // fix + rationale on canAccessSecret() above).
             $grantor = User::find($grantedBy);
-            if (!$grantor || !$grantor->hasRole(['admin', 'super-admin'])) {
+            if (!$grantor || !$grantor->hasRole(['admin', 'super-admin', 'security-admin'])) {
                 throw new Exception('Only administrators can grant secret access');
             }
 

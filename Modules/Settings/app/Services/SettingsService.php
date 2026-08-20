@@ -173,10 +173,21 @@ class SettingsService
     // Internal helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 19 Lot 3: dropped the client-controlled X-Company-ID header
+     * fallback — the same real cross-tenant IDOR already fixed for Setup's
+     * identical pattern in Chantier 8.5sv (see Modules\Settings\Models\
+     * Setting::boot()'s docblock for the full rationale; this method had 3
+     * sibling instances of the identical bug, all fixed in the same pass).
+     * bulk()'s SettingsController::authorize('create', Setting::class) call
+     * is a class-level ability with no per-record tenant check at all — it
+     * is this method (called by set()/setTyped()/getModule() underneath
+     * it) that was the only real tenant boundary for that write path, so
+     * this was the more severe of the header-fallback instances.
+     */
     private function currentTenantId(): int|string|null
     {
-        return auth()?->user()?->company_id
-            ?? request()?->header('X-Company-ID');
+        return auth()?->user()?->company_id;
     }
 
     private function cacheKey(int|string|null $tenantId, string $module, string $key): string

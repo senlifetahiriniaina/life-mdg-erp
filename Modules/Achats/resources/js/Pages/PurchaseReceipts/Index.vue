@@ -137,6 +137,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 
 const receipts = ref([])
 const loading = ref(false)
@@ -176,24 +177,22 @@ const formatDate = (date) => {
 const loadReceipts = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({
+    const params = {
       page: currentPage.value,
       per_page: 15,
       search: search.value,
-    })
-    if (filters.status) {
-      params.append('status', filters.status)
     }
-    if (filters.has_issues) {
-      params.append('has_issues', filters.has_issues)
+    // Chantier 19: was reading `filters.status`/`filters.has_issues` on the
+    // ref object itself instead of `filters.value.*` — always undefined, so
+    // neither dropdown ever actually filtered the list.
+    if (filters.value.status) {
+      params.status = filters.value.status
+    }
+    if (filters.value.has_issues) {
+      params.has_issues = filters.value.has_issues
     }
 
-    const response = await fetch(`/api/v1/achats/purchase-receipts?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const data = await response.json()
+    const { data } = await axios.get('/api/v1/achats/purchase-receipts', { params })
     receipts.value = data.data
     pagination.value = data.meta
   } catch (error) {

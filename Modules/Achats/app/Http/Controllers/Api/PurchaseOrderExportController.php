@@ -3,6 +3,8 @@
 namespace Modules\Achats\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Services\PurchaseOrderExportService;
 
@@ -13,13 +15,17 @@ use Modules\Achats\Services\PurchaseOrderExportService;
  */
 class PurchaseOrderExportController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected PurchaseOrderExportService $exportService) {}
 
     /**
      * Export PO as JSON
      */
-    public function exportJson(PurchaseOrder $purchase_order)
+    public function exportJson(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         $json = $this->exportService->exportToJson($purchase_order);
 
         return response($json)
@@ -30,8 +36,10 @@ class PurchaseOrderExportController extends Controller
     /**
      * Export PO as CSV
      */
-    public function exportCsv(PurchaseOrder $purchase_order)
+    public function exportCsv(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         $csv = $this->exportService->exportToCsv($purchase_order);
 
         return response($csv)
@@ -42,8 +50,10 @@ class PurchaseOrderExportController extends Controller
     /**
      * Get PO summary data
      */
-    public function summary(PurchaseOrder $purchase_order)
+    public function summary(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         return response()->json($this->exportService->getPoSummary($purchase_order));
     }
 }

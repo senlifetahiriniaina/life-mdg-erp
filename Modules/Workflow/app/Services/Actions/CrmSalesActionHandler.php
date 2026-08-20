@@ -213,23 +213,39 @@ class CrmSalesActionHandler
      */
     public function notifySalesTeam(array $params, array $context): array
     {
-        $message  = $params['message'] ?? 'Nouvelle opportunité convertie en commande';
-        $tenantId = $context['tenant_id'] ?? 1;
+        $message = $params['message'] ?? 'Nouvelle opportunité convertie en commande';
 
+        // Chantier 19 Lot 3: this insert claimed success (`notified: true`)
+        // on every real call while never actually writing a row — the real
+        // `notifications` table (database/migrations/2026_05_04_000001_
+        // create_notifications_table.php) has a UUID primary key with no
+        // default and no `tenant_id` column at all, so every insert
+        // fatalled inside the try/catch and was silently swallowed
+        // (confirmed via `Schema::getColumnListing`, not just a guess).
+        // Fixed to write the real column shape — the caller's tenant is
+        // folded into `data` instead of a phantom `tenant_id` column, since
+        // this app's notifications are polymorphically tied to the
+        // notifiable model, not tenant-scoped at the table level.
+        $notified = false;
         try {
             DB::table('notifications')->insert([
-                'tenant_id'        => $tenantId,
+                'id'               => (string) \Illuminate\Support\Str::uuid(),
                 'notifiable_type'  => 'team',
                 'notifiable_id'    => 0,
                 'type'             => 'workflow.sales_team_alert',
-                'data'             => json_encode(['message' => $message, 'context' => array_intersect_key($context, array_flip(['order_id', 'opportunity_id', 'amount']))]),
+                'data'             => json_encode([
+                    'message' => $message,
+                    'tenant_id' => $context['tenant_id'] ?? null,
+                    'context'   => array_intersect_key($context, array_flip(['order_id', 'opportunity_id', 'amount'])),
+                ]),
                 'created_at'       => now(),
                 'updated_at'       => now(),
             ]);
+            $notified = true;
         } catch (\Throwable) {
-            // Notifications table may not exist in all environments — never block the chain
+            // Never block the chain on a notification-delivery failure.
         }
 
-        return ['notified' => true, 'channel' => 'internal'];
+        return ['notified' => $notified, 'channel' => 'internal'];
     }
 }

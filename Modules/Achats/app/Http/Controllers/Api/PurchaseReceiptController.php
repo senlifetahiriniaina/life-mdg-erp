@@ -4,6 +4,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Http\Resources\PurchaseReceiptResource;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\PurchaseOrderLine;
@@ -29,16 +30,22 @@ use Modules\Achats\Services\PurchaseReceiptService;
  */
 class PurchaseReceiptController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected PurchaseReceiptService $service) {}
 
     /**
      * GET /purchase-receipts — paginated list, matching
      * PurchaseReceipts/Index.vue's status/has_issues filters and its
      * data/meta pagination expectations.
+     *
+     * Chantier 19: had zero company scoping — any authenticated user could
+     * list every other company's receipts.
      */
     public function index(Request $request)
     {
-        $query = PurchaseReceipt::with(['purchaseOrder.supplier', 'lines']);
+        $query = PurchaseReceipt::with(['purchaseOrder.supplier', 'lines'])
+            ->where('company_id', $this->companyId($request));
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -110,6 +117,9 @@ class PurchaseReceiptController extends Controller
         ]);
 
         $po = PurchaseOrder::findOrFail($validated['purchase_order_id']);
+        // Chantier 19: without this, a user could record a receipt against
+        // another company's purchase order by id.
+        $this->assertSameCompany($request, $po);
 
         $receipt = $this->service->createReceipt($po, [
             'receipt_date' => $validated['receipt_date'] ?? now()->toDateString(),
@@ -120,6 +130,7 @@ class PurchaseReceiptController extends Controller
             // string — the migrated column's own DB default ('pending')
             // doesn't match, so it must be set explicitly here.
             'status' => 'draft',
+            'company_id' => $this->companyId($request),
         ]);
 
         $this->applyLines($receipt, $validated['lines'] ?? [], $validated['quality_issues'] ?? []);
@@ -137,13 +148,17 @@ class PurchaseReceiptController extends Controller
      */
     public function storeForOrder(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         $request->merge(['purchase_order_id' => $purchase_order->id]);
 
         return $this->store($request);
     }
 
-    public function show(PurchaseReceipt $purchase_receipt)
+    public function show(Request $request, PurchaseReceipt $purchase_receipt)
     {
+        $this->assertSameCompany($request, $purchase_receipt);
+
         return new PurchaseReceiptResource(
             $purchase_receipt->load(['purchaseOrder.supplier', 'lines.purchaseOrderLine'])
         );
@@ -161,6 +176,8 @@ class PurchaseReceiptController extends Controller
      */
     public function update(Request $request, PurchaseReceipt $purchase_receipt)
     {
+        $this->assertSameCompany($request, $purchase_receipt);
+
         $validated = $request->validate([
             'receipt_date' => 'nullable|date',
             'warehouse_location' => 'nullable|string',
@@ -198,15 +215,19 @@ class PurchaseReceiptController extends Controller
      * method that didn't exist on this class at all. Soft-delete (the
      * model already uses SoftDeletes).
      */
-    public function destroy(PurchaseReceipt $purchase_receipt)
+    public function destroy(Request $request, PurchaseReceipt $purchase_receipt)
     {
+        $this->assertSameCompany($request, $purchase_receipt);
+
         $purchase_receipt->delete();
 
         return response()->noContent();
     }
 
-    public function complete(PurchaseReceipt $purchase_receipt)
+    public function complete(Request $request, PurchaseReceipt $purchase_receipt)
     {
+        $this->assertSameCompany($request, $purchase_receipt);
+
         $this->service->completeReceipt($purchase_receipt);
 
         return new PurchaseReceiptResource($purchase_receipt->refresh()->load(['purchaseOrder.supplier', 'lines.purchaseOrderLine']));
@@ -220,6 +241,8 @@ class PurchaseReceiptController extends Controller
      */
     public function recordQualityIssue(Request $request, PurchaseReceipt $purchase_receipt)
     {
+        $this->assertSameCompany($request, $purchase_receipt);
+
         $validated = $request->validate([
             'line_id' => 'required|exists:achats_purchase_receipt_lines,id',
             'issue_type' => 'required|string',

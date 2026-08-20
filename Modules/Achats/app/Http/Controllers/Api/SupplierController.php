@@ -5,6 +5,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Http\Requests\StoreSupplierRequest;
 use Modules\Achats\Http\Requests\UpdateSupplierRequest;
 use Modules\Achats\Http\Resources\SupplierResource;
@@ -19,12 +20,15 @@ use Modules\Achats\Services\SupplierService;
 class SupplierController extends Controller
 {
     use AuthorizesRequests;
+    use ScopesToCompany;
 
     public function __construct(protected SupplierService $service) {}
 
     public function index(Request $request)
     {
-        $query = Supplier::query();
+        // Chantier 19: had zero company scoping — any authenticated user
+        // could list every other company's suppliers.
+        $query = Supplier::where('company_id', $this->companyId($request));
 
         if ($request->has('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
@@ -48,29 +52,34 @@ class SupplierController extends Controller
 
         $data = $request->validated();
         $data['created_by'] = auth()->id();
+        $data['company_id'] = $this->companyId($request);
 
         $supplier = $this->service->createSupplier($data);
 
         return response()->json((new SupplierResource($supplier))->resolve(), 201);
     }
 
-    public function show(Supplier $supplier)
+    public function show(Request $request, Supplier $supplier)
     {
+        $this->assertSameCompany($request, $supplier);
+
         return response()->json((new SupplierResource($supplier))->resolve());
     }
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier)
     {
         $this->authorize('update', $supplier);
+        $this->assertSameCompany($request, $supplier);
 
         $updated = $this->service->updateSupplier($supplier, $request->validated());
 
         return new SupplierResource($updated);
     }
 
-    public function destroy(Supplier $supplier)
+    public function destroy(Request $request, Supplier $supplier)
     {
         $this->authorize('delete', $supplier);
+        $this->assertSameCompany($request, $supplier);
 
         try {
             $this->service->deleteSupplier($supplier);
@@ -81,8 +90,10 @@ class SupplierController extends Controller
         return response()->noContent();
     }
 
-    public function performanceMetrics(Supplier $supplier)
+    public function performanceMetrics(Request $request, Supplier $supplier)
     {
+        $this->assertSameCompany($request, $supplier);
+
         $metrics = $this->service->getSupplierPerformanceMetrics($supplier);
 
         return response()->json([
@@ -94,6 +105,8 @@ class SupplierController extends Controller
 
     public function quoteHistory(Request $request, Supplier $supplier)
     {
+        $this->assertSameCompany($request, $supplier);
+
         $quotes = $this->service->getSupplierQuoteHistory($supplier);
 
         return response()->json($quotes);

@@ -478,11 +478,23 @@ class AutomationFlowController extends Controller
         return AutomationFlow::forTenant($this->tenantId($request))->findOrFail($id);
     }
 
+    /**
+     * Chantier 19 Lot 3: was `$request->user()?->tenant_id ?? $request->header('X-Tenant-ID', 1)`
+     * — the phantom `users.tenant_id` column (never populated) meant the
+     * fully client-controlled `X-Tenant-ID` header was reached on every
+     * real request, the same header-based IDOR pattern already fixed
+     * repeatedly elsewhere this session (Setup's original 8.5sv fix,
+     * Integration's IntegrationConnectorPolicy, Projects'
+     * ProjectAdvancedController::store()). This controller currently has
+     * zero routes registered anywhere (see the module-scoped note in
+     * routes/api.php) so the bug is dormant, not live — fixed anyway so it
+     * isn't a landmine the moment a future chantier wires this controller
+     * up, matching this session's established "close the landmine before
+     * it's tripped" precedent.
+     */
     private function tenantId(Request $request): int
     {
-        // In multi-tenant setup, tenant_id comes from the authenticated user or a header.
-        return (int) ($request->user()?->tenant_id
-            ?? $request->header('X-Tenant-ID', 1));
+        return (int) ($request->user()?->company_id ?? 0);
     }
 
     private function createNode(int $flowId, array $def): AutomationNode

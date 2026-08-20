@@ -28,6 +28,8 @@ class IntegrationController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', IntegrationConnector::class);
+
         $tenantId = $request->user()->company_id ?? 0;
 
         $connectors = IntegrationConnector::forTenant($tenantId)
@@ -40,9 +42,21 @@ class IntegrationController extends Controller
     /**
      * POST /api/v1/integration/connectors
      * Create a new connector.
+     *
+     * Chantier 19 Lot 3: IntegrationConnectorPolicy::create() was fully
+     * written but never actually called here — unlike show/activate/
+     * addWebhook/dispatch/logs (fixed in Chantier 8.5-light), this method
+     * has no route-bound model to IDOR through, but it also had zero
+     * authorize() call of any kind, and the `connectors` route group carries
+     * no module:/role: gate either — any authenticated user of any role
+     * (e.g. a plain sales-rep with zero integration.* permissions) could
+     * create a new integration connector for their own tenant. Fixed with
+     * the missing authorize() call, matching index()'s viewAny fix above.
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', IntegrationConnector::class);
+
         $validated = $request->validate([
             'name'          => 'required|string|max:100',
             'provider_type' => 'required|in:webhook,oauth2,api_key,basic_auth,custom',

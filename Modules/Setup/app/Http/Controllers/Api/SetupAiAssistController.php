@@ -42,7 +42,13 @@ class SetupAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19 Lot 3: was `$request->user()?->role ?? 'user'` — the phantom
+            // `users.role` column (never populated by any real registration path,
+            // same bug class already fixed for HR/Payroll/Projects/Sales/Timesheets'
+            // AI-assist controllers) always fell through to the 'user' default,
+            // silently defeating the AI guidance's role-based tone/depth for every
+            // caller including admins. Fixed to read the real Spatie role.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

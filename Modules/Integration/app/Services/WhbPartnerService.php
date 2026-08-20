@@ -75,14 +75,25 @@ class WhbPartnerService
         $type = $data['connection_type'] ?? 'local';
 
         if ($type === 'local') {
-            // Validate that the remote tenant exists (check the users table tenant_id column).
+            // Chantier 19 Lot 3: this validated against `users.tenant_id` —
+            // the well-documented phantom column, real DB column, never in
+            // User::$fillable, never populated by the real registration
+            // flow anywhere in this app (see CLAUDE.md's repeated fixes of
+            // this exact bug class across ~15 other modules this session).
+            // Since it is always null, this check could never pass for any
+            // real caller — every same-server ("local") WHB federation
+            // invite has been guaranteed-broken, confirmed empirically via
+            // a real HTTP request. The real per-tenant boundary column
+            // throughout this app (and the one WhbPartnerController's own
+            // resolveTenantId() already resolves remote_tenant_id/
+            // local_tenant_id from) is company_id, cast to string.
             $remoteTenantId = $data['remote_tenant_id'] ?? null;
             if (! $remoteTenantId) {
                 throw new RuntimeException('remote_tenant_id is required for local connections.');
             }
 
             $exists = DB::table('users')
-                ->where('tenant_id', $remoteTenantId)
+                ->where('company_id', $remoteTenantId)
                 ->exists();
 
             if (! $exists) {

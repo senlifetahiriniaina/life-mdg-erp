@@ -146,7 +146,17 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/setup')->group(function () {
+// Chantier 19 Lot 3: this block had its own `->prefix('v1/setup')` on top
+// of the `api/v1/setup` prefix Modules\Setup\Providers\RouteServiceProvider
+// already applies to the whole file — every other route in this file relies
+// solely on the provider's prefix (confirmed: `wizard/state` correctly
+// resolves to `api/v1/setup/wizard/state`), so this one block doubled up to
+// `api/v1/setup/v1/setup/ai/assist` instead of the intended
+// `api/v1/setup/ai/assist` — confirmed via `php artisan route:list` and a
+// real 404 on the documented URL. Matches every sibling module's AI-assist
+// route shape (`api/v1/{module}/ai/assist`) once the redundant prefix is
+// dropped.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::post('ai/assist', [\Modules\Setup\Http\Controllers\Api\SetupAiAssistController::class, 'assist'])
         ->name('setup.ai.assist');
 });

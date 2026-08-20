@@ -5,6 +5,7 @@ namespace Modules\Achats\Http\Controllers\Api;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Achats\Http\Requests\StorePurchaseOrderRequest;
 use Modules\Achats\Http\Requests\UpdatePurchaseOrderRequest;
 use Modules\Achats\Http\Resources\PurchaseOrderResource;
@@ -19,12 +20,16 @@ use Modules\Achats\Services\PurchaseOrderService;
 class PurchaseOrderController extends Controller
 {
     use AuthorizesRequests;
+    use ScopesToCompany;
 
     public function __construct(protected PurchaseOrderService $service) {}
 
     public function index(Request $request)
     {
-        $query = PurchaseOrder::with(['supplier', 'requester', 'approver']);
+        // Chantier 19: had zero company scoping — any authenticated user
+        // could list every other company's purchase orders.
+        $query = PurchaseOrder::with(['supplier', 'requester', 'approver'])
+            ->where('company_id', $this->companyId($request));
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
@@ -59,6 +64,7 @@ class PurchaseOrderController extends Controller
         $lines = $data['lines'] ?? [];
         unset($data['lines']);
         $data['created_by'] = auth()->id();
+        $data['company_id'] = $this->companyId($request);
 
         $po = $this->service->createPurchaseOrder($data);
 
@@ -69,8 +75,10 @@ class PurchaseOrderController extends Controller
         return new PurchaseOrderResource($po->load('lines'));
     }
 
-    public function show(PurchaseOrder $purchase_order)
+    public function show(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         $purchase_order->load(['supplier', 'lines', 'requester', 'approver', 'receipt']);
 
         return new PurchaseOrderResource($purchase_order);
@@ -87,6 +95,8 @@ class PurchaseOrderController extends Controller
      */
     public function update(UpdatePurchaseOrderRequest $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         $data = $request->validated();
         $hasLines = array_key_exists('lines', $data);
         $lines = $data['lines'] ?? [];
@@ -104,8 +114,10 @@ class PurchaseOrderController extends Controller
         return new PurchaseOrderResource($po->load('lines'));
     }
 
-    public function destroy(PurchaseOrder $purchase_order)
+    public function destroy(Request $request, PurchaseOrder $purchase_order)
     {
+        $this->assertSameCompany($request, $purchase_order);
+
         $this->service->cancelPurchaseOrder($purchase_order, 'Deleted by user');
 
         return response()->noContent();
@@ -114,6 +126,7 @@ class PurchaseOrderController extends Controller
     public function submitForApproval(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('update', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
 
         $this->service->submitForApproval($purchase_order, auth()->user());
 
@@ -123,6 +136,7 @@ class PurchaseOrderController extends Controller
     public function approve(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('approve', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
 
         $this->service->markAsApproved($purchase_order, auth()->user());
 
@@ -132,6 +146,7 @@ class PurchaseOrderController extends Controller
     public function reject(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('reject', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
 
         $this->service->markAsRejected($purchase_order, auth()->user(), $request->get('reason', 'Rejeté'));
 
@@ -141,6 +156,7 @@ class PurchaseOrderController extends Controller
     public function cancel(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('delete', $purchase_order);
+        $this->assertSameCompany($request, $purchase_order);
 
         $this->service->cancelPurchaseOrder($purchase_order, $request->get('reason', 'Cancelled'));
 

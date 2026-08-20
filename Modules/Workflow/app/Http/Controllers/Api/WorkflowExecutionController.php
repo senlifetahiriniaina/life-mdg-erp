@@ -46,15 +46,25 @@ class WorkflowExecutionController extends Controller
 
         // Append stats summary
         $statsQuery = WorkflowChainExecution::where('tenant_id', $tenantId);
+
+        // Chantier 19 Lot 3: `selectRaw('AVG(TIMESTAMPDIFF(SECOND, ...))')`
+        // is a MySQL-only function — this app's dev/test/CI environment
+        // runs on sqlite (confirmed via .env/phpunit.xml), where this was a
+        // guaranteed "no such column: SECOND" SQL error on every real call
+        // (confirmed empirically). Rewired onto real PHP-side duration
+        // computation via the model's own already-real getDurationMsAttribute()
+        // accessor, portable across both database drivers.
+        $avgDurationMs = (clone $statsQuery)
+            ->whereNotNull('completed_at')
+            ->whereNotNull('started_at')
+            ->get(['started_at', 'completed_at'])
+            ->avg(fn (WorkflowChainExecution $e) => $e->duration_ms);
+
         $stats = [
             'total_today'     => (clone $statsQuery)->whereDate('created_at', today())->count(),
             'success_today'   => (clone $statsQuery)->whereDate('created_at', today())->where('status', 'completed')->count(),
             'failed_today'    => (clone $statsQuery)->whereDate('created_at', today())->where('status', 'failed')->count(),
-            'avg_duration_ms' => (int) round(
-                (clone $statsQuery)->whereNotNull('completed_at')->whereNotNull('started_at')
-                    ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, started_at, completed_at) * 1000) as avg_ms')
-                    ->value('avg_ms') ?? 0
-            ),
+            'avg_duration_ms' => (int) round($avgDurationMs ?? 0),
         ];
 
         return response()->json([
@@ -151,9 +161,21 @@ class WorkflowExecutionController extends Controller
                 'executed_at'   => now(),
             ];
 
+            // Chantier 19 Lot 3: `input_context`/`output` are real PHP
+            // arrays, but this is a raw DB::table()->insert() call, not
+            // Eloquent — no model $casts to auto-JSON-encode them, so this
+            // was a guaranteed "Array to string conversion" PDO error on
+            // every real retry, confirmed empirically. Eloquent's own
+            // WorkflowExecutionStep model (used elsewhere) does have a
+            // `json` cast for both, but this call bypasses it entirely
+            // (matching the same raw-DB::table() pattern already used a few
+            // lines above for $newExecution's own creation, which uses the
+            // Eloquent model and is unaffected).
             DB::table('workflow_execution_steps')->insert(array_merge($stepData, [
-                'created_at' => now(),
-                'updated_at' => now(),
+                'input_context' => json_encode($context),
+                'output'        => json_encode($result),
+                'created_at'    => now(),
+                'updated_at'    => now(),
             ]));
 
             $resultLog[] = $stepData;
@@ -183,9 +205,27 @@ class WorkflowExecutionController extends Controller
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * Chantier 19 Lot 3: was `$request->user()?->tenant_id ?? $request->user()?->id ?? 1`
+     * — the phantom `users.tenant_id` column (never populated) always fell
+     * through to the acting user's own `users.id` as a private per-user
+     * bucket, the same bug class already fixed for AI/API's request-log and
+     * webhook tenant helpers in Chantier 10. Real `WorkflowChainExecution`
+     * rows are written with `tenant_id` = the definition's real
+     * `company_id`-derived tenant (see WorkflowChainController::tenantId(),
+     * WorkflowDefinitionController::tenantId()) — since this controller's
+     * `workflow-chain/executions*` routes serve the exact same
+     * WorkflowChainExecution model as WorkflowChainController's own
+     * (correctly-scoped) `workflow/executions*` routes, the mismatch meant
+     * every real user's `GET workflow-chain/executions` silently returned
+     * an empty list (their `users.id` essentially never matches a real
+     * company_id) and `retry()`'s ownership check 403'd almost every real
+     * retry attempt — confirmed empirically. Fixed to match every sibling
+     * controller in this module.
+     */
     private function tenantId(Request $request): int
     {
-        return (int) ($request->user()?->tenant_id ?? $request->user()?->id ?? 1);
+        return (int) ($request->user()?->company_id ?? 0);
     }
 
     private function authorizeTenant(Request $request, WorkflowChainExecution $execution): void

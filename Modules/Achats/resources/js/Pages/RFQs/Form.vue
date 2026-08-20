@@ -237,6 +237,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const isEditing = computed(() => !!routeId.value)
@@ -259,31 +260,31 @@ const form = ref({
 
 const loadSuppliers = async () => {
   try {
-    const response = await fetch('/api/v1/achats/suppliers?per_page=999', {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const data = await response.json()
+    const { data } = await axios.get('/api/v1/achats/suppliers?per_page=999')
     availableSuppliers.value = data.data
   } catch (error) {
     console.error('Failed to load suppliers:', error)
   }
 }
 
+// Chantier 19: RFQ's real fields are `description`/`deadline_date`
+// (RFQController's own validation) — this page's form used
+// `item_description`/`response_deadline`, so Object.assign(form.value, data)
+// against the real GET response never actually populated either field, and
+// the reverse was worse: handleSubmit() posted the whole form.value as-is,
+// so the backend's `required_by_date` (required|date) was never sent at
+// all — every real RFQ creation 422'd before this fix.
 const loadRFQ = async () => {
   if (!isEditing.value) return
 
   try {
-    const response = await fetch(`/api/v1/achats/rfqs/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      Object.assign(form.value, data)
-    }
+    const { data } = await axios.get(`/api/v1/achats/rfqs/${routeId.value}`)
+    form.value.rfq_number = data.rfq_number
+    form.value.item_description = data.description
+    form.value.issued_date = data.issued_date || form.value.issued_date
+    form.value.response_deadline = data.deadline_date || data.required_by_date
+    form.value.lines = data.lines || []
+    form.value.notes = data.notes
   } catch (error) {
     console.error('Failed to load RFQ:', error)
     submitError.value = 'Failed to load RFQ data'
@@ -329,31 +330,38 @@ const handleSubmit = async () => {
     const url = isEditing.value
       ? `/api/v1/achats/rfqs/${routeId.value}`
       : '/api/v1/achats/rfqs'
-    const method = isEditing.value ? 'PATCH' : 'POST'
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(form.value)
-    })
+    // Chantier 19: map the form's UI-facing field names onto RFQController's
+    // real validated keys — `description`/`required_by_date`/`deadline_date`
+    // — instead of posting form.value verbatim (item_description/
+    // response_deadline, neither recognized by the backend, and
+    // required_by_date — a required field — was never sent at all).
+    // The form only exposes one "response deadline" concept, so it's used
+    // for both the quote deadline and the required-by date; `suppliers`/
+    // `expected_quantity` have no backend counterpart and are intentionally
+    // not sent (see the store()/update() docblocks in RFQController).
+    const payload = {
+      description: form.value.item_description,
+      required_by_date: form.value.response_deadline,
+      deadline_date: form.value.response_deadline,
+      lines: form.value.lines,
+    }
 
-    if (!response.ok) {
-      const data = await response.json()
-      if (data.errors) {
-        errors.value = data.errors
-      } else {
-        submitError.value = data.message || 'Failed to save RFQ'
-      }
-      return
+    if (isEditing.value) {
+      await axios.patch(url, payload)
+    } else {
+      await axios.post(url, payload)
     }
 
     window.location.href = '/rfqs'
   } catch (error) {
     console.error('Failed to save RFQ:', error)
-    submitError.value = 'An error occurred while saving'
+    const data = error.response?.data
+    if (data?.errors) {
+      errors.value = data.errors
+    } else {
+      submitError.value = data?.message || 'An error occurred while saving'
+    }
   } finally {
     loading.value = false
   }

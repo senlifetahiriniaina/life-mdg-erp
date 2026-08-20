@@ -141,6 +141,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 
 const purchaseOrders = ref([])
 const loading = ref(false)
@@ -176,24 +177,23 @@ const formatDate = (date) => {
 const loadPurchaseOrders = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({
+    const params = {
       page: currentPage.value,
       per_page: 15,
       search: search.value,
-    })
-    if (filters.status) {
-      params.append('status', filters.status)
     }
-    if (filters.currency) {
-      params.append('currency', filters.currency)
+    // Chantier 19: was reading `filters.status`/`filters.currency` directly
+    // on the ref object instead of `filters.value.status`/`.currency` —
+    // Ref has no such properties, so both were always undefined and the
+    // status/currency dropdowns silently had no effect on the list at all.
+    if (filters.value.status) {
+      params.status = filters.value.status
+    }
+    if (filters.value.currency) {
+      params.currency = filters.value.currency
     }
 
-    const response = await fetch(`/api/v1/achats/purchase-orders?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    const data = await response.json()
+    const { data } = await axios.get('/api/v1/achats/purchase-orders', { params })
     purchaseOrders.value = data.data
     pagination.value = data.meta
   } catch (error) {
@@ -207,16 +207,8 @@ const submitForApproval = async (id) => {
   if (!confirm('Submit this purchase order for approval?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${id}/submit`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      loadPurchaseOrders()
-    }
+    await axios.post(`/api/v1/achats/purchase-orders/${id}/submit`)
+    loadPurchaseOrders()
   } catch (error) {
     console.error('Failed to submit PO:', error)
   }
@@ -226,15 +218,8 @@ const deletePurchaseOrder = async (id) => {
   if (!confirm('Are you sure you want to delete this purchase order?')) return
 
   try {
-    const response = await fetch(`/api/v1/achats/purchase-orders/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      loadPurchaseOrders()
-    }
+    await axios.delete(`/api/v1/achats/purchase-orders/${id}`)
+    loadPurchaseOrders()
   } catch (error) {
     console.error('Failed to delete purchase order:', error)
   }

@@ -37,7 +37,19 @@ class AiAssistantController extends Controller
 
         $locale   = $validated['locale']  ?? 'fr';
         $context  = $validated['context'] ?? [];
-        $userRole = $request->user()?->role ?? 'user';
+        // Chantier 19 Lot 3: `users.role` is the well-documented phantom
+        // column (real DB column, never in `User::$fillable`, never
+        // populated by the real registration flow — real RBAC is Spatie
+        // roles) — this was always null, so every real call to this
+        // module's own primary AI-guidance endpoint silently told Claude
+        // (and the static-fallback branch) every caller was a generic
+        // 'user', regardless of their real role, defeating the "influences
+        // depth/tone of guidance" contract this controller's own docblock
+        // and CLAUDE.md's AI Assisted First section both document. Fixed to
+        // the real Spatie role, matching the identical fix already applied
+        // to AiActionAdvisorController/SalesAiAssistController elsewhere in
+        // this session.
+        $userRole = $request->user()?->getRoleNames()->first() ?? 'user';
 
         $guidance = $this->assistant->getGuidance(
             module:   $validated['module'],

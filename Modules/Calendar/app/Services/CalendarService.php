@@ -34,16 +34,31 @@ class CalendarService
     /**
      * Create a new calendar for a user.
      *
+     * Chantier 19 Lot 3: `tenant_id` used to come from `$data['tenant_id']`
+     * — but neither `storeCalendar()`'s nor `storeEvent()`'s validation
+     * rules ever accepted a `tenant_id` field, so this was always `null` on
+     * every real calendar/event ever created, which in turn made
+     * `CalendarEventPolicy::view()`'s "always true" design a real,
+     * confirmed (empirically, via a real cross-company HTTP request)
+     * cross-tenant leak: any authenticated employee of any company could
+     * read any other company's calendar event — title, description,
+     * location, attendee list — just by requesting `GET
+     * calendar/events/{id}` with a guessed/enumerated id. Fixed by
+     * threading the real `company_id` explicitly from the controller
+     * (never trusting a client-supplied value) and scoping
+     * `CalendarEventPolicy::view()`/`viewAny()` to same-company (see that
+     * policy's own docblock).
+     *
      * @param  array<string,mixed> $data
      */
-    public function createCalendar(int $userId, array $data): Calendar
+    public function createCalendar(int $userId, array $data, ?int $companyId = null): Calendar
     {
         // Ensure first calendar is primary
         $hasPrimary = Calendar::where('user_id', $userId)->where('is_primary', true)->exists();
 
         return Calendar::create([
             'user_id'    => $userId,
-            'tenant_id'  => $data['tenant_id'] ?? null,
+            'tenant_id'  => $companyId,
             'name'       => $data['name'],
             'color'      => $data['color'] ?? '#3B82F6',
             'type'       => $data['type'] ?? 'personal',
@@ -107,15 +122,16 @@ class CalendarService
     }
 
     /**
-     * Create a new event.
+     * Create a new event. See createCalendar()'s docblock for why
+     * `$companyId` is threaded explicitly rather than read from `$data`.
      *
      * @param  array<string,mixed> $data
      */
-    public function createEvent(int $userId, array $data): CalendarEvent
+    public function createEvent(int $userId, array $data, ?int $companyId = null): CalendarEvent
     {
         $event = CalendarEvent::create([
             'calendar_id'                 => $data['calendar_id'],
-            'tenant_id'                   => $data['tenant_id'] ?? null,
+            'tenant_id'                   => $companyId,
             'title'                       => $data['title'],
             'description'                 => $data['description'] ?? null,
             'start_at'                    => $data['start_at'],

@@ -42,7 +42,11 @@ class AchatsAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19: `users.role` is a phantom column (real, migrated,
+            // never populated by any real registration/onboarding path) —
+            // the same bug class already fixed for Sales/HR/Timesheets/
+            // Projects' own AI-assist controllers this session.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

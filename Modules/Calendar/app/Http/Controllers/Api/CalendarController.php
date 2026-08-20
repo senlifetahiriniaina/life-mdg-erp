@@ -49,7 +49,11 @@ class CalendarController extends Controller
             'is_visible' => 'nullable|boolean',
         ]);
 
-        $calendar = $this->calendarService->createCalendar($request->user()->id, $data);
+        $calendar = $this->calendarService->createCalendar(
+            $request->user()->id,
+            $data,
+            $request->user()->company_id,
+        );
 
         return response()->json($calendar, Response::HTTP_CREATED);
     }
@@ -168,7 +172,11 @@ class CalendarController extends Controller
             'reminders.*.method'         => 'required_with:reminders|in:email,push,popup',
         ]);
 
-        $event = $this->calendarService->createEvent($request->user()->id, $data);
+        $event = $this->calendarService->createEvent(
+            $request->user()->id,
+            $data,
+            $request->user()->company_id,
+        );
 
         return response()->json($this->formatEvent($event), Response::HTTP_CREATED);
     }
@@ -219,15 +227,26 @@ class CalendarController extends Controller
      */
     public function attendees(CalendarEvent $event): JsonResponse
     {
+        $this->authorize('view', $event);
+
         return response()->json($event->attendees()->get());
     }
 
     /**
      * POST /api/v1/calendar/events/{event}/attendees
      * Add an attendee to an event.
+     *
+     * Chantier 19 Lot 3: had zero authorize() call at all, unlike
+     * updateEvent()/destroyEvent() on the same controller — any
+     * authenticated user with Calendar-module access (i.e. every employee)
+     * could add an attendee to any other user's event regardless of
+     * ownership. Gated on the same 'update' ability updateEvent() already
+     * uses, since adding an attendee is itself a mutation of the event.
      */
     public function addAttendee(Request $request, CalendarEvent $event): JsonResponse
     {
+        $this->authorize('update', $event);
+
         $data = $request->validate([
             'email'        => 'required|email',
             'name'         => 'nullable|string|max:100',

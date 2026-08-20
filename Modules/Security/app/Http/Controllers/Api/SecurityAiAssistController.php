@@ -42,7 +42,13 @@ class SecurityAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 19 Lot 3: same phantom `users.role` bug as
+            // Modules\AI\Http\Controllers\Api\AiAssistantController::assist()
+            // (fixed alongside this in the same pass) — `role` is never
+            // populated by the real registration flow, so every real caller
+            // was reported to the AI provider as a generic 'user' regardless
+            // of their real Spatie role.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

@@ -26,7 +26,9 @@ class UpdateSupplierRequest extends FormRequest
             'country' => 'nullable|string|max:100',
             'tax_number' => 'nullable|string|max:50',
             'currency' => 'nullable|string|size:3',
-            'payment_terms' => 'nullable|string',
+            // Chantier 19: same fix as StoreSupplierRequest — Suppliers/Form.vue
+            // sends payment_terms as a real JSON number, which `string` rejects.
+            'payment_terms' => 'nullable',
             'lead_time_days' => 'nullable|integer|min:1',
             'is_active' => 'nullable|boolean',
         ];

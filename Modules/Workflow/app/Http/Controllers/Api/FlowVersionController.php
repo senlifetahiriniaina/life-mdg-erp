@@ -27,10 +27,10 @@ class FlowVersionController extends Controller
     /**
      * GET /v1/flows/{id}/versions
      */
-    public function index(int $id): JsonResponse
+    public function index(Request $request, int $id): JsonResponse
     {
         try {
-            $versions = $this->versionService->listVersions($id);
+            $versions = $this->versionService->listVersions($id, $this->tenantId($request));
             return response()->json(['data' => $versions]);
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 404);
@@ -54,6 +54,7 @@ class FlowVersionController extends Controller
                 flowId:    $id,
                 label:     $request->input('label'),
                 createdBy: $request->user()?->id,
+                tenantId:  $this->tenantId($request),
             );
             return response()->json(['data' => $version], 201);
         } catch (RuntimeException $e) {
@@ -64,10 +65,10 @@ class FlowVersionController extends Controller
     /**
      * POST /v1/flows/{id}/versions/{versionId}/restore
      */
-    public function restore(int $id, int $versionId): JsonResponse
+    public function restore(Request $request, int $id, int $versionId): JsonResponse
     {
         try {
-            $newVersion = $this->versionService->rollback($id, $versionId);
+            $newVersion = $this->versionService->rollback($id, $versionId, $this->tenantId($request));
             return response()->json([
                 'message' => "Flow #{$id} rolled back to version #{$versionId}. New version created.",
                 'data'    => $newVersion,
@@ -75,5 +76,16 @@ class FlowVersionController extends Controller
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * Chantier 19 Lot 3: see FlowVersionService::findFlowOrFail()'s docblock
+     * for the full investigation — this closes the cross-tenant IDOR on a
+     * route that's live/routed even though AutomationFlow rows can't yet be
+     * created via any wired-up path.
+     */
+    private function tenantId(Request $request): int
+    {
+        return (int) ($request->user()?->company_id ?? 0);
     }
 }

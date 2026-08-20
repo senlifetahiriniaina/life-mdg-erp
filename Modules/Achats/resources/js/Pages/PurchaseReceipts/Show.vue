@@ -193,6 +193,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import axios from 'axios'
 import { useRouteId } from '@/composables/useRouteId'
 const routeId = useRouteId()
 const receipt = ref({})
@@ -263,16 +264,8 @@ const acceptableCount = computed(() => {
 
 const loadReceipt = async () => {
   try {
-    const response = await fetch(`/api/v1/achats/purchase-receipts/${routeId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]').content}`
-      }
-    })
-    if (response.ok) {
-      receipt.value = await response.json()
-    } else {
-      error.value = 'Failed to load receipt'
-    }
+    const { data } = await axios.get(`/api/v1/achats/purchase-receipts/${routeId.value}`)
+    receipt.value = data
   } catch (err) {
     console.error('Failed to load receipt:', err)
     error.value = 'An error occurred while loading the receipt'
