@@ -5,6 +5,7 @@ namespace Modules\Security\Services;
 use Modules\Security\Models\ThreatIndicator;
 use Modules\Security\Models\SecurityIncident;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class ThreatDetectionService
 {
@@ -28,6 +29,20 @@ class ThreatDetectionService
 
     public function isKnownThreatIp(string $ip): bool
     {
+        // Chantier 32.3: RateLimitController::blockIp() (an admin action —
+        // "IP X has been blocked") wrote a Cache::put("security.blocked_ip.
+        // {$ip}", ...) entry that nothing anywhere ever read — the block was
+        // never actually enforced by anything, confirmed via grep before this
+        // fix. This is the one real read-path into the request lifecycle for
+        // an IP reputation check (app/Http/Middleware/RequestInspectionMiddleware,
+        // root-level and out of this module's scope, already calls this exact
+        // method) — checking the manual-block cache key here, rather than
+        // adding a second check into that root middleware, closes the gap
+        // without touching a file outside Modules/Security.
+        if (Cache::has("security.blocked_ip.{$ip}")) {
+            return true;
+        }
+
         return ThreatIndicator::where('indicator_type', 'ip')
             ->where('indicator_value', $ip)
             ->where('is_whitelisted', false)

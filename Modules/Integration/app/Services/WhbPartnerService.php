@@ -192,10 +192,23 @@ class WhbPartnerService
      *         [['data_type'=>'invoice','can_receive'=>true,'can_send'=>false,'auto_accept'=>false], …]
      * @throws RuntimeException
      */
-    public function approveConnection(int $connectionId, int $adminUserId, array $permissions): WhbConnection
+    public function approveConnection(int $connectionId, int $adminUserId, array $permissions, ?string $tenantId = null): WhbConnection
     {
+        // Chantier 32.6: this — and rejectConnection()/suspendConnection()
+        // below — has always been findOrFail() with zero tenant filter of
+        // its own. Currently safe in practice ONLY because the one real
+        // caller, WhbPartnerController, always pre-checks
+        // WhbConnection::forTenant($tenantId)->find($id) and 404s before
+        // ever reaching here — but that makes the guarantee live entirely
+        // in the controller, one accidental bypass away from a real IDOR
+        // the moment any other caller (a queued job, an artisan command,
+        // a future API version) invokes this service method directly.
+        // $tenantId is optional (backward compatible with the one existing
+        // caller, which already pre-checks) but enforced whenever supplied.
         /** @var WhbConnection|null $connection */
-        $connection = WhbConnection::findOrFail($connectionId);
+        $connection = $tenantId !== null
+            ? WhbConnection::forTenant($tenantId)->findOrFail($connectionId)
+            : WhbConnection::findOrFail($connectionId);
 
         if ($connection->status !== 'pending') {
             throw new RuntimeException('Connection is not in pending state.');
@@ -243,17 +256,19 @@ class WhbPartnerService
     /**
      * Reject a pending connection.
      */
-    public function rejectConnection(int $connectionId): void
+    public function rejectConnection(int $connectionId, ?string $tenantId = null): void
     {
-        WhbConnection::findOrFail($connectionId)->update(['status' => 'rejected']);
+        $query = $tenantId !== null ? WhbConnection::forTenant($tenantId) : WhbConnection::query();
+        $query->findOrFail($connectionId)->update(['status' => 'rejected']);
     }
 
     /**
      * Suspend an active connection.
      */
-    public function suspendConnection(int $connectionId): void
+    public function suspendConnection(int $connectionId, ?string $tenantId = null): void
     {
-        WhbConnection::findOrFail($connectionId)->update(['status' => 'suspended']);
+        $query = $tenantId !== null ? WhbConnection::forTenant($tenantId) : WhbConnection::query();
+        $query->findOrFail($connectionId)->update(['status' => 'suspended']);
     }
 
     // -------------------------------------------------------------------------

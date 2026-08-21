@@ -94,14 +94,23 @@ class AiContextualAssistantService
             'Assets'              => ['add_asset', 'post_depreciation', 'schedule_maintenance', 'dispose_asset'],
             'Reporting'           => ['create_report', 'schedule_report', 'export_report', 'interpret_results', 'view_dashboard'],
             'BI'                  => ['analyze_data'],
-            'Helpdesk'            => ['route_ticket'],
+            // Chantier 32.2: 'view_dashboard' added — resources/js/Pages/Helpdesk/
+            // Tickets/Show.vue (the real ticket-detail screen) calls
+            // useAiAssistant('Helpdesk', 'view_dashboard'), which is not the same
+            // (module, action) pair as 'route_ticket' below, so it always
+            // resolved to an empty guidance shell.
+            'Helpdesk'            => ['route_ticket', 'view_dashboard'],
             'Documents'           => ['ocr_classify'],
             'Timesheets'          => ['view_dashboard'],
             'Planning'            => ['view_dashboard'],
             'CustomerService'     => ['view_dashboard'],
             'Workflow'            => ['view_dashboard'],
             'MarketingAutomation' => ['view_dashboard'],
-            'Calendar'            => ['view_calendar', 'calendar_settings', 'create_event'],
+            // Chantier 32.2: 'calendar_integrations'/'team_calendar'/'view_event'
+            // added — 3 real, mounted Calendar pages (Integrations.vue, Teams.vue,
+            // Event/Show.vue) each call useAiAssistant('Calendar', <their own
+            // action>), none of which matched any key already registered here.
+            'Calendar'            => ['view_calendar', 'calendar_settings', 'create_event', 'calendar_integrations', 'team_calendar', 'view_event'],
             // Phase 52 modules
             'SMS'              => ['view_dashboard', 'send_campaign', 'configure_provider'],
             'Payroll'          => ['view_dashboard', 'generate_payslips', 'approve_payroll', 'export_payroll'],
@@ -117,6 +126,21 @@ class AiContextualAssistantService
             // field blank) instead of real guidance text, and the other 7
             // Strategy pages had no AI assistant call at all. Both fixed.
             'Strategy'         => ['view_dashboard', 'view_cascade_map', 'view_ratios', 'view_plans', 'view_plan_detail', 'view_benchmarks', 'view_correlations', 'view_objectives', 'view_sector_kpi'],
+            // Chantier 32.2 (14-layer deep audit of Modules\AI): a systematic
+            // grep of every real `useAiAssistant(module, action)` call site
+            // across the whole app (root `resources/js` + every
+            // `Modules/*/resources/js`) found 3 entire modules called from a
+            // real, mounted page but never registered here at all — the exact
+            // same "silently resolves to an empty guidance shell" bug class
+            // Chantier 30 already found and fixed for Strategy, still present
+            // elsewhere. 'Analytics' is called from `Modules/Analytics/resources
+            // /js/Pages/Index.vue` (the forecasting hub) and `CashflowForecast/
+            // Index.vue`. 'Integration' is called from `IntegrationsIndex.vue`.
+            // 'Security' is called from `Modules/Security/resources/js/Pages/
+            // Index.vue`.
+            'Analytics'        => ['view_dashboard'],
+            'Integration'      => ['view_dashboard'],
+            'Security'         => ['view_dashboard'],
         ];
     }
 
@@ -237,7 +261,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -2153,7 +2177,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -5080,6 +5104,250 @@ PROMPT;
                 'warnings'            => [],
                 'next_actions'        => [
                     ['label' => 'View balance sheet', 'action' => 'view_balance_sheet', 'module' => 'Accounting'],
+                ],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.2 (14-layer deep audit of Modules\AI) — closes 3 modules
+     * (Analytics, Integration, Security) called from real, mounted Vue pages
+     * but never registered in supportedModules()/the fallback map at all,
+     * plus 4 actions on 2 already-registered modules (Helpdesk.view_dashboard,
+     * Calendar.calendar_integrations/team_calendar/view_event) called from
+     * real pages but missing from those modules' action lists — the exact
+     * "silently resolves to an empty guidance shell" bug class Chantier 30
+     * already found and fixed for Strategy. See supportedModules()'s own
+     * comments for exactly which real Vue file calls each pair.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier32(): array
+    {
+        return [
+            'Analytics.view_dashboard' => [
+                'what_to_do'          => 'Consultez le centre de prévisions IA : modèles prédictifs, anomalies détectées et alertes proactives.',
+                'how_to_do'           => [
+                    'Consultez l\'onglet Prévisions pour les modèles de prévision de la demande, de trésorerie et de production actifs.',
+                    'Repérez les anomalies signalées (rupture de stock, dérive de trésorerie) en priorité.',
+                    'Ouvrez la prévision de trésorerie pour un horizon détaillé (30/60/90/180 jours) et exportez-la en PDF/Excel.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Alertes actives', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir la prévision de trésorerie', 'action' => 'view_dashboard', 'module' => 'Accounting'],
+                ],
+                'tips'                => [
+                    'Les prévisions se basent sur votre historique réel de mouvements — plus vous avez d\'historique, plus elles sont fiables.',
+                ],
+            ],
+            'Integration.view_dashboard' => [
+                'what_to_do'          => 'Connectez WideHalo à vos outils externes (paiement mobile, comptabilité bancaire, partenaires fédérés).',
+                'how_to_do'           => [
+                    'Consultez l\'onglet Connecteurs actifs pour voir ce qui est déjà relié.',
+                    'Explorez le catalogue pour ajouter une nouvelle connexion (Orange Money, MTN MoMo, open banking…).',
+                    'Vérifiez le statut de chaque webhook après une nouvelle connexion.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Une connexion externe peut nécessiter des identifiants sensibles — ne les partagez qu\'avec un administrateur.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Security.view_dashboard' => [
+                'what_to_do'          => 'Surveillez les incidents de sécurité, les indicateurs de menace et le taux de conformité de l\'entreprise.',
+                'how_to_do'           => [
+                    'Traitez en priorité les incidents ouverts de sévérité critique ou élevée.',
+                    'Vérifiez le taux d\'échec d\'authentification des dernières 24 heures.',
+                    'Consultez le score de conformité pour repérer les contrôles non encore implémentés.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Incidents ouverts', 'value' => '—', 'status' => 'warning'],
+                    ['label' => 'Score de conformité', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Un pic soudain d\'échecs d\'authentification peut signaler une tentative d\'intrusion — vérifiez l\'origine des tentatives.',
+                ],
+            ],
+            'Helpdesk.view_dashboard' => [
+                'what_to_do'          => 'Suivez le cycle de vie complet d\'un ticket, de son ouverture jusqu\'à sa clôture.',
+                'how_to_do'           => [
+                    'Vérifiez le statut actuel dans le fil (ouvert → en cours → résolu → clôturé).',
+                    'Ajoutez une note interne si l\'information n\'est destinée qu\'aux agents.',
+                    'Changez l\'assignation si le ticket concerne une autre équipe.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Router un nouveau ticket', 'action' => 'route_ticket', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'Un ticket lié à un SLA affiche son échéance — surveillez-la pour éviter un dépassement.',
+                ],
+            ],
+            'Calendar.calendar_integrations' => [
+                'what_to_do'          => 'Synchronisez votre calendrier WideHalo avec Google Calendar, Outlook ou Apple Calendar (iCloud).',
+                'how_to_do'           => [
+                    'Choisissez le fournisseur à connecter (Google, Outlook ou Apple).',
+                    'Autorisez la connexion depuis la fenêtre d\'authentification du fournisseur.',
+                    'Vérifiez la date de dernière synchronisation pour confirmer que la connexion est active.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'La synchronisation est bidirectionnelle — un événement supprimé côté fournisseur externe peut être supprimé ici aussi.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Calendar.team_calendar' => [
+                'what_to_do'          => 'Visualisez les disponibilités et les événements de toute l\'équipe sur une même vue semaine/jour.',
+                'how_to_do'           => [
+                    'Sélectionnez la vue semaine ou jour selon le niveau de détail souhaité.',
+                    'Filtrez sur un membre en particulier pour voir uniquement son planning.',
+                    'Repérez les créneaux libres communs avant de proposer une réunion.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Créer un événement', 'action' => 'create_event', 'module' => 'Calendar'],
+                ],
+                'tips'                => [],
+            ],
+            'Calendar.view_event' => [
+                'what_to_do'          => 'Consultez le détail d\'un événement : date, participants et lien éventuel avec un autre module.',
+                'how_to_do'           => [
+                    'Vérifiez la date et l\'heure avant de confirmer votre présence.',
+                    'Consultez la liste des participants pour savoir qui d\'autre est convié.',
+                    'Supprimez l\'événement uniquement si vous en êtes l\'organisateur.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'La suppression d\'un événement est définitive et ne peut pas être annulée.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Retour au calendrier', 'action' => 'view_calendar', 'module' => 'Calendar'],
+                ],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier32(): array
+    {
+        return [
+            'Analytics.view_dashboard' => [
+                'what_to_do'          => 'Review the AI forecasting hub: predictive models, detected anomalies and proactive alerts.',
+                'how_to_do'           => [
+                    'Check the Forecasts tab for active demand, cashflow and production forecast models.',
+                    'Look at flagged anomalies (stockout risk, cashflow drift) first.',
+                    'Open the cashflow forecast for a detailed horizon (30/60/90/180 days) and export it as PDF/Excel.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active alerts', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View cashflow forecast', 'action' => 'view_dashboard', 'module' => 'Accounting'],
+                ],
+                'tips'                => [
+                    'Forecasts are based on your real transaction history — the more history you have, the more reliable they are.',
+                ],
+            ],
+            'Integration.view_dashboard' => [
+                'what_to_do'          => 'Connect WideHalo to your external tools (mobile payment, open banking, federation partners).',
+                'how_to_do'           => [
+                    'Check the Active connectors tab to see what is already linked.',
+                    'Browse the catalog to add a new connection (Orange Money, MTN MoMo, open banking…).',
+                    'Verify each webhook\'s status after a new connection.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'An external connection may require sensitive credentials — only share them with an administrator.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Security.view_dashboard' => [
+                'what_to_do'          => 'Monitor security incidents, threat indicators and the company\'s compliance rate.',
+                'how_to_do'           => [
+                    'Handle open critical/high-severity incidents first.',
+                    'Check the authentication failure rate over the last 24 hours.',
+                    'Review the compliance score to spot controls not yet implemented.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Open incidents', 'value' => '—', 'status' => 'warning'],
+                    ['label' => 'Compliance score', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A sudden spike in authentication failures can signal an intrusion attempt — check where the attempts come from.',
+                ],
+            ],
+            'Helpdesk.view_dashboard' => [
+                'what_to_do'          => 'Track a ticket\'s full lifecycle, from opening through to closure.',
+                'how_to_do'           => [
+                    'Check its current status in the timeline (open → in progress → resolved → closed).',
+                    'Add an internal note if the information is for agents only.',
+                    'Reassign the ticket if it belongs to a different team.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Route a new ticket', 'action' => 'route_ticket', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'A ticket linked to an SLA shows its due date — watch it to avoid a breach.',
+                ],
+            ],
+            'Calendar.calendar_integrations' => [
+                'what_to_do'          => 'Sync your WideHalo calendar with Google Calendar, Outlook, or Apple Calendar (iCloud).',
+                'how_to_do'           => [
+                    'Choose the provider to connect (Google, Outlook, or Apple).',
+                    'Authorize the connection from the provider\'s sign-in window.',
+                    'Check the last-synced date to confirm the connection is active.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Sync is two-way — an event deleted on the external provider side may be deleted here too.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Calendar.team_calendar' => [
+                'what_to_do'          => 'See the whole team\'s availability and events in one week/day view.',
+                'how_to_do'           => [
+                    'Pick the week or day view depending on the level of detail needed.',
+                    'Filter to one member to see only their schedule.',
+                    'Spot common free slots before proposing a meeting.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Create an event', 'action' => 'create_event', 'module' => 'Calendar'],
+                ],
+                'tips'                => [],
+            ],
+            'Calendar.view_event' => [
+                'what_to_do'          => 'Review an event\'s detail: date, attendees, and any link to another module.',
+                'how_to_do'           => [
+                    'Check the date and time before confirming your attendance.',
+                    'Review the attendee list to see who else is invited.',
+                    'Only delete the event if you are its organizer.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Deleting an event is permanent and cannot be undone.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Back to calendar', 'action' => 'view_calendar', 'module' => 'Calendar'],
                 ],
                 'tips'                => [],
             ],

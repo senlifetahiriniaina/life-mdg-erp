@@ -83,8 +83,30 @@ class IntegrationService
 
         $endpoints = $connector->webhookEndpoints()->where('is_active', true)->get();
 
+        // Chantier 32.6 (Layer 14f — performance): previously a plain
+        // foreach issuing one blocking HTTP call per endpoint sequentially,
+        // inside the request-response cycle of `POST connectors/{id}/
+        // dispatch` — a connector with N active endpoints (no upper bound
+        // enforced anywhere on addWebhook()) could stack up to
+        // N * timeout_seconds (each individually validated up to 300s) of
+        // wall-clock time before the caller ever got a response — exactly
+        // the "external HTTP calls inside a request-response cycle rather
+        // than queued" pattern flagged as a plausible slow-API source.
+        // Http::pool() fires every endpoint concurrently instead, bounding
+        // the whole dispatch to roughly the single slowest endpoint's
+        // timeout rather than their sum, while preserving the exact same
+        // synchronous return-with-results contract every existing caller/
+        // test (IntegrationTest.php) already depends on.
+        $results = $endpoints->isEmpty()
+            ? []
+            : Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($endpoints, $payload) {
+                foreach ($endpoints as $endpoint) {
+                    $this->buildPooledRequest($pool, $endpoint, $payload);
+                }
+            });
+
         foreach ($endpoints as $endpoint) {
-            $result = $this->sendToEndpoint($endpoint, $payload);
+            $result = $this->interpretPooledResponse($results[(string) $endpoint->id] ?? null);
 
             if ($result['success']) {
                 $recordsProcessed++;
@@ -201,47 +223,62 @@ class IntegrationService
     // ---------------------------------------------------------------------------
 
     /**
-     * Send a single HTTP request to a webhook endpoint.
+     * Register a single webhook request into a concurrent Http::pool(),
+     * keyed by the endpoint's own id so dispatchWebhook() can match each
+     * result back to its endpoint afterwards. Building the request (timeout,
+     * custom headers, HMAC signature) is identical to the old sequential
+     * sendToEndpoint() — only the actual send() is now async/pooled.
+     */
+    private function buildPooledRequest(\Illuminate\Http\Client\Pool $pool, WebhookEndpoint $endpoint, array $payload): void
+    {
+        $request = $pool->as((string) $endpoint->id)->timeout($endpoint->timeout_seconds);
+
+        if (!empty($endpoint->headers)) {
+            $request = $request->withHeaders($endpoint->headers);
+        }
+
+        if ($endpoint->secret_key) {
+            $signature = hash_hmac('sha256', json_encode($payload), $endpoint->secret_key);
+            $request = $request->withHeaders(['X-WideHalo-Signature' => "sha256={$signature}"]);
+        }
+
+        $request->send($endpoint->method, $endpoint->url, ['json' => $payload]);
+    }
+
+    /**
+     * Interpret one Http::pool() result slot — a real Response on success
+     * or on any non-2xx status, or a Throwable (e.g. ConnectionException,
+     * per Illuminate\Http\Client\PendingRequest::pool()'s own documented
+     * return type) when the request never completed at all — into the same
+     * {success, status_code, error} shape sendToEndpoint() used to return
+     * directly, so dispatchWebhook()'s aggregation logic is unchanged.
      *
-     * @param  array<string, mixed> $payload
      * @return array{success: bool, status_code: int|null, error: string|null}
      */
-    private function sendToEndpoint(WebhookEndpoint $endpoint, array $payload): array
+    private function interpretPooledResponse(mixed $result): array
     {
-        try {
-            $request = Http::timeout($endpoint->timeout_seconds);
+        if ($result instanceof \Throwable) {
+            Log::warning('Integration: webhook dispatch failed', ['error' => $result->getMessage()]);
 
-            // Merge custom headers
-            if (!empty($endpoint->headers)) {
-                $request = $request->withHeaders($endpoint->headers);
-            }
-
-            // Attach HMAC signature if secret_key is configured
-            if ($endpoint->secret_key) {
-                $signature = hash_hmac('sha256', json_encode($payload), $endpoint->secret_key);
-                $request = $request->withHeaders(['X-WideHalo-Signature' => "sha256={$signature}"]);
-            }
-
-            $response = $request->send($endpoint->method, $endpoint->url, ['json' => $payload]);
-
-            if ($response->successful()) {
-                return ['success' => true, 'status_code' => $response->status(), 'error' => null];
-            }
-
-            return [
-                'success'     => false,
-                'status_code' => $response->status(),
-                'error'       => "HTTP {$response->status()}: " . $response->body(),
-            ];
-        } catch (\Throwable $e) {
-            Log::warning('Integration: webhook dispatch failed', [
-                'endpoint_id' => $endpoint->id,
-                'url'         => $endpoint->url,
-                'error'       => $e->getMessage(),
-            ]);
-
-            return ['success' => false, 'status_code' => null, 'error' => $e->getMessage()];
+            return ['success' => false, 'status_code' => null, 'error' => $result->getMessage()];
         }
+
+        if (! $result instanceof \Illuminate\Http\Client\Response) {
+            // No slot at all for this endpoint (shouldn't happen — every
+            // endpoint gets a pool key — but fail closed rather than throw
+            // an undefined-index-shaped error if it ever does).
+            return ['success' => false, 'status_code' => null, 'error' => 'No response received.'];
+        }
+
+        if ($result->successful()) {
+            return ['success' => true, 'status_code' => $result->status(), 'error' => null];
+        }
+
+        return [
+            'success'     => false,
+            'status_code' => $result->status(),
+            'error'       => "HTTP {$result->status()}: " . $result->body(),
+        ];
     }
 
     /**

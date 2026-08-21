@@ -383,7 +383,13 @@ class RolesAndPermissionsSeeder extends Seeder
         'strategy'         => ['ratio', 'objective', 'plan'],
         'auditlog'         => ['logs'],
         'setup'            => ['import', 'mapping', 'wizard'],
-        'integration'      => ['connector', 'webhook', 'sync-log'],
+        // Chantier 32.6: 'external-integration' (IntegrationManager's
+        // mobile-money/e-commerce/business-tools registry — Orange Money,
+        // Wave, MTN MoMo, M-Pesa, Shopify, WooCommerce, Jumia, Google
+        // Workspace, Zapier) added — a real, fully-written subsystem that
+        // had zero controller/route/permission of any kind before this
+        // chantier gave it its first-ever producer.
+        'integration'      => ['connector', 'webhook', 'sync-log', 'external-integration'],
         'settings'         => ['setting', 'group'],
         'validation'       => ['workflow', 'rule', 'hierarchy', 'request'],
         // Chantier 20: internal team messaging — every seeded role picks this
@@ -496,20 +502,43 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin->syncPermissions($allPermissions);
 
         // manager: all actions except delete on sensitive resources
-        $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        //
+        // Chantier 32.3 (Security deep audit): 'security' is in MODULES like
+        // every other module, so this generic loop was silently handing
+        // manager (and employee, below) full security.* — including
+        // security.encryption.rotate, security.identity.rotate (mint/rotate
+        // service-to-service credentials), security.incident.*,
+        // security.compliance.* — every day-to-day manager in the app, not
+        // just security-admin/admin. The module's own routes/api.php already
+        // scopes 2 of its 8 sub-resources (auth-events, rate-limits) to
+        // role:security-admin,admin,super-admin, confirming the intended
+        // audience — manager/employee were never meant to reach any of this,
+        // it was purely a side effect of the generic $allPermissions loop.
+        // Excluded here (defense-in-depth alongside the route-level role
+        // gate added in the same chantier) rather than pulling 'security' out
+        // of MODULES entirely, so admin/security-admin keep getting it via
+        // their own existing wildcard/full-set grants below, unaffected.
         $managerPerms = array_filter($allPermissions, function (Permission $p) {
             // No delete on invoices/employees from managers
             if (str_ends_with($p->name, '.delete') &&
                 (str_starts_with($p->name, 'accounting.') || str_starts_with($p->name, 'hr.'))) {
                 return false;
             }
+            if (str_starts_with($p->name, 'security.')) {
+                return false;
+            }
             return true;
         });
+        $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->syncPermissions(array_values($managerPerms));
 
         // employee: view-any + view + create + update own (no delete)
+        // Chantier 32.3: same security.* exclusion as manager above.
+        $employeePerms = array_filter(
+            $allPermissions,
+            fn(Permission $p) => ! str_ends_with($p->name, '.delete') && ! str_starts_with($p->name, 'security.')
+        );
         $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
-        $employeePerms = array_filter($allPermissions, fn(Permission $p) => ! str_ends_with($p->name, '.delete'));
         $employee->syncPermissions(array_values($employeePerms));
 
         // accountant: full access to accounting only

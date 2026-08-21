@@ -137,21 +137,28 @@ class IncidentTest extends TestCase
         }
     }
 
+    // Chantier 32.3: these used to hit /api/v1/security/threats, served by
+    // IncidentController's now-deleted indexThreats/storeThreat/whitelistThreat/
+    // unwhitelistThreat — a confirmed-dead duplicate of ThreatIndicatorController's
+    // own routes (/api/v1/security/threat-indicators). Updated to the real,
+    // consolidated routes/field names (indicator_type enum uses 'ip' not
+    // 'ip_address', payload key is 'severity' not 'threat_level', responses
+    // are wrapped in 'data') rather than left pointing at deleted code.
     public function test_list_threats(): void
     {
         ThreatIndicator::factory(5)->create();
 
-        $response = $this->actingAs($this->user)->getJson('/api/v1/security/threats');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/threat-indicators');
 
         $response->assertOk();
     }
 
     public function test_create_threat_indicator(): void
     {
-        $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
-            'indicator_type' => 'ip_address',
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/threat-indicators', [
+            'indicator_type' => 'ip',
             'indicator_value' => '192.168.1.100',
-            'threat_level' => 'high',
+            'severity' => 'high',
             'description' => 'Known malicious IP',
             'source' => 'internal_detection',
         ]);
@@ -166,31 +173,31 @@ class IncidentTest extends TestCase
     {
         $threat = ThreatIndicator::factory()->create(['is_whitelisted' => false]);
 
-        $response = $this->actingAs($this->user)->postJson("/api/v1/security/threats/{$threat->id}/whitelist");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/threat-indicators/{$threat->id}/whitelist");
 
         $response->assertOk();
-        $response->assertJsonPath('is_whitelisted', true);
+        $response->assertJsonPath('data.is_whitelisted', true);
     }
 
     public function test_unwhitelist_threat(): void
     {
         $threat = ThreatIndicator::factory()->create(['is_whitelisted' => true]);
 
-        $response = $this->actingAs($this->user)->postJson("/api/v1/security/threats/{$threat->id}/unwhitelist");
+        $response = $this->actingAs($this->user)->postJson("/api/v1/security/threat-indicators/{$threat->id}/unwhitelist");
 
         $response->assertOk();
-        $response->assertJsonPath('is_whitelisted', false);
+        $response->assertJsonPath('data.is_whitelisted', false);
     }
 
     public function test_threat_indicator_types(): void
     {
-        $types = ['ip_address', 'domain', 'hash', 'email', 'user_agent'];
+        $types = ['ip', 'domain', 'hash', 'email', 'user_agent'];
 
         foreach ($types as $type) {
-            $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/threat-indicators', [
                 'indicator_type' => $type,
                 'indicator_value' => "value_$type",
-                'threat_level' => 'medium',
+                'severity' => 'medium',
                 'description' => "Test $type",
                 'source' => 'user_report',
             ]);
@@ -204,10 +211,10 @@ class IncidentTest extends TestCase
         $levels = ['low', 'medium', 'high', 'critical'];
 
         foreach ($levels as $level) {
-            $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
-                'indicator_type' => 'ip_address',
+            $response = $this->actingAs($this->user)->postJson('/api/v1/security/threat-indicators', [
+                'indicator_type' => 'ip',
                 'indicator_value' => "ip_$level",
-                'threat_level' => $level,
+                'severity' => $level,
                 'description' => "Test $level",
                 'source' => 'threat_feed',
             ]);
@@ -276,10 +283,15 @@ class IncidentTest extends TestCase
     {
         ThreatIndicator::factory()->create(['indicator_value' => '192.168.1.100']);
 
-        $response = $this->actingAs($this->user)->postJson('/api/v1/security/threats', [
-            'indicator_type' => 'ip_address',
+        // Chantier 32.3: this used to hit the legacy route (which validated
+        // uniqueness at the app layer); the real, consolidated
+        // ThreatIndicatorController::store() never did despite a real DB-level
+        // unique constraint existing — confirmed this threw a raw 500
+        // QueryException instead of a 422 before that fix landed.
+        $response = $this->actingAs($this->user)->postJson('/api/v1/security/threat-indicators', [
+            'indicator_type' => 'ip',
             'indicator_value' => '192.168.1.100',
-            'threat_level' => 'high',
+            'severity' => 'high',
             'description' => 'Duplicate',
             'source' => 'user_report',
         ]);
@@ -317,7 +329,7 @@ class IncidentTest extends TestCase
     {
         $threat = ThreatIndicator::factory()->create();
 
-        $response = $this->actingAs($this->user)->getJson('/api/v1/security/threats');
+        $response = $this->actingAs($this->user)->getJson('/api/v1/security/threat-indicators');
 
         $response->assertOk();
     }

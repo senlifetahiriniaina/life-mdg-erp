@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Integration\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -27,6 +28,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Integration extends Model
 {
     use HasFactory;
+
+    // Chantier 32.6 (Layer 11 — CORE): connect/disconnect on this model now
+    // has a real controller for the first time — real payment/e-commerce
+    // credentials being wired in/out deserves the same audit-trail coverage
+    // this module's own IntegrationConnector/SyncLog/WebhookEndpoint
+    // already have, rather than this model going unaudited while its
+    // siblings are covered.
+    use \Modules\AuditLog\Traits\HasAuditLog;
 
     protected $table = 'integrations';
 
@@ -59,5 +68,19 @@ class Integration extends Model
     public function syncLogs(): HasMany
     {
         return $this->hasMany(IntegrationSyncLog::class, 'integration_id');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Scopes
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Chantier 32.6: tenant_id is a string(36) column (same leftover
+     * UUID-tenant-design pattern as IntegrationConnector/WhbConnection in
+     * this module) — accept int|string and always compare as string.
+     */
+    public function scopeForTenant(Builder $query, int|string $tenantId): Builder
+    {
+        return $query->where('tenant_id', (string) $tenantId);
     }
 }

@@ -32,6 +32,19 @@ class WebhookEndpoint extends Model
         'timeout_seconds' => 'integer',
     ];
 
+    /**
+     * Chantier 32.6: secret_key was never hidden — IntegrationController::
+     * show()/logs() eager-load webhookEndpoints and return it as raw JSON,
+     * exposing the HMAC signing secret in plaintext to anyone with `view`
+     * permission on the connector. Matches WhbConnection's own established
+     * precedent in this exact module (shared_secret/session_token hidden
+     * there too, even from the owning tenant) — least-exposure by default,
+     * not just an access-control question.
+     */
+    protected $hidden = [
+        'secret_key',
+    ];
+
     // ---------------------------------------------------------------------------
     // Relationships
     // ---------------------------------------------------------------------------

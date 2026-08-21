@@ -6,7 +6,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Modules\Security\Models\SecurityIncident;
-use Modules\Security\Models\ThreatIndicator;
 use Modules\Security\Models\IncidentResponse;
 
 class IncidentController extends Controller
@@ -109,56 +108,13 @@ class IncidentController extends Controller
         return response()->json(null, 204);
     }
 
-    public function indexThreats(Request $request): JsonResponse
-    {
-        $this->authorize('viewAny', ThreatIndicator::class);
-
-        $level = $request->input('threat_level');
-
-        $threats = ThreatIndicator::when($level, fn($q) => $q->where('threat_level', $level))
-            ->where('is_whitelisted', false)
-            ->paginate($request->input('per_page', 25));
-
-        return response()->json($threats);
-    }
-
-    public function storeThreat(Request $request): JsonResponse
-    {
-        $this->authorize('create', ThreatIndicator::class);
-
-        $validated = $request->validate([
-            'indicator_type' => 'required|in:ip_address,domain,hash,email,user_agent',
-            'indicator_value' => 'required|string|unique:security_threat_indicators',
-            'threat_level' => 'required|in:low,medium,high,critical',
-            'description' => 'required|string',
-            'source' => 'in:internal_detection,threat_feed,user_report',
-        ]);
-
-        $threat = ThreatIndicator::create([
-            'detected_at' => now(),
-            ...$validated,
-        ]);
-
-        return response()->json($threat, 201);
-    }
-
-    public function whitelistThreat(ThreatIndicator $threat): JsonResponse
-    {
-        $this->authorize('whitelist', $threat);
-
-        $threat->update(['is_whitelisted' => true]);
-
-        return response()->json($threat);
-    }
-
-    public function unwhitelistThreat(ThreatIndicator $threat): JsonResponse
-    {
-        $this->authorize('unwhitelist', $threat);
-
-        $threat->update(['is_whitelisted' => false]);
-
-        return response()->json($threat);
-    }
+    // Chantier 32.3: indexThreats/storeThreat/whitelistThreat/unwhitelistThreat
+    // used to live here — deleted as a confirmed-dead duplicate of
+    // ThreatIndicatorController's own index()/store() (zero real caller
+    // anywhere outside their own test file, and a different indicator_type
+    // enum than the controller everything real actually calls). The
+    // whitelist/unwhitelist capability was ported onto ThreatIndicatorController
+    // instead of being lost — see its own docblock.
 
     public function indexResponses(SecurityIncident $incident, Request $request): JsonResponse
     {

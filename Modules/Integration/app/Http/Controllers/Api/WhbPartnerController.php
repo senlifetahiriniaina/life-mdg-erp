@@ -162,7 +162,8 @@ class WhbPartnerController extends Controller
             $connection = $this->partner->approveConnection(
                 $id,
                 (int) $request->user()->id,
-                $validated['permissions'] ?? []
+                $validated['permissions'] ?? [],
+                $tenantId
             );
 
             return response()->json([
@@ -190,7 +191,7 @@ class WhbPartnerController extends Controller
         }
 
         try {
-            $this->partner->rejectConnection($id);
+            $this->partner->rejectConnection($id, $tenantId);
 
             return response()->json(['message' => 'Connexion rejetée.']);
         } catch (\Throwable $e) {
@@ -214,7 +215,7 @@ class WhbPartnerController extends Controller
         }
 
         try {
-            $this->partner->suspendConnection($id);
+            $this->partner->suspendConnection($id, $tenantId);
 
             return response()->json(['message' => 'Connexion suspendue.']);
         } catch (\Throwable $e) {

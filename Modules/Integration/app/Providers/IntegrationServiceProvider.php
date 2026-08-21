@@ -7,8 +7,11 @@ namespace Modules\Integration\Providers;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Integration\Models\Integration;
 use Modules\Integration\Models\IntegrationConnector;
+use Modules\Integration\Policies\ExternalIntegrationPolicy;
 use Modules\Integration\Policies\IntegrationConnectorPolicy;
+use Modules\Integration\Services\IntegrationManager;
 use Modules\Integration\Services\IntegrationService;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
@@ -30,6 +33,11 @@ class IntegrationServiceProvider extends ServiceProvider
         $this->registerViews();
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         Gate::policy(IntegrationConnector::class, IntegrationConnectorPolicy::class);
+        // Chantier 32.6: Integration (IntegrationManager's mobile-money/
+        // e-commerce registry) had zero Policy of any kind — Modules-
+        // namespaced policies never auto-discover in this app (same
+        // precedent documented throughout CLAUDE.md for every other module).
+        Gate::policy(Integration::class, ExternalIntegrationPolicy::class);
     }
 
     public function register(): void
@@ -37,6 +45,7 @@ class IntegrationServiceProvider extends ServiceProvider
         $this->app->register(RouteServiceProvider::class);
         $this->app->singleton(IntegrationService::class);
         $this->app->alias(IntegrationService::class, 'integration');
+        $this->app->singleton(IntegrationManager::class);
     }
 
     protected function registerCommands(): void

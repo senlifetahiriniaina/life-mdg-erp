@@ -13,7 +13,6 @@ use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\API\Models\ApiKey;
-use Modules\API\Models\ApiWebhook;
 
 uses(RefreshDatabase::class);
 
@@ -57,26 +56,11 @@ test('api keys are isolated between two real companies', function () {
     expect(ApiKey::find($keyId)->revoked_at)->not->toBeNull();
 });
 
-test('webhooks are isolated between two real companies', function () {
-    $companyA = Company::factory()->create();
-    $companyB = Company::factory()->create();
-    $userA = chantier19ApiUser($companyA, 'admin');
-    $userB = chantier19ApiUser($companyB, 'admin');
-
-    $created = test()->actingAs($userA, 'sanctum')->postJson('/api/v1/api/webhooks', [
-        'name' => 'Company A hook', 'url' => 'https://example.com/a', 'events' => ['order.created'],
-    ])->assertCreated();
-    $hookId = $created->json('data.id');
-
-    $listB = test()->actingAs($userB, 'sanctum')->getJson('/api/v1/api/webhooks')->assertOk();
-    expect(collect($listB->json('data'))->pluck('id'))->not->toContain($hookId);
-
-    test()->actingAs($userB, 'sanctum')->putJson("/api/v1/api/webhooks/{$hookId}", ['name' => 'Hijacked'])->assertOk();
-    expect(ApiWebhook::find($hookId)->name)->toBe('Company A hook');
-
-    test()->actingAs($userB, 'sanctum')->deleteJson("/api/v1/api/webhooks/{$hookId}")->assertOk();
-    expect(ApiWebhook::find($hookId))->not->toBeNull();
-});
+// Chantier 32.5: "webhooks are isolated between two real companies" removed
+// along with the whole ApiWebhook/WebhookController subtree it exercised —
+// see the api_webhooks drop migration's own docblock for the full
+// rationale (confirmed dead/insecure, superseded by the real, live
+// App\Models\Webhook system at /api/v1/webhooks).
 
 test('request logs are isolated between two real companies', function () {
     $companyA = Company::factory()->create();

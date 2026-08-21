@@ -19,7 +19,7 @@ class ThreatIndicatorController extends Controller
     /**
      * List threat indicators.
      *
-     * @queryParam type string Filter by type (ip|domain|hash|url). Example: ip
+     * @queryParam type string Filter by type (ip|domain|hash|url|email|user_agent). Example: ip
      * @queryParam severity string Filter by severity (low|medium|high|critical). Example: high
      * @queryParam is_whitelisted boolean Show whitelisted only. Example: 0
      */
@@ -55,8 +55,15 @@ class ThreatIndicatorController extends Controller
         $this->authorize('create', ThreatIndicator::class);
 
         $validated = $request->validate([
-            'indicator_type' => 'required|in:ip,domain,hash,url,email',
-            'indicator_value'=> 'required|string|max:500',
+            'indicator_type' => 'required|in:ip,domain,hash,url,email,user_agent',
+            // Chantier 32.3: a real DB-level unique constraint on
+            // indicator_value exists (see database/migrations/2026_08_19_000002_
+            // add_unique_index_to_security_threat_indicators.php) but this
+            // validation never mirrored it — a duplicate indicator_value threw a
+            // raw QueryException (500) instead of a clean 422, confirmed
+            // empirically before this fix. The now-deleted legacy
+            // IncidentController::storeThreat() had this rule, this one never did.
+            'indicator_value'=> 'required|string|max:500|unique:security_threat_indicators,indicator_value',
             'severity'       => 'required|in:low,medium,high,critical',
             'description'    => 'nullable|string',
             'source'         => 'nullable|string|max:255',
@@ -94,6 +101,34 @@ class ThreatIndicatorController extends Controller
         $threat->update($validated);
 
         return response()->json(['data' => $threat, 'message' => 'Threat indicator updated']);
+    }
+
+    /**
+     * Whitelist a threat indicator (suppress it from active-threat checks).
+     *
+     * Chantier 32.3: ported over from the now-deleted legacy
+     * IncidentController::whitelistThreat() — the one real, non-duplicate
+     * capability that controller had over this one.
+     */
+    public function whitelist(ThreatIndicator $threat): JsonResponse
+    {
+        $this->authorize('whitelist', $threat);
+
+        $threat->update(['is_whitelisted' => true]);
+
+        return response()->json(['data' => $threat, 'message' => 'Threat indicator whitelisted']);
+    }
+
+    /**
+     * Un-whitelist a threat indicator.
+     */
+    public function unwhitelist(ThreatIndicator $threat): JsonResponse
+    {
+        $this->authorize('unwhitelist', $threat);
+
+        $threat->update(['is_whitelisted' => false]);
+
+        return response()->json(['data' => $threat, 'message' => 'Threat indicator un-whitelisted']);
     }
 
     /**

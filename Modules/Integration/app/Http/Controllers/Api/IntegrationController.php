@@ -161,6 +161,27 @@ class IntegrationController extends Controller
     }
 
     /**
+     * DELETE /api/v1/integration/connectors/{connector}
+     *
+     * Chantier 32.6: IntegrationConnectorPolicy::delete() has been fully
+     * written and tested since Chantier 8.6, but this controller never had
+     * a destroy() method or a DELETE route at all — the real, mounted
+     * IntegrationsIndex.vue's disconnectConnector() has always called
+     * `DELETE connectors/{id}`, a 404 on every real click, confirmed
+     * empirically. Soft-deletes (IntegrationConnector uses SoftDeletes),
+     * matching the audit-trail-preserving convention already established
+     * throughout this app for similar business records.
+     */
+    public function destroy(IntegrationConnector $connector): JsonResponse
+    {
+        $this->authorize('delete', $connector);
+
+        $connector->delete();
+
+        return response()->json(['message' => 'Connecteur supprimé.']);
+    }
+
+    /**
      * GET /api/v1/integration/stats
      * Get aggregated stats for the current tenant.
      */

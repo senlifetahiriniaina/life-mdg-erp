@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Modules\Security\Models\EncryptionKey;
 use Modules\Security\Models\KeyRotationLog;
 use Modules\Security\Models\EncryptedField;
+use Illuminate\Validation\Rule;
 
 class EncryptionController extends Controller
 {
@@ -132,7 +133,24 @@ class EncryptionController extends Controller
             'table_name' => 'required|string',
             'column_name' => 'required|string',
             'encryption_algorithm' => 'required|in:AES-256-GCM,RSA',
-            'encryption_key_id' => 'required|exists:security_encryption_keys,id',
+            // Chantier 32.3: exists: only checked the key existed anywhere,
+            // not that it belonged to the caller's own company — a
+            // security-admin from company A could name company B's
+            // encryption_key_id, creating a cross-tenant-linked
+            // EncryptedField. Since EncryptionKey::encryptedFields() has no
+            // company scoping either, company B's admin viewing their OWN
+            // key (a same-company, correctly-authorized view) would then see
+            // company A's table_name/column_name leaked into
+            // $key->encryptedFields — confirmed empirically before this fix.
+            // security_encryption_keys.company_id is varchar(36) (the same
+            // UUID-tenant-leftover column type already documented and cast
+            // everywhere else in this module's Policies) while
+            // auth()->user()->company_id is an int — cast to string here too,
+            // or this where() silently never matches on some drivers.
+            'encryption_key_id' => [
+                'required',
+                Rule::exists('security_encryption_keys', 'id')->where('company_id', (string) auth()->user()->company_id),
+            ],
             'is_searchable' => 'boolean',
         ]);
 

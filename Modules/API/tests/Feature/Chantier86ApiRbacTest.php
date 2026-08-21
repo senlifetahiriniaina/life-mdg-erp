@@ -5,14 +5,19 @@ declare(strict_types=1);
 use App\Models\User;
 
 /**
- * Chantier 8.6 (API): ApiKeyPolicy/WebhookPolicy were fully written (admin/
- * super-admin/api-manager only for create/update/delete) but never registered
- * with Laravel's Gate (Modules-namespaced policies don't auto-discover) and
- * never called from ApiKeyController/WebhookController — any authenticated
- * user of any role could create/revoke API keys and webhooks. Locks in the
- * fix: a plain-role user (no api-manager/admin role) must be denied; an admin
- * must still work (already covered by the pre-existing ApiKeyTest.php, which
- * uses actingAsUser()'s admin default).
+ * Chantier 8.6 (API): ApiKeyPolicy was fully written (admin/super-admin only
+ * for create/update/delete) but never registered with Laravel's Gate
+ * (Modules-namespaced policies don't auto-discover) and never called from
+ * ApiKeyController — any authenticated user of any role could create/revoke
+ * API keys. Locks in the fix: a plain-role user (no admin role) must be
+ * denied; an admin must still work (already covered by the pre-existing
+ * ApiKeyTest.php, which uses actingAsUser()'s admin default).
+ *
+ * The equivalent webhook coverage that used to live in this file was
+ * removed at Chantier 32.5 along with the whole ApiWebhook/WebhookController/
+ * WebhookPolicy subtree — see the api_webhooks drop migration's own
+ * docblock for the full rationale (confirmed dead/insecure, superseded by
+ * the real, live App\Models\Webhook system at /api/v1/webhooks).
  */
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -48,53 +53,14 @@ test('plain employee cannot revoke an api key', function () {
     $response->assertForbidden();
 });
 
-test('plain employee cannot create a webhook', function () {
-    test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-    $user = User::factory()->create();
-    $user->assignRole('sales-rep');
-
-    $response = test()->actingAs($user, 'sanctum')->postJson('/api/v1/api/webhooks', [
-        'name' => 'Unauthorized Webhook',
-        'url' => 'https://example.com/hook',
-        'events' => ['order.created'],
-    ]);
-
-    $response->assertForbidden();
-});
-
-test('plain employee cannot update a webhook', function () {
-    test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-    $user = User::factory()->create();
-    $user->assignRole('sales-rep');
-    $hook = \Modules\API\Models\ApiWebhook::create([
-        'tenant_id' => 1,
-        'name'      => 'Seed Hook',
-        'url'       => 'https://example.com/hook',
-        'events'    => ['order.created'],
-    ]);
-
-    $response = test()->actingAs($user, 'sanctum')->putJson("/api/v1/api/webhooks/{$hook->id}", [
-        'name' => 'Renamed',
-    ]);
-
-    $response->assertForbidden();
-});
-
-test('plain employee cannot delete a webhook', function () {
-    test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-    $user = User::factory()->create();
-    $user->assignRole('sales-rep');
-    $hook = \Modules\API\Models\ApiWebhook::create([
-        'tenant_id' => 1,
-        'name'      => 'Seed Hook',
-        'url'       => 'https://example.com/hook',
-        'events'    => ['order.created'],
-    ]);
-
-    $response = test()->actingAs($user, 'sanctum')->deleteJson("/api/v1/api/webhooks/{$hook->id}");
-
-    $response->assertForbidden();
-});
+// Chantier 32.5: the 4 "plain employee cannot create/update/delete a
+// webhook" tests that used to live here were removed along with the whole
+// ApiWebhook/WebhookController/WebhookPolicy subtree they exercised —
+// confirmed dead (zero real delivery mechanism, test() faked success,
+// index()/show() leaked the plaintext HMAC secret via a raw DB query) and
+// fully superseded by the real, live App\Models\Webhook/App\Policies\
+// WebhookPolicy system this app already has at /api/v1/webhooks. See the
+// api_webhooks drop migration's own docblock for the full rationale.
 
 test('admin can create and revoke an api key', function () {
     test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
