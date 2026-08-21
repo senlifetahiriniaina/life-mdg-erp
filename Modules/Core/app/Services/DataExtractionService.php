@@ -34,7 +34,7 @@ class DataExtractionService
             return ['headers' => [], 'rows' => []];
         }
 
-        $headers = str_getcsv(array_shift($lines));
+        $headers = str_getcsv(array_shift($lines), ',', '"', '\\');
         $headers = array_map('trim', $headers);
 
         $rows = [];
@@ -42,7 +42,7 @@ class DataExtractionService
             if (trim($line) === '') {
                 continue;
             }
-            $values = str_getcsv($line);
+            $values = str_getcsv($line, ',', '"', '\\');
             $row    = [];
             foreach ($headers as $i => $header) {
                 $row[$header] = $values[$i] ?? '';

@@ -2,44 +2,30 @@
 
 namespace Modules\Core\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Core\Models\Tenant;
+use Modules\Core\Models\TenantExchange;
 use Modules\Core\Models\TenantExchangeHistory;
 
+/**
+ * Chantier 32.1: this was scaffold boilerplate — exchange_id/actor_tenant_id/
+ * actor_user_id set via fake()->word() on FK columns, plus 'notes' (not a
+ * real fillable field on this model — the real field is 'note'). Rewritten
+ * to match TenantExchangeHistory's real $fillable.
+ */
 class TenantExchangeHistoryFactory extends Factory
 {
     protected $model = TenantExchangeHistory::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'exchange_id' => fake()->word(),
-            'action' => fake()->word(),
-            'actor_tenant_id' => fake()->word(),
-            'actor_user_id' => fake()->word(),
-            'note' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'notes' => fake()->text(),
+            'exchange_id' => TenantExchange::factory(),
+            'action' => fake()->randomElement(['created', 'accepted', 'rejected', 'cancelled']),
+            'actor_tenant_id' => Tenant::factory(),
+            'actor_user_id' => User::factory(),
+            'note' => fake()->sentence(),
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
     }
 }

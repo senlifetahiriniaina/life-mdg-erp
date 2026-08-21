@@ -6,61 +6,22 @@ namespace Modules\Core\Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Modules\Core\Models\ApprovalWorkflow;
 use Tests\TestCase;
 
 /**
- * Chantier 8.3 (Core): ApprovalController (workflow definitions + decide/
- * cancel on in-flight approval instances) and CustomFieldController had
- * ApprovalWorkflowPolicy/CustomFieldPolicy fully written but never called
- * and never registered with Laravel's Gate — any authenticated user could
- * create/update/delete approval workflows and approve/reject/cancel any
- * pending approval instance. Also covers the CSP violation report/read
- * endpoints, previously entirely unrouted.
+ * Chantier 8.3 (Core): CustomFieldController had CustomFieldPolicy fully
+ * written but never called and never registered with Laravel's Gate — any
+ * authenticated user could create/update/delete custom fields. Also covers
+ * the CSP violation report/read endpoints, previously entirely unrouted.
+ *
+ * Chantier 32.1: the two "approval workflow" RBAC tests that used to live
+ * here (ApprovalController/core/approvals/*) were removed along with the
+ * confirmed-dead Core Approval engine they covered — see CLAUDE.md's
+ * Chantier 32.1 entry.
  */
 class Chantier83CoreApprovalCustomFieldCspTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_plain_user_cannot_create_an_approval_workflow(): void
-    {
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
-
-        $response = $this->postJson('/api/v1/core/approvals/workflows', [
-            'name' => 'Invoice Approval',
-            'module' => 'accounting',
-            'resource_type' => 'invoice',
-            'steps' => [[
-                'order' => 1, 'label' => 'Manager', 'approver_type' => 'role', 'approver_value' => 'manager',
-            ]],
-        ]);
-
-        $response->assertForbidden();
-    }
-
-    public function test_admin_can_create_and_view_an_approval_workflow(): void
-    {
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('admin');
-        $this->actingAs($user, 'sanctum');
-
-        $response = $this->postJson('/api/v1/core/approvals/workflows', [
-            'name' => 'Invoice Approval',
-            'module' => 'accounting',
-            'resource_type' => 'invoice',
-            'steps' => [[
-                'order' => 1, 'label' => 'Manager', 'approver_type' => 'role', 'approver_value' => 'manager',
-            ]],
-        ]);
-
-        $response->assertCreated();
-
-        $workflowId = $response->json('id');
-        $this->getJson("/api/v1/core/approvals/workflows/{$workflowId}")->assertOk();
-    }
 
     public function test_plain_user_cannot_create_a_custom_field(): void
     {

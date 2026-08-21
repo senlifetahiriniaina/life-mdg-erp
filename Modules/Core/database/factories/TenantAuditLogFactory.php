@@ -2,53 +2,34 @@
 
 namespace Modules\Core\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Core\Models\Tenant;
 use Modules\Core\Models\TenantAuditLog;
 
+/**
+ * Chantier 32.1: this was scaffold boilerplate — every field name (name/
+ * title/slug/email/amount/quantity/…) is unrelated to this model's real
+ * $guarded=[] columns (tenant_id/user_id/action/entity_type/entity_id/
+ * old_values/new_values/ip_address/user_agent). Rewritten to match the
+ * real tenant_audit_log table.
+ */
 class TenantAuditLogFactory extends Factory
 {
     protected $model = TenantAuditLog::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'tenant_id' => Tenant::factory(),
+            'user_id' => User::factory(),
+            'action' => fake()->randomElement(['provisioned', 'suspended', 'reactivated', 'plan_upgraded', 'purged']),
+            'entity_type' => 'tenant',
+            'entity_id' => fake()->uuid(),
+            'old_values' => [],
+            'new_values' => [],
+            'ip_address' => fake()->ipv4(),
+            'user_agent' => fake()->userAgent(),
         ];
-    }
-
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
     }
 }

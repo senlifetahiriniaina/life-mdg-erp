@@ -52,17 +52,22 @@ class SandboxController extends Controller
     // ── GET /core/sandboxes ───────────────────────────────────────────────────
 
     /**
-     * List active sandboxes for the authenticated user's tenant.
+     * List active sandboxes — every tenant's, since this endpoint is
+     * super-admin-only, unless a specific parent_tenant_id is requested.
+     *
+     * Chantier 32.1: used to default to the phantom users.tenant_id column
+     * (always null), which listByParent() then matched against an empty
+     * string — the real frontend never passes parent_tenant_id at all, so
+     * this always returned zero results regardless of real data. See
+     * SandboxService::listAll()'s own docblock.
      */
     public function index(Request $request): JsonResponse
     {
-        // Resolve parent tenant from request param or authenticated user context
-        $parentTenantId = (string) $request->query(
-            'parent_tenant_id',
-            $request->user()?->tenant_id ?? '',
-        );
+        $parentTenantId = $request->query('parent_tenant_id');
 
-        $sandboxes = $this->sandboxService->listByParent($parentTenantId);
+        $sandboxes = $parentTenantId
+            ? $this->sandboxService->listByParent((string) $parentTenantId)
+            : $this->sandboxService->listAll();
 
         return response()->json(['data' => $sandboxes]);
     }

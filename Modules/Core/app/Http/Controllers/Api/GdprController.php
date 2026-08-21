@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Modules\Core\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Modules\Core\Models\ApprovalInstance;
 use Modules\Core\Models\DataRequest;
 use Modules\Core\Models\GdprConsent;
 use Modules\Core\Services\GdprService;
@@ -248,33 +246,20 @@ class GdprController extends Controller
 
     /**
      * POST /core/gdpr/delete-account — GDPR Right to Erasure
+     *
+     * Chantier 32.1: this used to gate on Modules\Core\Models\ApprovalInstance
+     * ("pending approvals must be resolved first") — a check against the
+     * confirmed-dead Core Approval engine (see CLAUDE.md's Chantier 32.1
+     * entry), which nothing anywhere ever wrote a row to, so the check could
+     * never actually trigger — a dead conditional on a table that was always
+     * empty, not a real business rule. Removed along with the deleted model
+     * rather than rewired onto a different mechanism, since no real
+     * "pending approval blocks account deletion" requirement exists
+     * elsewhere in this app to wire it onto.
      */
     public function gdprDeleteAccount(Request $request): JsonResponse
     {
         $user = $request->user();
-        $escalateToAdmin = $request->boolean('escalate_to_admin', false);
-
-        // Check for pending approvals
-        $pendingApprovals = ApprovalInstance::where('initiated_by', $user->id)
-            ->where('status', 'pending')
-            ->get();
-
-        if ($pendingApprovals->isNotEmpty() && !$escalateToAdmin) {
-            return response()->json([
-                'message' => 'Cannot delete account: you have pending approvals that must be resolved first',
-            ], 409);
-        }
-
-        // Escalate pending approvals if requested
-        if ($escalateToAdmin && $pendingApprovals->isNotEmpty()) {
-            $admin = User::where('id', '!=', $user->id)->first();
-            foreach ($pendingApprovals as $approval) {
-                $approval->update([
-                    'escalated_to' => $admin?->id,
-                    'escalation_reason' => 'Account owner requested deletion - user deletion',
-                ]);
-            }
-        }
 
         // Anonymize audit logs (GDPR right to erasure)
         $userId = (int) $user->id;
@@ -304,11 +289,6 @@ class GdprController extends Controller
                 }
             }
         }
-
-        // Delete related approval instances with approved status
-        ApprovalInstance::where('initiated_by', $user->id)
-            ->where('status', '!=', 'pending')
-            ->delete();
 
         // Delete the user
         $user->delete();

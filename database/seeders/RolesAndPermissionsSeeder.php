@@ -286,11 +286,16 @@ class RolesAndPermissionsSeeder extends Seeder
         'auditlog.logs.export',
     ];
 
-    // Chantier 8.3 (Core): ApprovalWorkflowPolicy/CustomFieldPolicy check
-    // core.{approvalworkflow,customfield}.{view-any,view,create,update,delete,
-    // approve,export,archive} -- 'core' isn't in MODULES at all (unlike
-    // security/payroll/auditlog above, which only needed one or two extra
-    // non-standard verbs), so every verb needs to be listed here explicitly.
+    // Chantier 8.3 (Core): CustomFieldPolicy checks
+    // core.customfield.{view-any,view,create,update,delete,approve,export,
+    // archive} -- 'core' isn't in MODULES at all (unlike security/payroll/
+    // auditlog above, which only needed one or two extra non-standard
+    // verbs), so every verb needs to be listed here explicitly.
+    // (The sibling core.approvalworkflow.* block that used to live here was
+    // removed at Chantier 32.1 along with the confirmed-dead Core Approval
+    // engine it gated — ApprovalWorkflowPolicy/ApprovalController/
+    // ApprovalService/ApprovalWorkflow/ApprovalInstance/ApprovalDecision —
+    // see CLAUDE.md's Chantier 32.1 entry.)
     // Chantier 8.3 (Logistics): DeliveryRoundPolicy checks
     // logistics.deliveryround.{view-any,view,create,update,delete,approve,
     // export,archive} -- 'deliveryround' isn't in MODULES['logistics'] at all
@@ -318,9 +323,6 @@ class RolesAndPermissionsSeeder extends Seeder
     ];
 
     private const CORE_EXTRA_PERMISSIONS = [
-        'core.approvalworkflow.view-any', 'core.approvalworkflow.view', 'core.approvalworkflow.create',
-        'core.approvalworkflow.update', 'core.approvalworkflow.delete', 'core.approvalworkflow.approve',
-        'core.approvalworkflow.export', 'core.approvalworkflow.archive',
         'core.customfield.view-any', 'core.customfield.view', 'core.customfield.create',
         'core.customfield.update', 'core.customfield.delete', 'core.customfield.approve',
         'core.customfield.export', 'core.customfield.archive',

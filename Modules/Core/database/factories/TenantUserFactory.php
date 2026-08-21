@@ -2,58 +2,37 @@
 
 namespace Modules\Core\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Core\Models\Tenant;
 use Modules\Core\Models\TenantUser;
 
+/**
+ * Chantier 32.1: this was scaffold boilerplate — tenant_id/user_id/role/
+ * joined_at/invited_by all set via fake()->word() (strings on FK/enum/
+ * datetime columns; joined_at in particular fataled Carbon's parser with a
+ * garbage string the instant this factory was ever actually used, e.g.
+ * "similique"), plus a long tail of fields (name/title/slug/email/amount/
+ * quantity/…) that don't exist on this model at all. Rewritten to match
+ * TenantUser's real $fillable/$casts.
+ */
 class TenantUserFactory extends Factory
 {
     protected $model = TenantUser::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'user_id' => fake()->word(),
-            'role' => fake()->word(),
-            'joined_at' => fake()->word(),
-            'invited_by' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'tenant_id' => Tenant::factory(),
+            'user_id' => User::factory(),
+            'role' => fake()->randomElement(['owner', 'admin', 'user']),
+            'joined_at' => now(),
+            'invited_by' => null,
         ];
     }
 
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
+    public function owner(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => ['role' => 'owner']);
     }
 }

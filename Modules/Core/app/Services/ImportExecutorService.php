@@ -65,9 +65,9 @@ class ImportExecutorService
             $success = $this->importRow($job, $row);
 
             if ($success) {
-                $job->increment('processed_rows');
+                $job->increment('processed');
             } else {
-                $job->increment('failed_rows');
+                $job->increment('failed');
             }
         }
 
@@ -95,8 +95,8 @@ class ImportExecutorService
         }
 
         $job->update([
-            'status'         => 'failed',
-            'processed_rows' => 0,
+            'status'    => 'failed',
+            'processed' => 0,
         ]);
     }
 
