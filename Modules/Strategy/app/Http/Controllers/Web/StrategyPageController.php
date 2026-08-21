@@ -188,6 +188,24 @@ class StrategyPageController extends Controller
     }
 
     /**
+     * GET /strategy/sector-kpi — Chantier 26 (volet E). KPI sectoriels
+     * textile/EPI calculés en direct sur les données réelles du volet A
+     * (CostingSheet/ProductionOrder/SourcingBenchmark, Chantier 21/17) —
+     * jamais de chiffre inventé. Method-injected rather than added to the
+     * constructor to avoid touching every other action's dependency list.
+     */
+    public function sectorKpi(\Modules\Strategy\Services\TextileSectorKpiService $kpiService): Response
+    {
+        return Inertia::render('Strategy/SectorKpi/Index', [
+            'margin'              => $kpiService->marginByFamily(),
+            'cost_structure'      => $kpiService->costStructure(),
+            'lead_time'           => $kpiService->subcontractingLeadTime(),
+            'production_mix'      => $kpiService->productionMixByFamily(),
+            'material_variance'   => $kpiService->materialPriceVariance(),
+        ]);
+    }
+
+    /**
      * GET /strategy/cascade — OKR alignment cascade map.
      *
      * Modules/Strategy/resources/js/Pages/Cascade/Index.vue is a real,

@@ -20,4 +20,6 @@ Route::middleware(['auth', 'module:Strategy', 'role:employee,finance-manager,man
         Route::get('/correlations', [StrategyPageController::class, 'correlations'])->name('correlations.index');
         Route::get('/objectives', [StrategyPageController::class, 'objectives'])->name('objectives.index');
         Route::get('/cascade', [StrategyPageController::class, 'cascade'])->name('cascade.index');
+        // Chantier 26 (volet E) — KPI sectoriels textile/EPI.
+        Route::get('/sector-kpi', [StrategyPageController::class, 'sectorKpi'])->name('sector-kpi.index');
     });

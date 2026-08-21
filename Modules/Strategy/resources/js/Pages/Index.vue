@@ -15,6 +15,7 @@
           <Link href="/strategy/correlations" class="wh-subnav-link">Corrélations</Link>
           <Link href="/strategy/objectives" class="wh-subnav-link">Objectifs</Link>
           <Link href="/strategy/cascade" class="wh-subnav-link">Cascade</Link>
+          <Link href="/strategy/sector-kpi" class="wh-subnav-link">KPI sectoriels</Link>
         </nav>
       </div>
 
