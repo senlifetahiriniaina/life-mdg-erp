@@ -17,6 +17,7 @@ use Modules\Helpdesk\Database\Factories\TicketFactory;
 
 /**
  * @property int $id
+ * @property int|null $company_id
  * @property int|null $team_id
  * @property int|null $assignee_id
  * @property int|null $reporter_id
@@ -83,6 +84,7 @@ class Ticket extends Model
 
     protected $fillable = [
         'ticket_number',
+        'company_id',
         'team_id',
         'assignee_id',
         'reporter_id',

@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Helpdesk\Models\Ticket;
+use Modules\Helpdesk\Services\TicketAssignmentService;
 use Modules\Helpdesk\Services\TicketService;
 
 /**
@@ -40,6 +41,26 @@ class TicketController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Ticket::with(['team', 'assignee']);
+
+        // Chantier 32.21: confirmed empirically that any employee of any
+        // company (the module:Helpdesk gate is broad by design) could list
+        // every other company's tickets — hd_tickets had no company_id
+        // column at all until this chantier. super-admin keeps the
+        // cross-company view every other module's equivalent fix leaves it;
+        // a caller whose own company_id is null (not yet provisioned, or
+        // most of this test suite's bare User::factory() fixtures) gets no
+        // extra filter, matching this session's established null-safe
+        // precedent rather than silently returning zero results. Tickets
+        // with no company_id of their own (legacy data, or a
+        // console/job-originated ticket) stay visible to everyone, same
+        // no-real-boundary-to-enforce rationale as TicketPolicy::
+        // sameCompany() below.
+        if (! $request->user()->hasRole('super-admin') && $request->user()->company_id !== null) {
+            $companyId = $request->user()->company_id;
+            $query->where(function ($q) use ($companyId) {
+                $q->whereNull('company_id')->orWhere('company_id', $companyId);
+            });
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -222,6 +243,13 @@ class TicketController extends Controller
      */
     public function assign(Request $request, Ticket $ticket): JsonResponse
     {
+        // Chantier 32.21: this endpoint had zero authorize() call at all —
+        // any authenticated user passing the broad module:Helpdesk gate
+        // could reassign any ticket, including cross-company, confirmed
+        // empirically. TicketPolicy::assignTicket() already existed
+        // specifically for this action but was never actually called.
+        $this->authorize('assignTicket', $ticket);
+
         $validated = $request->validate([
             'assignee_id' => ['required', 'exists:users,id'],
         ]);
@@ -229,6 +257,34 @@ class TicketController extends Controller
         $ticket->update($validated);
 
         return response()->json($ticket);
+    }
+
+    /**
+     * Auto-assign ticket (round-robin)
+     *
+     * Assigns a helpdesk ticket to the least-loaded active support agent on
+     * its team, using TicketAssignmentService::assignRoundRobin() — a real,
+     * tested service that previously had zero real caller anywhere in the
+     * app (Chantier 32.21).
+     *
+     * @urlParam ticket int required The ticket ID. Example: 1
+     *
+     * @response 200 scenario="Assigned" {"id": 1, "assignee_id": 3}
+     * @response 422 scenario="No team or no available agent" {"message": "No support agent could be auto-assigned (no team, or no active agent available)."}
+     */
+    public function autoAssign(Ticket $ticket, TicketAssignmentService $assignmentService): JsonResponse
+    {
+        $this->authorize('assignTicket', $ticket);
+
+        $assignee = $assignmentService->assignRoundRobin($ticket);
+
+        if (! $assignee) {
+            return response()->json([
+                'message' => 'No support agent could be auto-assigned (no team, or no active agent available).',
+            ], 422);
+        }
+
+        return response()->json($ticket->fresh());
     }
 
     /**
@@ -244,6 +300,12 @@ class TicketController extends Controller
      */
     public function resolve(Ticket $ticket): JsonResponse
     {
+        // Chantier 32.21: zero authorize() call — the general update()
+        // endpoint already gates the identical resolved/closed status
+        // transition behind TicketPolicy::closeTicket(), but this dedicated
+        // action endpoint didn't, letting any user close out any ticket.
+        $this->authorize('closeTicket', $ticket);
+
         $old = $ticket->status;
         $ticket->update(['status' => 'resolved', 'resolved_at' => now()]);
         TicketStatusChanged::dispatch($ticket, $old);
@@ -263,6 +325,8 @@ class TicketController extends Controller
      */
     public function close(Ticket $ticket): JsonResponse
     {
+        $this->authorize('closeTicket', $ticket);
+
         $old = $ticket->status;
         $ticket->update(['status' => 'closed']);
         TicketStatusChanged::dispatch($ticket, $old);
@@ -283,6 +347,13 @@ class TicketController extends Controller
      */
     public function escalate(Request $request, Ticket $ticket): JsonResponse
     {
+        // Chantier 32.21: escalate() is an update of priority/sla_breached
+        // and had zero authorize() call — gated with the same `update`
+        // ability the generic PUT endpoint already applies to those same
+        // fields (admin/manager/supervisor bypass, assigned support-agent,
+        // or the reporter on their own still-open ticket).
+        $this->authorize('update', $ticket);
+
         $old = $ticket->status;
         $ticket->update(['priority' => 'urgent', 'sla_breached' => true]);
         TicketStatusChanged::dispatch($ticket, $old);

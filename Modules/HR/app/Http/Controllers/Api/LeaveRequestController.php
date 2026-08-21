@@ -76,6 +76,9 @@ class LeaveRequestController extends Controller
                     'hire_date' => now()->toDateString(),
                     'employment_type' => 'full_time',
                     'status' => 'active',
+                    // Chantier 32.17 (HR deep 14-layer audit): third real
+                    // Employee::create() path, same company_id gap.
+                    'company_id' => $user->company_id,
                 ]);
                 $data['employee_id'] = $employee->id;
             } else {
@@ -116,6 +119,20 @@ class LeaveRequestController extends Controller
 
     public function show(LeaveRequest $leaveRequest)
     {
+        // Chantier 32.17 (HR deep 14-layer audit): the only method on this
+        // controller with zero authorize() call at all, unlike its siblings
+        // update()/destroy()/approve()/reject(). Added for defense-in-depth
+        // and consistency with the rest of this controller — note this does
+        // NOT close a real privacy gap on its own: App\Policies\
+        // LeaveRequestPolicy::view() (outside Modules/HR/**, out of this
+        // chantier's file boundary) unconditionally returns true for any
+        // authenticated user regardless of ownership/company, matching the
+        // same "vacuous by design" pattern already documented elsewhere in
+        // this app for BaseErpPolicy-derived view() methods (e.g.
+        // ProjectPolicy). Flagged for a future dedicated pass rather than
+        // fixed here.
+        $this->authorize('view', $leaveRequest);
+
         $leaveRequest->load('employee', 'leaveType', 'approver');
 
         return new LeaveRequestResource($leaveRequest);

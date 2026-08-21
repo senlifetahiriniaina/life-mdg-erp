@@ -83,11 +83,22 @@ class TimeAllocation extends Model
         return $this->belongsTo(Task::class);
     }
 
-    public function costCenter(): BelongsTo
-    {
-        return $this->belongsTo(\App\Models\User::class, 'cost_center_id'); // Stub: CostCenter not implemented
-    }
-
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit, layer 10 —
+     * relational): this relation was a placeholder pointing cost_center_id
+     * at App\Models\User (its own comment admitted "CostCenter not
+     * implemented") — no CostCenter model/table exists anywhere in this
+     * app. Because it eager-loaded onto a real, unrelated model, any real
+     * cost_center_id value that happened to collide with a genuine
+     * users.id silently resolved to — and exposed, via
+     * TimeAllocationResource's `cost_center.name` — that unrelated
+     * employee's real name mislabeled as a "cost center", confirmed by
+     * tracing the resource's whenLoaded('costCenter', ...) call. Removed
+     * outright rather than repaired: there is no real cost-center concept
+     * to resolve to, so cost_center_id now stays a plain, unresolved
+     * integer field (see StoreTimeAllocationRequest's docblock) instead of
+     * silently returning wrong data.
+     */
     public function scopeBillable($query)
     {
         return $query->where('billable', 'yes');

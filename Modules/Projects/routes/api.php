@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Projects\Http\Controllers\Api\AutomationController;
+use Modules\Projects\Http\Controllers\Api\CustomFieldController;
 use Modules\Projects\Http\Controllers\Api\EpicController;
 use Modules\Projects\Http\Controllers\Api\GanttController;
 use Modules\Projects\Http\Controllers\Api\MilestoneController;
@@ -50,10 +51,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:P
     // Tasks (scoped to projects)
     Route::get('projects/{project}/tasks', [TaskController::class, 'index'])->name('projects.tasks.index');
     Route::get('tasks/{task}', [TaskController::class, 'show'])->name('projects.tasks.show');
+    Route::get('tasks/{task}/lock', [TaskController::class, 'lockInfo'])->name('projects.tasks.lock-info');
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('projects/{project}/tasks', [TaskController::class, 'store'])->name('projects.tasks.store');
         Route::put('tasks/{task}', [TaskController::class, 'update'])->name('projects.tasks.update');
         Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('projects.tasks.destroy');
+        Route::post('tasks/{task}/lock', [TaskController::class, 'lock'])->name('projects.tasks.lock');
+        Route::delete('tasks/{task}/lock', [TaskController::class, 'unlock'])->name('projects.tasks.unlock');
     });
 
     // Project-scoped time entries & billing
@@ -107,6 +111,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:P
     Route::middleware('throttle:complex_get')->group(function () {
         Route::get('projects/{project}/report', [ProjectReportController::class, 'show'])->name('projects.report.show');
         Route::get('projects/{project}/report/pdf', [ProjectReportController::class, 'pdf'])->name('projects.report.pdf');
+        // Chantier 32.17 (14-layer deep audit, layer 14): Excel equivalent
+        // of the PDF export above, closing the documented Chantier 29 gap.
+        Route::get('projects/{project}/report/excel', [ProjectReportController::class, 'excel'])->name('projects.report.excel');
         // Chantier 8.4: real, working (Inertia-rendered HTML report), zero route.
         Route::get('projects/{project}/report/html', [ProjectReportController::class, 'html'])->name('projects.report.html');
     });
@@ -185,6 +192,20 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:P
         Route::delete('allocations/{allocation}', [ResourceCapacityController::class, 'destroy'])->name('allocations.destroy');
         Route::post('capacity/suggest', [ResourceCapacityController::class, 'suggestAllocations'])->name('capacity.suggest');
         Route::post('capacity/users/{user}/leave', [ResourceCapacityController::class, 'setLeave'])->name('capacity.users.leave');
+    });
+
+    // -------------------------------------------------------------------------
+    // Custom fields (Chantier 32.17 — 14-layer deep audit: real,
+    // fully-written CustomField model/service with real migrated schema,
+    // zero producer anywhere; activated for real rather than left orphaned).
+    // -------------------------------------------------------------------------
+    Route::get('custom-fields', [CustomFieldController::class, 'index'])->name('custom-fields.index');
+    Route::get('custom-fields/values', [CustomFieldController::class, 'showValues'])->name('custom-fields.values.show');
+    Route::middleware('throttle:create_post')->group(function () {
+        Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
+        Route::put('custom-fields/{customField}', [CustomFieldController::class, 'update'])->name('custom-fields.update');
+        Route::delete('custom-fields/{customField}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
+        Route::post('custom-fields/values', [CustomFieldController::class, 'storeValues'])->name('custom-fields.values.store');
     });
 });
 

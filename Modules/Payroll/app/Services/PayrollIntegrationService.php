@@ -633,16 +633,35 @@ class PayrollIntegrationService
 
     /**
      * Payroll summary for a given period and tenant.
+     *
+     * Chantier 32.18 (Payroll deep audit): confirmed empirically via tinker
+     * that PayrollController::statistics() always hardcoded
+     * ['currency' => 'XOF'] on top of this summary regardless of the real
+     * payslips' currency — a real bug for any tenant not on XOF (this app
+     * is MGA-first; a real seeded MGA payslip's "Total Payroll" card
+     * displayed as "XOF 525,000" instead of "Ar 525,000"). Derive the real
+     * currency from the period's own payslips first (they all share one
+     * currency in practice — set once from the PayrollRun's own currency
+     * at generation time), falling back to the tenant's real Company
+     * currency, and only then to 'XOF' as a last resort when neither is
+     * known (e.g. an empty period with no company record at all) — the
+     * same fallback-first degradation pattern used throughout this app.
      */
     public function getPayrollSummary(int|null $tenantId, Carbon $startDate, Carbon $endDate): array
     {
-        $records = Payslip::where('tenant_id', (int) ($tenantId ?? 0))
+        $tenantId = (int) ($tenantId ?? 0);
+
+        $records = Payslip::where('tenant_id', $tenantId)
             ->whereDate('period', $startDate->toDateString())
             ->get();
 
         $totalGross      = $records->sum('gross_salary');
         $totalNet        = $records->sum('net_salary');
         $totalDeductions = $totalGross - $totalNet;
+
+        $currency = $records->first()?->currency
+            ?? \App\Models\Company::find($tenantId)?->currency
+            ?? 'XOF';
 
         return [
             'employee_count'    => $records->count(),
@@ -653,6 +672,7 @@ class PayrollIntegrationService
             'payslips_draft'    => $records->where('status', 'draft')->count(),
             'payslips_approved' => $records->where('status', 'approved')->count(),
             'payslips_paid'     => $records->where('status', 'paid')->count(),
+            'currency'          => $currency,
         ];
     }
 }

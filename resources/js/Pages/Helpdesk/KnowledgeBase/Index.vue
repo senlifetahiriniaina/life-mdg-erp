@@ -11,6 +11,7 @@
         <button class="btn btn-primary" @click="openCreate"><i class="pi pi-plus" style="font-size:13px" /> Nouvel article</button>
       </div>
     </div>
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
     <div class="wh-panel" style="padding:12px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
       <div style="position:relative;flex:1;min-width:200px;max-width:380px">
         <i class="pi pi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--fg-4);font-size:13px;pointer-events:none" />
@@ -124,6 +125,10 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Paginator from 'primevue/paginator'
 import axios from 'axios'
 import DOMPurify from 'dompurify'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'knowledge_base')
 
 interface Category {
   id: number

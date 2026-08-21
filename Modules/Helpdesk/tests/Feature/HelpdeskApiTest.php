@@ -44,20 +44,26 @@ test('ticket creation applies default SLA policy when present', function () {
 });
 
 test('authenticated user can resolve a ticket', function () {
-    $user = User::factory()->create();
+    // Chantier 32.21: TicketController::resolve() previously had zero
+    // authorize() call at all (a confirmed RBAC hole — any authenticated
+    // user could resolve any ticket) — now gated on the closeTicket ability
+    // (admin/manager/supervisor of the ticket's own company), so this needs
+    // a real role rather than a bare unroled user.
+    $user = actingAsUser('admin');
     $ticket = Ticket::factory()->create(['status' => 'open']);
-    $this->actingAs($user, 'sanctum')
-        ->postJson("/api/v1/helpdesk/tickets/{$ticket->id}/resolve")
+    $this->postJson("/api/v1/helpdesk/tickets/{$ticket->id}/resolve")
         ->assertOk()
         ->assertJsonPath('status', 'resolved');
 });
 
 test('authenticated user can escalate a ticket', function () {
-    $user = User::factory()->create();
+    // Chantier 32.21: escalate() previously had zero authorize() call —
+    // now gated on the update ability, which a bare unroled user (not the
+    // ticket's own reporter) never passes.
+    $user = actingAsUser('admin');
     $ticket = Ticket::factory()->create(['status' => 'open', 'priority' => 'low']);
 
-    $this->actingAs($user, 'sanctum')
-        ->postJson("/api/v1/helpdesk/tickets/{$ticket->id}/escalate")
+    $this->postJson("/api/v1/helpdesk/tickets/{$ticket->id}/escalate")
         ->assertOk()
         ->assertJsonPath('priority', 'urgent')
         ->assertJsonPath('sla_breached', true);

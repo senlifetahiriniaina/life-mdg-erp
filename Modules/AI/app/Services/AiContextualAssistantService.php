@@ -87,7 +87,22 @@ class AiContextualAssistantService
             // 'view_income_statement'/'import_treasury' added Chantier 30 (bulk
             // treasury/cash import assistance, IncomeStatement.vue AI panel).
             'Accounting'          => ['post_invoice', 'reconcile', 'view_balance_sheet', 'view_income_statement', 'ohada_report', 'invoice_approval', 'view_payment_schedule', 'cost_analysis', 'import_treasury'],
-            'HR'                  => ['create_employee', 'approve_leave', 'run_payroll', 'onboarding'],
+            // 'view_dashboard'/'clock_attendance'/'view_compensation'/
+            // 'view_employees_list'/'view_employee_detail'/'view_payslips'/
+            // 'employee_portal'/'manage_attendance'/'manage_departments'/
+            // 'view_leave_analytics'/'manage_shifts' added by the HR deep
+            // 14-layer audit: confirmed via grep that ZERO of this module's
+            // 13 real, routed Vue pages ever called useAiAssistant() at all
+            // — the same "real pages never wired to AI guidance" pattern
+            // already found and fixed for Strategy (Chantier 30), Validation
+            // (Chantier 32.7), CRM (Chantier 32.15) and Sales (Chantier
+            // 32.16). create_employee/approve_leave were already correctly
+            // reused by Employees/Form.vue and Leaves/Index.vue respectively
+            // — see frenchMapHrDeepAudit()/englishMapHrDeepAudit() below for
+            // the new fallback content (named without a numeric chantier
+            // suffix since a concurrently-running module audit had already
+            // claimed the literal "3217" name on this same shared file).
+            'HR'                  => ['create_employee', 'approve_leave', 'run_payroll', 'onboarding', 'view_dashboard', 'clock_attendance', 'view_compensation', 'view_employees_list', 'view_employee_detail', 'view_payslips', 'employee_portal', 'manage_attendance', 'manage_departments', 'view_leave_analytics', 'manage_shifts'],
             // 'import_stock' added Chantier 30 (bulk stock import assistance).
             'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock'],
             // 'manage_deposit_balance'/'manage_recurring_orders'/
@@ -109,7 +124,21 @@ class AiContextualAssistantService
             // workflows/apps/complete cover the 6 real steps.
             'Setup'               => ['import_file', 'map_columns', 'execute_import', 'wizard_company', 'wizard_admin', 'wizard_modules', 'wizard_workflows', 'wizard_apps', 'wizard_complete'],
             'Achats'              => ['create_order', 'approve_order', 'receive_goods', 'three_way_match', 'view_dashboard'],
-            'Projects'            => ['create_project', 'assign_task', 'update_progress', 'close_project', 'estimate_task'],
+            // Chantier 32.17 (Projects deep 14-layer audit): confirmed via
+            // grep that ZERO of the module's 10 real Vue pages (all at the
+            // repo root, resources/js/Pages/Projects/*) called
+            // useAiAssistant() at all — the same "module registered, no
+            // page actually wired" pattern already found and fixed for
+            // Strategy (Chantier 30), Validation (Chantier 32.7), CRM
+            // (Chantier 32.15) and Sales (Chantier 32.16). view_dashboard/
+            // view_kanban/view_gantt/view_calendar/view_automation/
+            // view_epics/view_sprints/view_roadmap/view_time_report/
+            // view_project cover the 10 real pages; the original 5 actions
+            // (create_project/assign_task/update_progress/close_project/
+            // estimate_task) had no page consumer either — kept as-is since
+            // ProjectsAiAssistController is a real, generic endpoint any
+            // future action-specific caller can still reach by key.
+            'Projects'            => ['create_project', 'assign_task', 'update_progress', 'close_project', 'estimate_task', 'view_dashboard', 'view_kanban', 'view_gantt', 'view_calendar', 'view_automation', 'view_epics', 'view_sprints', 'view_roadmap', 'view_time_report', 'view_project'],
             'Manufacturing'       => ['production_dashboard', 'create_production_order', 'start_production', 'record_output', 'quality_check', 'track_bom_items', 'manage_bom', 'sample_request', 'qqcd_calendar', 'import_component'],
             'Quality'             => ['quality_control', 'inspect_component', 'iso_compliance', 'iso_textile', 'iso_construction'],
             'PLM'                 => ['view_dashboard', 'configure_product', 'cpq_index', 'cpq_configure', 'cpq_summary'],
@@ -124,9 +153,32 @@ class AiContextualAssistantService
             // useAiAssistant('Helpdesk', 'view_dashboard'), which is not the same
             // (module, action) pair as 'route_ticket' below, so it always
             // resolved to an empty guidance shell.
-            'Helpdesk'            => ['route_ticket', 'view_dashboard'],
+            // Chantier 32.21 (Helpdesk 14-layer deep audit): 8 more real,
+            // mounted Vue pages found calling nothing but the default empty
+            // guidance shell — only Tickets/Show.vue ever called
+            // useAiAssistant() before this. Added: 'index' (the ticket
+            // queue itself), 'live_chat' (agent chat dashboard),
+            // 'self_service_portal', 'community_forum' (both Index and
+            // Show), 'csat_surveys', 'knowledge_base', 'escalation_config'
+            // (SLA policy/escalation rule admin config — distinct from
+            // 'sla_automation' below), 'sla_automation' (breach/compliance
+            // dashboard), 'ai_bot_templates' (response-template manager),
+            // 'quality_assurance' (agent metrics/team benchmarking).
+            'Helpdesk'            => ['route_ticket', 'view_dashboard', 'index', 'live_chat', 'self_service_portal', 'community_forum', 'csat_surveys', 'knowledge_base', 'escalation_config', 'sla_automation', 'ai_bot_templates', 'quality_assurance'],
             'Documents'           => ['ocr_classify'],
-            'Timesheets'          => ['view_dashboard'],
+            // Chantier 32.19 (Timesheets deep 14-layer audit): confirmed via
+            // grep that ZERO of this module's 11 real, routed Vue pages
+            // called useAiAssistant() at all — not even Dashboard.vue,
+            // despite 'view_dashboard' already existing in this table — the
+            // same "real pages never wired to AI guidance" pattern already
+            // found and fixed for Strategy (Chantier 30), Validation
+            // (32.7), CRM (32.15), Sales (32.16). view_entries/create_entry
+            // cover TimeEntries/Index+Form.vue, manage_sheets covers the 4
+            // Sheets/*.vue pages (Index/Show/MySheets/Form — one shared
+            // action, same weekly-submission workflow), view_reports covers
+            // the 3 Reports/*.vue pages, manage_projects covers
+            // Projects/Index.vue (tracking projects, not Modules\Projects).
+            'Timesheets'          => ['view_dashboard', 'view_entries', 'create_entry', 'manage_sheets', 'view_reports', 'manage_projects'],
             'Planning'            => ['view_dashboard'],
             'CustomerService'     => ['view_dashboard'],
             'Workflow'            => ['view_dashboard'],
@@ -296,7 +348,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216(), $this->frenchMapChantier3217(), $this->frenchMapChantier3219(), $this->frenchMapChantier3221(), $this->frenchMapHrDeepAudit());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -2330,7 +2382,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216(), $this->englishMapChantier3217(), $this->englishMapChantier3219(), $this->englishMapChantier3221(), $this->englishMapHrDeepAudit());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -6119,6 +6171,1271 @@ PROMPT;
                 'tips'                => [
                     'Per-product forecasting isn\'t available — this module has no product line dimension on opportunities.',
                 ],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.17 (Projects deep 14-layer audit): guidance for the 10
+     * real, routed Projects screens (all at resources/js/Pages/Projects/*,
+     * root-level — this module has no page files under
+     * Modules/Projects/resources/js/ at all) that never called
+     * useAiAssistant() before this fix.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier3217(): array
+    {
+        return [
+            'Projects.view_dashboard' => [
+                'what_to_do'          => 'Consultez la liste de vos projets et créez-en un nouveau.',
+                'how_to_do'           => [
+                    'Utilisez la recherche pour retrouver un projet par nom.',
+                    'Cliquez "Nouveau projet" pour en créer un — vous en devenez automatiquement le responsable.',
+                    'Cliquez une ligne pour ouvrir la fiche détaillée du projet (tâches, jalons, équipe).',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Projets actifs', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Créer un projet', 'action' => 'create_project', 'module' => 'Projects'],
+                ],
+                'tips'                => [
+                    'Seuls les projets de votre propre société sont visibles ici, même avec un rôle administrateur.',
+                ],
+            ],
+            'Projects.view_kanban' => [
+                'what_to_do'          => 'Faites glisser les tâches entre colonnes pour suivre leur avancement.',
+                'how_to_do'           => [
+                    'Glissez-déposez une carte d\'une colonne à l\'autre pour changer son statut.',
+                    'Seules les tâches racines (sans sous-tâche parente) apparaissent sur le tableau.',
+                    'Cliquez une carte pour voir/éditer les détails complets de la tâche.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Tâches en cours', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Le déplacement met à jour le statut réel de la tâche immédiatement — pas besoin de sauvegarder.',
+                ],
+            ],
+            'Projects.view_gantt' => [
+                'what_to_do'          => 'Visualisez le calendrier du projet, les dépendances entre tâches et le chemin critique.',
+                'how_to_do'           => [
+                    'Ajoutez une dépendance entre deux tâches du même projet pour construire le graphe.',
+                    'Les tâches sur le chemin critique (marge nulle) sont mises en évidence.',
+                    'Modifier les dates d\'une tâche propage automatiquement le décalage à ses tâches dépendantes.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Tâches critiques', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Une dépendance ne peut être créée qu\'entre deux tâches du même projet.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Exportez la vue en CSV pour la partager hors de l\'application.',
+                ],
+            ],
+            'Projects.view_calendar' => [
+                'what_to_do'          => 'Visualisez les tâches et jalons du projet sur un calendrier.',
+                'how_to_do'           => [
+                    'Seules les tâches avec une échéance renseignée apparaissent sur le calendrier.',
+                    'Les jalons sont affichés avec une couleur distincte des tâches.',
+                    'Naviguez entre les mois pour voir la charge de travail à venir.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Échéances ce mois-ci', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_automation' => [
+                'what_to_do'          => 'Créez des règles d\'automatisation qui réagissent aux événements du projet.',
+                'how_to_do'           => [
+                    'Choisissez un déclencheur (création de tâche, changement de statut, changement d\'assigné).',
+                    'Ajoutez des conditions optionnelles puis au moins une action (assigner, changer le statut, ajouter une étiquette, notifier).',
+                    'Désactivez une règle plutôt que de la supprimer si vous voulez juste la suspendre temporairement.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Règles actives', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Une règle défaillante n\'interrompt jamais l\'action initiale (création/mise à jour de la tâche) — elle est simplement journalisée.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_epics' => [
+                'what_to_do'          => 'Regroupez vos tâches en epics pour suivre l\'avancement de grandes fonctionnalités.',
+                'how_to_do'           => [
+                    'Créez un epic puis rattachez-y des tâches.',
+                    'La progression (%) est calculée automatiquement à partir des points d\'histoire des tâches terminées.',
+                    'Utilisez la vue Roadmap pour voir les epics de tous vos projets sur une seule frise.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Epics en cours', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_sprints' => [
+                'what_to_do'          => 'Planifiez vos sprints et suivez la vélocité de l\'équipe.',
+                'how_to_do'           => [
+                    'Créez un sprint (capacité en points, dates), puis démarrez-le quand il commence réellement.',
+                    'Terminez le sprint pour voir les tâches restées incomplètes.',
+                    'Le burndown et la vélocité (moyenne des 5 derniers sprints terminés) sont calculés depuis vos vraies données.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Sprint actif', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Le backlog liste les tâches sans sprint assigné, non terminées.',
+                ],
+            ],
+            'Projects.view_roadmap' => [
+                'what_to_do'          => 'Visualisez les epics et sprints de tous vos projets sur une frise commune.',
+                'how_to_do'           => [
+                    'Filtrez par projet pour restreindre la vue.',
+                    'La frise se recharge automatiquement quand vous changez de projet sélectionné.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Projets affichés', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_time_report' => [
+                'what_to_do'          => 'Consultez le temps loggé sur l\'ensemble de vos projets, groupé par membre, projet ou tâche.',
+                'how_to_do'           => [
+                    'Choisissez le regroupement (membre/projet/tâche) et une plage de dates optionnelle.',
+                    'Le montant facturable est calculé à partir du taux horaire réel de chaque entrée de temps.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Heures facturables', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Seules les entrées de temps arrêtées (avec une heure de fin) sont comptabilisées.',
+                ],
+            ],
+            'Projects.view_project' => [
+                'what_to_do'          => 'Consultez la fiche complète d\'un projet : tâches, jalons, équipe et suivi du temps.',
+                'how_to_do'           => [
+                    'Utilisez le panneau Équipe pour ajouter/retirer des membres et gérer leur rôle.',
+                    'Utilisez le suivi du temps intégré pour démarrer/arrêter un chronomètre sur une tâche.',
+                    'Exportez le rapport du projet en PDF ou Excel via le bouton "Export".',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Tâches ouvertes', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier3217(): array
+    {
+        return [
+            'Projects.view_dashboard' => [
+                'what_to_do'          => 'Browse your project list and create a new one.',
+                'how_to_do'           => [
+                    'Use search to find a project by name.',
+                    'Click "New project" to create one — you automatically become its owner.',
+                    'Click a row to open the project\'s full detail page (tasks, milestones, team).',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active projects', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Create a project', 'action' => 'create_project', 'module' => 'Projects'],
+                ],
+                'tips'                => [
+                    'Only your own company\'s projects are visible here, even with an admin role.',
+                ],
+            ],
+            'Projects.view_kanban' => [
+                'what_to_do'          => 'Drag tasks between columns to track their progress.',
+                'how_to_do'           => [
+                    'Drag-and-drop a card from one column to another to change its status.',
+                    'Only root tasks (no parent) appear on the board.',
+                    'Click a card to see/edit the task\'s full details.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'In-progress tasks', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Moving a card updates the task\'s real status immediately — no save step needed.',
+                ],
+            ],
+            'Projects.view_gantt' => [
+                'what_to_do'          => 'Visualize the project schedule, task dependencies, and the critical path.',
+                'how_to_do'           => [
+                    'Add a dependency between two tasks of the same project to build the graph.',
+                    'Tasks on the critical path (zero slack) are highlighted.',
+                    'Changing a task\'s dates automatically propagates the shift to its dependent tasks.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Critical tasks', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'A dependency can only be created between two tasks of the same project.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Export the view to CSV to share it outside the app.',
+                ],
+            ],
+            'Projects.view_calendar' => [
+                'what_to_do'          => 'Visualize the project\'s tasks and milestones on a calendar.',
+                'how_to_do'           => [
+                    'Only tasks with a due date set appear on the calendar.',
+                    'Milestones are shown with a color distinct from tasks.',
+                    'Navigate between months to see upcoming workload.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Due dates this month', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_automation' => [
+                'what_to_do'          => 'Create automation rules that react to project events.',
+                'how_to_do'           => [
+                    'Choose a trigger (task created, status changed, assignee changed).',
+                    'Add optional conditions, then at least one action (assign, change status, add a label, notify).',
+                    'Deactivate a rule instead of deleting it if you only want to pause it temporarily.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active rules', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'A failing rule never blocks the original action (task creation/update) — it is simply logged.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_epics' => [
+                'what_to_do'          => 'Group your tasks into epics to track the progress of large features.',
+                'how_to_do'           => [
+                    'Create an epic, then attach tasks to it.',
+                    'Progress (%) is computed automatically from completed tasks\' story points.',
+                    'Use the Roadmap view to see epics across all your projects on one timeline.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Open epics', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_sprints' => [
+                'what_to_do'          => 'Plan your sprints and track team velocity.',
+                'how_to_do'           => [
+                    'Create a sprint (point capacity, dates), then start it when it actually begins.',
+                    'Complete the sprint to see which tasks stayed incomplete.',
+                    'Burndown and velocity (average of the last 5 completed sprints) are computed from your real data.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active sprint', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'The backlog lists tasks with no sprint assigned that aren\'t done yet.',
+                ],
+            ],
+            'Projects.view_roadmap' => [
+                'what_to_do'          => 'Visualize epics and sprints across all your projects on one shared timeline.',
+                'how_to_do'           => [
+                    'Filter by project to narrow the view.',
+                    'The timeline reloads automatically when you change the selected project.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Projects shown', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Projects.view_time_report' => [
+                'what_to_do'          => 'Review time logged across all your projects, grouped by member, project, or task.',
+                'how_to_do'           => [
+                    'Choose the grouping (member/project/task) and an optional date range.',
+                    'The billable amount is computed from each time entry\'s real hourly rate.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Billable hours', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Only stopped time entries (with an end time) are counted.',
+                ],
+            ],
+            'Projects.view_project' => [
+                'what_to_do'          => 'View a project\'s full detail: tasks, milestones, team, and time tracking.',
+                'how_to_do'           => [
+                    'Use the Team panel to add/remove members and manage their role.',
+                    'Use the built-in time tracker to start/stop a timer on a task.',
+                    'Export the project report to PDF or Excel via the "Export" button.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Open tasks', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit, layer 13 — IA):
+     * ZERO of Timesheets' 11 real, routed Vue pages ever called
+     * useAiAssistant() — not even Dashboard.vue, despite 'view_dashboard'
+     * already having static fallback text in this table since the app's
+     * original extraction. The 5 new actions below cover every substantial
+     * real screen: entry list/create, weekly-sheet submission/approval
+     * (shared across the 4 Sheets/*.vue pages, since they're all one
+     * workflow), the 3 project-billing/utilization reports, and tracking
+     * projects (Projects/Index.vue — Timesheets' own lightweight
+     * TimeTrackingProject concept, distinct from Modules\Projects).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier3219(): array
+    {
+        return [
+            'Timesheets.view_entries' => [
+                'what_to_do'          => 'Consultez et filtrez vos saisies de temps journalières.',
+                'how_to_do'           => [
+                    'Filtrez par statut (brouillon/soumis/approuvé/rejeté), employé, ou plage de dates.',
+                    'Cliquez "Nouvelle saisie" pour ajouter une journée de travail.',
+                    'Une saisie approuvée ne peut plus être modifiée directement.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Saisies en brouillon', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Seules vos propres saisies sont visibles, sauf si vous êtes manager/admin/RH.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Nouvelle saisie', 'action' => 'create_entry', 'module' => 'Timesheets'],
+                ],
+                'tips'                => [
+                    'Soumettez régulièrement vos saisies plutôt qu\'en fin de mois — l\'approbation manager est plus rapide sur de petits lots.',
+                ],
+            ],
+            'Timesheets.create_entry' => [
+                'what_to_do'          => 'Enregistrez une journée de travail : heures, projet, tâche, description.',
+                'how_to_do'           => [
+                    'Renseignez la date, les heures travaillées (0,25 à 24h) et une description d\'au moins 5 caractères.',
+                    'Rattachez optionnellement un projet/tâche réel du module Projects pour alimenter les rapports de facturation.',
+                    'Cochez "Facturable" si ces heures doivent être facturées au client — sinon elles restent comptées mais non facturables.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Heures saisies aujourd\'hui', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Une saisie déjà soumise ou approuvée ne peut plus être modifiée par vous-même — seul un manager/admin le peut.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'La description sert à identifier le travail effectué dans les rapports de facturation par projet — soyez précis.',
+                ],
+            ],
+            'Timesheets.manage_sheets' => [
+                'what_to_do'          => 'Regroupez vos saisies journalières en une feuille de temps hebdomadaire et soumettez-la pour approbation.',
+                'how_to_do'           => [
+                    'Créez une feuille sur une période (généralement une semaine) — vos heures de la période sont agrégées automatiquement.',
+                    'Une fois vos saisies complètes pour la période, soumettez la feuille pour validation manager.',
+                    'Un manager/admin/RH peut approuver ou rejeter (avec motif) une feuille soumise.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Feuilles en attente d\'approbation', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Une feuille approuvée ou rejetée ne peut plus être modifiée — seule une feuille en brouillon reste éditable.',
+                    'Les heures au-delà de 40h/semaine sont automatiquement comptées en heures supplémentaires (majoration 25%, règle OHADA).',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Mes feuilles de temps', 'action' => 'manage_sheets', 'module' => 'Timesheets'],
+                ],
+                'tips'                => [
+                    'Seules vos propres feuilles vous sont visibles, sauf rôle manager/admin/RH.',
+                ],
+            ],
+            'Timesheets.view_reports' => [
+                'what_to_do'          => 'Consultez les rapports de facturation par projet, d\'heures par employé, et de taux d\'utilisation.',
+                'how_to_do'           => [
+                    'Filtrez chaque rapport par plage de dates, projet ou employé selon le rapport consulté.',
+                    'Le rapport de facturation ne compte que les heures marquées facturables.',
+                    'Le taux d\'utilisation compare les heures facturables aux heures totales saisies sur la période.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Taux d\'utilisation moyen', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Un taux d\'utilisation sous 40% signale une équipe/projet sous-employé — à surveiller sur plusieurs périodes avant d\'agir.',
+                ],
+            ],
+            'Timesheets.manage_projects' => [
+                'what_to_do'          => 'Gérez les projets de suivi de temps (budget d\'heures, employés assignés) — distincts des projets du module Projets.',
+                'how_to_do'           => [
+                    'Créez un projet de suivi avec un code unique et un budget d\'heures.',
+                    'Suivez la consommation du budget en temps réel — une alerte visuelle apparaît en cas de dépassement.',
+                    'Consultez les saisies de temps réellement imputées à ce projet depuis l\'onglet dédié.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Projets en dépassement de budget', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Ce projet de suivi de temps est indépendant d\'un projet du module Projets — reliez-les manuellement si besoin par leur nom/code.',
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier3219(): array
+    {
+        return [
+            'Timesheets.view_entries' => [
+                'what_to_do'          => 'View and filter your daily time entries.',
+                'how_to_do'           => [
+                    'Filter by status (draft/submitted/approved/rejected), employee, or date range.',
+                    'Click "New entry" to add a day worked.',
+                    'An approved entry can no longer be edited directly.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Draft entries', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Only your own entries are visible unless you are a manager/admin/HR user.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'New entry', 'action' => 'create_entry', 'module' => 'Timesheets'],
+                ],
+                'tips'                => [
+                    'Submit your entries regularly rather than at month-end — manager approval is faster on small batches.',
+                ],
+            ],
+            'Timesheets.create_entry' => [
+                'what_to_do'          => 'Record a day worked: hours, project, task, description.',
+                'how_to_do'           => [
+                    'Enter the date, hours worked (0.25 to 24h), and a description of at least 5 characters.',
+                    'Optionally attach a real Projects-module project/task to feed the project-billing reports.',
+                    'Check "Billable" if these hours should be invoiced to the client — otherwise they still count but stay non-billable.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Hours entered today', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'An already-submitted or approved entry can no longer be edited by you — only a manager/admin can.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'The description identifies the work done in project-billing reports — be specific.',
+                ],
+            ],
+            'Timesheets.manage_sheets' => [
+                'what_to_do'          => 'Group your daily entries into a weekly timesheet and submit it for approval.',
+                'how_to_do'           => [
+                    'Create a sheet for a period (usually a week) — your hours for that period are aggregated automatically.',
+                    'Once your entries for the period are complete, submit the sheet for manager approval.',
+                    'A manager/admin/HR user can approve or reject (with a reason) a submitted sheet.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Sheets awaiting approval', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'An approved or rejected sheet can no longer be edited — only a draft sheet stays editable.',
+                    'Hours beyond 40h/week are automatically counted as overtime (25% surcharge, OHADA rule).',
+                ],
+                'next_actions'        => [
+                    ['label' => 'My timesheets', 'action' => 'manage_sheets', 'module' => 'Timesheets'],
+                ],
+                'tips'                => [
+                    'Only your own sheets are visible unless you hold a manager/admin/HR role.',
+                ],
+            ],
+            'Timesheets.view_reports' => [
+                'what_to_do'          => 'View project-billing, employee-hours, and utilization reports.',
+                'how_to_do'           => [
+                    'Filter each report by date range, project, or employee as relevant.',
+                    'The billing report only counts hours flagged as billable.',
+                    'Utilization compares billable hours to total hours logged over the period.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Average utilization rate', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A utilization rate under 40% signals an under-utilized team/project — watch it over several periods before acting.',
+                ],
+            ],
+            'Timesheets.manage_projects' => [
+                'what_to_do'          => 'Manage time-tracking projects (hour budget, assigned employees) — distinct from Projects-module projects.',
+                'how_to_do'           => [
+                    'Create a tracking project with a unique code and an hour budget.',
+                    'Watch budget consumption in real time — a visual alert appears once over budget.',
+                    'Review the time entries actually charged to this project from its dedicated tab.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Over-budget projects', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'This time-tracking project is independent of any Projects-module project — link them manually by name/code if needed.',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.21 (Helpdesk 14-layer deep audit): 8 real, mounted Vue
+     * pages found calling nothing but the empty guidance shell — only
+     * Tickets/Show.vue ever called useAiAssistant() before this pass.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier3221(): array
+    {
+        return [
+            'Helpdesk.index' => [
+                'what_to_do'          => 'Consultez et triez la file de tickets support par priorité, statut et échéance SLA.',
+                'how_to_do'           => [
+                    'Filtrez par statut, priorité, agent assigné ou équipe pour retrouver un ticket précis.',
+                    'Cliquez "Nouveau ticket" pour créer un ticket directement — la même action que le bouton "Signaler un incident" présent sur chaque page de l\'application.',
+                    'La barre colorée à gauche de chaque ligne indique la priorité en un coup d\'œil.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Tickets ouverts', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Un ticket dont l\'échéance SLA approche apparaît en rouge — traitez-le en priorité.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Nouveau ticket', 'action' => 'create', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'Un ticket lié à un enregistrement d\'un autre module (facture, commande, employé…) affiche ce lien dans son détail.',
+                ],
+            ],
+            'Helpdesk.live_chat' => [
+                'what_to_do'          => 'Prenez en charge les sessions de chat en attente et échangez avec les visiteurs/clients en temps réel.',
+                'how_to_do'           => [
+                    'Cliquez "Prendre le suivant" pour vous voir attribuer automatiquement la session en attente la plus ancienne.',
+                    'Répondez depuis le panneau de conversation — vos messages apparaissent instantanément côté visiteur.',
+                    'Convertissez une session en ticket si le sujet nécessite un suivi au-delà de la conversation en direct.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Sessions en attente', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [
+                    'Une session non traitée reste visible dans la file d\'attente jusqu\'à ce qu\'un agent la prenne ou que le visiteur la ferme.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Clôturez une session terminée plutôt que de la laisser ouverte — elle continue sinon d\'apparaître comme active.',
+                ],
+            ],
+            'Helpdesk.self_service_portal' => [
+                'what_to_do'          => 'Recherchez un article de la base de connaissances pour répondre vous-même à une question fréquente.',
+                'how_to_do'           => [
+                    'Tapez votre question dans la barre de recherche — les articles les plus pertinents apparaissent en premier.',
+                    'Consultez les articles en vedette si vous ne savez pas encore quoi chercher.',
+                    'Indiquez si un article vous a été utile — ce retour affine son classement pour les prochaines recherches.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Créer un ticket si aucun article ne répond', 'action' => 'create', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'Si aucun article ne répond à votre besoin, ouvrez un ticket plutôt que de deviner une solution.',
+                ],
+            ],
+            'Helpdesk.community_forum' => [
+                'what_to_do'          => 'Posez une question à la communauté ou répondez à une question déjà posée.',
+                'how_to_do'           => [
+                    'Choisissez une catégorie pertinente avant de publier — cela aide les autres utilisateurs à retrouver votre question.',
+                    'Votez pour les réponses utiles — les réponses les mieux votées remontent en premier.',
+                    'L\'auteur de la question peut marquer une réponse comme "acceptée" une fois son problème résolu.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une question déjà répondue et acceptée apparaît avec un badge "Résolu" — vérifiez d\'abord qu\'elle n\'existe pas déjà.',
+                ],
+            ],
+            'Helpdesk.csat_surveys' => [
+                'what_to_do'          => 'Analysez les scores de satisfaction client (CSAT) et gérez les campagnes d\'enquête.',
+                'how_to_do'           => [
+                    'Filtrez le rapport par plage de dates pour comparer des périodes.',
+                    'Créez une campagne CSAT pour déclencher l\'envoi automatique d\'enquêtes après résolution de ticket.',
+                    'Consultez le détail par agent/équipe pour identifier où la satisfaction se dégrade.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Score CSAT moyen', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Un score en baisse sur plusieurs semaines consécutives mérite un examen des tickets associés, pas seulement du chiffre global.',
+                ],
+            ],
+            'Helpdesk.knowledge_base' => [
+                'what_to_do'          => 'Gérez les articles et catégories de la base de connaissances interne.',
+                'how_to_do'           => [
+                    'Organisez vos articles par catégorie avant de les publier — une catégorie mal choisie réduit leur visibilité en recherche.',
+                    'Un article reste en brouillon tant qu\'il n\'est pas explicitement publié.',
+                    'Consultez le taux d\'utilité (votes positifs/négatifs) pour identifier les articles à réviser.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Articles publiés', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Nouvel article', 'action' => 'create', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'Un article correctement rédigé réduit directement le nombre de tickets similaires — investissez sur les sujets les plus fréquents.',
+                ],
+            ],
+            'Helpdesk.escalation_config' => [
+                'what_to_do'          => 'Configurez les politiques SLA (délais de réponse/résolution par priorité) et les règles d\'escalade automatique.',
+                'how_to_do'           => [
+                    'Définissez une politique SLA par défaut — elle s\'applique à tout nouveau ticket sans SLA explicite.',
+                    'Créez une règle d\'escalade avec un déclencheur (ex. dépassement du délai de première réponse) et une action.',
+                    'Activez/désactivez une règle sans la supprimer si vous voulez la suspendre temporairement.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Modifier une politique SLA par défaut affecte tous les nouveaux tickets créés à partir de ce moment, pas les tickets déjà en cours.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une politique SLA par priorité (urgent/haute/moyenne/basse) reflète mieux la réalité qu\'une politique unique pour tous les tickets.',
+                ],
+            ],
+            'Helpdesk.sla_automation' => [
+                'what_to_do'          => 'Suivez les dépassements de SLA en temps réel et la conformité par priorité.',
+                'how_to_do'           => [
+                    'Consultez le tableau des tickets en dépassement — chacun peut être ouvert directement pour action.',
+                    'Le taux de conformité par priorité vous indique où l\'équipe est en difficulté.',
+                    'Déclenchez manuellement les escalades si vous ne voulez pas attendre le prochain passage planifié.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Tickets en dépassement', 'value' => '—', 'status' => 'critical'],
+                ],
+                'warnings'            => [
+                    'Un ticket en dépassement de SLA doit être traité en priorité absolue, quelle que soit sa priorité affichée initialement.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'La vérification des dépassements SLA tourne aussi automatiquement toutes les 15 minutes en arrière-plan — cette page reflète le dernier passage.',
+                ],
+            ],
+            'Helpdesk.ai_bot_templates' => [
+                'what_to_do'          => 'Gérez les modèles de réponse utilisés par les suggestions de réponse assistées par IA.',
+                'how_to_do'           => [
+                    'Filtrez par catégorie, langue ou ton pour retrouver un modèle existant.',
+                    'Un modèle actif est celui proposé en priorité lors de la rédaction d\'une réponse à un ticket.',
+                    'Archivez un modèle obsolète plutôt que de le supprimer, pour garder l\'historique de son utilisation.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Un modèle rédigé dans la langue du client augmente significativement la satisfaction — pensez à couvrir vos langues principales.',
+                ],
+            ],
+            'Helpdesk.quality_assurance' => [
+                'what_to_do'          => 'Consultez les métriques de performance agent, les tendances et le benchmarking d\'équipe.',
+                'how_to_do'           => [
+                    'Renseignez un agent et une période pour charger ses métriques (tickets traités, satisfaction moyenne, taux de conformité SLA).',
+                    'Le benchmarking d\'équipe compare la performance moyenne à celle de l\'agent consulté.',
+                    'Utilisez ces données pour orienter le coaching, jamais pour sanctionner isolément un pic ponctuel.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Un score isolé sur une courte période peut être trompeur — comparez toujours sur plusieurs semaines.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Un agent avec un taux de résolution au premier contact élevé mais une satisfaction basse mérite un examen qualitatif, pas seulement quantitatif.',
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier3221(): array
+    {
+        return [
+            'Helpdesk.index' => [
+                'what_to_do'          => 'Review and triage the support ticket queue by priority, status, and SLA deadline.',
+                'how_to_do'           => [
+                    'Filter by status, priority, assigned agent, or team to find a specific ticket.',
+                    'Click "New ticket" to create one directly — the same action as the "Report an issue" button present on every page of the app.',
+                    'The coloured bar on the left of each row shows priority at a glance.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Open tickets', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'A ticket approaching its SLA deadline shows in red — handle it first.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'New ticket', 'action' => 'create', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'A ticket linked to a record from another module (invoice, order, employee, ...) shows that link in its detail view.',
+                ],
+            ],
+            'Helpdesk.live_chat' => [
+                'what_to_do'          => 'Pick up waiting chat sessions and talk to visitors/customers in real time.',
+                'how_to_do'           => [
+                    'Click "Take next" to be automatically assigned the oldest waiting session.',
+                    'Reply from the conversation panel — your messages appear instantly on the visitor\'s side.',
+                    'Convert a session into a ticket if the topic needs follow-up beyond the live conversation.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Waiting sessions', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [
+                    'An unhandled session stays in the queue until an agent picks it up or the visitor closes it.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Close a finished session instead of leaving it open — otherwise it keeps showing as active.',
+                ],
+            ],
+            'Helpdesk.self_service_portal' => [
+                'what_to_do'          => 'Search the knowledge base for an article that already answers a common question.',
+                'how_to_do'           => [
+                    'Type your question in the search bar — the most relevant articles appear first.',
+                    'Browse featured articles if you don\'t yet know what to search for.',
+                    'Mark whether an article was helpful — that feedback refines its ranking for future searches.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Raise a ticket if no article answers it', 'action' => 'create', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'If no article covers your need, open a ticket instead of guessing at a solution.',
+                ],
+            ],
+            'Helpdesk.community_forum' => [
+                'what_to_do'          => 'Ask the community a question, or answer one that\'s already been asked.',
+                'how_to_do'           => [
+                    'Pick a relevant category before posting — it helps others find your question.',
+                    'Vote on helpful answers — the highest-voted answers rise to the top.',
+                    'The question\'s author can mark an answer as "accepted" once their issue is resolved.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'An already-answered, accepted question shows a "Solved" badge — check it doesn\'t already exist before posting.',
+                ],
+            ],
+            'Helpdesk.csat_surveys' => [
+                'what_to_do'          => 'Analyze customer satisfaction (CSAT) scores and manage survey campaigns.',
+                'how_to_do'           => [
+                    'Filter the report by date range to compare periods.',
+                    'Create a CSAT campaign to trigger automatic survey delivery after ticket resolution.',
+                    'Review the per-agent/team breakdown to spot where satisfaction is slipping.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Average CSAT score', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A score declining over several consecutive weeks deserves a look at the underlying tickets, not just the headline number.',
+                ],
+            ],
+            'Helpdesk.knowledge_base' => [
+                'what_to_do'          => 'Manage internal knowledge-base articles and categories.',
+                'how_to_do'           => [
+                    'Organize articles by category before publishing — a poorly chosen category hurts search visibility.',
+                    'An article stays a draft until explicitly published.',
+                    'Check the helpfulness rate (upvotes/downvotes) to spot articles that need a revision.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Published articles', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'New article', 'action' => 'create', 'module' => 'Helpdesk'],
+                ],
+                'tips'                => [
+                    'A well-written article directly reduces the number of similar tickets — invest in your most frequent topics first.',
+                ],
+            ],
+            'Helpdesk.escalation_config' => [
+                'what_to_do'          => 'Configure SLA policies (response/resolution deadlines by priority) and automatic escalation rules.',
+                'how_to_do'           => [
+                    'Set a default SLA policy — it applies to any new ticket without an explicit SLA.',
+                    'Create an escalation rule with a trigger (e.g. first-response deadline overdue) and an action.',
+                    'Toggle a rule active/inactive rather than deleting it if you only want to suspend it temporarily.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Changing a default SLA policy affects every new ticket created from that point on, not tickets already in progress.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A per-priority SLA policy (urgent/high/medium/low) reflects reality better than one single policy for every ticket.',
+                ],
+            ],
+            'Helpdesk.sla_automation' => [
+                'what_to_do'          => 'Track SLA breaches in real time and compliance by priority.',
+                'how_to_do'           => [
+                    'Review the table of breached tickets — each can be opened directly for action.',
+                    'The per-priority compliance rate shows where the team is struggling.',
+                    'Trigger escalations manually if you don\'t want to wait for the next scheduled run.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Breached tickets', 'value' => '—', 'status' => 'critical'],
+                ],
+                'warnings'            => [
+                    'A breached ticket should be handled with absolute priority, regardless of its originally displayed priority.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Breach checking also runs automatically every 15 minutes in the background — this page reflects the latest run.',
+                ],
+            ],
+            'Helpdesk.ai_bot_templates' => [
+                'what_to_do'          => 'Manage the response templates used by AI-assisted response suggestions.',
+                'how_to_do'           => [
+                    'Filter by category, language, or tone to find an existing template.',
+                    'An active template is the one suggested first when drafting a reply to a ticket.',
+                    'Archive an outdated template rather than deleting it, to keep its usage history.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A template written in the customer\'s own language significantly boosts satisfaction — cover your main languages.',
+                ],
+            ],
+            'Helpdesk.quality_assurance' => [
+                'what_to_do'          => 'Review agent performance metrics, trends, and team benchmarking.',
+                'how_to_do'           => [
+                    'Provide an agent and a date range to load their metrics (tickets handled, average satisfaction, SLA compliance rate).',
+                    'Team benchmarking compares average team performance against the agent being reviewed.',
+                    'Use this data to guide coaching, never to penalize an isolated one-off dip.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'A single score over a short period can be misleading — always compare across several weeks.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'An agent with a high first-contact-resolution rate but low satisfaction deserves a qualitative look, not just a quantitative one.',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.17 (HR deep 14-layer audit): new fallback guidance for the
+     * 11 real HR Vue pages that never called useAiAssistant() at all before
+     * this chantier (see supportedModules()'s 'HR' entry for the full
+     * rationale). Named without a numeric chantier suffix — a concurrently
+     * running module audit had already claimed frenchMapChantier3217() on
+     * this shared file for a different module (Projects) by the time this
+     * was written.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapHrDeepAudit(): array
+    {
+        return [
+            'HR.view_dashboard' => [
+                'what_to_do'          => 'Consultez la vue d\'ensemble RH en temps réel : effectif, absences du jour, congés en attente.',
+                'how_to_do'           => [
+                    'Suivez l\'effectif actif, les absences du jour et l\'ancienneté moyenne dans les cartes KPI.',
+                    'Approuvez ou refusez directement les demandes de congé en attente depuis le tableau.',
+                    'Consultez la répartition par département et la présence du jour dans les graphiques.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Congés en attente', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les collaborateurs', 'action' => 'view_employees_list', 'module' => 'HR'],
+                ],
+                'tips'                => [
+                    'Le tableau de bord se rafraîchit automatiquement toutes les 30 secondes.',
+                ],
+            ],
+            'HR.clock_attendance' => [
+                'what_to_do'          => 'Pointez votre arrivée/départ et consultez votre historique de présence.',
+                'how_to_do'           => [
+                    'Cliquez « Pointer l\'arrivée » en début de journée, « Pointer le départ » en fin de journée.',
+                    'Basculez entre vue hebdomadaire et mensuelle pour consulter votre historique.',
+                    'Utilisez « Demander un congé » pour soumettre une demande sans quitter cette page.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Heures cette semaine', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir mon espace RH', 'action' => 'employee_portal', 'module' => 'HR'],
+                ],
+                'tips'                => [
+                    'N\'oubliez pas de pointer votre départ — un pointage resté ouvert fausse le calcul de vos heures.',
+                ],
+            ],
+            'HR.view_compensation' => [
+                'what_to_do'          => 'Gérez les grilles salariales et lancez une analyse d\'équité assistée par IA.',
+                'how_to_do'           => [
+                    'Consultez min/médiane/max par niveau dans le tableau des grilles.',
+                    'Utilisez « Simuler une augmentation » pour projeter l\'effet d\'un pourcentage sur une grille.',
+                    'Lancez « Analyse d\'équité IA » pour détecter compression salariale ou anomalies.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Grilles définies', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Une analyse d\'équité identifie des signaux, elle ne remplace pas une revue RH complète.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une grille sans chevauchement avec la suivante peut freiner les promotions internes.',
+                ],
+            ],
+            'HR.view_employees_list' => [
+                'what_to_do'          => 'Parcourez la liste des collaborateurs et accédez à leur fiche détaillée.',
+                'how_to_do'           => [
+                    'Cliquez une ligne pour ouvrir la fiche complète du collaborateur.',
+                    'Utilisez « Ajouter » pour créer un nouveau collaborateur.',
+                    'Utilisez « Exporter » pour télécharger la liste au format CSV.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Collaborateurs actifs', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Ajouter un collaborateur', 'action' => 'create_employee', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.view_employee_detail' => [
+                'what_to_do'          => 'Consultez la fiche complète d\'un collaborateur : coordonnées, poste, solde de congés, salaire.',
+                'how_to_do'           => [
+                    'Vérifiez les informations de contact et le poste occupé.',
+                    'Consultez le solde de congés restant par type.',
+                    'Cliquez « Modifier » pour mettre à jour la fiche.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Les coordonnées bancaires et les pièces d\'identité ne sont jamais affichées ici — accès restreint par conception.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'HR.view_payslips' => [
+                'what_to_do'          => 'Consultez les bulletins de paie de votre société et exportez-les.',
+                'how_to_do'           => [
+                    'Filtrez par statut (brouillon, approuvé, payé) ou recherchez un collaborateur.',
+                    'Cliquez « Exporter CSV » pour télécharger les bulletins du mois en cours.',
+                    'Pour générer ou approuver la paie, rendez-vous dans le module Paie.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Bulletins payés', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Lancer la paie', 'action' => 'run_payroll', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.employee_portal' => [
+                'what_to_do'          => 'Votre espace personnel : profil, solde de congés, demandes et bulletins de paie.',
+                'how_to_do'           => [
+                    'Consultez votre profil et vos informations hiérarchiques.',
+                    'Suivez votre solde de congés restant par type.',
+                    'Soumettez une nouvelle demande de congé directement depuis cet espace.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Pointer ma présence', 'action' => 'clock_attendance', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.manage_attendance' => [
+                'what_to_do'          => 'Enregistrez, modifiez ou supprimez manuellement les présences des collaborateurs.',
+                'how_to_do'           => [
+                    'Filtrez par date, département ou statut pour cibler les présences à corriger.',
+                    'Utilisez « Marquer une présence » pour ajouter un enregistrement manuel.',
+                    'Utilisez les icônes crayon/corbeille pour modifier ou supprimer un enregistrement existant.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Absents aujourd\'hui', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une correction manuelle doit rester exceptionnelle — privilégiez le pointage réel.',
+                ],
+            ],
+            'HR.manage_departments' => [
+                'what_to_do'          => 'Gérez la structure organisationnelle : créez, modifiez ou supprimez des départements.',
+                'how_to_do'           => [
+                    'Recherchez un département existant avant d\'en créer un nouveau, pour éviter les doublons.',
+                    'Assignez un responsable de département pour activer les remontées hiérarchiques.',
+                    'Définissez un budget alloué pour suivre l\'utilisation budgétaire.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les collaborateurs', 'action' => 'view_employees_list', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.view_leave_analytics' => [
+                'what_to_do'          => 'Analysez les tendances de congés : taux d\'approbation, répartition par département, évolution mensuelle.',
+                'how_to_do'           => [
+                    'Filtrez par département pour comparer les tendances entre équipes.',
+                    'Consultez le taux d\'approbation pour repérer un service en tension.',
+                    'Exportez le rapport pour le partager en comité RH.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Taux d\'approbation', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les congés en attente', 'action' => 'approve_leave', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.manage_shifts' => [
+                'what_to_do'          => 'Assignez des modèles d\'horaires récurrents (hebdomadaires) aux collaborateurs.',
+                'how_to_do'           => [
+                    'Filtrez par collaborateur pour voir ses horaires déjà assignés.',
+                    'Utilisez « Assigner un horaire » pour créer un nouveau modèle récurrent.',
+                    'Précisez les jours de la semaine et la période de validité de l\'horaire.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Ce module gère des modèles hebdomadaires récurrents, pas un calendrier mensuel jour par jour.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function englishMapHrDeepAudit(): array
+    {
+        return [
+            'HR.view_dashboard' => [
+                'what_to_do'          => 'Review the real-time HR overview: headcount, today\'s absences, pending leave requests.',
+                'how_to_do'           => [
+                    'Track active headcount, today\'s absences, and average tenure in the KPI cards.',
+                    'Approve or reject pending leave requests directly from the table.',
+                    'Check department distribution and today\'s attendance in the charts.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Pending leave requests', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View employees', 'action' => 'view_employees_list', 'module' => 'HR'],
+                ],
+                'tips'                => [
+                    'The dashboard auto-refreshes every 30 seconds.',
+                ],
+            ],
+            'HR.clock_attendance' => [
+                'what_to_do'          => 'Clock in/out and review your own attendance history.',
+                'how_to_do'           => [
+                    'Click "Clock In" at the start of your day, "Clock Out" at the end.',
+                    'Toggle between weekly and monthly view to review your history.',
+                    'Use "Request Leave" to submit a request without leaving this page.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Hours this week', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View my HR space', 'action' => 'employee_portal', 'module' => 'HR'],
+                ],
+                'tips'                => [
+                    'Don\'t forget to clock out — a record left open skews your hours calculation.',
+                ],
+            ],
+            'HR.view_compensation' => [
+                'what_to_do'          => 'Manage salary bands and run an AI-assisted equity analysis.',
+                'how_to_do'           => [
+                    'Review min/mid/max per level in the salary bands table.',
+                    'Use "Simulate Raise" to project the effect of a percentage on a band.',
+                    'Run "AI Equity Analysis" to detect compression or outliers.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Bands defined', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'An equity analysis surfaces signals, it does not replace a full HR review.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A band with no overlap with the next one can hinder internal promotions.',
+                ],
+            ],
+            'HR.view_employees_list' => [
+                'what_to_do'          => 'Browse the employee list and open a detailed record.',
+                'how_to_do'           => [
+                    'Click a row to open the employee\'s full detail page.',
+                    'Use "Add" to create a new employee.',
+                    'Use "Export" to download the list as CSV.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active employees', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Add an employee', 'action' => 'create_employee', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.view_employee_detail' => [
+                'what_to_do'          => 'Review an employee\'s full record: contact info, position, leave balance, salary.',
+                'how_to_do'           => [
+                    'Check contact information and the position held.',
+                    'Review remaining leave balance by type.',
+                    'Click "Edit" to update the record.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Bank details and identity documents are never shown here — restricted by design.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'HR.view_payslips' => [
+                'what_to_do'          => 'Review your company\'s payslips and export them.',
+                'how_to_do'           => [
+                    'Filter by status (draft, approved, paid) or search for an employee.',
+                    'Click "Export CSV" to download this month\'s payslips.',
+                    'To generate or approve payroll, go to the Payroll module.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Paid payslips', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Run payroll', 'action' => 'run_payroll', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.employee_portal' => [
+                'what_to_do'          => 'Your personal space: profile, leave balance, requests and payslips.',
+                'how_to_do'           => [
+                    'Review your profile and reporting-line information.',
+                    'Track your remaining leave balance by type.',
+                    'Submit a new leave request directly from this space.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Clock my attendance', 'action' => 'clock_attendance', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.manage_attendance' => [
+                'what_to_do'          => 'Record, edit, or delete employee attendance manually.',
+                'how_to_do'           => [
+                    'Filter by date, department, or status to find records to correct.',
+                    'Use "Mark Attendance" to add a manual record.',
+                    'Use the pencil/trash icons to edit or delete an existing record.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Absent today', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A manual correction should stay exceptional — prefer real clock-ins.',
+                ],
+            ],
+            'HR.manage_departments' => [
+                'what_to_do'          => 'Manage the org structure: create, edit, or delete departments.',
+                'how_to_do'           => [
+                    'Search for an existing department before creating a new one, to avoid duplicates.',
+                    'Assign a department manager to enable reporting-line rollups.',
+                    'Set an allocated budget to track budget utilization.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View employees', 'action' => 'view_employees_list', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.view_leave_analytics' => [
+                'what_to_do'          => 'Analyze leave trends: approval rate, department breakdown, monthly evolution.',
+                'how_to_do'           => [
+                    'Filter by department to compare trends across teams.',
+                    'Check the approval rate to spot a team under strain.',
+                    'Export the report to share in an HR committee meeting.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Approval rate', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View pending leave', 'action' => 'approve_leave', 'module' => 'HR'],
+                ],
+                'tips'                => [],
+            ],
+            'HR.manage_shifts' => [
+                'what_to_do'          => 'Assign recurring (weekly) shift templates to employees.',
+                'how_to_do'           => [
+                    'Filter by employee to see their already-assigned shifts.',
+                    'Use "Assign Shift" to create a new recurring template.',
+                    'Specify the days of the week and the shift\'s validity period.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'This module manages recurring weekly templates, not a day-by-day monthly calendar.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
             ],
         ];
     }

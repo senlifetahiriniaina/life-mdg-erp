@@ -7,7 +7,6 @@ namespace Modules\Payroll\Services;
 use Carbon\Carbon;
 use Modules\Payroll\Models\PayrollRun;
 use Modules\Payroll\Models\Payslip;
-use Modules\Payroll\Models\SalaryComponent;
 
 class PayrollService
 {
@@ -114,60 +113,15 @@ class PayrollService
     }
 
     /**
-     * Get active salary components for a tenant.
+     * Chantier 32.18 (Payroll deep audit): getActiveComponents()/
+     * computeSalary() — a second, fully self-contained salary-calculation
+     * engine driven by a per-tenant SalaryComponent catalog — were removed
+     * here, confirmed dead (zero controller/route/Vue/test consumer
+     * anywhere, and functionally superseded by the real, production
+     * PayrollIntegrationService::calculateSalaryComponents()/
+     * calculateDeductions() pipeline). See the migration dropping
+     * salary_components for the full rationale.
      */
-    public function getActiveComponents(int $tenantId): \Illuminate\Database\Eloquent\Collection
-    {
-        return SalaryComponent::where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->orderBy('component_type')
-            ->orderBy('name')
-            ->get();
-    }
-
-    /**
-     * Compute gross, deductions, and net salary for a given employee
-     * based on a base salary and the active salary components.
-     */
-    public function computeSalary(int $tenantId, float $baseSalary): array
-    {
-        $components   = $this->getActiveComponents($tenantId);
-        $earnings     = 0.0;
-        $deductions   = 0.0;
-        $breakdown    = [];
-
-        foreach ($components as $component) {
-            $amount = match ($component->calculation_type) {
-                'fixed'      => (float) $component->amount,
-                'percentage' => $baseSalary * ((float) $component->rate / 100),
-                default      => 0.0,
-            };
-
-            $breakdown[] = [
-                'name'   => $component->name,
-                'type'   => $component->component_type,
-                'amount' => round($amount, 2),
-            ];
-
-            if ($component->component_type === 'earning') {
-                $earnings += $amount;
-            } elseif (in_array($component->component_type, ['deduction', 'statutory'], true)) {
-                $deductions += $amount;
-            }
-        }
-
-        $gross = $baseSalary + $earnings;
-        $net   = $gross - $deductions;
-
-        return [
-            'base_salary'      => $baseSalary,
-            'earnings'         => round($earnings, 2),
-            'gross_salary'     => round($gross, 2),
-            'total_deductions' => round($deductions, 2),
-            'net_salary'       => round($net, 2),
-            'breakdown'        => $breakdown,
-        ];
-    }
 
     /**
      * Get summary statistics for a tenant.

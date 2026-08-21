@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="Leave Analytics" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="space-y-6">
       <!-- Page header -->
       <div class="flex items-center justify-between">
@@ -175,6 +179,8 @@ import Button from 'primevue/button'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 interface Department {
   id: number
@@ -195,6 +201,11 @@ interface Metrics {
   pendingRequests: number
   approvalRate: number
 }
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'view_leave_analytics')
 
 const selectedDepartment = ref<number | null>(null)
 const selectedYear = ref(new Date().getFullYear())

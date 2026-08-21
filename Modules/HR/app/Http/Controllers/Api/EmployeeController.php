@@ -37,7 +37,16 @@ class EmployeeController extends Controller
         $perPage = min((int) ($request->query('per_page', 15)), 100);
 
         // Eager load all frequently-accessed relationships
-        $query = Employee::with('department', 'jobPosition', 'manager', 'user');
+        $query = Employee::with('department', 'jobPosition', 'manager', 'user')
+            // Chantier 32.17 (HR deep 14-layer audit): this had zero
+            // tenant/company scoping at all — any authenticated user with
+            // hr.employee.view-any (which includes the broad 'employee'
+            // role) could list every company's employees, confirmed
+            // empirically. when()-guarded: a no-op when the caller has no
+            // real company_id (pre-chantier data, not-yet-provisioned
+            // user), matching the established pattern used throughout this
+            // app for this ongoing company_id rollout.
+            ->when($request->user()?->company_id, fn ($q, $companyId) => $q->where('company_id', $companyId));
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -69,7 +78,15 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', Employee::class);
 
-        $employee = $this->service->createEmployee($request->validated());
+        // Chantier 32.17: company_id was never populated anywhere on
+        // Employee — set here (server-side, never client-supplied, since
+        // StoreEmployeeRequest's own rules() never allow it) so it flows
+        // through to index()'s scoping and to Employee{,Department,
+        // JobPosition}Policy's sameCompany() checks above.
+        $employee = $this->service->createEmployee(array_merge(
+            $request->validated(),
+            ['company_id' => $request->user()->company_id],
+        ));
 
         return (new EmployeeResource($employee))->response()->setStatusCode(201);
     }
@@ -145,9 +162,23 @@ class EmployeeController extends Controller
         return new EmployeeResource($updated);
     }
 
-    public function destroy(Employee $employee)
+    public function destroy(Request $request, Employee $employee)
     {
         $this->authorize('delete', $employee);
+
+        // Chantier 32.17 (HR deep 14-layer audit): this had zero business
+        // rule at all — a real, if never-wired-up, guard for exactly this
+        // ("Cannot delete an active employee without force") already
+        // existed on the confirmed-dead, zero-caller Modules\HR\Services\
+        // EmployeeService (deleted in the same chantier, redundant with
+        // this controller/HRService in every other respect) — folded the
+        // one genuinely useful rule it demonstrated into the real,
+        // routed delete path instead of losing it.
+        if ($employee->status === 'active' && ! $request->boolean('force')) {
+            return response()->json([
+                'message' => 'Cannot delete an active employee without force. Pass ?force=1 to override.',
+            ], 409);
+        }
 
         $employee->delete();
 

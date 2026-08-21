@@ -15,8 +15,9 @@ class UpdateTimeAllocationRequest extends FormRequest
     {
         return [
             'project_id' => 'sometimes|exists:time_tracking_projects,id',
-            'cost_center_id' => 'nullable|exists:cost_centers,id',
-            'task_id' => 'nullable|exists:tasks,id',
+            // Chantier 32.19: same wrong-table fix as StoreTimeAllocationRequest.
+            'cost_center_id' => 'nullable|integer',
+            'task_id' => 'nullable|exists:prj_tasks,id',
             'hours' => 'sometimes|numeric|min:0.25',
             'hourly_rate' => 'sometimes|numeric|min:0',
             'is_billable' => 'sometimes|boolean',

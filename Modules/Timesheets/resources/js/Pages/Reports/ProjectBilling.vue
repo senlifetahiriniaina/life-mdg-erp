@@ -4,6 +4,8 @@
       <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Project Billing Report</h1>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="space-y-6">
       <!-- Filters -->
       <div class="bg-white dark:bg-surface-800 rounded-lg shadow-sm p-4 flex gap-4 items-end">
@@ -38,12 +40,26 @@
             </option>
           </select>
         </div>
-        <div>
+        <div class="flex gap-2">
+          <!--
+            Chantier 32.19 (layer 14c): replaced the honest
+            "alert('Export functionality not yet implemented')" placeholder
+            with the real PDF/Excel export named in Chantier 29's own
+            report-proposal catalogue for this module.
+          -->
           <button
-            @click="exportReport"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+            :disabled="exporting"
+            @click="exportFile('pdf')"
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition"
           >
-            Export
+            Export PDF
+          </button>
+          <button
+            :disabled="exporting"
+            @click="exportFile('excel')"
+            class="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50 transition"
+          >
+            Export Excel
           </button>
         </div>
       </div>
@@ -157,6 +173,10 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'view_reports')
 
 const filters = reactive({
   from_date: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
@@ -196,8 +216,37 @@ const loadReport = async () => {
   }
 }
 
-const exportReport = () => {
-  alert('Export functionality not yet implemented')
+const exporting = ref(false)
+
+// Chantier 32.19 (layer 14c): a plain fetch()-to-blob download — same
+// pattern already established by Accounting's BalanceSheet.vue/
+// Invoices/Index.vue — a GET request needs no CSRF header either way.
+async function exportFile(format) {
+  exporting.value = true
+  try {
+    const accept = format === 'pdf'
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    const params = new URLSearchParams({
+      from_date: filters.from_date,
+      to_date: filters.to_date,
+    })
+    if (filters.project_id) {
+      params.set('project_id', filters.project_id)
+    }
+    const url = `/api/v1/timesheets/reports/project-billing/export/${format}?${params.toString()}`
+    const res = await fetch(url, { headers: { Accept: accept } })
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `rapport-facturation-projets.${format === 'pdf' ? 'pdf' : 'xlsx'}`
+    a.click()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(async () => {

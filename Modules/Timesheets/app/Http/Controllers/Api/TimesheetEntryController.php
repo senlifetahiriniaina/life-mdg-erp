@@ -79,6 +79,13 @@ class TimesheetEntryController extends Controller
 
     public function show(TimesheetEntry $entry): \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\JsonResource
     {
+        // Chantier 32.19 (Timesheets deep 14-layer audit): TimesheetEntryPolicy::view()
+        // was fully written (own entry OR admin/manager/hr-manager) but this
+        // endpoint never called it — any authenticated "employee" could read
+        // any other employee's individual entry (description/notes/hours)
+        // by id, a real IDOR confirmed empirically over a real HTTP request.
+        $this->authorize('view', $entry);
+
         $entry->load(['employee', 'project', 'task', 'submitter', 'approver']);
 
         return new TimesheetEntryResource($entry);
@@ -88,16 +95,31 @@ class TimesheetEntryController extends Controller
     {
         $this->authorize('update', $entry);
 
-        $updated = $this->service->updateEntry(
-            entry: $entry,
-            hours_worked: $request->hours_worked,
-            description: $request->description,
-            task_id: $request->task_id,
-            notes: $request->notes,
-            project_id: $request->project_id,
-            billable_hours: $request->has('billable') ? ($request->boolean('billable') ? (float) ($request->hours_worked ?? $entry->hours_worked) : 0.0) : null,
-            hourly_rate: $request->hourly_rate,
-        );
+        // Chantier 32.19 (Timesheets deep 14-layer audit, layer 8 —
+        // business validation): TimesheetEntryPolicy::update() deliberately
+        // lets an admin/manager attempt to edit a submitted/approved entry
+        // (and an owner attempt to edit their own rejected entry), but
+        // TimesheetService::updateEntry()'s own status guard
+        // (canEdit() === status === 'draft') throws a bare \Exception the
+        // moment that happens — uncaught, this rendered a raw 500 instead
+        // of a clean rejection, confirmed empirically via tinker before
+        // this fix. Caught here and translated into the same 422 shape
+        // TimeAllocationController::store()/allocate() already use for
+        // their own InvalidArgumentException.
+        try {
+            $updated = $this->service->updateEntry(
+                entry: $entry,
+                hours_worked: $request->hours_worked,
+                description: $request->description,
+                task_id: $request->task_id,
+                notes: $request->notes,
+                project_id: $request->project_id,
+                billable_hours: $request->has('billable') ? ($request->boolean('billable') ? (float) ($request->hours_worked ?? $entry->hours_worked) : 0.0) : null,
+                hourly_rate: $request->hourly_rate,
+            );
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return new TimesheetEntryResource($updated);
     }
@@ -115,7 +137,11 @@ class TimesheetEntryController extends Controller
     {
         $this->authorize('update', $entry);
 
-        $submitted = $this->service->submitEntry($entry);
+        try {
+            $submitted = $this->service->submitEntry($entry);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return new TimesheetEntryResource($submitted);
     }
@@ -148,8 +174,20 @@ class TimesheetEntryController extends Controller
 
     public function byEmployee(Request $request): \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\AnonymousResourceCollection
     {
+        // Chantier 32.19 (Timesheets deep 14-layer audit): zero authorization
+        // of any kind — any authenticated "employee" could pass an arbitrary
+        // ?employee_id= and read that other employee's full entry list
+        // (dates/hours/descriptions/notes), confirmed empirically. Same
+        // own-employee-unless-privileged-role gate index() already applies.
+        $employeeId = (int) $request->employee_id;
+        abort_unless($employeeId, 422, 'employee_id is required.');
+
+        if ($employeeId !== (auth()->user()->employee?->id ?? 0)) {
+            abort_unless(auth()->user()->hasAnyRole(['admin', 'manager', 'hr-manager']), 403);
+        }
+
         $entries = $this->service->getEmployeeTimesheets(
-            employee_id: $request->employee_id,
+            employee_id: $employeeId,
             from_date: $request->from_date,
             to_date: $request->to_date
         );

@@ -8,6 +8,8 @@
       <Button label="Nouvelle question" icon="pi pi-plus" @click="showCreateDialog = true" />
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <DataTable :value="posts" :loading="loading" class="wh-table" stripedRows>
       <Column field="title" header="Question">
         <template #body="{ data }">
@@ -70,6 +72,10 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown, Badge } from 'primevue'
 import axios from 'axios'
 import { router } from '@inertiajs/vue3'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'community_forum')
 
 const posts = ref<any[]>([])
 const loading = ref(false)

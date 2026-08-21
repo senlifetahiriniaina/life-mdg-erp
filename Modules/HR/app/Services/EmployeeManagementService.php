@@ -36,6 +36,8 @@ class EmployeeManagementService
             'employment_type' => $data['employment_type'] ?? 'full_time',
             'manager_id' => $data['manager_id'] ?? null,
             'status' => 'onboarding',
+            // Chantier 32.17 (HR deep 14-layer audit).
+            'company_id' => $data['company_id'] ?? null,
         ]);
 
         // Create onboarding checklist

@@ -2,6 +2,8 @@
   <AppLayout>
     <Head :title="`${project.name} — Calendrier`" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <div style="display:flex;align-items:center;gap:10px">
@@ -62,6 +64,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
 
 interface Project {
@@ -84,6 +88,7 @@ interface CalendarEvent {
 // though every template access here assumes it's always present. The
 // type-only form below makes it a required prop, matching actual usage.
 const props = defineProps<{ project: Project }>()
+const { guidance } = useAiAssistant('Projects', 'view_calendar')
 
 const loading = ref(true)
 const events = ref<CalendarEvent[]>([])

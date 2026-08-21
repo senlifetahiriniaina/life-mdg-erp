@@ -6,6 +6,8 @@
       </h1>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="max-w-2xl bg-surface-0 dark:bg-surface-800 rounded-lg shadow-sm p-6">
       <form @submit.prevent="submitForm" class="space-y-6">
         <!-- Period Start -->
@@ -86,6 +88,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'manage_sheets')
 
 const props = defineProps({
   sheet: Object,

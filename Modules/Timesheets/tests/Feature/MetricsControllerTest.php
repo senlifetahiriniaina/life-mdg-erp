@@ -19,23 +19,31 @@ class MetricsControllerTest extends TestCase
     {
         parent::setUp();
         \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
     }
 
     #[Test]
     public function can_get_employee_metrics()
     {
+        // Chantier 32.19 (Timesheets deep 14-layer audit): the route param
+        // is literally named {user} but is actually consumed as an
+        // hr_employees.id — this test used to pass $user->id directly
+        // (masking a real cross-employee IDOR that this chantier's own
+        // ownership check now closes), fixed to use a real linked Employee
+        // like the module's other tests already do.
         $user = User::factory()->create();
         $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
         TimesheetEntry::factory()
             ->count(10)
             ->create([
-                'employee_id' => $user->id,
+                'employee_id' => $employee->id,
                 'hours_worked' => 8,
                 'status' => 'approved',
             ]);
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson("/api/v1/timesheets/metrics/employee/{$user->id}/month/".now()->format('Y-m'));
+            ->getJson("/api/v1/timesheets/metrics/employee/{$employee->id}/month/".now()->format('Y-m'));
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -51,10 +59,11 @@ class MetricsControllerTest extends TestCase
     {
         $user = User::factory()->create();
         $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
         TimesheetEntry::factory()
             ->count(5)
             ->create([
-                'employee_id' => $user->id,
+                'employee_id' => $employee->id,
                 'hours_worked' => 8,
                 'status' => 'approved',
                 'entry_date' => now(),
@@ -62,18 +71,67 @@ class MetricsControllerTest extends TestCase
         TimesheetEntry::factory()
             ->count(3)
             ->create([
-                'employee_id' => $user->id,
+                'employee_id' => $employee->id,
                 'hours_worked' => 4,
                 'status' => 'submitted',
                 'entry_date' => now(),
             ]);
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson("/api/v1/timesheets/metrics/employee/{$user->id}/month/".now()->format('Y-m'));
+            ->getJson("/api/v1/timesheets/metrics/employee/{$employee->id}/month/".now()->format('Y-m'));
 
         $response->assertOk()
             ->assertJsonPath('total_entries', 8)
             ->assertJsonPath('total_hours', 40);
+    }
+
+    /**
+     * Chantier 32.19: employeeMetrics() had zero ownership check at all —
+     * any authenticated "employee" could read any other employee's total/
+     * billable hours by id, confirmed empirically before the fix.
+     */
+    #[Test]
+    public function cannot_get_another_employees_metrics()
+    {
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+        Employee::factory()->create(['user_id' => $user->id]);
+
+        $otherUser = User::factory()->create();
+        $otherEmployee = Employee::factory()->create(['user_id' => $otherUser->id]);
+        TimesheetEntry::factory()->count(3)->create([
+            'employee_id' => $otherEmployee->id,
+            'hours_worked' => 8,
+            'status' => 'approved',
+            'entry_date' => now(),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson("/api/v1/timesheets/metrics/employee/{$otherEmployee->id}/month/".now()->format('Y-m'));
+
+        $response->assertForbidden();
+    }
+
+    #[Test]
+    public function manager_can_get_any_employees_metrics()
+    {
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $employeeUser = User::factory()->create();
+        $employee = Employee::factory()->create(['user_id' => $employeeUser->id]);
+        TimesheetEntry::factory()->count(3)->create([
+            'employee_id' => $employee->id,
+            'hours_worked' => 8,
+            'status' => 'approved',
+            'entry_date' => now(),
+        ]);
+
+        $response = $this->actingAs($manager, 'sanctum')
+            ->getJson("/api/v1/timesheets/metrics/employee/{$employee->id}/month/".now()->format('Y-m'));
+
+        $response->assertOk()
+            ->assertJsonPath('total_entries', 3);
     }
 
     #[Test]

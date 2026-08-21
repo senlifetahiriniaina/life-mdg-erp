@@ -90,6 +90,30 @@ class ProjectReportService
     }
 
     /**
+     * Real per-task rows, for the Excel "Tâches" sheet
+     * (Modules\Projects\Exports\Sheets\TasksSheet) — a distinct shape from
+     * generateStatusReport()'s task_summary aggregate, added rather than
+     * reusing/changing that method's existing return contract (already
+     * consumed as-is by ProjectReportController::show()).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function taskRows(Project $project): array
+    {
+        $project->loadMissing(['tasks.assignee']);
+
+        return $project->tasks->map(fn ($t) => [
+            'title' => $t->title,
+            'status' => $t->status,
+            'priority' => $t->priority,
+            'assignee' => $t->assignee?->name,
+            'due_date' => $t->due_date?->toDateString(),
+            'estimated_hours' => $t->estimated_hours,
+            'logged_hours' => $t->logged_hours,
+        ])->values()->toArray();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function generateGanttData(Project $project): array

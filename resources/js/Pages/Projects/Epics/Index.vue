@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="Épiques" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Épiques</h1>
@@ -192,6 +194,8 @@
 import { ref, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown, InputNumber, Badge } from 'primevue'
 import axios from 'axios'
 
@@ -220,6 +224,7 @@ interface EpicItem {
 }
 
 const props = defineProps<{ projectId?: number | string }>()
+const { guidance } = useAiAssistant('Projects', 'view_epics')
 
 const loading  = ref(true)
 const saving   = ref(false)

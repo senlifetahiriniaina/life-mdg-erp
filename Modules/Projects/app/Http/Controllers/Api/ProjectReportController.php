@@ -9,6 +9,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Modules\Projects\Exports\ProjectReportExport;
 use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
 use Modules\Projects\Services\ProjectReportService;
@@ -54,6 +56,25 @@ class ProjectReportController extends Controller
             $filename,
             ['Content-Type' => 'application/pdf']
         );
+    }
+
+    /**
+     * Download Excel report (multi-sheet: Tâches / Heures équipe / Jalons).
+     *
+     * Chantier 32.17 (14-layer deep audit, layer 14): the PDF export
+     * already existed for real (Chantier 8.4); this closes the "no Excel
+     * equivalent" gap Chantier 29's cross-module export audit documented.
+     */
+    public function excel(Request $request, Project $project): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $this->authorize('view', $project);
+        $this->assertSameCompanyAsProject($request, $project);
+
+        $data = $this->reportService->generateStatusReport($project);
+        $taskRows = $this->reportService->taskRows($project);
+        $filename = 'project-report-'.$project->id.'-'.now()->format('Y-m-d').'.xlsx';
+
+        return Excel::download(new ProjectReportExport($data, $taskRows), $filename);
     }
 
     /**

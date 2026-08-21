@@ -23,6 +23,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="chat-layout">
       <!-- Left panel: queues -->
       <div class="chat-sidebar">
@@ -142,8 +144,18 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
+const { guidance } = useAiAssistant('Helpdesk', 'live_chat')
+
+// Chantier 32.21: this page's 4 mutating fetch() calls (assign/reply/
+// convert-to-ticket/close) sent no CSRF token at all — same bug class fixed
+// on the ticket-create modal in Tickets/Index.vue.
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
 
 const props = defineProps({
   waitingSessions: { type: Array, default: () => [] },
@@ -205,7 +217,7 @@ async function takeNext() {
   try {
     const res = await fetch(`/api/v1/helpdesk/chat/sessions/${session.id}/assign`, {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
     })
     if (res.ok) {
       await fetchQueue()
@@ -221,7 +233,7 @@ async function sendReply() {
   try {
     await fetch(`/api/v1/helpdesk/chat/sessions/${selectedSession.value.id}/messages`, {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify({ sender_type: 'agent', message: text }),
     })
     replyText.value = ''
@@ -237,7 +249,7 @@ async function convertToTicket() {
   try {
     const res = await fetch(`/api/v1/helpdesk/chat/sessions/${selectedSession.value.id}/convert-to-ticket`, {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
     })
     if (res.ok) {
       await fetchQueue()
@@ -252,7 +264,7 @@ async function closeSession() {
   if (!selectedSession.value) return
   await fetch(`/api/v1/helpdesk/chat/sessions/${selectedSession.value.id}/close`, {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
   })
   selectedSession.value = null
   await fetchQueue()

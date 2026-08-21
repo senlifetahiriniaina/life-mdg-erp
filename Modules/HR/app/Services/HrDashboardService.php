@@ -11,7 +11,6 @@ use Modules\HR\Models\Department;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\LeaveRequest;
 use Modules\HR\Models\LeaveType;
-use Modules\HR\Models\Position;
 
 class HrDashboardService
 {
@@ -46,22 +45,23 @@ class HrDashboardService
             ->get()
             ->avg(fn (Employee $e) => $e->hire_date ? Carbon::parse($e->hire_date)->diffInMonths(now()) : 0);
 
-        // Chantier 19 (HR): Modules\HR\Models\Position (table hr_positions) is
-        // a confirmed-dead, always-empty model — zero routes/controllers
-        // anywhere reference it (only JobPosition, a genuinely different,
-        // real/populated model with no headcount-target field of its own,
-        // is actually routed/used) and nothing in this app's real write
-        // paths (DemoSeeder included) ever populates hr_positions. Position::
-        // sum('headcount') therefore always returns 0, so this always
-        // computed a nonsensical negative "open positions" count on every
-        // real dashboard load. There's no real per-position headcount-target
-        // data source anywhere in this trimmed HR scope to compute a
-        // genuine open-positions figure from (building one would mean
-        // adding a new field/UI, not fixing existing wiring) — clamped to 0
-        // rather than surfacing a misleading negative number, matching this
-        // app's established fallback-first degradation pattern (see
-        // Strategy's training_roi/time_to_fill ratios).
-        $openPositions = max(0, (int) Position::sum('headcount') - $headcount);
+        // Chantier 19 (HR) originally clamped this to 0 rather than surface a
+        // misleading negative number, since Modules\HR\Models\Position (table
+        // hr_positions) was a confirmed-dead, always-empty model — zero
+        // routes/controllers anywhere referenced it (only JobPosition, a
+        // genuinely different, real/populated model with no headcount-target
+        // field of its own, is actually routed/used) and nothing in this
+        // app's real write paths ever populated hr_positions.
+        // Chantier 32.17 (HR deep 14-layer audit): Position + hr_positions
+        // dropped for good (Layer 9 fake/dead — see the migration and
+        // Department::jobPositions() docblock). Still no real per-position
+        // headcount-target data source anywhere in this trimmed HR scope to
+        // compute a genuine open-positions figure from (building one would
+        // mean adding a new field/UI, not fixing existing wiring) — kept at
+        // the same 0 fallback, matching this app's established
+        // fallback-first degradation pattern (see Strategy's training_roi/
+        // time_to_fill ratios).
+        $openPositions = 0;
 
         return [
             'headcount' => $headcount,

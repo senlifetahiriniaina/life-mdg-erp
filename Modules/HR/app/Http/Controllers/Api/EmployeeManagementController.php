@@ -36,6 +36,12 @@ class EmployeeManagementController extends Controller
             'manager_id' => ['nullable', 'exists:hr_employees,id'],
         ]);
 
+        // Chantier 32.17 (HR deep 14-layer audit): same company_id
+        // population as EmployeeController::store() — this is a second,
+        // independent real create path for Employee that was equally
+        // missing it.
+        $validated['company_id'] = $request->user()->company_id;
+
         return response()->json($this->service->onboardEmployee($validated), 201);
     }
 

@@ -18,6 +18,8 @@
         </div>
       </div>
 
+      <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div class="wh-stat-row" v-if="stats">
         <div class="wh-stat-card">
           <span class="wh-stat-label">Tickets en dépassement</span>
@@ -171,6 +173,10 @@ import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'sla_automation')
 
 const toast = useToast()
 

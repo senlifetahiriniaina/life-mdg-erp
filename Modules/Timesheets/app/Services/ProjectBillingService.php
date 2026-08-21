@@ -6,6 +6,8 @@ namespace Modules\Timesheets\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Modules\Timesheets\Models\ProjectBilling;
+use Modules\Timesheets\Models\TimesheetEntry;
 
 /**
  * ProjectBillingService — milestone, percentage, time-and-material, and fixed
@@ -46,7 +48,23 @@ class ProjectBillingService
         $tva       = round($amount * self::TVA_RATE, 2);
 
         try {
-            $id = DB::table('ts_project_billing')->insertGetId([
+            // Chantier 32.19 (Timesheets deep 14-layer audit, layer 9 —
+            // fake/dead): Modules\Timesheets\Models\ProjectBilling is a
+            // real, well-formed model matching this exact table 1:1 —
+            // carrying Modules\AuditLog\Traits\HasAuditLog (a structured
+            // create/update/delete line on the 'audit' log channel, per
+            // that trait's own Chantier 32.4 docblock — not a
+            // core_audit_logs database row, corrected here from an earlier
+            // draft of this comment that overstated it) — but had zero
+            // callers anywhere (confirmed via grep), because this service
+            // wrote via a raw DB::table()->insertGetId() instead, bypassing
+            // both the model's real $fillable/$casts and its audit-log
+            // hook entirely. "Activated" rather than left dead: the write
+            // path now goes through the Eloquent model (real decimal casts,
+            // a real log-file audit trail) while every read path below is
+            // left on its existing raw DB::table() queries, which already
+            // work and already carry their own demo-fallback try/catch.
+            $id = ProjectBilling::create([
                 'project_id'   => $data['project_id'],
                 'reference'    => $reference,
                 'billing_type' => $data['billing_type'] ?? 'fixed',
@@ -61,9 +79,7 @@ class ProjectBillingService
                 'period_end'   => $data['period_end'] ?? null,
                 'status'       => 'draft',
                 'ohada_account'=> self::OHADA_REVENUE_ACCOUNT,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ]);
+            ])->id;
         } catch (\Exception $e) {
             // Demo mode if table absent
             $id = random_int(1000, 9999);
@@ -79,6 +95,85 @@ class ProjectBillingService
             'total_ttc_xof'=> round($amount + $tva, 2),
             'ohada_account'=> self::OHADA_REVENUE_ACCOUNT,
             'status'       => 'draft',
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // Reporting (layer 14c — proposed PDF/Excel report, Chantier 29 pattern)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit, layer 14c): extracted
+     * out of TimesheetAdvancedController::projectBillingReport() so the
+     * same real, already-live aggregation can back both the JSON endpoint
+     * and the new PDF/Excel export below — Chantier 29's own report
+     * proposal for this module ("rapport de facturation/heures par
+     * projet") named this exact data as the natural export target,
+     * already real (no new calculation invented).
+     *
+     * @return array{
+     *   period: array{from: string, to: string},
+     *   total_billable_hours: float,
+     *   total_billable_amount: float,
+     *   avg_hourly_rate: float,
+     *   by_project: list<array<string, mixed>>,
+     *   by_employee_project: list<array<string, mixed>>
+     * }
+     */
+    public function getProjectBillingReportData(string $from, string $to, ?int $projectId = null): array
+    {
+        // Chantier 32.19 (Timesheets deep 14-layer audit): whereDate()
+        // bounds, not whereBetween() on a bare Y-m-d — TimesheetEntry.
+        // entry_date's `date` cast does not truncate the time component on
+        // write in this app (confirmed via tinker), so a raw string
+        // whereBetween() silently excluded every entry dated exactly on
+        // the report's own `to` boundary day (the most common real case,
+        // since `to` defaults to today). See
+        // TimesheetAdvancedController::approvePeriod()'s docblock for the
+        // full write-up — this is the exact same bug, found independently
+        // while extracting this method for the new PDF/Excel export.
+        $entries = TimesheetEntry::with(['project:id,name', 'employee'])
+            ->whereDate('entry_date', '>=', $from)
+            ->whereDate('entry_date', '<=', $to)
+            ->where('billable_hours', '>', 0)
+            ->when($projectId, fn ($q) => $q->where('project_id', $projectId))
+            ->get();
+
+        $byProject = $entries->groupBy('project_id')->map(function ($group) {
+            $first         = $group->first();
+            $billableHours = (float) $group->sum('billable_hours');
+            $amount        = (float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount);
+
+            return [
+                'project_name'    => $first->project?->name,
+                'billable_hours'  => round($billableHours, 2),
+                'avg_hourly_rate' => round((float) $group->avg('hourly_rate'), 2),
+                'billable_amount' => round($amount, 2),
+                'employee_count'  => $group->pluck('employee_id')->unique()->count(),
+                'entry_count'     => $group->count(),
+            ];
+        })->values();
+
+        $byEmployeeProject = $entries->groupBy(fn (TimesheetEntry $e) => "{$e->project_id}:{$e->employee_id}")
+            ->map(function ($group) {
+                $first = $group->first();
+
+                return [
+                    'project_name'   => $first->project?->name,
+                    'employee_name'  => $first->employee?->full_name,
+                    'billable_hours' => round((float) $group->sum('billable_hours'), 2),
+                    'hourly_rate'    => round((float) $group->avg('hourly_rate'), 2),
+                    'amount'         => round((float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
+                ];
+            })->values();
+
+        return [
+            'period'                => ['from' => $from, 'to' => $to],
+            'total_billable_hours'  => round((float) $entries->sum('billable_hours'), 2),
+            'total_billable_amount' => round((float) $entries->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
+            'avg_hourly_rate'       => round((float) $entries->avg('hourly_rate'), 2),
+            'by_project'            => $byProject->all(),
+            'by_employee_project'   => $byEmployeeProject->all(),
         ];
     }
 
@@ -164,11 +259,14 @@ class ProjectBillingService
         $lines  = [];
 
         try {
+            // Chantier 32.19: whereDate() bounds — see
+            // getProjectBillingReportData()'s docblock above.
             $entries = DB::table('timesheet_entries')
                 ->where('project_id', $projectId)
                 ->where('status', 'approved')
                 ->where('billable_hours', '>', 0)
-                ->whereBetween('entry_date', [$periodStart, $periodEnd])
+                ->whereDate('entry_date', '>=', $periodStart)
+                ->whereDate('entry_date', '<=', $periodEnd)
                 ->get();
 
             foreach ($entries as $entry) {
@@ -284,7 +382,7 @@ class ProjectBillingService
     {
         $billing = null;
         try {
-            $billing = DB::table('ts_project_billing')->find($billingId);
+            $billing = ProjectBilling::find($billingId);
         } catch (\Exception) {}
 
         $amount = $billing ? (float) $billing->amount : 1_250_000.0;
@@ -293,9 +391,11 @@ class ProjectBillingService
 
         if ($billing) {
             try {
-                DB::table('ts_project_billing')
-                    ->where('id', $billingId)
-                    ->update(['invoice_reference' => $ref, 'status' => 'sent', 'updated_at' => now()]);
+                // Chantier 32.19: routed through the real Eloquent model
+                // (see createBillingEntry()'s docblock) so this status
+                // transition — draft to sent, invoice reference assigned —
+                // is real audit-logged too, not just the initial create.
+                $billing->update(['invoice_reference' => $ref, 'status' => 'sent']);
             } catch (\Exception) {}
         }
 

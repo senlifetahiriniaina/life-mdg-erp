@@ -18,6 +18,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Search results -->
     <div v-if="searchResults.length > 0" class="wh-panel" style="margin-bottom:24px">
       <div class="panel-title">{{ $t('helpdesk.portal.search_results') }}</div>
@@ -114,8 +116,17 @@ import { Head } from '@inertiajs/vue3'
 import { useI18n } from 'vue-i18n'
 import Dialog from 'primevue/dialog'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
+const { guidance } = useAiAssistant('Helpdesk', 'self_service_portal')
+
+// Chantier 32.21: giveFeedback()'s POST fetch() sent no CSRF token at all —
+// same bug class fixed elsewhere on this page's sibling screens.
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
 
 const props = defineProps({
   categories:       { type: Array, default: () => [] },
@@ -170,7 +181,7 @@ async function giveFeedback(helpful) {
   feedbackGiven.value = helpful ? 'yes' : 'no'
   await fetch(`/api/v1/helpdesk/kb/portal/articles/${currentArticle.value.id}/helpful`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
     body: JSON.stringify({ helpful }),
   })
 }

@@ -2,6 +2,10 @@
   <AppLayout>
     <Head :title="employee.full_name" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="page-head">
       <div style="display:flex;align-items:center;gap:14px">
         <button class="btn btn-icon" @click="$inertia.visit(route('hr.employees.index'))">
@@ -13,9 +17,19 @@
           <p class="wh-page-subtitle">{{ employee.job_title ?? '—' }} · {{ employee.department?.name ?? '—' }}</p>
         </div>
       </div>
-      <span :class="['wh-badge', employee.status === 'active' ? 'wh-badge-green' : 'wh-badge-slate']">
-        <span class="wh-badge-dot" />{{ employee.status === 'active' ? 'Actif' : 'Inactif' }}
-      </span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span :class="['wh-badge', employee.status === 'active' ? 'wh-badge-green' : 'wh-badge-slate']">
+          <span class="wh-badge-dot" />{{ employee.status === 'active' ? 'Actif' : 'Inactif' }}
+        </span>
+        <!-- Chantier 32.17 (HR deep 14-layer audit): this page had no way at
+             all to reach the real, already-routed edit form
+             (hr.employees.edit) — the code comment on
+             EmployeeWebController::edit() claimed this link already existed
+             here, but it never actually did in this file. -->
+        <button class="btn btn-secondary" @click="router.visit(route('hr.employees.edit', employee.id))">
+          <i class="pi pi-pencil" style="font-size:13px" /> Modifier
+        </button>
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:280px 1fr;gap:16px">
@@ -51,31 +65,55 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+// Chantier 32.17 (HR deep 14-layer audit): `leaveBalances` used to be a
+// literal, hardcoded array — the exact same "100% mock data" bug already
+// fixed once for Leave/Analytics.vue at Chantier 8.3 — now a real prop
+// computed server-side by EmployeeWebController::show(). The "Salaire"
+// field used to read `employee.salary`, a key EmployeeResource has never
+// exposed (by design — no PII/compensation leak) — now reads the real
+// current-compensation figures the controller resolves via
+// EmployeeCompensation, and formats in the employee's real currency
+// (defaulting to MGA, not the previous hardcoded €) rather than assuming
+// EUR. "Modifier" navigates to the real, already-routed edit form.
+import { computed, ref } from 'vue'
+import { Head, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+interface LeaveBalanceRow {
+  type: string
+  total: number
+  remaining: number
+}
 
 const props = defineProps({
   employee: { type: Object, required: true },
+  leaveBalances: { type: Array as () => LeaveBalanceRow[], default: () => [] },
 })
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'view_employee_detail')
 
 const initials = computed(() =>
   props.employee.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
 )
+
+const formattedSalary = computed(() => {
+  if (!props.employee.current_salary) return null
+  const currency = props.employee.salary_currency || 'MGA'
+  return `${Number(props.employee.current_salary).toLocaleString('fr-FR')} ${currency}`
+})
 
 const fields = computed(() => [
   { label: 'Email',           icon: 'pi pi-envelope', value: props.employee.email },
   { label: 'Téléphone',       icon: 'pi pi-phone',    value: props.employee.phone },
   { label: 'N° Employé',      icon: 'pi pi-id-card',  value: props.employee.employee_number },
   { label: "Date d'entrée",   icon: 'pi pi-calendar', value: props.employee.hire_date },
-  { label: 'Salaire',         icon: 'pi pi-euro',     value: props.employee.salary ? `${Number(props.employee.salary).toLocaleString('fr-FR')} €` : null },
+  { label: 'Salaire',         icon: 'pi pi-wallet',   value: formattedSalary.value },
 ])
-
-const leaveBalances = [
-  { type: 'Congés annuels', total: 20, remaining: 12 },
-  { type: 'Maladie',        total: 10, remaining: 8 },
-  { type: 'Autres',         total: 5,  remaining: 5 },
-]
 </script>
 
 <style scoped>

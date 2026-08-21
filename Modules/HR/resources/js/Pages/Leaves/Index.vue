@@ -2,6 +2,12 @@
   <AppLayout>
     <Head :title="$t('hr.leave_requests')" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. Reuses the
+         already-registered 'approve_leave' action — this page IS the
+         admin approve/reject flow. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="space-y-6">
       <!-- Page header -->
       <div class="flex items-center justify-between">
@@ -244,9 +250,16 @@ import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import Textarea from 'primevue/textarea'
 import ConfirmDialog from 'primevue/confirmdialog'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
 const confirm = useConfirm()
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'approve_leave')
 
 const leaves = ref([])
 const employees = ref([])

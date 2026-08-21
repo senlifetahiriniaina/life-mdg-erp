@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\CRM\Models\Account;
@@ -154,10 +155,16 @@ test('show returns 404 for missing account', function () {
 });
 
 test('show returns 403 when accessing other tenant account', function () {
+    // Chantier 19 rewired CrmAccountPolicy off the phantom `users.tenant_id` column
+    // (real, migrated, never populated by any real registration path) onto the real
+    // `company_id` tenant boundary — this fixture predates that fix and asserted
+    // isolation via a column the policy no longer reads. Fixed to use company_id.
     $user1 = actingAsUser('employee');
-    $account = Account::factory()->create();
+    $companyA = Company::factory()->create();
+    $account = Account::factory()->create(['company_id' => $companyA->id]);
 
-    $user2 = User::factory()->create(['tenant_id' => 999]);
+    $companyB = Company::factory()->create();
+    $user2 = User::factory()->create(['company_id' => $companyB->id]);
     $this->actingAs($user2, 'sanctum')
         ->getJson("/api/v1/crm/accounts/{$account->id}")
         ->assertForbidden();

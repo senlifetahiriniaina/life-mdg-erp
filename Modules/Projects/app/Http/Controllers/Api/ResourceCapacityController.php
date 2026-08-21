@@ -27,9 +27,39 @@ class ResourceCapacityController extends Controller
     // Allocations CRUD
     // -------------------------------------------------------------------------
 
+    /**
+     * Chantier 32.17 (14-layer deep audit): prj_resource_allocations carries
+     * no company_id of its own — Chantier 19 Lot 2 documented the resulting
+     * zero-scoping across all 5 CRUD methods here as "a genuine design
+     * question, not a routing fix" and deliberately left it unfixed. On
+     * closer look there is no real design ambiguity: project_id is required
+     * on every allocation (both the migration and store()'s validation
+     * below), so — exactly like TaskController scopes a task through its
+     * required parent project — an allocation can always be scoped through
+     * its required project's company_id with zero new schema. Confirmed
+     * empirically before this fix: any authenticated employee/manager/admin
+     * of ANY company could list, view, edit, or delete another company's
+     * resource allocations (including which user is allocated, at what %,
+     * for how many hours) purely by knowing/guessing an allocation id.
+     */
+    private function assertSameCompanyAsAllocation(Request $request, ResourceAllocation $allocation): void
+    {
+        $userCompanyId = $request->user()?->company_id;
+        $allocationCompanyId = $allocation->project?->company_id;
+
+        if ($userCompanyId !== null && $allocationCompanyId !== null
+            && (int) $allocationCompanyId !== (int) $userCompanyId) {
+            abort(404);
+        }
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = ResourceAllocation::with('user', 'project', 'task')
+            ->when(
+                $request->user()?->company_id,
+                fn ($q, $companyId) => $q->whereHas('project', fn ($p) => $p->where('company_id', $companyId))
+            )
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
             ->when($request->project_id, fn ($q, $v) => $q->where('project_id', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v));
@@ -52,6 +82,8 @@ class ResourceCapacityController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        $this->resolveCompanyScopedProject($request, (int) $validated['project_id']);
+
         $allocation = $this->service->allocate(
             $validated['user_id'],
             $validated['project_id'],
@@ -61,13 +93,17 @@ class ResourceCapacityController extends Controller
         return response()->json($allocation->load('user', 'project', 'task'), 201);
     }
 
-    public function show(ResourceAllocation $allocation): JsonResponse
+    public function show(Request $request, ResourceAllocation $allocation): JsonResponse
     {
+        $this->assertSameCompanyAsAllocation($request, $allocation);
+
         return response()->json($allocation->load('user', 'project', 'task'));
     }
 
     public function update(Request $request, ResourceAllocation $allocation): JsonResponse
     {
+        $this->assertSameCompanyAsAllocation($request, $allocation);
+
         $validated = $request->validate([
             'allocation_type' => 'sometimes|in:full_time,part_time,as_needed',
             'allocation_percent' => 'sometimes|integer|min:1|max:100',
@@ -84,8 +120,10 @@ class ResourceCapacityController extends Controller
         return response()->json($allocation->load('user', 'project', 'task'));
     }
 
-    public function destroy(ResourceAllocation $allocation): JsonResponse
+    public function destroy(Request $request, ResourceAllocation $allocation): JsonResponse
     {
+        $this->assertSameCompanyAsAllocation($request, $allocation);
+
         $allocation->delete();
 
         return response()->json(null, 204);

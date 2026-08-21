@@ -2,6 +2,10 @@
   <AppLayout>
     <Head :title="$t('hr.payroll.title')" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">{{ $t('hr.payroll.title') }}</h1>
@@ -127,8 +131,15 @@ import { Head, router } from '@inertiajs/vue3'
 import { Paginator, Select, InputText } from 'primevue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'view_payslips')
 
 const props = defineProps({
   records: { type: Object, required: true },

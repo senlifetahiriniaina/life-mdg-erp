@@ -35,7 +35,15 @@ class CrmAccountPolicy extends BaseErpPolicy
 
     public function update(User $user, Model $model): bool
     {
-        return $this->sameCompany($user, $model) && parent::update($user, $model);
+        // Chantier 19's own docblock above states accounts are shared team resources
+        // that "any same-company user may view and update" — but this method also
+        // AND'd in parent::update() (isAdminOrOwner), which restricts non-admin/manager
+        // users to the record's owner_id. AccountFactory's owner_id defaults to a random
+        // unrelated User::factory(), so any non-owner same-company employee got a 403 on
+        // every real update — confirmed via a real HTTP request in the root test suite,
+        // contradicting both this class's own doc comment and view()'s (company-only)
+        // behavior. Restricted to the same-company check only, matching the stated intent.
+        return $this->sameCompany($user, $model);
     }
 
     public function delete(User $user, Model $model): bool

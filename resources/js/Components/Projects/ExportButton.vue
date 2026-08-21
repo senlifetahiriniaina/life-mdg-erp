@@ -8,6 +8,9 @@
       <button class="dropdown-item" @click="exportPdf">
         <i class="pi pi-file-pdf" /> Export PDF
       </button>
+      <button class="dropdown-item" @click="exportExcel">
+        <i class="pi pi-file-excel" /> Export Excel
+      </button>
       <button class="dropdown-item" @click="exportJson">
         <i class="pi pi-code" /> Report Data (JSON)
       </button>
@@ -30,6 +33,11 @@ const open = ref(false)
 
 function exportPdf() {
   window.location.href = `/api/v1/projects/${props.projectId}/report/pdf`
+  open.value = false
+}
+
+function exportExcel() {
+  window.location.href = `/api/v1/projects/${props.projectId}/report/excel`
   open.value = false
 }
 

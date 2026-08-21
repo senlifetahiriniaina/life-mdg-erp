@@ -44,10 +44,12 @@ class Chantier82HelpdeskTest extends TestCase
 
         $response = $this->getJson("/api/v1/helpdesk/cs-ai/sentiment?ticket_id={$ticket->id}");
 
-        // No SentimentScore row exists for this ticket, so the controller's own
-        // "not found" branch fires — the point here is that authorization let the
-        // request through at all (not a 403), not that data exists.
-        $response->assertStatus(404);
+        // Chantier 32.21: TicketObserver::recordSentimentAndLanguage() now runs
+        // automatically on ticket creation (previously SentimentAnalysisService had
+        // zero real producer anywhere, so this endpoint always hit the controller's
+        // "not found" branch) — a real SentimentScore row now exists, so the point
+        // here (authorization lets the request through) is proven by a 200, not 404.
+        $response->assertOk();
     }
 
     public function test_user_without_permission_cannot_create_routing_rule(): void

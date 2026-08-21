@@ -80,6 +80,18 @@ class TimesheetService
 
     public function submitEntry(TimesheetEntry $entry): TimesheetEntry
     {
+        // Chantier 32.19 (Timesheets deep 14-layer audit, layer 8 —
+        // business validation): had no status guard at all — an
+        // admin/manager (the only callers who pass
+        // TimesheetEntryPolicy::update()'s status-restricted branch on a
+        // non-draft entry — an ordinary owner is already blocked there)
+        // could call submit() on an already-approved entry and silently
+        // revert it back to 'submitted', destroying the approval with no
+        // trace of who approved it or when.
+        if ($entry->status === 'approved') {
+            throw new \Exception('Cannot re-submit an already approved timesheet entry.');
+        }
+
         $entry->update([
             'status' => 'submitted',
             'submitted_by' => auth()->id(),
@@ -175,6 +187,17 @@ class TimesheetService
         return $created;
     }
 
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit): tenant_id is a real,
+     * fillable TimeTrackingProject column that was never populated here —
+     * confirmed empirically that every tracking project ever created
+     * through the real API landed with a null tenant_id, and
+     * TrackingProjectController::index() never filtered by it either, so
+     * any authenticated employee/manager/admin of ANY company could list,
+     * view, and edit every other company's tracking projects. Threaded
+     * through to match the same "populate + filter on the real value"
+     * pattern already established for TimesheetEntry.tenant_id.
+     */
     public function createTrackingProject(
         string $name,
         string $code,
@@ -182,9 +205,11 @@ class TimesheetService
         float $budget_hours,
         ?int $department_id,
         $start_date,
-        $end_date
+        $end_date,
+        ?int $tenant_id = null
     ): TimeTrackingProject {
         return TimeTrackingProject::create([
+            'tenant_id' => $tenant_id,
             'name' => $name,
             'code' => $code,
             'description' => $description,

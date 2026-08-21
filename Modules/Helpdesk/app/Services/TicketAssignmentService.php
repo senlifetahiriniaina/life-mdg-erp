@@ -55,6 +55,19 @@ class TicketAssignmentService
         })->first();
 
         if ($assignee) {
+            // Chantier 32.21: this update() (and the real assignment
+            // notification it triggers) is what activates round-robin
+            // assignment for the first time — the method itself was
+            // already fully written and tested, but had zero real caller
+            // anywhere until TicketController::autoAssign() was added.
+            // Ticket::assignee_id changing here is already picked up by
+            // TicketObserver::updated() (Chantier 20), which sends a real
+            // notification to the new assignee — the AlertService::
+            // notifyTicketAssignment() call this used to make was a
+            // log-only no-op that never actually notified anyone, and
+            // AlertService itself was a confirmed-dead duplicate of the
+            // real SlaAutomationService/SlaService breach-checking engine
+            // (deleted alongside this fix).
             $ticket->update(['assignee_id' => $assignee->id]);
 
             Log::info('Ticket assigned (round-robin)', [
@@ -62,9 +75,6 @@ class TicketAssignmentService
                 'assignee_id' => $assignee->id,
                 'team_id' => $team->id,
             ]);
-
-            // Notify assignment via AlertService
-            app(AlertService::class)->notifyTicketAssignment($ticket, $assignee->id);
         }
 
         return $assignee;
@@ -90,8 +100,6 @@ class TicketAssignmentService
             'ticket_id' => $ticket->id,
             'assignee_id' => $agent->id,
         ]);
-
-        app(AlertService::class)->notifyTicketAssignment($ticket, $agent->id);
 
         return true;
     }

@@ -139,9 +139,14 @@ test('cash flow operating section has total', function () {
 test('ledger matching index returns array', function () {
     actingAsUser('accountant');
 
-    $this->getJson('/api/v1/accounting/matching')
-        ->assertOk()
-        ->assertJsonStructure(['data', 'total']);
+    // ReportController::ledgerMatching() has always returned a bare JSON array
+    // (response()->json($lines)) since Chantier 19 Lot 1 — confirmed by reading
+    // the real controller and the real frontend consumer
+    // (resources/js/Pages/Accounting/Lettrage.vue's `lines.value = data`),
+    // never a {data, total} envelope. This assertion never matched real
+    // behavior; fixed to assert the real shape instead of the controller.
+    $response = $this->getJson('/api/v1/accounting/matching')->assertOk();
+    expect($response->json())->toBeArray();
 });
 
 test('ledger matching match requires at least two line_ids', function () {

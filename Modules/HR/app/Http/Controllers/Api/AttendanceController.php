@@ -115,14 +115,30 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Chantier 32.17 (HR deep 14-layer audit): extracted from index()'s own
+     * inline check so store()/update()/destroy()/statistics() (below —
+     * previously written but never routed at all, see the route file's own
+     * comment) share the same admin gate rather than being reachable by any
+     * 'employee'-role caller once routed. $user->role reads the
+     * well-documented phantom users.role column (never populated by any real
+     * registration path) — kept only as a defensive first check, the real
+     * gate is the hasAnyRole() fallback already used by index().
+     */
+    private function isAttendanceAdmin($user): bool
+    {
+        $adminRoles = ['admin', 'hr_manager', 'hr-manager', 'superadmin', 'manager'];
+
+        return in_array($user->role ?? '', $adminRoles, true)
+            || (method_exists($user, 'hasAnyRole') && $user->hasAnyRole($adminRoles));
+    }
+
+    /**
      * Get attendance summary (used by index method).
      */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $adminRoles = ['admin', 'hr_manager', 'hr-manager', 'superadmin', 'manager'];
-        $isAdmin = in_array($user->role ?? '', $adminRoles, true)
-            || (method_exists($user, 'hasAnyRole') && $user->hasAnyRole($adminRoles));
+        $isAdmin = $this->isAttendanceAdmin($user);
 
         // Non-admin users can only view their own attendance
         if (! $isAdmin) {
@@ -136,7 +152,20 @@ class AttendanceController extends Controller
             }
         }
 
-        $query = \Modules\HR\Models\Attendance::query()->with('employee');
+        // Chantier 32.17 (HR deep 14-layer audit): with('employee') alone
+        // eager-loads the FULL raw Employee model — including
+        // national_id/passport_number/bank_details when set — bypassing the
+        // deliberate redaction every other real employee-facing endpoint in
+        // this module goes through (EmployeeResource never exposes those
+        // fields at all, even to hr-manager/admin; SelfServiceEmployeeResource
+        // only exposes a masked bank detail). Confirmed empirically via
+        // tinker that the unscoped relation returned every raw PII column.
+        // Scoped to the same minimal, safe field set the sibling
+        // AttendanceRecord-backed listAttendance() already uses.
+        $query = \Modules\HR\Models\Attendance::query()->with([
+            'employee:id,first_name,last_name,department_id',
+            'employee.department:id,name',
+        ]);
 
         if ($request->filled('date')) {
             $query->whereDate('date', $request->date);
@@ -154,8 +183,19 @@ class AttendanceController extends Controller
         return response()->json($query->paginate(50));
     }
 
+    /**
+     * Chantier 32.17 (HR deep 14-layer audit): this real, correctly-written
+     * method had zero route registered anywhere — confirmed via
+     * `php artisan route:list` and by tracing the real, routed admin CRUD
+     * page (HR/Attendance/Manage.vue)'s own "Mark Attendance" dialog, which
+     * has always POSTed to this exact URL and gotten a 404 in return.
+     */
     public function store(Request $request): JsonResponse
     {
+        if (! $this->isAttendanceAdmin($request->user())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $data = $request->validate([
             'employee_id' => 'required|exists:hr_employees,id',
             'date'        => 'required|date',
@@ -165,12 +205,18 @@ class AttendanceController extends Controller
             'notes'       => 'nullable|string',
         ]);
 
-        // Normalize time fields to HH:MM:SS format
+        // Chantier 32.17: real columns are check_in_time/check_out_time, not
+        // check_in/check_out (see Attendance model's docblock) — mapped here
+        // rather than in $fillable so the request/JSON contract this
+        // controller and HR/Attendance/Manage.vue both already use never
+        // has to change.
         if (isset($data['check_in'])) {
-            $data['check_in'] = \Carbon\Carbon::parse($data['check_in'])->format('H:i:s');
+            $data['check_in_time'] = \Carbon\Carbon::parse($data['check_in'])->format('H:i:s');
+            unset($data['check_in']);
         }
         if (isset($data['check_out'])) {
-            $data['check_out'] = \Carbon\Carbon::parse($data['check_out'])->format('H:i:s');
+            $data['check_out_time'] = \Carbon\Carbon::parse($data['check_out'])->format('H:i:s');
+            unset($data['check_out']);
         }
 
         $record = \Modules\HR\Models\Attendance::create($data);
@@ -178,23 +224,51 @@ class AttendanceController extends Controller
         return response()->json($record, 201);
     }
 
+    /**
+     * Chantier 32.17: same "real method, zero route" gap as store() above.
+     * $request->all() is guarded by Attendance::$fillable (mass-assignment),
+     * but validated explicitly here to match store()'s stricter contract.
+     */
     public function update(Request $request, int $id): JsonResponse
     {
+        if (! $this->isAttendanceAdmin($request->user())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $record = \Modules\HR\Models\Attendance::findOrFail($id);
-        $data = $request->all();
+        $data = $request->validate([
+            'employee_id' => 'sometimes|exists:hr_employees,id',
+            'date'        => 'sometimes|date',
+            'status'      => 'sometimes|string',
+            'check_in'    => 'nullable|string',
+            'check_out'   => 'nullable|string',
+            'notes'       => 'nullable|string',
+        ]);
+        // Chantier 32.17: same check_in/check_out → check_in_time/
+        // check_out_time mapping as store() above.
         if (isset($data['check_in'])) {
-            $data['check_in'] = \Carbon\Carbon::parse($data['check_in'])->format('H:i:s');
+            $data['check_in_time'] = \Carbon\Carbon::parse($data['check_in'])->format('H:i:s');
+            unset($data['check_in']);
         }
         if (isset($data['check_out'])) {
-            $data['check_out'] = \Carbon\Carbon::parse($data['check_out'])->format('H:i:s');
+            $data['check_out_time'] = \Carbon\Carbon::parse($data['check_out'])->format('H:i:s');
+            unset($data['check_out']);
         }
         $record->update($data);
 
         return response()->json($record);
     }
 
-    public function destroy(int $id): JsonResponse
+    /**
+     * Chantier 32.17: same "real method, zero route" gap — HR/Attendance/
+     * Manage.vue's "Delete" button has always 404'd.
+     */
+    public function destroy(Request $request, int $id): JsonResponse
     {
+        if (! $this->isAttendanceAdmin($request->user())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         \Modules\HR\Models\Attendance::findOrFail($id)->delete();
 
         return response()->json(null, 204);

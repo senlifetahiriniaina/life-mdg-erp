@@ -103,7 +103,7 @@ class ProjectViewsController extends Controller
     {
         $this->assertSameCompanyAsProject($request, $project);
 
-        $tasks = Task::with('assignee:id,name', 'milestone:id,name')
+        $tasks = Task::with('assignee:id,name', 'milestone:id,name', 'dependencies')
             ->where('project_id', $project->id)
             ->whereNull('deleted_at')
             ->orderBy('sequence')
@@ -123,7 +123,23 @@ class ProjectViewsController extends Controller
                 'progress' => $t->estimated_hours > 0
                     ? min(100, round($t->logged_hours / $t->estimated_hours * 100))
                     : ($t->status === 'done' ? 100 : 0),
-                'dependencies' => $t->dependencies ?? [],
+                // Chantier 32.17 (14-layer deep audit): $t->dependencies used
+                // to resolve Eloquent's raw `dependencies` JSON column
+                // (declared in $casts) rather than the dependencies()
+                // relation of the same name — Eloquent always prefers a cast
+                // attribute over a same-named relation method. That JSON
+                // column is never written by any real code path (TaskController
+                // never accepts it, GanttController::addDependency() writes
+                // real rows to the separate TaskDependency table instead), so
+                // this field was guaranteed empty on every real call. Not
+                // user-facing today (Gantt.vue discards this endpoint's
+                // `tasks` array and only reads its `milestones`, taking real
+                // dependency data from GanttController::show() instead) but a
+                // real API-contract bug for any other consumer. Fixed to read
+                // the real TaskDependency rows via an explicit eager-loaded
+                // relation call (can't reference $t->dependencies directly —
+                // still resolves to the dead JSON column, not the relation).
+                'dependencies' => $t->getRelation('dependencies')->pluck('depends_on_task_id')->values(),
                 'assignee' => $t->assignee?->name,
                 'color' => $this->priorityColor($t->priority),
             ]);

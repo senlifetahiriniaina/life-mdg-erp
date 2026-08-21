@@ -16,6 +16,7 @@ use Modules\HR\Http\Controllers\Api\JobPositionController;
 use Modules\HR\Http\Controllers\Api\LeaveController;
 use Modules\HR\Http\Controllers\Api\LeaveRequestController;
 use Modules\HR\Http\Controllers\Api\LeaveTypeController;
+use Modules\HR\Http\Controllers\Api\PayrollExportController;
 use Modules\HR\Http\Controllers\Api\SalaryBandController;
 use Modules\HR\Http\Controllers\Api\SkillController;
 
@@ -32,6 +33,16 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     Route::middleware('cache.api:1')->group(function () {
         Route::get('employees/by-department/{department}', [EmployeeController::class, 'byDepartment']);
         Route::get('employees/metrics', [EmployeeController::class, 'metrics']);
+        // Chantier 32.17 (HR deep 14-layer audit): EmployeeController::export()
+        // is a real, well-written CSV export method (proper quoting/escaping)
+        // that has had zero route anywhere since it was written — confirmed via
+        // `php artisan route:list`. HR/Employees/Index.vue's "Exporter" button
+        // (wired to this endpoint by this same chantier) was previously a dead
+        // button with no click handler at all. Registered before the
+        // apiResource 'show' route below so "export" isn't swallowed as an
+        // {employee} id, matching the 'salary-bands/equity' precedent already
+        // used in this file.
+        Route::get('employees/export', [EmployeeController::class, 'export']);
         Route::apiResource('employees', EmployeeController::class)->only(['index', 'show'])->names('api.employees');
     });
     Route::middleware('throttle:create_post')->group(function () {
@@ -112,13 +123,29 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     });
 
     // Attendance routes
+    // Chantier 32.17 (HR deep 14-layer audit): 'statistics' registered before
+    // the {id} routes below so it can't ever be swallowed as an id segment.
     Route::get('attendance/status', [AttendanceController::class, 'status']);
+    Route::get('attendance/statistics', [AttendanceController::class, 'statistics']);
     Route::get('attendance', [AttendanceController::class, 'index']);
     Route::get('me/attendance', [AttendanceController::class, 'ownAttendance']);
     Route::get('employees/{employee}/attendance', [AttendanceController::class, 'employeeAttendance']);
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('attendance/clock-in', [AttendanceController::class, 'clockIn']);
         Route::post('attendance/clock-out', [AttendanceController::class, 'clockOut']);
+        // Chantier 32.17: AttendanceController::store()/update()/destroy() were
+        // real, correctly-written methods with zero route anywhere — confirmed
+        // empirically that the real, routed admin CRUD page
+        // (HR/Attendance/Manage.vue) has always 404'd on its "Mark Attendance"
+        // (POST), "Delete" (DELETE) actions, and would 404 on an "Edit" (PUT)
+        // action too had one ever been wired on the frontend. Both methods now
+        // also self-gate to admin-ish roles (see AttendanceController's own
+        // isAttendanceAdmin() helper) since marking/deleting an arbitrary
+        // employee's attendance is not something the broad 'employee' role
+        // (present in this route group) should be able to do.
+        Route::post('attendance', [AttendanceController::class, 'store']);
+        Route::match(['put', 'patch'], 'attendance/{id}', [AttendanceController::class, 'update'])->whereNumber('id');
+        Route::delete('attendance/{id}', [AttendanceController::class, 'destroy'])->whereNumber('id');
     });
 
     // Chantier 8.3: AttendanceBiometricController was fully written (13 methods,
@@ -183,6 +210,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
     Route::get('me', [EmployeeSelfServiceController::class, 'me']);
     Route::get('me/payslips', [EmployeeSelfServiceController::class, 'payslips']);
     Route::get('me/leave-balance', [EmployeeSelfServiceController::class, 'leaveBalance']);
+
+    // Chantier 32.17 (HR deep 14-layer audit): HR/Payroll/Index.vue's 3
+    // export buttons have always navigated here (full-page GET, hence no
+    // apiResource/POST) and always 404'd — see PayrollExportController's own
+    // docblock.
+    Route::get('payroll/export/{format}', [PayrollExportController::class, 'export'])
+        ->whereIn('format', ['silae', 'dsn', 'csv']);
 
     // HR Dashboard routes (complex analytics)
     Route::middleware('throttle:complex_get')->group(function () {
@@ -256,7 +290,19 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/hr')->group(function () {
+// Chantier 32.17 (HR deep 14-layer audit): this whole file is already loaded
+// by Modules\HR\Providers\RouteServiceProvider under a `prefix('api/v1/hr')`
+// group (see that provider) — stacking a second `prefix('v1/hr')` here
+// produced the real, previously-unnoticed route `api/v1/hr/v1/hr/ai/assist`
+// instead of the documented `api/v1/hr/ai/assist`, confirmed empirically via
+// `php artisan route:list` — a guaranteed 404 on the URL this controller's
+// own docblock and docs/03-MODULES/HR.md advertise. Same bug class already
+// fixed once for Setup at Chantier 8.5sv. In practice this endpoint has zero
+// real frontend caller anyway (every HR Vue page's useAiAssistant() call
+// posts to the app-wide generic /api/v1/ai/assist, per the pattern already
+// documented at Chantier 32.2) — fixed for correctness/consistency with the
+// rest of this file regardless.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(function () {
     Route::post('ai/assist', [\Modules\HR\Http\Controllers\Api\HRAiAssistController::class, 'assist'])
         ->name('hr.ai.assist');
 });

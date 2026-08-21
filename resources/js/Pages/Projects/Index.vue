@@ -4,6 +4,8 @@
 
     <GuidedTour tour-id="projects-index" :steps="projectsTourSteps" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Projets</h1>
@@ -140,9 +142,12 @@ import Paginator from 'primevue/paginator'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useHelpStore } from '@/stores/help'
 
 const help = useHelpStore()
+const { guidance } = useAiAssistant('Projects', 'view_dashboard')
 
 // Chantier 19 Lot 2: this page had a "Nouveau projet" button with no click
 // handler, a per-row "Voir" button with no click handler, and no row-click

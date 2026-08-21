@@ -23,6 +23,10 @@ class JobPositionController extends Controller
 
         $query = JobPosition::withCount('employees')
             ->with('department')
+            // Chantier 32.17 (HR deep 14-layer audit): same cross-tenant
+            // leak already documented (and fixed) on Employee/Department's
+            // index() endpoints.
+            ->when($request->user()?->company_id, fn ($q, $companyId) => $q->where('company_id', $companyId))
             ->when(
                 $request->has('is_active'),
                 fn ($q) => $q->where('is_active', filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN))
@@ -48,7 +52,9 @@ class JobPositionController extends Controller
             'is_active' => ['boolean'],
         ]);
 
-        $position = JobPosition::create($validated);
+        $position = JobPosition::create(array_merge($validated, [
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json(
             new JobPositionResource($position->load('department')),

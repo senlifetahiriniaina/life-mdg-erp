@@ -1,5 +1,6 @@
 <template>
   <AppLayout :title="`${project.name} — Gantt`">
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
     <!-- Toolbar -->
     <div class="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-surface-700 bg-white dark:bg-surface-800 dark:bg-surface-800">
       <div class="flex items-center gap-3">
@@ -282,12 +283,16 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { Button, Dialog, Dropdown } from 'primevue'
 import axios from 'axios'
 
 const props = defineProps({
   project: { type: Object, required: true },
 })
+
+const { guidance } = useAiAssistant('Projects', 'view_gantt')
 
 // State
 const loading    = ref(true)

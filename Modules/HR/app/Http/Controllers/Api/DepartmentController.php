@@ -23,8 +23,11 @@ class DepartmentController extends Controller
     {
         $this->authorize('viewAny', Department::class);
 
+        // Chantier 32.17 (HR deep 14-layer audit): zero tenant/company
+        // scoping at all before this — same cross-tenant leak already
+        // documented (and fixed) on EmployeeController::index().
         $perPage = $request->query('per_page', 15);
-        $departments = $this->service->getAllDepartments($perPage);
+        $departments = $this->service->getAllDepartments($perPage, $request->user()?->company_id);
 
         return DepartmentResource::collection($departments);
     }
@@ -33,7 +36,10 @@ class DepartmentController extends Controller
     {
         $this->authorize('create', Department::class);
 
-        $department = $this->service->createDepartment($request->validated());
+        $department = $this->service->createDepartment(array_merge(
+            $request->validated(),
+            ['company_id' => $request->user()->company_id],
+        ));
 
         return (new DepartmentResource($department))->response()->setStatusCode(201);
     }

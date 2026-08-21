@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="Sprint Planning" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Sprint Planning</h1>
@@ -210,6 +212,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown, InputNumber, Badge } from 'primevue'
 import axios from 'axios'
 
@@ -244,6 +248,7 @@ interface BurndownData {
 }
 
 const props = defineProps<{ projectId?: number | string }>()
+const { guidance } = useAiAssistant('Projects', 'view_sprints')
 
 const loading    = ref(true)
 const saving     = ref(false)

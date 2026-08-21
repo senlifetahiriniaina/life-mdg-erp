@@ -25,7 +25,14 @@ class EmployeeResource extends JsonResource
             'department_id' => $this->department_id,
             'department' => new DepartmentResource($this->whenLoaded('department')),
             'job_position_id' => $this->job_position_id,
-            'position' => new PositionResource($this->whenLoaded('jobPosition')),
+            // Chantier 32.17 (HR deep 14-layer audit): this used to wrap
+            // PositionResource around the jobPosition relation — a Resource
+            // shaped for the confirmed-dead Position model (salary_min/
+            // salary_max/headcount/status, none of which exist on the real
+            // JobPosition being passed in, so they always rendered as null)
+            // rather than the real JobPositionResource already used
+            // correctly by JobPositionController. Repointed.
+            'position' => new JobPositionResource($this->whenLoaded('jobPosition')),
             'hire_date' => $this->hire_date,
             'years_of_service' => $this->getYearsOfService(),
             'employment_type' => $this->employment_type,

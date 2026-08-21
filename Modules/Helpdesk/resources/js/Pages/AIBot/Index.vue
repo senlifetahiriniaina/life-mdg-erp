@@ -8,6 +8,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Filters -->
     <div class="wh-panel" style="padding:12px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
       <input v-model="filters.category" placeholder="Catégorie…" class="wh-input" style="width:160px" @input="debounceLoad" />
@@ -89,6 +91,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'ai_bot_templates')
 
 const loading = ref(false)
 const templates = ref([])

@@ -7,6 +7,7 @@ namespace Modules\Payroll\Providers;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\Payroll\Models\Payslip;
+use Modules\Payroll\Observers\PayslipObserver;
 use Modules\Payroll\Policies\PayrollPolicy;
 use Modules\Payroll\Services\PayrollIntegrationService;
 
@@ -25,6 +26,11 @@ class PayrollServiceProvider extends ServiceProvider
     {
         $this->loadTranslationsFrom(__DIR__ . '/../../lang', 'payroll');
         $this->registerPolicies();
+
+        // Chantier 32.18: Payroll had never wired into Chantier 20's
+        // ParticipantNotificationService — an employee's payslip being
+        // approved/paid is a real process nothing notified them about.
+        Payslip::observe(PayslipObserver::class);
     }
 
     /**

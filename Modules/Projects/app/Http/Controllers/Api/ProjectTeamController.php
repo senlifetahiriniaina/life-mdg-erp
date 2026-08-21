@@ -152,6 +152,17 @@ class ProjectTeamController extends Controller
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
         ]);
 
+        // Chantier 32.17 (14-layer deep audit): the 'exists' rule above only
+        // confirms the task id is real ANYWHERE in the app, never that it
+        // belongs to $project — a caller could log time under their own
+        // project's URL while pointing task_id at an unrelated task,
+        // including one belonging to a different company. Same bug class
+        // fixed on TimeEntryController::store() in this same audit.
+        if (isset($validated['task_id'])) {
+            $taskProjectId = \Modules\Projects\Models\Task::where('id', $validated['task_id'])->value('project_id');
+            abort_if($taskProjectId !== $project->id, 422, 'task_id must belong to this project.');
+        }
+
         /** @var User $user */
         $user = $request->user();
         $log = $this->teamService->logTime($project, $user, $validated);

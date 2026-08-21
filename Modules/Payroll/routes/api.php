@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Payroll\Http\Controllers\Api\PayrollController;
+use Modules\Payroll\Http\Controllers\Api\PayslipExportController;
 
 // Chantier 8.3 (Payroll): 'payroll-officer' — the role literally named for
 // this module, seeded with full payroll.* permissions — was missing from
@@ -27,6 +28,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:P
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Payroll'])->group(function () {
     Route::get('me/payslips',      [PayrollController::class, 'myPayslips']);
     Route::get('payslips/{payslip}', [PayrollController::class, 'show']);
+    // Chantier 32.18: "bulletin de paie PDF" — Chantier 29's own report
+    // proposal named this as the single most naturally-expected-but-missing
+    // export in the app. Same route group / RBAC gate as show() above
+    // (PayrollPolicy::view(), now company-scoped for staff, own-record-only
+    // for an employee) since downloading a payslip is the same read access
+    // as viewing it.
+    Route::get('payslips/{payslip}/export/pdf', [PayslipExportController::class, 'pdf']);
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
