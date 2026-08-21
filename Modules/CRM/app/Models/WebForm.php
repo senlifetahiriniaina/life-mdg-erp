@@ -36,7 +36,7 @@ class WebForm extends Model
     protected $table = 'crm_web_forms';
 
     protected $fillable = [
-        'name', 'slug', 'fields', 'redirect_url', 'success_message',
+        'tenant_id', 'name', 'slug', 'fields', 'redirect_url', 'success_message',
         'create_lead', 'pipeline_id', 'default_lead_source', 'is_active', 'created_by',
     ];
 

@@ -29,6 +29,12 @@ class TerritoryController extends Controller
     /**
      * List territories.
      *
+     * Chantier 32.15: had zero tenant scoping — any authenticated CRM-module user of any
+     * company could list/read/create/update/delete/forecast every other company's sales
+     * territories (region, quota, assigned rep), confirmed empirically before this fix.
+     * crm_territories never had a tenant/company column of any kind — a new, additive
+     * company_id column was added alongside this fix.
+     *
      * @queryParam search string Filter by name or code. Example: North
      * @queryParam is_active boolean Filter by active status. Example: true
      * @queryParam per_page integer Results per page (max 100). Example: 25
@@ -37,10 +43,13 @@ class TerritoryController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Territory::class);
+
         $perPage = min((int) ($request->per_page ?? 25), 100);
 
         $query = Territory::query()
-            ->with(['assignedTo', 'opportunities']);
+            ->with(['assignedTo', 'opportunities'])
+            ->where('company_id', $request->user()->company_id);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -95,6 +104,8 @@ class TerritoryController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Territory::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:crm_territories,code',
@@ -111,6 +122,7 @@ class TerritoryController extends Controller
         // Apply defaults
         $validated['currency'] = $validated['currency'] ?? 'USD';
         $validated['is_active'] = $validated['is_active'] ?? true;
+        $validated['company_id'] = $request->user()->company_id;
 
         $territory = Territory::create($validated);
 
@@ -125,6 +137,8 @@ class TerritoryController extends Controller
      */
     public function show(Territory $territory): JsonResponse
     {
+        $this->authorize('view', $territory);
+
         $territory->load(['assignedTo', 'opportunities.score']);
 
         return response()->json([
@@ -162,6 +176,8 @@ class TerritoryController extends Controller
      */
     public function update(Request $request, Territory $territory): JsonResponse
     {
+        $this->authorize('update', $territory);
+
         $validated = $request->validate([
             'name' => 'string|max:255',
             'code' => 'string|max:50|unique:crm_territories,code,'.$territory->id,
@@ -189,6 +205,8 @@ class TerritoryController extends Controller
      */
     public function destroy(Territory $territory): JsonResponse
     {
+        $this->authorize('delete', $territory);
+
         // Check for child territories or associated opportunities
         if ($territory->children()->exists()) {
             return response()->json([
@@ -215,6 +233,8 @@ class TerritoryController extends Controller
      */
     public function forecast(Territory $territory): JsonResponse
     {
+        $this->authorize('view', $territory);
+
         $forecast = $this->forecastService->territoryDetail($territory);
 
         return response()->json($forecast);
@@ -230,6 +250,8 @@ class TerritoryController extends Controller
      */
     public function atRisk(Request $request, Territory $territory): JsonResponse
     {
+        $this->authorize('view', $territory);
+
         $perPage = min((int) ($request->per_page ?? 25), 100);
         $page = (int) ($request->page ?? 1);
 
@@ -261,11 +283,17 @@ class TerritoryController extends Controller
      */
     public function assignOpportunity(Request $request, Territory $territory): JsonResponse
     {
+        $this->authorize('update', $territory);
+
         $validated = $request->validate([
             'opportunity_id' => 'required|exists:crm_opportunities,id',
         ]);
 
         $opportunity = Opportunity::findOrFail($validated['opportunity_id']);
+        // Chantier 32.15: the opportunity itself was never authorized — a caller could assign
+        // another company's opportunity into their own territory (or vice versa) purely by
+        // guessing an opportunity_id, even though the territory-side check above is correct.
+        $this->authorize('update', $opportunity);
         $updated = $this->forecastService->assignOpportunity($opportunity, $territory);
 
         return response()->json([
@@ -290,7 +318,10 @@ class TerritoryController extends Controller
         ]);
 
         $contact = Contact::findOrFail($validated['contact_id']);
-        $assignment = $this->territoryService->autoAssign($contact);
+        // Chantier 32.15: was missing entirely — any authenticated CRM-module user could
+        // auto-assign any other company's contact into a territory purely by guessing an id.
+        $this->authorize('view', $contact);
+        $assignment = $this->territoryService->autoAssign($contact, $request->user()->company_id);
 
         if ($assignment === null) {
             return response()->json(['message' => 'No matching territory found for this contact.'], 422);
@@ -304,9 +335,9 @@ class TerritoryController extends Controller
      *
      * @response 200 scenario="Success" [{"territory_id": 1, "territory_name": "West", "quota": 500000, "ytd_revenue": 125000, "attainment_pct": 25}]
      */
-    public function teamQuotas(): JsonResponse
+    public function teamQuotas(Request $request): JsonResponse
     {
-        return response()->json($this->territoryService->getTeamQuotas());
+        return response()->json($this->territoryService->getTeamQuotas($request->user()->company_id));
     }
 
     /**
@@ -315,9 +346,9 @@ class TerritoryController extends Controller
      *
      * @response 200 scenario="Success" {"total": 10, "assigned": 8, "unassigned": 2, "percentage": 80, "gaps": [...]}
      */
-    public function coverage(): JsonResponse
+    public function coverage(Request $request): JsonResponse
     {
-        return response()->json($this->territoryService->coverage());
+        return response()->json($this->territoryService->coverage($request->user()->company_id));
     }
 
     /**
@@ -325,9 +356,9 @@ class TerritoryController extends Controller
      *
      * @response 200 scenario="Success" {"rebalanced": 12, "territories": [...]}
      */
-    public function rebalance(): JsonResponse
+    public function rebalance(Request $request): JsonResponse
     {
-        return response()->json($this->territoryService->rebalance());
+        return response()->json($this->territoryService->rebalance($request->user()->company_id));
     }
 
     /**
@@ -335,9 +366,9 @@ class TerritoryController extends Controller
      *
      * @response 200 scenario="Success" {"territories": {...}, "summary": {"total_forecast": 2500000, "total_target": 5000000, "aggregate_quota_forecast": 50}}
      */
-    public function territoryForecast(): JsonResponse
+    public function territoryForecast(Request $request): JsonResponse
     {
-        $forecast = $this->forecastService->territoryForecast();
+        $forecast = $this->forecastService->territoryForecast($request->user()->company_id);
 
         return response()->json($forecast);
     }
@@ -357,6 +388,9 @@ class TerritoryController extends Controller
         ]);
 
         $territory = Territory::findOrFail($validated['territory_id']);
+        // Chantier 32.15: was missing entirely — territory_id comes from the request body,
+        // not route-model-binding, so no policy check ever ran against it.
+        $this->authorize('view', $territory);
         $comparison = $this->forecastService->forecastVsTarget($territory);
 
         return response()->json($comparison);

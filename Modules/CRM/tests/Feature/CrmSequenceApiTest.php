@@ -6,10 +6,15 @@ use App\Models\User;
 use Modules\CRM\Models\EmailSequence;
 use Modules\CRM\Models\Lead;
 use Modules\CRM\Models\WebForm;
-
+use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    // Chantier 32.15: EmailSequencePolicy's real create()-ability role requirement is now
+    // actually enforced (see EmailSequenceController/CRMServiceProvider) — a bare, roleless
+    // user 403s on every mutating action. Same fix pattern as EmailSequenceTest.php.
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $this->user->assignRole('admin');
     $this->token = $this->user->createToken('test')->plainTextToken;
 });
 

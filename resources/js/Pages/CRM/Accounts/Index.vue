@@ -275,6 +275,11 @@ const editAccount = (a) => {
   showModal.value = true
 }
 
+// Chantier 32.15: missing-CSRF-token fetch() bug — see Contacts/Form.vue's comment.
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
+
 const saveAccount = async () => {
   saving.value = true
   errors.value = {}
@@ -283,7 +288,7 @@ const saveAccount = async () => {
     const method = editingAccount.value ? 'PUT' : 'POST'
     const res = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(form),
     })
     if (!res.ok) {
@@ -306,7 +311,7 @@ const confirmDelete = (account) => {
     rejectClass: 'p-button-text',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await fetch(`/api/v1/crm/accounts/${account.id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+      await fetch(`/api/v1/crm/accounts/${account.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
       applyFilters(pagination.current_page)
     },
   })

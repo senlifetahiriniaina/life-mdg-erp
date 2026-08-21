@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Integration\CRM;
 
+use App\Models\Company;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\CRM\Models\Contact;
 use Modules\CRM\Models\Lead;
 use Modules\CRM\Models\Opportunity;
-use Modules\CRM\Models\Company;
 use Tests\TestCase;
 
 class ContactConversionPipelineTest extends TestCase
@@ -65,13 +65,17 @@ class ContactConversionPipelineTest extends TestCase
 
     public function test_multiple_contacts_can_share_company(): void
     {
+        // Chantier 32.15: Modules\CRM\Models\Company (and Contact::company())
+        // were deleted as a confirmed-dead duplicate — crm_contacts.company_id
+        // is the real tenant-boundary scalar pointing at App\Models\Company,
+        // which has no contacts() relation, so this queries the scalar directly.
         $company = Company::factory()->create();
 
-        $contact1 = Contact::factory()->create(['company_id' => $company->id]);
-        $contact2 = Contact::factory()->create(['company_id' => $company->id]);
-        $contact3 = Contact::factory()->create(['company_id' => $company->id]);
+        Contact::factory()->create(['company_id' => $company->id]);
+        Contact::factory()->create(['company_id' => $company->id]);
+        Contact::factory()->create(['company_id' => $company->id]);
 
-        $this->assertEquals(3, $company->contacts()->count());
+        $this->assertEquals(3, Contact::where('company_id', $company->id)->count());
     }
 
     public function test_lead_pipeline_progresses_through_stages(): void
@@ -137,8 +141,8 @@ class ContactConversionPipelineTest extends TestCase
         Contact::factory()->count(5)->create(['company_id' => $company->id]);
         Lead::factory()->count(3)->create(['company_id' => $company->id]);
 
-        $this->assertEquals(5, $company->contacts()->count());
-        $this->assertEquals(3, $company->leads()->count());
+        $this->assertEquals(5, Contact::where('company_id', $company->id)->count());
+        $this->assertEquals(3, Lead::where('company_id', $company->id)->count());
     }
 
     public function test_lost_opportunity_records_reason(): void
@@ -163,8 +167,8 @@ class ContactConversionPipelineTest extends TestCase
         $contact = Contact::factory()->create(['company_id' => $company->id]);
         $opportunity = Opportunity::factory()->create(['contact_id' => $contact->id]);
 
-        // Access via relationship chain
-        $opportunities = $company->contacts()
+        // Access via the real chain: company_id scalar -> contact -> opportunities()
+        $opportunities = Contact::where('company_id', $company->id)
             ->find($contact->id)
             ->opportunities()
             ->get();

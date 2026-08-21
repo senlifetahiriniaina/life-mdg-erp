@@ -161,10 +161,10 @@ class CpqService
 </table>
 
 <table class="totals">
-  <tr><td>Sous-total HT</td><td style="text-align:right">{$q->subtotal} €</td></tr>
-  <tr><td>Remise</td><td style="text-align:right">- {$q->discount_amount} €</td></tr>
-  <tr><td>TVA (20%)</td><td style="text-align:right">{$q->tax_amount} €</td></tr>
-  <tr class="total-row"><td>TOTAL TTC</td><td style="text-align:right">{$q->total} €</td></tr>
+  <tr><td>Sous-total HT</td><td style="text-align:right">{$q->subtotal} Ar</td></tr>
+  <tr><td>Remise</td><td style="text-align:right">- {$q->discount_amount} Ar</td></tr>
+  <tr><td>TVA (20%)</td><td style="text-align:right">{$q->tax_amount} Ar</td></tr>
+  <tr class="total-row"><td>TOTAL TTC</td><td style="text-align:right">{$q->total} Ar</td></tr>
 </table>
 
 {$notesHtml}
@@ -186,6 +186,7 @@ HTML;
         $seq = str_pad((string) (Quote::withTrashed()->count() + 1), 4, '0', STR_PAD_LEFT);
 
         $newQuote = Quote::create([
+            'tenant_id' => $q->tenant_id,
             'opportunity_id' => $q->opportunity_id,
             'contact_id' => $q->contact_id,
             'reference' => "QT-{$year}-{$seq}",

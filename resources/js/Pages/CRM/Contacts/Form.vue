@@ -157,6 +157,18 @@ const populateForm = () => {
 }
 watch(() => props.contact, populateForm, { immediate: true })
 
+// Chantier 32.15: this fetch() POST/PUT sent no CSRF token at all — unlike axios (used
+// elsewhere in this app), which reads the XSRF-TOKEN cookie and attaches X-XSRF-TOKEN
+// automatically, a raw fetch() does nothing on its own. This app runs Sanctum's
+// statefulApi(), which activates real CSRF verification on every same-origin browser
+// request — every real contact create/edit through this form/modal would 419. Pest can never
+// catch this (VerifyCsrfToken::runningUnitTests() bypasses in APP_ENV=testing regardless of
+// headers sent), same fix pattern already established elsewhere in this app (e.g.
+// Modules/Inventory's Categories/Index.vue getCsrf() helper).
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 const onSubmit = handleSubmit(async (values) => {
   submitting.value = true
   const url    = props.contact ? `/api/v1/crm/contacts/${props.contact.id}` : '/api/v1/crm/contacts'
@@ -166,7 +178,7 @@ const onSubmit = handleSubmit(async (values) => {
   try {
     const response = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(payload),
     })
     if (!response.ok) {

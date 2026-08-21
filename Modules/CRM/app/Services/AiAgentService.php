@@ -34,6 +34,12 @@ class AiAgentService
             case 'add_note':
                 DB::table('crm_activities')->insert([
                     'user_id' => $agent->created_by ?? 1,
+                    // Chantier 32.15: crm_activities.company_id (added Chantier "CRM
+                    // tenant-isolation follow-up") was never populated here — an agent-created
+                    // note was silently invisible to ActivityController::index()'s
+                    // (already-correct) company_id filter. Tagged from the owning agent's own
+                    // tenant_id, the only tenant context available in this raw-insert path.
+                    'company_id' => $agent->tenant_id,
                     'type' => 'note',
                     'title' => 'AI Agent Note',
                     'subject_type' => $entityType,
@@ -47,6 +53,7 @@ class AiAgentService
             case 'create_task':
                 DB::table('crm_activities')->insert([
                     'user_id' => $agent->created_by ?? 1,
+                    'company_id' => $agent->tenant_id,
                     'type' => 'task',
                     'title' => 'AI Agent Task',
                     'subject_type' => $entityType,
@@ -76,10 +83,11 @@ class AiAgentService
         return $run;
     }
 
-    public function runScheduledAgents(): array
+    public function runScheduledAgents(?int $companyId = null): array
     {
         $agents = AiAgent::where('trigger_type', 'schedule')
             ->where('is_active', true)
+            ->where('tenant_id', $companyId)
             ->get();
 
         $runs = [];

@@ -13,6 +13,7 @@ use Modules\Achats\Policies\PurchaseOrderPolicy;
 use Modules\Achats\Policies\SupplierPolicy;
 use Modules\Achats\Policies\SupplierQuotePolicy;
 use Modules\Achats\Services\ApprovalRoutingService;
+use Modules\Achats\Services\BulkPurchaseOrderService;
 use Modules\Achats\Services\PurchaseIntegrationService;
 use Modules\Achats\Services\PurchaseOrderService;
 use Modules\Achats\Services\PurchaseReceiptService;
@@ -68,6 +69,15 @@ class AchatsServiceProvider extends ServiceProvider
 
         $this->app->singleton(PurchaseIntegrationService::class, function ($app) {
             return new PurchaseIntegrationService;
+        });
+
+        // Chantier 32.13 (layer 9 — activated): see the class's own
+        // docblock — createPOsFromRFQ() closes a real gap in the RFQ
+        // workflow (accepting a quote never used to produce a real PO).
+        $this->app->singleton(BulkPurchaseOrderService::class, function ($app) {
+            return new BulkPurchaseOrderService(
+                $app->make(PurchaseOrderService::class)
+            );
         });
 
         // Aliases for easier access

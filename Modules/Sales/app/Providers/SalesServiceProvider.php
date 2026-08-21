@@ -6,11 +6,8 @@ namespace Modules\Sales\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Modules\Sales\Console\Commands\GenerateRecurringOrdersCommand;
-use Modules\Sales\Models\SalesOrder;
-use Modules\Sales\Policies\SalesOrderPolicy;
 use Modules\Sales\Services\RecurringOrderService;
 use Modules\Sales\Services\SalesService;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -36,7 +33,22 @@ class SalesServiceProvider extends ServiceProvider
         $this->registerConfig();
         $this->registerViews();
         $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
-        Gate::policy(SalesOrder::class, SalesOrderPolicy::class);
+        // Chantier 32.16 (Sales deep 14-layer audit, layer 9 — fake/dead):
+        // SalesOrderPolicy used to be registered here but had zero real
+        // caller anywhere (no controller ever called authorize() against
+        // it — confirmed via a repo-wide grep, its own unit test only ever
+        // mocked User::can() directly, never went through the Gate). Its
+        // finer-grained sales.order.{view-any,view,create,update,delete}
+        // permissions are a *different* set than the flat sales.{read,
+        // create,update} SalesController actually checks — activating it
+        // would have silently regressed the deliberate Chantier 26 volet D
+        // finance-manager grant (sales.read only, no sales.order.*, so
+        // finance-manager could read orders/quotations for the monthly
+        // finance review but would lose that access under the policy's own
+        // verbs). Deleted rather than activated: the controller's flat
+        // permission checks + forTenant() scoping already provide complete,
+        // empirically-verified authorization with no gap the policy would
+        // have closed.
     }
 
     /**

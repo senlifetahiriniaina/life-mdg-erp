@@ -73,14 +73,32 @@ class AiContextualAssistantService
     public function supportedModules(): array
     {
         return [
-            'CRM'                 => ['create_contact', 'view_dashboard', 'create_opportunity'],
+            // 'view_contacts_list'/'manage_leads'/'manage_opportunities_kanban'/
+            // 'manage_quotes'/'manage_territories'/'view_sales_forecast' added
+            // Chantier 32.15 (CRM deep 14-layer audit): confirmed via grep that
+            // ZERO of this module's ~13 real, routed Vue pages ever called
+            // useAiAssistant() at all — the same "real pages never wired to AI
+            // guidance" pattern already found and fixed for Strategy
+            // (Chantier 30), Validation (Chantier 32.7), and Sales
+            // (Chantier 32.16). These 6 cover the module's highest-traffic
+            // screens; EmailSequences/CallLogs/Scoring are left as a
+            // documented residual gap (see CLAUDE.md's Chantier 32.15 entry).
+            'CRM'                 => ['create_contact', 'view_dashboard', 'create_opportunity', 'view_contacts_list', 'manage_leads', 'manage_opportunities_kanban', 'manage_quotes', 'manage_territories', 'view_sales_forecast'],
             // 'view_income_statement'/'import_treasury' added Chantier 30 (bulk
             // treasury/cash import assistance, IncomeStatement.vue AI panel).
             'Accounting'          => ['post_invoice', 'reconcile', 'view_balance_sheet', 'view_income_statement', 'ohada_report', 'invoice_approval', 'view_payment_schedule', 'cost_analysis', 'import_treasury'],
             'HR'                  => ['create_employee', 'approve_leave', 'run_payroll', 'onboarding'],
             // 'import_stock' added Chantier 30 (bulk stock import assistance).
             'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock'],
-            'Sales'               => ['create_order', 'confirm_order', 'create_quotation'],
+            // 'manage_deposit_balance'/'manage_recurring_orders'/
+            // 'manage_sales_objectives' added Chantier 32.16 (Sales deep
+            // 14-layer audit): 3 of the module's 4 real Vue pages
+            // (Orders/Show.vue, RecurringOrders/Index.vue, Objectives/
+            // Index.vue) never called useAiAssistant() at all — the same
+            // "N of M real pages never wired" pattern already found and
+            // fixed for Strategy (Chantier 30) and Validation (Chantier
+            // 32.7).
+            'Sales'               => ['create_order', 'confirm_order', 'create_quotation', 'manage_deposit_balance', 'manage_recurring_orders', 'manage_sales_objectives'],
             'POS'                 => ['open_session', 'process_payment', 'close_session'],
             // Chantier 32.10 (Setup deep 14-layer audit): the 6-step
             // onboarding wizard (SetupWizard.vue) had ZERO AI-assist
@@ -278,7 +296,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -571,21 +589,49 @@ PROMPT;
                 ],
             ],
             'Sales.confirm_order' => [
-                'what_to_do'          => 'Confirmez la commande pour déclencher la livraison et la facturation.',
+                // Chantier 32.16 (Sales deep 14-layer audit): la version
+                // précédente affirmait qu'une facture était générée
+                // automatiquement à la confirmation — faux, confirmé en
+                // lisant SalesService::confirmOrder() (transition de statut
+                // uniquement, aucune facturation) : la vraie facturation
+                // passe par le cycle acompte/solde explicite du Chantier 22
+                // (voir manage_deposit_balance), jamais automatique.
+                'what_to_do'          => 'Confirmez la commande (brouillon → confirmée) pour démarrer sa préparation.',
                 'how_to_do'           => [
-                    'Vérifiez que le stock est réservé.',
+                    'Vérifiez les lignes et le total avant de confirmer — une commande confirmée n\'est plus modifiable.',
                     'Confirmez les conditions de livraison et délais.',
-                    'Validez la commande — une facture sera générée automatiquement.',
+                    'Une fois confirmée, demandez l\'acompte depuis la fiche détail de la commande.',
                 ],
                 'decision_indicators' => [
                     ['label' => 'Commandes en attente', 'value' => '—', 'status' => 'warning'],
                 ],
-                'warnings'            => [],
+                'warnings'            => [
+                    'La confirmation ne génère aucune facture automatiquement — utilisez le cycle acompte/solde sur la fiche de la commande.',
+                ],
                 'next_actions'        => [
-                    ['label' => 'Émettre la facture', 'action' => 'post_invoice', 'module' => 'Accounting'],
+                    ['label' => 'Gérer acompte/solde', 'action' => 'manage_deposit_balance', 'module' => 'Sales'],
                 ],
                 'tips'                => [
                     'Envoyez une confirmation par email ou WhatsApp au client.',
+                ],
+            ],
+            'Sales.manage_deposit_balance' => [
+                'what_to_do'          => 'Suivez et encaissez l\'acompte puis le solde d\'une commande confirmée depuis sa fiche détail.',
+                'how_to_do'           => [
+                    'Demandez un acompte (pourcentage du total) — une vraie facture liée est créée automatiquement.',
+                    'Enregistrez le paiement de l\'acompte reçu (Mvola, virement, espèces…) une fois encaissé.',
+                    'Une fois l\'acompte payé, demandez le solde restant, puis enregistrez son paiement à la livraison.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Étape du cycle', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Un acompte ou un solde ne peut être demandé qu\'une seule fois par commande — le montant est figé à la demande, pas recalculé automatiquement si la commande change ensuite.',
+                    'Un paiement qui dépasserait le montant de la facture liée est rejeté par le serveur.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Chaque paiement encaissé génère une vraie écriture comptable équilibrée (comptes OHADA 419 pour l\'acompte, 411 pour le solde).',
                 ],
             ],
             'Sales.create_quotation' => [
@@ -2284,7 +2330,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -2577,21 +2623,48 @@ PROMPT;
                 ],
             ],
             'Sales.confirm_order' => [
-                'what_to_do'          => 'Confirm the order to trigger delivery and invoicing.',
+                // Chantier 32.16 (Sales deep 14-layer audit): the previous
+                // text claimed an invoice was generated automatically on
+                // confirmation — false (SalesService::confirmOrder() only
+                // transitions the status); real invoicing goes through the
+                // explicit deposit/balance cycle (see
+                // manage_deposit_balance), never automatic.
+                'what_to_do'          => 'Confirm the order (draft → confirmed) to start its preparation.',
                 'how_to_do'           => [
-                    'Check that stock is reserved.',
+                    'Check the lines and total before confirming — a confirmed order can no longer be edited.',
                     'Confirm delivery conditions and lead time.',
-                    'Validate the order — an invoice will be generated automatically.',
+                    'Once confirmed, request the deposit from the order\'s detail page.',
                 ],
                 'decision_indicators' => [
                     ['label' => 'Orders pending', 'value' => '—', 'status' => 'warning'],
                 ],
-                'warnings'            => [],
+                'warnings'            => [
+                    'Confirming never generates an invoice automatically — use the deposit/balance cycle on the order\'s detail page.',
+                ],
                 'next_actions'        => [
-                    ['label' => 'Post invoice', 'action' => 'post_invoice', 'module' => 'Accounting'],
+                    ['label' => 'Manage deposit/balance', 'action' => 'manage_deposit_balance', 'module' => 'Sales'],
                 ],
                 'tips'                => [
                     'Send an order confirmation by email or WhatsApp to the customer.',
+                ],
+            ],
+            'Sales.manage_deposit_balance' => [
+                'what_to_do'          => 'Track and collect the deposit, then the balance, of a confirmed order from its detail page.',
+                'how_to_do'           => [
+                    'Request a deposit (percentage of the total) — a real linked invoice is created automatically.',
+                    'Record the deposit payment once received (mobile money, bank transfer, cash…).',
+                    'Once the deposit is paid, request the remaining balance, then record its payment on delivery.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Cycle stage', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'A deposit or balance can only be requested once per order — the amount is fixed at request time, not recalculated if the order changes afterward.',
+                    'A payment that would exceed the linked invoice\'s total is rejected by the server.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Every collected payment posts a real balanced accounting entry (OHADA account 419 for the deposit, 411 for the balance).',
                 ],
             ],
             'Sales.create_quotation' => [
@@ -5719,6 +5792,332 @@ PROMPT;
                 'next_actions'        => [],
                 'tips'                => [
                     'These rules only apply when a caller explicitly invokes them — they are not automatically wired into every form in the app.',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.16 (Sales deep 14-layer audit): guidance for
+     * RecurringOrders/Index.vue and Objectives/Index.vue — the 2 remaining
+     * real Sales pages that never called useAiAssistant() at all before
+     * this fix (manage_deposit_balance was added inline next to
+     * confirm_order above, since it directly supersedes that entry's
+     * inaccurate "auto-invoicing" claim).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier3216(): array
+    {
+        return [
+            'Sales.manage_recurring_orders' => [
+                'what_to_do'          => 'Créez des modèles de commande récurrente pour vos clients réguliers — plus besoin de ressaisir la même commande à chaque cycle.',
+                'how_to_do'           => [
+                    'Créez un modèle : client, périodicité (hebdomadaire/mensuelle/trimestrielle) et lignes de produits.',
+                    'Cliquez "Générer maintenant" pour créer une vraie commande immédiatement, indépendamment de l\'échéance.',
+                    'Sinon, laissez le modèle générer automatiquement une commande à chaque échéance via la tâche planifiée quotidienne.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Modèles actifs', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    '"Générer maintenant" crée toujours une nouvelle commande réelle, même si vous cliquez plusieurs fois de suite — évitez les doubles clics.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Désactivez un modèle plutôt que de le supprimer si vous voulez juste suspendre temporairement la génération automatique.',
+                ],
+            ],
+            'Sales.manage_sales_objectives' => [
+                'what_to_do'          => 'Proposez et validez des objectifs de chiffre d\'affaires par équipe, commercial, client ou catégorie de produits.',
+                'how_to_do'           => [
+                    'Choisissez le périmètre (toute l\'équipe, un commercial, un client, ou une catégorie) et la période cible.',
+                    'L\'application calcule 3 propositions (conservateur/modéré/ambitieux) à partir de votre historique réel des 6 derniers mois — jamais inventées.',
+                    'Ajustez si besoin le montant proposé, puis validez une seule proposition — les autres sont automatiquement rejetées.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Objectifs validés', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Un objectif déjà validé ne peut plus être modifié ni supprimé.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Sans historique de commandes confirmées sur la période de référence, les 3 propositions démarrent à 0 — ce n\'est pas une erreur.',
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier3216(): array
+    {
+        return [
+            'Sales.manage_recurring_orders' => [
+                'what_to_do'          => 'Create recurring order templates for your repeat customers — no need to re-enter the same order every cycle.',
+                'how_to_do'           => [
+                    'Create a template: customer, recurrence (weekly/monthly/quarterly), and product lines.',
+                    'Click "Generate now" to create a real order immediately, independently of the due date.',
+                    'Otherwise, let the template generate an order automatically on each due date via the daily scheduled job.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active templates', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    '"Generate now" always creates a new real order, even on repeated clicks — avoid double-clicking.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Deactivate a template instead of deleting it if you only want to pause automatic generation temporarily.',
+                ],
+            ],
+            'Sales.manage_sales_objectives' => [
+                'what_to_do'          => 'Propose and validate revenue targets by team, sales rep, customer, or product category.',
+                'how_to_do'           => [
+                    'Choose the scope (whole team, a rep, a customer, or a category) and the target period.',
+                    'The app computes 3 proposals (conservative/moderate/ambitious) from your real historical data over the last 6 months — never invented.',
+                    'Adjust the proposed amount if needed, then validate a single proposal — the others are automatically rejected.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Validated objectives', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'A validated objective can no longer be edited or deleted.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'With no confirmed order history over the reference period, all 3 proposals start at 0 — that\'s not an error.',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.15 (CRM deep 14-layer audit): guidance for the 6 real,
+     * routed CRM screens that never called useAiAssistant() at all before
+     * this fix — confirmed via grep that zero of the module's ~13 real Vue
+     * pages were wired, the same "real pages, no AI guidance" pattern
+     * already found and fixed for Strategy (Chantier 30), Validation
+     * (Chantier 32.7), and Sales (Chantier 32.16). These 6 cover the
+     * module's highest-traffic screens (contact list, lead pipeline,
+     * opportunity Kanban, quotes/CPQ, territory management, forecast
+     * dashboard) — EmailSequences/CallLogs/Scoring/Campaigns are a
+     * documented residual gap (see CLAUDE.md's Chantier 32.15 entry).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier3215(): array
+    {
+        return [
+            'CRM.view_contacts_list' => [
+                'what_to_do'          => 'Parcourez, filtrez et gérez la liste de vos contacts CRM.',
+                'how_to_do'           => [
+                    'Utilisez la recherche/les filtres pour retrouver un contact par nom, email ou statut.',
+                    'Cliquez sur un contact pour voir sa fiche complète et son historique.',
+                    'Utilisez "Détecter les doublons" sur une fiche pour repérer des contacts similaires avant d\'en créer un nouveau.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Contacts actifs', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Créer un contact', 'action' => 'create_contact', 'module' => 'CRM'],
+                ],
+                'tips'                => [
+                    'Seuls les contacts de votre propre société sont visibles ici, même si vous avez un rôle administrateur.',
+                ],
+            ],
+            'CRM.manage_leads' => [
+                'what_to_do'          => 'Suivez vos prospects (leads) depuis leur création jusqu\'à leur conversion en opportunité.',
+                'how_to_do'           => [
+                    'Un lead peut être créé manuellement, ou automatiquement via un formulaire web public.',
+                    'Qualifiez le lead (source, statut) puis convertissez-le en contact/opportunité une fois prêt.',
+                    'Vérifiez que l\'email/téléphone du lead sont bien renseignés avant conversion.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Leads non qualifiés', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Créer une opportunité', 'action' => 'create_opportunity', 'module' => 'CRM'],
+                ],
+                'tips'                => [
+                    'Un lead créé via un formulaire web public a déjà été rattaché à votre société automatiquement — pas besoin de le réassigner.',
+                ],
+            ],
+            'CRM.manage_opportunities_kanban' => [
+                'what_to_do'          => 'Faites glisser vos opportunités entre les étapes du pipeline pour suivre leur avancement.',
+                'how_to_do'           => [
+                    'Glissez-déposez une carte d\'une colonne à l\'autre pour changer son étape.',
+                    'Chaque déplacement est validé côté serveur — une étape inconnue ou hors du pipeline sélectionné sera rejetée.',
+                    'Cliquez sur une carte pour voir/modifier les détails complets de l\'opportunité.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Opportunités en cours', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Les libellés d\'étapes affichés viennent de la configuration réelle du pipeline choisi — ils peuvent varier d\'un pipeline à l\'autre.',
+                ],
+            ],
+            'CRM.manage_quotes' => [
+                'what_to_do'          => 'Créez et gérez des devis chiffrés (CPQ) pour vos opportunités commerciales.',
+                'how_to_do'           => [
+                    'Créez un devis depuis une opportunité, ajoutez des lignes de produits/services.',
+                    'Générez le PDF du devis une fois les montants validés.',
+                    'Dupliquez un devis existant pour créer rapidement une variante sans repartir de zéro.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Devis en attente', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Les montants du PDF sont affichés en Ariary (Ar) — la devise de référence de l\'application.',
+                ],
+            ],
+            'CRM.manage_territories' => [
+                'what_to_do'          => 'Organisez vos secteurs commerciaux (territoires) et suivez les quotas/objectifs par équipe.',
+                'how_to_do'           => [
+                    'Assignez des comptes/opportunités à un territoire selon votre logique de découpage (géographie, secteur, etc.).',
+                    'Consultez les quotas d\'équipe et le taux d\'atteinte par territoire.',
+                    'Utilisez "Rééquilibrer" pour obtenir une suggestion de redistribution entre territoires.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Territoires actifs', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'La couverture et les quotas d\'équipe sont calculés uniquement sur les données de votre propre société.',
+                ],
+            ],
+            'CRM.view_sales_forecast' => [
+                'what_to_do'          => 'Consultez la prévision de chiffre d\'affaires calculée à partir de votre pipeline d\'opportunités réel.',
+                'how_to_do'           => [
+                    'Le montant pondéré par étape (weighted forecast) est recalculé automatiquement selon les probabilités de chaque étape.',
+                    'Filtrez par commercial pour voir la prévision individuelle plutôt que l\'ensemble de l\'équipe.',
+                    'Utilisez l\'ajustement "what-if" pour simuler l\'impact d\'un facteur de croissance sans rien modifier réellement.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Prévision pondérée', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'L\'ajustement "what-if" est une simulation non persistée — rien n\'est enregistré tant que vous ne créez pas d\'objectif validé.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'La prévision par produit n\'est pas disponible — ce module ne modélise pas de ligne produit sur les opportunités.',
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier3215(): array
+    {
+        return [
+            'CRM.view_contacts_list' => [
+                'what_to_do'          => 'Browse, filter, and manage your CRM contact list.',
+                'how_to_do'           => [
+                    'Use search/filters to find a contact by name, email, or status.',
+                    'Click a contact to see their full profile and history.',
+                    'Use "Detect duplicates" on a contact record to spot similar contacts before creating a new one.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active contacts', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Create a contact', 'action' => 'create_contact', 'module' => 'CRM'],
+                ],
+                'tips'                => [
+                    'Only your own company\'s contacts are visible here, even with an admin role.',
+                ],
+            ],
+            'CRM.manage_leads' => [
+                'what_to_do'          => 'Track your leads from creation through conversion into an opportunity.',
+                'how_to_do'           => [
+                    'A lead can be created manually, or automatically via a public web form.',
+                    'Qualify the lead (source, status) then convert it into a contact/opportunity once ready.',
+                    'Confirm the lead\'s email/phone are set before converting it.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Unqualified leads', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Create an opportunity', 'action' => 'create_opportunity', 'module' => 'CRM'],
+                ],
+                'tips'                => [
+                    'A lead created via a public web form is already tagged to your company automatically — no need to reassign it.',
+                ],
+            ],
+            'CRM.manage_opportunities_kanban' => [
+                'what_to_do'          => 'Drag your opportunities between pipeline stages to track progress.',
+                'how_to_do'           => [
+                    'Drag-and-drop a card from one column to another to change its stage.',
+                    'Every move is validated server-side — an unknown stage or one outside the selected pipeline will be rejected.',
+                    'Click a card to see/edit the opportunity\'s full details.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Open opportunities', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'The stage labels shown come from the selected pipeline\'s real configuration — they can differ between pipelines.',
+                ],
+            ],
+            'CRM.manage_quotes' => [
+                'what_to_do'          => 'Create and manage priced quotes (CPQ) for your sales opportunities.',
+                'how_to_do'           => [
+                    'Create a quote from an opportunity, add product/service lines.',
+                    'Generate the quote PDF once amounts are confirmed.',
+                    'Duplicate an existing quote to quickly create a variant without starting from scratch.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Pending quotes', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'PDF amounts are shown in Ariary (Ar) — this app\'s base currency.',
+                ],
+            ],
+            'CRM.manage_territories' => [
+                'what_to_do'          => 'Organize your sales territories and track team quotas/attainment.',
+                'how_to_do'           => [
+                    'Assign accounts/opportunities to a territory following your own segmentation logic (geography, sector, etc.).',
+                    'Review team quotas and attainment rate per territory.',
+                    'Use "Rebalance" to get a suggested redistribution across territories.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active territories', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Coverage and team quotas are computed only from your own company\'s data.',
+                ],
+            ],
+            'CRM.view_sales_forecast' => [
+                'what_to_do'          => 'View the revenue forecast computed from your real opportunity pipeline.',
+                'how_to_do'           => [
+                    'The stage-weighted forecast is automatically recalculated from each stage\'s probability.',
+                    'Filter by sales rep to see an individual forecast instead of the whole team\'s.',
+                    'Use the "what-if" adjustment to simulate a growth factor\'s impact without changing anything for real.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Weighted forecast', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'The "what-if" adjustment is a non-persisted simulation — nothing is saved unless you create a validated objective.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Per-product forecasting isn\'t available — this module has no product line dimension on opportunities.',
                 ],
             ],
         ];

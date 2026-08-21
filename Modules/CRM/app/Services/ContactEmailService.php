@@ -31,7 +31,12 @@ class ContactEmailService
         try {
             $template = self::TEMPLATES['contact.welcome'];
 
-            Mail::send(new ContactNotificationMail(
+            // Chantier 32.15: Mail::send($mailable) was called with no recipient set anywhere
+            // — this mailable has no to()/envelope()-level recipient of its own — a
+            // guaranteed exception on every real call, always silently swallowed by the
+            // catch block below (confirmed empirically: this whole feature has never
+            // actually sent a single email since it was built, for any of its 3 endpoints).
+            Mail::to($contact->email)->send(new ContactNotificationMail(
                 subjectLine: $this->renderTemplate($template['subject'], [
                     'account_name' => $contact->account?->name,
                 ]),
@@ -63,7 +68,8 @@ class ContactEmailService
         ];
 
         try {
-            Mail::send(new ContactNotificationMail(
+            // Chantier 32.15: same missing-recipient bug as sendWelcomeEmail() above.
+            Mail::to($contact->email)->send(new ContactNotificationMail(
                 subjectLine: $this->renderTemplate($template['subject'], array_merge([
                     'contact_name' => $contact->full_name,
                 ], $data)),

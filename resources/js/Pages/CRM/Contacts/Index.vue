@@ -17,6 +17,10 @@
 
     <GuidedTour tour-id="crm-contacts" :steps="crmContactsTourSteps" />
 
+    <!-- Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+         called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <!-- Page header -->
     <div class="page-head">
       <div>
@@ -170,6 +174,8 @@ import ContactForm from './Form.vue'
 import WelcomeBanner from '@/Components/UI/WelcomeBanner.vue'
 import HelpTooltip from '@/Components/UI/HelpTooltip.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useHelpStore } from '@/stores/help'
 import { useI18n } from 'vue-i18n'
 
@@ -185,6 +191,11 @@ interface Pagination { current_page: number; per_page: number; total: number; la
 const confirm = useConfirm()
 const help    = useHelpStore()
 const { t }   = useI18n()
+
+// Chantier 32.15 (CRM deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const { guidance } = useAiAssistant('CRM', 'view_contacts_list')
+const showAiPanel = ref(true)
 
 const crmContactsTourSteps = [
   { tag: 'CRM', icon: 'pi pi-users',       title: 'Contact List',   description: 'All your contacts — customers, leads and partners — are here. Use filters to narrow down by status, type or owner.' },
@@ -254,6 +265,11 @@ const openCreateModal = () => { editingContact.value = null; showModal.value = t
 const editContact    = (c: Contact) => { editingContact.value = c; showModal.value = true }
 const onContactSaved = () => { showModal.value = false; fetchContacts(pagination.current_page) }
 
+// Chantier 32.15: missing-CSRF-token fetch() bug — see Contacts/Form.vue's comment.
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 const confirmDelete = (contact: Contact) => {
   confirm.require({
     message: `${t('common.delete')} ${contact.full_name} ?`,
@@ -262,7 +278,7 @@ const confirmDelete = (contact: Contact) => {
     rejectClass: 'p-button-text',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await fetch(`/api/v1/crm/contacts/${contact.id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+      await fetch(`/api/v1/crm/contacts/${contact.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
       fetchContacts(pagination.current_page)
     },
   })

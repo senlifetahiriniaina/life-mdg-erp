@@ -292,6 +292,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     // Tax Compliance Reports (formal filing register — TaxComplianceReportController)
     Route::get('tax-compliance-reports', [TaxComplianceReportController::class, 'index']);
     Route::post('tax-compliance-reports', [TaxComplianceReportController::class, 'store']);
+    // Chantier 32.14: live tax calculation (VAT/income-tax/transfer-price/deferred-tax) via the
+    // previously-orphaned AdvancedTaxComplianceService — deliberately before {report} so the
+    // literal 'calculate' segment is never mistaken for a report id.
+    Route::post('tax-compliance-reports/calculate', [TaxComplianceReportController::class, 'calculate']);
     Route::get('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'show']);
     Route::put('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'update']);
     Route::post('tax-compliance-reports/{report}/file', [TaxComplianceReportController::class, 'file']);

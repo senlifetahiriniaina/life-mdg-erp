@@ -59,6 +59,8 @@ class BudgetManagementController extends Controller
     /** GET /budgets/over-budget — Lines exceeding their budget amount. */
     public function overBudgetLines(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Budget::class);
+
         $year = $request->query('fiscal_year', date('Y'));
         $lines = BudgetLine::query()
             ->whereHas('budget', fn ($q) => $q->where('fiscal_year', $year))
@@ -72,6 +74,8 @@ class BudgetManagementController extends Controller
     /** GET /budgets/{budget}/variance */
     public function variance(Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         $variance = $this->varianceService->calculateVariance($budget);
 
         return response()->json(['data' => $variance]);
@@ -80,6 +84,8 @@ class BudgetManagementController extends Controller
     /** GET /budgets/{budget}/variance-trend */
     public function varianceTrend(Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         $trend = $this->varianceService->getVarianceTrend($budget);
 
         return response()->json(['data' => $trend]);
@@ -88,6 +94,8 @@ class BudgetManagementController extends Controller
     /** GET /budgets/{budget}/monthly-comparison */
     public function monthlyComparison(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         $month = $request->query('month', now()->format('Y-m'));
         $comparison = $this->varianceService->getMonthlyComparison($budget, $month);
 
@@ -97,6 +105,8 @@ class BudgetManagementController extends Controller
     /** GET /budget-lines/{budgetLine}/variance */
     public function lineVariance(BudgetLine $budgetLine): JsonResponse
     {
+        $this->authorize('view', $budgetLine->budget);
+
         $variance = $this->varianceService->calculateLineVariance($budgetLine);
 
         return response()->json(['data' => $variance]);
@@ -105,6 +115,8 @@ class BudgetManagementController extends Controller
     /** GET /budget-lines/{budgetLine}/forecast */
     public function forecast(BudgetLine $budgetLine): JsonResponse
     {
+        $this->authorize('view', $budgetLine->budget);
+
         $forecast = $this->varianceService->forecastRemaining($budgetLine);
 
         return response()->json(['data' => $forecast]);
@@ -113,6 +125,8 @@ class BudgetManagementController extends Controller
     /** GET /budgets/summary — delegates to BudgetService::getBudgetSummary() (already tested). */
     public function summary(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Budget::class);
+
         return response()->json($this->budgetService->getBudgetSummary());
     }
 
@@ -126,12 +140,16 @@ class BudgetManagementController extends Controller
      */
     public function departmentBreakdown(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Budget::class);
+
         return response()->json($this->budgetService->getDepartmentBreakdown());
     }
 
     /** POST /budgets */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Budget::class);
+
         $validated = $request->validate([
             'name'        => 'required|string|max:255',
             'fiscal_year' => 'required|integer',
@@ -147,6 +165,8 @@ class BudgetManagementController extends Controller
     /** PUT /budgets/{budget} */
     public function update(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('update', $budget);
+
         $validated = $request->validate([
             'name'        => 'sometimes|string|max:255',
             'fiscal_year' => 'sometimes|integer',
@@ -162,6 +182,8 @@ class BudgetManagementController extends Controller
     /** DELETE /budgets/{budget} */
     public function destroy(Budget $budget): JsonResponse
     {
+        $this->authorize('delete', $budget);
+
         $budget->delete();
 
         return response()->json(null, 204);
@@ -170,6 +192,8 @@ class BudgetManagementController extends Controller
     /** POST /budgets/{budget}/lines */
     public function createLine(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('update', $budget);
+
         $validated = $request->validate([
             'account_id'      => 'nullable|integer',
             'budgeted_amount' => 'required|numeric|min:0',
@@ -188,6 +212,8 @@ class BudgetManagementController extends Controller
     /** POST /budgets/{budget}/alerts */
     public function generateAlerts(Budget $budget): JsonResponse
     {
+        $this->authorize('update', $budget);
+
         $alerts = $this->varianceService->triggerAlerts($budget);
 
         return response()->json(['data' => $alerts, 'count' => count($alerts)]);
@@ -196,14 +222,27 @@ class BudgetManagementController extends Controller
     /** POST /budget-lines/{budgetLine}/forecasts */
     public function createForecasts(BudgetLine $budgetLine): JsonResponse
     {
+        $this->authorize('update', $budgetLine->budget);
+
         $forecast = $this->varianceService->createForecast($budgetLine);
 
         return response()->json(['data' => $forecast], 201);
     }
 
-    /** POST /budgets/{budget}/approve */
+    /**
+     * POST /budgets/{budget}/approve
+     *
+     * Chantier 32.14: confirmed empirically that this had zero authorization of
+     * any kind — any user reaching the module's outer route gate could approve
+     * (or reject, below) any company's budget. New BudgetPolicy::approve()/
+     * reject() abilities close this, matching the same real-permission-string
+     * pattern already used for the module's other non-standard-verb policies
+     * (BudgetScenarioPolicy::approve, InvoiceApprovalController, etc.).
+     */
     public function approveBudget(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('approve', $budget);
+
         $approved = $this->budgetService->approveBudget($budget, $request->user()?->id ?? 0);
 
         return response()->json(['data' => $approved]);
@@ -212,6 +251,8 @@ class BudgetManagementController extends Controller
     /** POST /budgets/{budget}/reject */
     public function rejectBudget(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('reject', $budget);
+
         $budget->update(['status' => 'rejected', 'rejection_reason' => $request->input('reason')]);
 
         return response()->json(['data' => $budget]);
@@ -220,6 +261,9 @@ class BudgetManagementController extends Controller
     /** POST /budgets/{budget}/clone */
     public function cloneBudget(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+        $this->authorize('create', Budget::class);
+
         $newYear = (int) $request->input('fiscal_year', $budget->fiscal_year + 1);
         $newBudget = $this->budgetService->cloneBudget($budget, $newYear);
 
@@ -229,6 +273,8 @@ class BudgetManagementController extends Controller
     /** POST /budgets/lines/{budgetLine}/spend */
     public function recordSpend(Request $request, BudgetLine $budgetLine): JsonResponse
     {
+        $this->authorize('update', $budgetLine->budget);
+
         $validated = $request->validate(['amount' => 'required|numeric|min:0']);
         $this->budgetService->recordSpend($budgetLine, $validated['amount']);
 
@@ -238,6 +284,8 @@ class BudgetManagementController extends Controller
     /** POST /budgets/{budget}/sync-actuals */
     public function syncActuals(Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         return response()->json([
             'message'          => 'Actual amounts sync job dispatched.',
             'budget'           => $budget,
@@ -248,12 +296,16 @@ class BudgetManagementController extends Controller
     /** GET /budgets/{budget}/variance-report */
     public function varianceReport(Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         return response()->json($this->varianceService->varianceReport($budget));
     }
 
     /** GET /budgets/{budget}/monthly-trend */
     public function monthlyTrend(Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         return response()->json([
             'budget_id'   => $budget->id,
             'fiscal_year' => $budget->fiscal_year,
@@ -264,6 +316,8 @@ class BudgetManagementController extends Controller
     /** GET /budgets/{budget}/top-variances */
     public function topVariances(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         $limit = (int) $request->query('limit', 10);
 
         return response()->json([
@@ -276,12 +330,17 @@ class BudgetManagementController extends Controller
     /** GET /budgets/{budget}/scenarios */
     public function listScenarios(Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+
         return response()->json(BudgetScenario::where('base_budget_id', $budget->id)->get());
     }
 
     /** POST /budgets/{budget}/scenarios */
     public function createScenario(Request $request, Budget $budget): JsonResponse
     {
+        $this->authorize('view', $budget);
+        $this->authorize('create', BudgetScenario::class);
+
         $validated = $request->validate([
             'name'               => 'required|string|max:255',
             'scenario_type'      => 'nullable|string',
@@ -300,6 +359,8 @@ class BudgetManagementController extends Controller
     /** GET /budget-scenarios/{scenario}/project */
     public function projectScenario(BudgetScenario $scenario): JsonResponse
     {
+        $this->authorize('view', $scenario);
+
         return response()->json($this->varianceService->projectScenario($scenario));
     }
 }

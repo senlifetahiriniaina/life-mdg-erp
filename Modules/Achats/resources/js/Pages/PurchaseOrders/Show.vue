@@ -5,10 +5,21 @@
         <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Bon de commande</h1>
         <p class="mt-2 text-surface-600 dark:text-surface-400">{{ purchaseOrder.po_number }}</p>
       </div>
-      <Link href="/purchase-orders" class="text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:text-surface-50">
-        ← Retour aux bons de commande
-      </Link>
+      <div class="flex gap-2">
+        <button
+          @click="showAiPanel = !showAiPanel"
+          class="px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300"
+          title="Assistant IA"
+        >
+          <i class="pi pi-sparkles" />
+        </button>
+        <Link href="/purchase-orders" class="text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:text-surface-50">
+          ← Retour aux bons de commande
+        </Link>
+      </div>
     </div>
+
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
 
     <div class="space-y-6">
       <!-- Document lifecycle -->
@@ -227,6 +238,15 @@ import { Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import ApprovalPanel from '@/Components/UI/ApprovalPanel.vue'
 import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
+// Chantier 32.13 (layer 13 — AI): 'approve_order' — this page is where the
+// real approve/reject buttons and the deposit/balance panel both live, an
+// exact fit for AiContextualAssistantService's existing grounded guidance
+// (previously never surfaced here at all).
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Achats', 'approve_order')
+const showAiPanel = ref(false)
 
 const props = defineProps({
   purchaseOrder: { type: Object, required: true },

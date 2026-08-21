@@ -19,9 +19,13 @@ class PipelineAnalyticsController extends Controller
 {
     public function __construct(private readonly PipelineAnalyticsService $analytics) {}
 
-    public function dashboard(): JsonResponse
+    // Chantier 32.15: every method here was fully tenant-unfiltered — see
+    // PipelineAnalyticsService's own docblock for the full finding. Every call below now
+    // threads the caller's own company_id through.
+
+    public function dashboard(Request $request): JsonResponse
     {
-        return response()->json($this->analytics->getDashboard());
+        return response()->json($this->analytics->getDashboard($request->user()->company_id));
     }
 
     public function winRate(Request $request): JsonResponse
@@ -30,7 +34,7 @@ class PipelineAnalyticsController extends Controller
         $to = $request->filled('to') ? Carbon::parse($request->input('to')) : null;
 
         return response()->json([
-            'win_rate' => $this->analytics->getWinRate($from, $to),
+            'win_rate' => $this->analytics->getWinRate($from, $to, $request->user()->company_id),
         ]);
     }
 
@@ -41,7 +45,7 @@ class PipelineAnalyticsController extends Controller
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $record = $this->analytics->recordWin((int) $validated['opportunity_id'], $validated);
+        $record = $this->analytics->recordWin((int) $validated['opportunity_id'], $validated, $request->user()->company_id);
 
         return response()->json($record, 201);
     }
@@ -54,7 +58,7 @@ class PipelineAnalyticsController extends Controller
             'competitor' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $record = $this->analytics->recordLoss((int) $validated['opportunity_id'], $validated);
+        $record = $this->analytics->recordLoss((int) $validated['opportunity_id'], $validated, $request->user()->company_id);
 
         return response()->json($record, 201);
     }
@@ -63,7 +67,7 @@ class PipelineAnalyticsController extends Controller
     {
         $pipelineId = (int) $request->input('pipeline_id', 0);
 
-        return response()->json($this->analytics->getConversionFunnel($pipelineId));
+        return response()->json($this->analytics->getConversionFunnel($pipelineId, $request->user()->company_id));
     }
 
     public function salesVelocity(Request $request): JsonResponse
@@ -72,7 +76,7 @@ class PipelineAnalyticsController extends Controller
         $to = $request->filled('to') ? Carbon::parse($request->input('to')) : null;
 
         return response()->json([
-            'sales_velocity' => $this->analytics->getSalesVelocity($from, $to),
+            'sales_velocity' => $this->analytics->getSalesVelocity($from, $to, $request->user()->company_id),
         ]);
     }
 
@@ -80,7 +84,7 @@ class PipelineAnalyticsController extends Controller
     {
         $pipelineId = (int) $request->input('pipeline_id', 0);
 
-        return response()->json($this->analytics->getStageDistribution($pipelineId));
+        return response()->json($this->analytics->getStageDistribution($pipelineId, $request->user()->company_id));
     }
 
     public function takeSnapshot(Request $request): JsonResponse
@@ -89,7 +93,7 @@ class PipelineAnalyticsController extends Controller
             'pipeline_id' => ['required', 'integer'],
         ]);
 
-        $snapshot = $this->analytics->takeSnapshot((int) $validated['pipeline_id']);
+        $snapshot = $this->analytics->takeSnapshot((int) $validated['pipeline_id'], $request->user()->company_id);
 
         return response()->json($snapshot, 201);
     }
@@ -99,27 +103,27 @@ class PipelineAnalyticsController extends Controller
         $pipelineId = (int) $request->input('pipeline_id', 0);
         $days = (int) $request->input('days', 30);
 
-        return response()->json($this->analytics->getPipelineTrend($pipelineId, $days));
+        return response()->json($this->analytics->getPipelineTrend($pipelineId, $days, $request->user()->company_id));
     }
 
     public function topPerformers(Request $request): JsonResponse
     {
         $limit = (int) $request->input('limit', 5);
 
-        return response()->json($this->analytics->getTopPerformers($limit));
+        return response()->json($this->analytics->getTopPerformers($limit, $request->user()->company_id));
     }
 
     public function winLossReasons(Request $request): JsonResponse
     {
         $outcome = $request->input('outcome', 'lost');
 
-        return response()->json($this->analytics->getWinLossReasons($outcome));
+        return response()->json($this->analytics->getWinLossReasons($outcome, $request->user()->company_id));
     }
 
-    public function avgSalesCycle(): JsonResponse
+    public function avgSalesCycle(Request $request): JsonResponse
     {
         return response()->json([
-            'avg_sales_cycle_days' => $this->analytics->getAvgSalesCycle(),
+            'avg_sales_cycle_days' => $this->analytics->getAvgSalesCycle($request->user()->company_id),
         ]);
     }
 }

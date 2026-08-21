@@ -3,6 +3,7 @@
 namespace Modules\Achats\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreSupplierRequest extends FormRequest
 {
@@ -14,7 +15,18 @@ class StoreSupplierRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code' => 'nullable|unique:achats_suppliers,code',
+            // Chantier 32.13 (layer 8, business validation — a real
+            // cross-tenant bug, confirmed empirically): a bare
+            // 'unique:achats_suppliers,code' checked uniqueness across
+            // EVERY company in the app, not just the caller's own — Company
+            // A creating a supplier with code 'SUP-001' permanently blocked
+            // every other company in the system from ever using that same
+            // code, a real functional bug (not a leak) since supplier codes
+            // are a per-company convention, not global.
+            'code' => [
+                'nullable',
+                Rule::unique('achats_suppliers', 'code')->where('company_id', $this->user()?->company_id),
+            ],
             'name' => 'required|string|max:255',
             'contact_person' => 'nullable|string|max:255',
             'email' => 'nullable|email',

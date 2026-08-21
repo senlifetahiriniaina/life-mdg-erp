@@ -5,10 +5,21 @@
         <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Purchase Orders</h1>
         <p class="mt-2 text-surface-600 dark:text-surface-400">Create and manage purchase orders with suppliers</p>
       </div>
-      <Link href="/purchase-orders/create" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-        + New Purchase Order
-      </Link>
+      <div class="flex gap-2">
+        <button
+          @click="showAiPanel = !showAiPanel"
+          class="px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300"
+          title="Assistant IA"
+        >
+          <i class="pi pi-sparkles" />
+        </button>
+        <Link href="/purchase-orders/create" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          + New Purchase Order
+        </Link>
+      </div>
     </div>
+
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
 
     <div class="bg-canvas dark:bg-surface-800 rounded-lg shadow">
       <div class="p-6 border-b border-subtle">
@@ -142,6 +153,17 @@
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
+// Chantier 32.13 (layer 13 — AI): the only Achats page that ever called
+// useAiAssistant() was SpendAnalytics/Index.vue — every other real screen,
+// including this one, had zero contextual guidance despite
+// AiContextualAssistantService already carrying real, grounded fr+en
+// fallback text for 'create_order' (matches this exact list-and-create
+// screen). Same pattern already found and fixed for Strategy at Chantier 30.
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Achats', 'create_order')
+const showAiPanel = ref(false)
 
 const purchaseOrders = ref([])
 const loading = ref(false)

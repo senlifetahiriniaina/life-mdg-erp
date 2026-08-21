@@ -10,6 +10,7 @@ use Modules\Achats\Http\Controllers\Api\RFQController;
 use Modules\Achats\Http\Controllers\Api\RFQLineController;
 use Modules\Achats\Http\Controllers\Api\SupplierController;
 use Modules\Achats\Http\Controllers\Api\SupplierQuoteController;
+use Modules\Achats\Http\Controllers\Api\ThreeWayMatchController;
 
 // Default: Simple GET throttle (1000 req/min)
 // Chantier 10: this group had a role: gate but no module:Achats gate at all
@@ -28,8 +29,17 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
     Route::get('purchase-orders/{purchase_order}/summary', [PurchaseOrderExportController::class, 'summary']);
 
     // PO Lines (nested)
+    // Chantier 32.13 (layer 1/6 — a severe, previously-undocumented route-
+    // parameter-name mismatch, confirmed empirically): the URL wildcard was
+    // {line} while every controller method type-hints the route-bound
+    // model as $purchase_order_line — Laravel's implicit route-model
+    // binding matches by the controller PARAMETER's name, not its type, so
+    // {line} never actually resolved into $purchase_order_line at all.
+    // Exact same bug class already documented for Modules\Validation at
+    // Chantier 19 Lot 3 ("10 routes... silently operating on blank
+    // in-memory objects"). Renamed to match the real controller signature.
     Route::get('purchase-orders/{purchase_order}/lines', [PurchaseOrderLineController::class, 'index']);
-    Route::get('purchase-orders/{purchase_order}/lines/{line}', [PurchaseOrderLineController::class, 'show']);
+    Route::get('purchase-orders/{purchase_order}/lines/{purchase_order_line}', [PurchaseOrderLineController::class, 'show']);
 
     // Suppliers
     Route::get('suppliers', [SupplierController::class, 'index']);
@@ -42,9 +52,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
     Route::get('rfqs/{rfq}', [RFQController::class, 'show']);
     Route::get('rfqs/{rfq}/comparison', [RFQController::class, 'comparison']);
 
-    // RFQ Lines (nested)
+    // RFQ Lines (nested) — Chantier 32.13: same {line}-vs-$rfq_line
+    // parameter-name mismatch as PurchaseOrderLineController above, fixed
+    // the same way.
     Route::get('rfqs/{rfq}/lines', [RFQLineController::class, 'index']);
-    Route::get('rfqs/{rfq}/lines/{line}', [RFQLineController::class, 'show']);
+    Route::get('rfqs/{rfq}/lines/{rfq_line}', [RFQLineController::class, 'show']);
 
     // Supplier Quotes
     Route::get('supplier-quotes', [SupplierQuoteController::class, 'index']);
@@ -53,6 +65,17 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
     // Purchase Receipts
     Route::get('purchase-receipts', [PurchaseReceiptController::class, 'index']);
     Route::get('purchase-receipts/{purchase_receipt}', [PurchaseReceiptController::class, 'show']);
+
+    // Chantier 32.13 (layer 9 — activated, previously zero routes anywhere
+    // in the app despite a fully-built controller/service/model/tests —
+    // see ThreeWayMatchController's own class docblock). Static sub-paths
+    // (flagged/statistics/by-status/by-result) registered before the
+    // {match} wildcard so they're never shadowed by it.
+    Route::get('invoice-matches/flagged', [ThreeWayMatchController::class, 'flagged']);
+    Route::get('invoice-matches/statistics', [ThreeWayMatchController::class, 'statistics']);
+    Route::get('invoice-matches/by-status', [ThreeWayMatchController::class, 'byStatus']);
+    Route::get('invoice-matches/by-result', [ThreeWayMatchController::class, 'byResult']);
+    Route::get('invoice-matches/{match}', [ThreeWayMatchController::class, 'show']);
 
     // Reports (complex analytics)
     Route::middleware('throttle:complex_get')->group(function () {
@@ -83,8 +106,8 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
         Route::post('purchase-orders/{purchase_order}/balance/pay', [PurchaseOrderController::class, 'payBalance']);
 
         Route::post('purchase-orders/{purchase_order}/lines', [PurchaseOrderLineController::class, 'store']);
-        Route::put('purchase-orders/{purchase_order}/lines/{line}', [PurchaseOrderLineController::class, 'update']);
-        Route::delete('purchase-orders/{purchase_order}/lines/{line}', [PurchaseOrderLineController::class, 'destroy']);
+        Route::put('purchase-orders/{purchase_order}/lines/{purchase_order_line}', [PurchaseOrderLineController::class, 'update']);
+        Route::delete('purchase-orders/{purchase_order}/lines/{purchase_order_line}', [PurchaseOrderLineController::class, 'destroy']);
 
         Route::post('suppliers', [SupplierController::class, 'store']);
         // Chantier 10: Suppliers/Form.vue also sends PATCH on edit — same fix.
@@ -97,10 +120,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
         Route::delete('rfqs/{rfq}', [RFQController::class, 'destroy']);
         Route::post('rfqs/{rfq}/issue', [RFQController::class, 'issue']);
         Route::post('rfqs/{rfq}/close', [RFQController::class, 'closeRfq']);
+        // Chantier 32.13 (layer 9 — activated, see BulkPurchaseOrderService).
+        Route::post('rfqs/{rfq}/create-purchase-orders', [RFQController::class, 'createPurchaseOrders']);
 
         Route::post('rfqs/{rfq}/lines', [RFQLineController::class, 'store']);
-        Route::put('rfqs/{rfq}/lines/{line}', [RFQLineController::class, 'update']);
-        Route::delete('rfqs/{rfq}/lines/{line}', [RFQLineController::class, 'destroy']);
+        Route::put('rfqs/{rfq}/lines/{rfq_line}', [RFQLineController::class, 'update']);
+        Route::delete('rfqs/{rfq}/lines/{rfq_line}', [RFQLineController::class, 'destroy']);
 
         Route::post('rfqs/{rfq}/suppliers/{supplier}/quote', [SupplierQuoteController::class, 'store']);
         Route::post('supplier-quotes/{supplier_quote}/accept', [SupplierQuoteController::class, 'accept']);
@@ -113,6 +138,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
         Route::post('purchase-orders/{purchase_order}/receipts', [PurchaseReceiptController::class, 'storeForOrder']);
         Route::post('purchase-receipts/{purchase_receipt}/complete', [PurchaseReceiptController::class, 'complete']);
         Route::post('purchase-receipts/{purchase_receipt}/quality-issue', [PurchaseReceiptController::class, 'recordQualityIssue']);
+
+        // Chantier 32.13 (layer 9 — activated).
+        Route::post('purchase-receipts/{receipt}/match', [ThreeWayMatchController::class, 'match']);
+        Route::post('invoice-matches/{match}/resolve', [ThreeWayMatchController::class, 'resolve']);
+        Route::post('invoice-matches/bulk-resolve', [ThreeWayMatchController::class, 'bulkResolve']);
     });
 });
 

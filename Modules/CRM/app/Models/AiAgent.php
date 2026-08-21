@@ -33,6 +33,7 @@ class AiAgent extends Model
     protected $table = 'crm_ai_agents';
 
     protected $fillable = [
+        'tenant_id',
         'name',
         'description',
         'trigger_type',

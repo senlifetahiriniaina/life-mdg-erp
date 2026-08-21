@@ -97,6 +97,26 @@ class SalesOrder extends Model
         return $this->hasMany(SalesOrderLine::class);
     }
 
+    /**
+     * Chantier 32.16 (Sales deep 14-layer audit): SalesOrder had contact_id/
+     * account_id columns and real controller support for both, but no
+     * Eloquent relation to either — confirmed via a real HTTP call that
+     * SalesIndex.vue's customer column has shown "—" for every order since
+     * it was built, since data.customer (a relation that never existed) was
+     * always undefined. Added for real display, matching
+     * SalesDepositService::resolveCustomerName()'s own already-established
+     * account-first-then-contact precedent.
+     */
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\CRM\Models\Contact::class, 'contact_id');
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\CRM\Models\Account::class, 'account_id');
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'created_by');

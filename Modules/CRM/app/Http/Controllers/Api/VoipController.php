@@ -65,11 +65,18 @@ class VoipController extends Controller
     /**
      * List call logs (paginated).
      *
+     * Chantier 32.15: had zero tenant scoping — any authenticated CRM-module user of any
+     * company could list every other company's call logs (phone numbers, notes, recording
+     * links), confirmed empirically before this fix.
+     *
      * @response 200 {"data": [], "total": 0}
      */
     public function callLogs(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', CallLog::class);
+
         $logs = CallLog::with(['contact', 'user'])
+            ->where('tenant_id', $request->user()->company_id)
             ->when($request->filled('direction'), fn ($q) => $q->where('direction', $request->direction))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('called_at', '>=', $request->date_from))
@@ -83,10 +90,15 @@ class VoipController extends Controller
     /**
      * Show a single call log.
      *
+     * Chantier 32.15: had zero authorize() call and zero tenant scoping — any authenticated
+     * CRM-module user of any company could view any other company's call log by id.
+     *
      * @response 200 {"id": 1, "phone_number": "+1234567890"}
      */
     public function showCallLog(CallLog $callLog): JsonResponse
     {
+        $this->authorize('view', $callLog);
+
         $callLog->load(['contact', 'user']);
 
         return (new CallLogResource($callLog))->response();

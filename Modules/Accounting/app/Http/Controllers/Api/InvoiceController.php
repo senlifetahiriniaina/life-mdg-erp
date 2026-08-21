@@ -218,6 +218,26 @@ class InvoiceController extends Controller
             'status' => 'required|string|in:draft,sent,paid,overdue,cancelled',
         ]);
 
+        // Chantier 32.14: zero business-rule validation on this raw status transition was a real,
+        // reachable gap — confirmed empirically that a `paid` invoice could be silently flipped
+        // back to `draft`/`cancelled` (financial-integrity corruption: amount_paid/paid_at left
+        // stale) and a `draft` invoice could jump straight to `paid` without ever being sent,
+        // bypassing the exact guard rails Modules\Accounting\Services\InvoiceService already
+        // encoded correctly but which had zero callers anywhere (now absorbed here and the
+        // orphaned service deleted, matching this session's established
+        // absorb-then-delete-the-dead-duplicate precedent).
+        if (in_array($invoice->status, ['paid', 'cancelled'], true) && $data['status'] !== $invoice->status) {
+            return response()->json([
+                'message' => "Cannot change status of a {$invoice->status} invoice via this endpoint.",
+            ], 422);
+        }
+
+        if ($data['status'] === 'paid' && $invoice->status === 'draft') {
+            return response()->json([
+                'message' => 'Cannot mark a draft invoice as paid; send it first.',
+            ], 422);
+        }
+
         $invoice->update(['status' => $data['status']]);
 
         return new InvoiceResource($invoice->fresh());
@@ -302,6 +322,19 @@ class InvoiceController extends Controller
 
     public function markPaid(Invoice $invoice)
     {
+        // Chantier 32.14: same guard as updateStatus() — a draft invoice must be sent before it
+        // can be marked paid; a paid/cancelled invoice is a terminal state for this endpoint.
+        if ($invoice->status === 'draft') {
+            return response()->json([
+                'message' => 'Cannot mark a draft invoice as paid; send it first.',
+            ], 422);
+        }
+        if ($invoice->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Cannot mark a cancelled invoice as paid.',
+            ], 422);
+        }
+
         $invoice->update(['status' => 'paid', 'paid_at' => now()]);
         return new InvoiceResource($invoice->fresh());
     }

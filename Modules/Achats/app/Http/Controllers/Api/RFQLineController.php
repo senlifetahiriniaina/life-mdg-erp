@@ -20,6 +20,18 @@ class RFQLineController extends Controller
 
     public function __construct(protected RFQService $service) {}
 
+    /**
+     * Chantier 32.13 (layer 6, security deep — same real IDOR class found
+     * and fixed on PurchaseOrderLineController, confirmed empirically):
+     * show()/update()/destroy() only checked that the URL's {rfq} belonged
+     * to the caller's company, never that {rfq_line} actually belongs to
+     * THAT rfq.
+     */
+    private function assertLineBelongsToRfq(RFQ $rfq, RFQLine $rfq_line): void
+    {
+        abort_unless($rfq_line->rfq_id === $rfq->id, 404);
+    }
+
     public function index(Request $request, RFQ $rfq)
     {
         $this->assertSameCompany($request, $rfq);
@@ -56,6 +68,7 @@ class RFQLineController extends Controller
     public function show(Request $request, RFQ $rfq, RFQLine $rfq_line)
     {
         $this->assertSameCompany($request, $rfq);
+        $this->assertLineBelongsToRfq($rfq, $rfq_line);
 
         return $rfq_line;
     }
@@ -70,6 +83,7 @@ class RFQLineController extends Controller
     public function update(Request $request, RFQ $rfq, RFQLine $rfq_line)
     {
         $this->assertSameCompany($request, $rfq);
+        $this->assertLineBelongsToRfq($rfq, $rfq_line);
 
         abort_if(! $rfq->isDraft(), 422, 'Cannot update lines on a non-draft RFQ');
 
@@ -95,6 +109,7 @@ class RFQLineController extends Controller
     public function destroy(Request $request, RFQ $rfq, RFQLine $rfq_line)
     {
         $this->assertSameCompany($request, $rfq);
+        $this->assertLineBelongsToRfq($rfq, $rfq_line);
 
         $this->service->removeLineFromRFQ($rfq_line);
 

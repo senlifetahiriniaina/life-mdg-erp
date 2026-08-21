@@ -56,10 +56,37 @@ class SalesController extends Controller
         $tenantId = $this->tenantId($request);
         $perPage  = min((int) ($request->per_page ?? 25), 100);
 
+        // Chantier 32.16 (Sales deep 14-layer audit): SalesIndex.vue's
+        // search box has always posted a `search` query param that this
+        // endpoint silently ignored (no matching filter existed at all,
+        // confirmed via a real HTTP call before this fix) — the search box
+        // has never actually filtered anything. Filters on the one field a
+        // user searching "an order" realistically has in hand: its
+        // reference number (or a note on it).
         $orders = SalesOrder::forTenant($tenantId)
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('contact_id'), fn ($q) => $q->where('contact_id', $request->contact_id))
-            ->with(['lines', 'createdBy:id,name,email'])
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = $request->string('search');
+                $q->where(fn ($sub) => $sub->where('reference', 'like', "%{$term}%")
+                    ->orWhere('notes', 'like', "%{$term}%"));
+            })
+            // Chantier 32.16: SalesOrder::$appends = ['payment_stage'] derives
+            // its value from the depositInvoice/balanceInvoice relations
+            // (Chantier 22) — every order in this list previously triggered
+            // 2 extra lazy-loaded queries on serialization since neither
+            // relation was eager-loaded here, a real N+1 confirmed via a
+            // real query-count assertion before this fix. Minimal columns
+            // only — the list view never needs the full Invoice payload.
+            // contact/account eager-loaded (minimal columns) so
+            // SalesIndex.vue's customer column can show a real name instead
+            // of always "—" — see Modules\Sales\Models\SalesOrder's new
+            // contact()/account() relations.
+            ->with([
+                'lines', 'createdBy:id,name,email',
+                'depositInvoice:id,status,total,amount_paid', 'balanceInvoice:id,status,total,amount_paid',
+                'contact:id,first_name,last_name', 'account:id,name',
+            ])
             ->latest()
             ->paginate($perPage);
 
@@ -123,7 +150,12 @@ class SalesController extends Controller
             'lines.*.unit_price'      => 'required|numeric|min:0',
             'lines.*.discount_percent' => 'nullable|numeric|min:0|max:100',
             'lines.*.tax_rate'        => 'nullable|numeric|min:0|max:100',
-            'sales_rep_id'            => 'nullable|integer',
+            // Chantier 32.16: was 'nullable|integer' with no existence check —
+            // SalesObjectiveService::historicalMonthlyTotals() filters by this
+            // exact column for scope=rep, so an arbitrary/garbage id here would
+            // silently orphan an order from any objective grouping and never
+            // be caught anywhere.
+            'sales_rep_id'            => 'nullable|integer|exists:users,id',
         ]);
 
         $validated['tenant_id'] = $this->tenantId($request);
@@ -265,6 +297,14 @@ class SalesController extends Controller
 
         $validated = $request->validate([
             'contact_id'  => 'nullable|integer',
+            // Chantier 32.16 (Sales deep 14-layer audit): sales_quotations.
+            // account_id is a real, migrated column (2026_06_08_000003) that
+            // was never in SalesQuotation::$fillable and never accepted by
+            // this endpoint — a quotation could only ever be tied to an
+            // individual contact, never a CRM account/company, unlike
+            // SalesOrder (which supports both). Activated for real symmetry
+            // with orders rather than left as a dead schema column.
+            'account_id'  => 'nullable|integer',
             'currency'    => 'nullable|string|size:3',
             'total'       => 'nullable|numeric|min:0',
             'valid_until' => 'nullable|date|after:today',
@@ -320,6 +360,7 @@ class SalesController extends Controller
 
         $validated = $request->validate([
             'contact_id'  => 'nullable|integer',
+            'account_id'  => 'nullable|integer', // Chantier 32.16 — see storeQuotation()
             'currency'    => 'nullable|string|size:3',
             'total'       => 'nullable|numeric|min:0',
             'valid_until' => 'nullable|date',

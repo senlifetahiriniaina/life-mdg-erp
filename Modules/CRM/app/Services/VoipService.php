@@ -48,6 +48,11 @@ class VoipService
             'contact_id' => $contact?->id,
             'lead_id' => null,
             'user_id' => $agent->id,
+            // Chantier 32.15: crm_call_logs already carried a real `tenant_id` column, never
+            // populated anywhere — every call log silently had no tenant boundary at all,
+            // confirmed empirically before this fix (the underlying cross-tenant read leak on
+            // VoipController::callLogs()/showCallLog() is fixed separately, at the controller).
+            'tenant_id' => $agent->company_id,
             'direction' => 'outbound',
             'status' => 'initiated',
             'phone_number' => $to,
@@ -89,7 +94,14 @@ class VoipService
         $recording = CallRecording::create([
             'call_id'    => $callId,
             'status'     => CallRecording::STATUS_RECORDING,
-            'company_id' => $callLog->company_id ?? 0,
+            // Chantier 32.15: was reading $callLog->company_id, a column CallLog has never
+            // had (only tenant_id) — every CallRecording silently got company_id=0 regardless
+            // of the real caller's company, meaning CallRecordingController::show()/
+            // summarize()/getSummary() (already correctly scoped by company_id since
+            // Chantier 10) could never actually find a real company's own recording — the
+            // whole AI call-summary feature was unreachable for any real company. Fixed to
+            // read the call log's real tenant_id (now populated by initiateCall() above).
+            'company_id' => $callLog->tenant_id ?? 0,
         ]);
 
         if ($this->accountSid && $this->authToken && $callLog->call_sid ?? null) {

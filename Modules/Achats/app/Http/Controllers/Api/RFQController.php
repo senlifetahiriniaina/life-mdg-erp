@@ -5,7 +5,9 @@ namespace Modules\Achats\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Modules\Achats\Http\Controllers\Api\Concerns\ScopesToCompany;
+use Modules\Achats\Http\Resources\PurchaseOrderResource;
 use Modules\Achats\Models\RFQ;
+use Modules\Achats\Services\BulkPurchaseOrderService;
 use Modules\Achats\Services\RFQService;
 
 /**
@@ -17,7 +19,10 @@ class RFQController extends Controller
 {
     use ScopesToCompany;
 
-    public function __construct(protected RFQService $service) {}
+    public function __construct(
+        protected RFQService $service,
+        protected BulkPurchaseOrderService $bulkPoService,
+    ) {}
 
     /**
      * Chantier 10: returned a raw paginator (no `meta` wrapping) — the same
@@ -167,5 +172,26 @@ class RFQController extends Controller
         $comparison = $this->service->getQuoteComparison($rfq);
 
         return response()->json($comparison);
+    }
+
+    /**
+     * Chantier 32.13 (layer 9 — activated). Creates one real PurchaseOrder
+     * per supplier holding an accepted quote on this RFQ — the missing
+     * step after SupplierQuoteController::accept(). See
+     * BulkPurchaseOrderService::createPOsFromRFQ()'s own docblock.
+     */
+    public function createPurchaseOrders(Request $request, RFQ $rfq)
+    {
+        $this->assertSameCompany($request, $rfq);
+
+        abort_unless($rfq->quotes()->where('status', 'accepted')->exists(), 422, 'Aucun devis accepté sur cette demande de devis.');
+
+        // createPOsFromRFQ() returns a plain Support\Collection (not an
+        // Eloquent one), so each PO is refreshed individually rather than
+        // via a bulk ->fresh() call, which that class doesn't have.
+        $purchaseOrders = $this->bulkPoService->createPOsFromRFQ($rfq, $request->user())
+            ->map(fn ($po) => $po->fresh(['lines', 'supplier']));
+
+        return PurchaseOrderResource::collection($purchaseOrders)->response()->setStatusCode(201);
     }
 }

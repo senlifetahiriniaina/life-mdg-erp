@@ -91,12 +91,28 @@ class PurchaseOrderService
 
         if ($workflow) {
             $approvalRequest = $this->approvalService->createApprovalRequest($po, $workflow, $requestedBy);
-            $this->approvalService->submitApprovalRequest($approvalRequest);
 
+            // Chantier 32.13: resolve and set approver_id BEFORE calling
+            // submitApprovalRequest() (not after, as before) — confirmed
+            // empirically via tinker that submitApprovalRequest() fires
+            // Modules\Validation\Events\ApprovalRequestCreated synchronously,
+            // and Modules\Validation\Listeners\NotifyApprovalParticipants::
+            // handleRequestCreated() reads $event->request->approver_id at
+            // that exact moment to decide who to notify — with the old
+            // ordering, approver_id was still NULL when the event fired
+            // (only ever set on a second, later update() call), so the
+            // resolved approver was silently never notified of a single new
+            // Achats approval request, ever. getApproversForPO() re-queries
+            // the request by (approvable, workflow) rather than taking it as
+            // a parameter, so it already finds the just-created row
+            // regardless of this reordering — safe, no behavior change
+            // beyond the notification timing.
             $approvers = $this->routingService->getApproversForPO($po);
             if ($approvers->isNotEmpty()) {
                 $approvalRequest->update(['approver_id' => $approvers->first()->id]);
             }
+
+            $this->approvalService->submitApprovalRequest($approvalRequest->fresh());
         }
 
         event(new PurchaseOrderSubmittedForApproval($po));
@@ -116,6 +132,26 @@ class PurchaseOrderService
      */
     public function markAsApproved(PurchaseOrder $po, User $approver): void
     {
+        // Chantier 32.13 (layer 8, business validation): confirmed
+        // empirically via tinker that this method had NO guard on the PO's
+        // own current status at all — a still-draft PO that had never been
+        // submitted could be force-approved directly (bypassing the entire
+        // multi-tier escalation chain this module's approval seeder exists
+        // for), and — more severely — an already-terminal PO (received,
+        // invoiced, cancelled) could be silently "re-approved", flipping
+        // its status backwards with zero relation to its real, already-
+        // completed PurchaseReceipt. 'draft' is deliberately still allowed
+        // here (not just 'submitted') to preserve the pre-existing, still-
+        // intentionally-tested escape hatch (ApprovalRoutingIntegrationTest
+        // ::test_marking_a_po_approved_without_a_pending_request_does_not_fail)
+        // for a caller that marks a PO approved directly, without going
+        // through submitForApproval() first — but a PO already resolved one
+        // way or another (approved/rejected/cancelled/received/invoiced)
+        // can never be transitioned again through this method.
+        if (! in_array($po->status, ['draft', 'submitted'], true)) {
+            throw new \RuntimeException("Cannot approve a purchase order with status '{$po->status}'.");
+        }
+
         $request = \Modules\Validation\Models\ApprovalRequest::where('approvable_type', PurchaseOrder::class)
             ->where('approvable_id', $po->id)
             ->where('status', 'pending')
@@ -146,6 +182,15 @@ class PurchaseOrderService
      */
     public function markAsRejected(PurchaseOrder $po, User $rejector, string $reason): void
     {
+        // Chantier 32.13: same status guard as markAsApproved() above —
+        // confirmed empirically that an already-'cancelled' PO could be
+        // silently "rejected", flipping it away from its real terminal
+        // state. 'draft'/'submitted' are both legitimate: a manager may
+        // reasonably reject a bad draft outright, not only a submitted one.
+        if (! in_array($po->status, ['draft', 'submitted'], true)) {
+            throw new \RuntimeException("Cannot reject a purchase order with status '{$po->status}'.");
+        }
+
         $po->update([
             'status' => 'rejected',
             'rejected_by' => $rejector->id,

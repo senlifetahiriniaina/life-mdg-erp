@@ -136,6 +136,8 @@ class OpportunityController extends Controller
         }
         if (empty($validated['stage'])) {
             $validated['stage'] = 'lead';
+        } else {
+            $this->assertValidStage($validated['pipeline_id'], $validated['stage']);
         }
 
         $opportunity = Opportunity::create(array_merge($validated, [
@@ -179,6 +181,10 @@ class OpportunityController extends Controller
             $validated['closed_at'] = now();
         }
 
+        if (isset($validated['stage'])) {
+            $this->assertValidStage($validated['pipeline_id'] ?? $opportunity->pipeline_id, $validated['stage']);
+        }
+
         $opportunity->update($validated);
 
         return response()->json($opportunity->fresh('account', 'contact', 'owner', 'pipeline'));
@@ -191,6 +197,36 @@ class OpportunityController extends Controller
         $opportunity->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Chantier 32.15 (layer 8, business validation): store()/update() previously accepted ANY
+     * `stage` string with zero server-side validation against the resolved pipeline's real
+     * stage list — confirmed empirically via tinker (`->update(['stage' => 'bogus'])` silently
+     * succeeded) — an opportunity set to a phantom stage would then vanish from every kanban/
+     * pipeline-summary view (which groups strictly by the pipeline's own defined stage names)
+     * while its record still existed, a real, non-bypassable-in-theory business rule that was
+     * in practice fully bypassable via the API.
+     */
+    private function assertValidStage(?int $pipelineId, string $stage): void
+    {
+        if ($pipelineId === null) {
+            return;
+        }
+
+        $pipeline = Pipeline::find($pipelineId);
+        if ($pipeline === null) {
+            return;
+        }
+
+        $validStages = collect($pipeline->stages)
+            ->map(fn ($s) => is_array($s) ? ($s['name'] ?? null) : $s)
+            ->filter()
+            ->values();
+
+        if (! $validStages->contains($stage)) {
+            abort(422, "Invalid stage \"{$stage}\" for this pipeline. Valid stages: ".$validStages->implode(', '));
+        }
     }
 
     public function pipeline(Request $request): JsonResponse

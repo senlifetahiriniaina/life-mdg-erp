@@ -114,6 +114,16 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.consolidation.generate-report',
         'accounting.consolidation.record-transaction',
         'accounting.consolidation.eliminate-intercompany',
+        // Chantier 32.14: BudgetManagementController had ZERO authorize() calls on
+        // 23 of its 24 methods (only generateFromHistory() was gated, at Chantier
+        // 26C) — approveBudget()/rejectBudget() in particular had no check
+        // whatsoever, confirmed empirically reachable by any accountant/
+        // finance-manager/manager/admin regardless of the budget's real company.
+        // 'approve'/'reject' aren't in the generic CRUD-action list the
+        // MODULES/ACTIONS loop produces for 'budget' (already seeded there:
+        // view-any/view/create/update/delete).
+        'accounting.budget.approve',
+        'accounting.budget.reject',
     ];
 
     // Modules\CRM\Policies\{CampaignPolicy,WorkflowPolicy} check crm.{campaigns,workflows}.

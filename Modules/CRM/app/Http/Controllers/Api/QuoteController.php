@@ -21,13 +21,20 @@ class QuoteController extends Controller
 
     /**
      * List quotes (paginated).
+     *
+     * Chantier 32.15: had zero tenant scoping — any authenticated CRM-module user of any
+     * company could list every other company's CPQ quotes (pricing, discounts, contact
+     * linkage), confirmed empirically before this fix.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Quote::class);
+
         $perPage = min((int) ($request->per_page ?? 25), 100);
 
         $quotes = Quote::query()
             ->with(['contact', 'opportunity'])
+            ->where('tenant_id', $request->user()->company_id)
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('contact_id'), fn ($q) => $q->where('contact_id', $request->contact_id))
             ->when($request->filled('search'), fn ($q) => $q->where('reference', 'like', "%{$request->search}%"))
@@ -42,6 +49,8 @@ class QuoteController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Quote::class);
+
         $validated = $request->validate([
             'opportunity_id' => 'nullable|exists:crm_opportunities,id',
             'contact_id' => 'nullable|exists:crm_contacts,id',
@@ -51,6 +60,8 @@ class QuoteController extends Controller
             'discount_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
+
+        $validated['tenant_id'] = $request->user()->company_id;
 
         $quote = $this->cpq->createQuote($validated);
         $quote->load(['contact', 'opportunity', 'lines']);
@@ -63,6 +74,8 @@ class QuoteController extends Controller
      */
     public function show(Quote $quote): JsonResponse
     {
+        $this->authorize('view', $quote);
+
         $quote->load(['contact', 'opportunity', 'lines.productBundle']);
 
         return response()->json(new QuoteResource($quote));
@@ -73,6 +86,8 @@ class QuoteController extends Controller
      */
     public function update(Request $request, Quote $quote): JsonResponse
     {
+        $this->authorize('update', $quote);
+
         $validated = $request->validate([
             'opportunity_id' => 'nullable|exists:crm_opportunities,id',
             'contact_id' => 'nullable|exists:crm_contacts,id',
@@ -98,6 +113,8 @@ class QuoteController extends Controller
      */
     public function destroy(Quote $quote): JsonResponse
     {
+        $this->authorize('delete', $quote);
+
         $quote->delete();
 
         return response()->json(status: 200);
@@ -108,6 +125,8 @@ class QuoteController extends Controller
      */
     public function addLine(Request $request, Quote $quote): JsonResponse
     {
+        $this->authorize('update', $quote);
+
         $validated = $request->validate([
             'product_bundle_id' => 'nullable|exists:crm_product_bundles,id',
             'description' => 'required|string|max:500',
@@ -126,6 +145,8 @@ class QuoteController extends Controller
      */
     public function pdf(Quote $quote): Response
     {
+        $this->authorize('view', $quote);
+
         $html = $this->cpq->generatePdf($quote);
 
         return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
@@ -136,6 +157,8 @@ class QuoteController extends Controller
      */
     public function duplicate(Quote $quote): JsonResponse
     {
+        $this->authorize('view', $quote);
+
         $newQuote = $this->cpq->duplicate($quote);
         $newQuote->load(['contact', 'opportunity', 'lines']);
 

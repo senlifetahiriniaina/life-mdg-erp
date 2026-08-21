@@ -229,7 +229,13 @@ import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
+// Chantier 32.15: useRoleAccess() was called with no import anywhere in this file — a
+// guaranteed `ReferenceError: useRoleAccess is not defined` on mount. Currently latent (this
+// page has no web route, per the module's own documented, deliberate "gap, not built" decision
+// — see CLAUDE.md's Chantier 19 CRM entry), but fixed regardless since it would crash the
+// instant a future route ever pointed at it.
 const page = usePage()
 const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
 const canManage = computed(() => isElevated.value || hasAnyRole(['sales-manager']))

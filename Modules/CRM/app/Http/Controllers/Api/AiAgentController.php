@@ -15,16 +15,28 @@ use Modules\CRM\Services\AiAgentService;
  *
  * Manage Ai Agent resources.
  */
+/**
+ * Chantier 32.15 (CRM 14-layer audit): this whole controller had zero authorize()/tenant-
+ * scoping calls anywhere — any authenticated CRM-module user of any company could list/read/
+ * update/delete every other company's automation agents, and — the more severe finding —
+ * run() any other company's agent against an arbitrary entity_type/entity_id, a real
+ * cross-tenant write vector (action_type update_field/assign_owner/score_lead mutate the
+ * referenced record). crm_ai_agents already carried a real `tenant_id` column, just never
+ * populated/filtered — fixed alongside a new AiAgentPolicy.
+ */
 class AiAgentController extends Controller
 {
     public function __construct(private readonly AiAgentService $service) {}
 
     public function index(Request $request): JsonResponse
     {
-        $agents = AiAgent::when(
-            $request->has('is_active'),
-            fn ($q) => $q->where('is_active', (bool) $request->is_active)
-        )
+        $this->authorize('viewAny', AiAgent::class);
+
+        $agents = AiAgent::where('tenant_id', $request->user()->company_id)
+            ->when(
+                $request->has('is_active'),
+                fn ($q) => $q->where('is_active', (bool) $request->is_active)
+            )
             ->when(
                 $request->trigger_type,
                 fn ($q, $v) => $q->where('trigger_type', $v)
@@ -37,6 +49,8 @@ class AiAgentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', AiAgent::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -49,6 +63,7 @@ class AiAgentController extends Controller
         ]);
 
         $validated['created_by'] = $request->user()->id;
+        $validated['tenant_id'] = $request->user()->company_id;
 
         $agent = $this->service->createAgent($validated);
 
@@ -57,11 +72,15 @@ class AiAgentController extends Controller
 
     public function show(AiAgent $agent): JsonResponse
     {
+        $this->authorize('view', $agent);
+
         return response()->json($agent);
     }
 
     public function update(Request $request, AiAgent $agent): JsonResponse
     {
+        $this->authorize('update', $agent);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -80,6 +99,8 @@ class AiAgentController extends Controller
 
     public function destroy(AiAgent $agent): JsonResponse
     {
+        $this->authorize('delete', $agent);
+
         $this->service->deleteAgent($agent);
 
         return response()->json(null, 204);
@@ -87,6 +108,8 @@ class AiAgentController extends Controller
 
     public function run(Request $request, AiAgent $agent): JsonResponse
     {
+        $this->authorize('run', $agent);
+
         $validated = $request->validate([
             'entity_type' => ['required', 'string'],
             'entity_id' => ['required', 'integer'],
@@ -99,6 +122,8 @@ class AiAgentController extends Controller
 
     public function history(AiAgent $agent, Request $request): JsonResponse
     {
+        $this->authorize('view', $agent);
+
         $limit = (int) ($request->limit ?? 50);
         $history = $this->service->getAgentHistory($agent, $limit);
 
@@ -107,6 +132,8 @@ class AiAgentController extends Controller
 
     public function stats(AiAgent $agent): JsonResponse
     {
+        $this->authorize('view', $agent);
+
         $stats = $this->service->getAgentStats($agent);
 
         return response()->json($stats);
@@ -114,14 +141,16 @@ class AiAgentController extends Controller
 
     public function toggle(AiAgent $agent): JsonResponse
     {
+        $this->authorize('update', $agent);
+
         $updated = $this->service->toggleAgent($agent);
 
         return response()->json($updated);
     }
 
-    public function scheduledRun(): JsonResponse
+    public function scheduledRun(Request $request): JsonResponse
     {
-        $runs = $this->service->runScheduledAgents();
+        $runs = $this->service->runScheduledAgents($request->user()->company_id);
 
         return response()->json([
             'ran' => count($runs),

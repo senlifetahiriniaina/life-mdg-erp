@@ -16,6 +16,17 @@ class DuplicateDetectionService
 
     /**
      * Detect potential duplicate contacts using semantic similarity
+     *
+     * Chantier 32.15: was filtering by `tenant_id` against `auth()->user()->tenant_id` — the
+     * well-documented phantom `users.tenant_id` column (never populated by any real
+     * registration path) compared against `crm_contacts.tenant_id`, itself never populated by
+     * any real write path either (Contact's real tenant boundary is `company_id`, populated
+     * by ContactController::store()). Both sides always resolved to null, and Laravel's
+     * `where('col', null)` compiles to a strict `col = ?` bound to NULL, which matches nothing
+     * in SQL — so this method has never once found a real candidate for any real contact.
+     * Confirmed zero real callers (no route/controller ever reached it before this fix) —
+     * only its own unit test exercised it, and that test used `Model::unguarded()`-style
+     * factory writes that never exhibited the bug. Fixed to the module's real tenant boundary.
      */
     public function detectDuplicates(Contact $contact, ?float $threshold = 0.85): array
     {
@@ -25,7 +36,7 @@ class DuplicateDetectionService
             $contactEmbedding = $this->ai->embeddings()->embed($contactText);
 
             // Find similar contacts
-            $allContacts = Contact::where('tenant_id', auth()->user()->tenant_id)
+            $allContacts = Contact::where('company_id', $contact->company_id)
                 ->where('id', '!=', $contact->id)
                 ->get();
 
@@ -66,7 +77,9 @@ class DuplicateDetectionService
             $contact->last_name,
             $contact->email,
             $contact->phone,
-            $contact->company_name ?? '',
+            // Chantier 32.15: company_name has never existed on Contact — the account
+            // relation's real name is the closest equivalent ("employer" concept).
+            $contact->account?->name ?? '',
         ]);
     }
 

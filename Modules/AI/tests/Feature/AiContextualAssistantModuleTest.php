@@ -148,14 +148,27 @@ test('supportedModules returns array with all 7 modules', function () {
         ->toHaveKey('Setup');
 });
 
-test('CRM module has exactly 3 actions', function () {
+test('CRM module has 9 actions', function () {
     $service = new AiContextualAssistantService();
     $modules = $service->supportedModules();
 
-    expect($modules['CRM'])->toHaveCount(3)
+    // Chantier 32.15 (CRM deep 14-layer audit) added 6 real actions
+    // (view_contacts_list, manage_leads, manage_opportunities_kanban,
+    // manage_quotes, manage_territories, view_sales_forecast) — grep
+    // confirmed zero of the module's ~13 real Vue pages ever called
+    // useAiAssistant() before this fix, the same "real screen, no AI
+    // guidance" pattern already fixed for Strategy/Accounting elsewhere in
+    // this file (see the neighbouring Accounting test's own comment).
+    expect($modules['CRM'])->toHaveCount(9)
         ->toContain('create_contact')
         ->toContain('view_dashboard')
-        ->toContain('create_opportunity');
+        ->toContain('create_opportunity')
+        ->toContain('view_contacts_list')
+        ->toContain('manage_leads')
+        ->toContain('manage_opportunities_kanban')
+        ->toContain('manage_quotes')
+        ->toContain('manage_territories')
+        ->toContain('view_sales_forecast');
 });
 
 test('Accounting module has 4 actions including ohada_report', function () {

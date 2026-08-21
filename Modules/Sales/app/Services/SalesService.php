@@ -163,6 +163,7 @@ class SalesService
             'tenant_id'   => $data['tenant_id'],
             'reference'   => $data['reference'] ?? $this->generateQuotationReference(),
             'contact_id'  => $data['contact_id'] ?? null,
+            'account_id'  => $data['account_id'] ?? null,
             'status'      => 'draft',
             'currency'    => $data['currency'] ?? 'XOF',
             'total'       => $data['total'] ?? 0,
@@ -194,21 +195,35 @@ class SalesService
             throw new \RuntimeException("Quotation '{$quotation->reference}' cannot be converted (status: {$quotation->status}).");
         }
 
+        // Chantier 32.16 (Sales deep 14-layer audit, layer 8 — business
+        // validation): the pre-fix version checked isConvertible() only
+        // once, outside any row lock — two concurrent conversion requests
+        // for the same quotation could both pass that check before either
+        // transaction committed, both create a real order, and both mark
+        // the quotation converted (last write wins), silently producing two
+        // real orders from one quotation. Re-checked here inside the
+        // transaction against a locked row before creating anything.
         return DB::transaction(function () use ($quotation): SalesOrder {
+            $locked = SalesQuotation::whereKey($quotation->id)->lockForUpdate()->firstOrFail();
+            if (! $locked->isConvertible()) {
+                throw new \RuntimeException("Quotation '{$locked->reference}' cannot be converted (status: {$locked->status}).");
+            }
+
             $order = $this->createOrder([
-                'tenant_id'  => $quotation->tenant_id,
-                'contact_id' => $quotation->contact_id,
-                'currency'   => $quotation->currency,
-                'notes'      => $quotation->notes,
-                'created_by' => $quotation->created_by,
+                'tenant_id'  => $locked->tenant_id,
+                'contact_id' => $locked->contact_id,
+                'account_id' => $locked->account_id,
+                'currency'   => $locked->currency,
+                'notes'      => $locked->notes,
+                'created_by' => $locked->created_by,
                 'lines'      => [[
-                    'description' => "Devis {$quotation->reference}",
+                    'description' => "Devis {$locked->reference}",
                     'quantity'    => 1,
-                    'unit_price'  => (float) $quotation->total,
+                    'unit_price'  => (float) $locked->total,
                 ]],
             ]);
 
-            $quotation->update([
+            $locked->update([
                 'status'               => 'accepted',
                 'converted_to_order_id' => $order->id,
             ]);

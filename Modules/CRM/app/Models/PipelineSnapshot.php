@@ -32,6 +32,7 @@ class PipelineSnapshot extends Model
     protected $table = 'crm_pipeline_snapshots';
 
     protected $fillable = [
+        'tenant_id',
         'pipeline_id',
         'snapshot_date',
         'total_value',

@@ -32,8 +32,17 @@ class ThreeWayMatchService
                 $invoiceId       = $invoiceData['id'] ?? null;
 
                 // PO totals
+                // Chantier 32.13: confirmed empirically (tinker) that
+                // achats_purchase_order_lines has never had a
+                // 'quantity_ordered' column — the real column is
+                // 'quantity' — so this always summed to 0, forcing the
+                // `?: 1` fallback below on every real call and inflating
+                // the quantity-variance percentage by the PO's true
+                // ordered quantity (a 0.4-unit variance on a 10-unit PO
+                // was scored as 40%, not the real 4%, wrongly flagging
+                // every match with quantity > 1 as a mismatch).
                 $poTotalAmount   = (float) $po->total;
-                $poTotalQuantity = (float) $po->lines->sum('quantity_ordered');
+                $poTotalQuantity = (float) $po->lines->sum('quantity');
 
                 // Calculate variances
                 $receivedQty      = (float) $receipt->getTotalReceived();
@@ -159,11 +168,19 @@ class ThreeWayMatchService
     /**
      * Get all flagged (unresolved) matches ordered by newest first.
      *
+     * Chantier 32.13: PurchaseInvoiceMatch has no company_id column of its
+     * own (only the never-populated tenant_id) — this module's other
+     * resources scope directly, this one scopes through its real
+     * purchaseOrder.company_id relation instead. $companyId is optional
+     * (defaults to no filter) so this method's existing direct-call unit
+     * tests keep working unchanged; the controller always passes a real one.
+     *
      * @return Collection<int, PurchaseInvoiceMatch>
      */
-    public function getFlaggedMatches(): Collection
+    public function getFlaggedMatches(?int $companyId = null): Collection
     {
         return PurchaseInvoiceMatch::where('status', 'flagged')
+            ->when($companyId !== null, fn ($q) => $q->whereHas('purchaseOrder', fn ($poQuery) => $poQuery->where('company_id', $companyId)))
             ->with('purchaseOrder.supplier', 'purchaseReceipt')
             ->orderByDesc('created_at')
             ->get();
@@ -210,12 +227,17 @@ class ThreeWayMatchService
      *
      * @return array<string, mixed>
      */
-    public function getMatchingStats(): array
+    public function getMatchingStats(?int $companyId = null): array
     {
-        $total    = PurchaseInvoiceMatch::count();
-        $matched  = PurchaseInvoiceMatch::where('match_result', 'matched')->count();
-        $flagged  = PurchaseInvoiceMatch::where('status', 'flagged')->count();
-        $resolved = PurchaseInvoiceMatch::where('status', 'resolved')->count();
+        $scope = fn () => PurchaseInvoiceMatch::when(
+            $companyId !== null,
+            fn ($q) => $q->whereHas('purchaseOrder', fn ($poQuery) => $poQuery->where('company_id', $companyId))
+        );
+
+        $total    = $scope()->count();
+        $matched  = $scope()->where('match_result', 'matched')->count();
+        $flagged  = $scope()->where('status', 'flagged')->count();
+        $resolved = $scope()->where('status', 'resolved')->count();
 
         return [
             'total_matches'  => $total,

@@ -24,7 +24,6 @@ use Modules\CRM\Http\Controllers\Api\CallRecordingController;
 use Modules\CRM\Http\Controllers\Api\VoipController;
 use Modules\CRM\Http\Controllers\Api\WebFormController;
 use Modules\CRM\Http\Controllers\Api\RevenueIntelligenceController;
-use Modules\CRM\Http\Controllers\Api\WorkflowBuilderController;
 
 // Public web-form submission — no auth
 Route::post('v1/crm/forms/{slug}/submit', [WebFormController::class, 'submit'])
@@ -35,6 +34,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
     // Read-only endpoints with 5-minute cache (GET only)
     Route::middleware('cache.api:5')->group(function () {
         Route::apiResource('crm/contacts', ContactController::class)->only(['index', 'show'])->names('crm.contacts');
+        // Chantier 32.15: real, cheap consumer for DuplicateDetectionService (Chantier 10),
+        // previously written but never routed anywhere.
+        Route::get('crm/contacts/{contact}/duplicates', [ContactController::class, 'duplicates'])->name('crm.contacts.duplicates');
         Route::apiResource('crm/accounts', AccountController::class)->only(['index', 'show'])->names('crm.accounts');
         Route::get('crm/territories/team-quotas', [TerritoryController::class, 'teamQuotas'])->name('crm.territories.team-quotas');
         Route::get('crm/territories/{territory}/forecast', [TerritoryController::class, 'forecast'])->name('crm.territories.forecast');
@@ -325,20 +327,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
         ->name('crm.revenue-intelligence.summary');
 });
 
-// ── No-code workflow builder ─────────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm/workflows')->group(function () {
-    Route::get('/', [WorkflowBuilderController::class, 'index'])
-        ->name('crm.workflows.index');
-    Route::post('/', [WorkflowBuilderController::class, 'create'])
-        ->name('crm.workflows.create');
-    Route::get('{workflow}', [WorkflowBuilderController::class, 'show'])
-        ->name('crm.workflows.show');
-    Route::put('{workflow}/save', [WorkflowBuilderController::class, 'saveWorkflow'])
-        ->name('crm.workflows.save');
-    Route::post('{workflow}/activate', [WorkflowBuilderController::class, 'activate'])
-        ->name('crm.workflows.activate');
-    Route::post('{workflow}/deactivate', [WorkflowBuilderController::class, 'deactivate'])
-        ->name('crm.workflows.deactivate');
-    Route::get('{workflow}/executions', [WorkflowBuilderController::class, 'getExecutions'])
-        ->name('crm.workflows.executions');
-});
+// Chantier 32.15: the no-code workflow builder (crm/workflows/*, WorkflowBuilderController)
+// was removed here — confirmed dead/fake at the 14-layer audit: real persistence, zero
+// execution engine (activate()/deactivate() only ever flip a status string, nothing anywhere
+// in the app ever creates a real WorkflowExecution row), zero Vue caller, and a confirmed
+// duplicate of the real, live Modules\Workflow n8n-like engine, which already registers
+// crm.contact.created/crm.opportunity.won/crm.lead.qualified triggers for real. See the
+// accompanying migration's docblock for the full removal rationale.

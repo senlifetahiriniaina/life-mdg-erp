@@ -26,11 +26,20 @@ class EmailSequenceController extends Controller
     ) {}
 
     // ── New v2 endpoints (crm/email-sequences) ────────────────────────────────
+    //
+    // Chantier 32.15: this whole controller had zero authorize()/tenant-scoping calls across
+    // every one of its ~15 endpoints (legacy and v2 alike, since both share the same
+    // EmailSequence model/crm_email_sequences table) — any authenticated CRM-module user of
+    // any company could list/read/update/delete/activate/pause/enroll-into every other
+    // company's email sequences, confirmed empirically before this fix.
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', EmailSequence::class);
+
         $sequences = EmailSequence::withCount('enrollments')
             ->with('steps')
+            ->where('tenant_id', $request->user()->company_id)
             ->latest()
             ->paginate(25);
 
@@ -39,6 +48,8 @@ class EmailSequenceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', EmailSequence::class);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -63,6 +74,7 @@ class EmailSequenceController extends Controller
         unset($data['steps']);
 
         $data['created_by'] = $request->user()->id;
+        $data['tenant_id'] = $request->user()->company_id;
 
         $sequence = $this->service->createSequence($data);
 
@@ -81,6 +93,8 @@ class EmailSequenceController extends Controller
 
     public function show(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('view', $sequence);
+
         return response()->json(
             $sequence->loadCount('steps')->load('steps', 'creator')
         );
@@ -88,6 +102,8 @@ class EmailSequenceController extends Controller
 
     public function update(Request $request, EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -103,6 +119,8 @@ class EmailSequenceController extends Controller
 
     public function destroy(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('delete', $sequence);
+
         $sequence->delete();
 
         return response()->json(null, 204);
@@ -110,6 +128,8 @@ class EmailSequenceController extends Controller
 
     public function activate(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $sequence->activate();
 
         return response()->json($sequence->fresh());
@@ -117,6 +137,8 @@ class EmailSequenceController extends Controller
 
     public function pause(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $sequence->pause();
 
         return response()->json($sequence->fresh());
@@ -124,11 +146,15 @@ class EmailSequenceController extends Controller
 
     public function steps(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('view', $sequence);
+
         return response()->json($sequence->steps()->orderBy('order')->get());
     }
 
     public function addStep(Request $request, EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $data = $request->validate([
             'delay_days' => ['nullable', 'integer', 'min:0'],
             'subject' => ['required', 'string', 'max:255'],
@@ -144,6 +170,8 @@ class EmailSequenceController extends Controller
 
     public function updateStep(Request $request, EmailSequence $sequence, SequenceStep $step): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $data = $request->validate([
             'order' => ['nullable', 'integer', 'min:1'],
             'delay_days' => ['nullable', 'integer', 'min:0'],
@@ -160,6 +188,8 @@ class EmailSequenceController extends Controller
 
     public function deleteStep(EmailSequence $sequence, SequenceStep $step): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $step->delete();
 
         return response()->json(null, 204);
@@ -167,6 +197,8 @@ class EmailSequenceController extends Controller
 
     public function enroll(Request $request, EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $data = $request->validate([
             'contact_id' => ['required', 'integer', 'exists:crm_contacts,id'],
         ]);
@@ -178,6 +210,8 @@ class EmailSequenceController extends Controller
 
     public function enrollments(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('view', $sequence);
+
         return response()->json(
             $sequence->enrollments()->with('contact')->paginate(25)
         );
@@ -185,6 +219,8 @@ class EmailSequenceController extends Controller
 
     public function stats(EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('view', $sequence);
+
         return response()->json($this->service->getSequenceStats($sequence));
     }
 
@@ -202,6 +238,8 @@ class EmailSequenceController extends Controller
      */
     public function enrollLegacy(Request $request, EmailSequence $sequence): JsonResponse
     {
+        $this->authorize('update', $sequence);
+
         $data = $request->validate([
             'contact_id' => ['nullable', 'integer'],
             'lead_id' => ['nullable', 'integer'],
@@ -218,8 +256,15 @@ class EmailSequenceController extends Controller
         return response()->json($enrollment, 201);
     }
 
+    /**
+     * Chantier 32.15: EmailSequenceEnrollment has no tenant column of its own — scoped via its
+     * parent sequence's tenant_id instead (same pattern as OpportunityHistory's per-record
+     * authorize() fix elsewhere in this module).
+     */
     public function unenroll(EmailSequenceEnrollment $enrollment): JsonResponse
     {
+        $this->authorize('update', $enrollment->sequence);
+
         $this->legacyService->unenroll($enrollment);
 
         return response()->json(['message' => 'Unenrolled successfully.']);

@@ -2,6 +2,10 @@
   <AppLayout>
     <Head :title="$t('crm.leads.title')" />
 
+    <!-- Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+         called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <!-- Page header -->
     <div class="page-head">
       <div>
@@ -242,6 +246,8 @@ import Paginator from 'primevue/paginator'
 import InputText from 'primevue/inputtext'
 import ConfirmDialog from 'primevue/confirmdialog'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -251,6 +257,11 @@ const props = defineProps({
 
 const confirm = useConfirm()
 const { t }   = useI18n()
+
+// Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+// called useAiAssistant() at all before this fix.
+const { guidance } = useAiAssistant('CRM', 'manage_leads')
+const showAiPanel = ref(true)
 
 const leadsData   = ref(props.leads?.data ?? [])
 const loading     = ref(false)
@@ -369,6 +380,11 @@ const editLead = (l) => {
   showModal.value = true
 }
 
+// Chantier 32.15: missing-CSRF-token fetch() bug — see Contacts/Form.vue's comment.
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
+
 const saveLead = async () => {
   saving.value = true
   errors.value = {}
@@ -377,7 +393,7 @@ const saveLead = async () => {
     const method = editingLead.value ? 'PUT' : 'POST'
     const res = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(form),
     })
     if (!res.ok) {
@@ -400,7 +416,7 @@ const confirmDelete = (lead) => {
     rejectClass: 'p-button-text',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await fetch(`/api/v1/crm/leads/${lead.id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+      await fetch(`/api/v1/crm/leads/${lead.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
       applyFilters(pagination.current_page)
     },
   })

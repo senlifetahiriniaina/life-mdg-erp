@@ -39,6 +39,7 @@ class Territory extends Model
     protected $table = 'crm_territories';
 
     protected $fillable = [
+        'company_id',
         'parent_territory_id',
         'assigned_to',
         'owner_id',

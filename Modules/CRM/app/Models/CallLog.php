@@ -41,6 +41,7 @@ class CallLog extends Model
     protected $table = 'crm_call_logs';
 
     protected $fillable = [
+        'tenant_id',
         'contact_id',
         'lead_id',
         'user_id',
