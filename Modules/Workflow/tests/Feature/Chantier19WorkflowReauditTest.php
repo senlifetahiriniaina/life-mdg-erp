@@ -155,12 +155,14 @@ it('closes the FlowVersionController cross-tenant IDOR on a live, routed endpoin
 });
 
 it('fixes the fatal class-not-found bug in WorkflowScheduleController and WorkflowTemplateController', function () {
-    // Both controllers are currently unrouted (see routes/api.php's own
-    // note) so there is no HTTP route to exercise — this locks in the
-    // underlying class resolution directly, matching this module's own
-    // existing precedent for testing unrouted-but-real code
-    // (FlowVersionServiceTest.php tests FlowVersionService directly).
+    // Chantier 32.11: both controllers are now genuinely routed (see
+    // routes/api.php) — rewritten from direct, unauthenticated PHP method
+    // calls (which this chantier's own new assertOwnership() check now
+    // correctly rejects, since request()->user() is null without
+    // actingAs()) to real HTTP requests through the real route, matching
+    // this module's other real Feature tests.
     $user = workflowReauditUser('admin');
+    $this->actingAs($user, 'sanctum');
 
     $flow = AutomationFlow::create([
         'tenant_id'  => $user->company_id,
@@ -168,16 +170,15 @@ it('fixes the fatal class-not-found bug in WorkflowScheduleController and Workfl
         'created_by' => $user->id,
     ]);
 
-    // Before the fix: `Class "Modules\Workflow\Models\AutomationFlow" not
-    // found` on every call — both classes' imports pointed at a namespace
-    // one level too shallow.
-    $scheduleController = app(\Modules\Workflow\Http\Controllers\Api\WorkflowScheduleController::class);
-    $response            = $scheduleController->show(request(), $flow);
-    expect($response->getData(true)['data']['flow_id'])->toBe($flow->id);
+    // Before the Chantier 19 Lot 3 fix: `Class
+    // "Modules\Workflow\Models\AutomationFlow" not found` on every call —
+    // both classes' imports pointed at a namespace one level too shallow.
+    $this->getJson("/api/v1/automation/flows/{$flow->id}/schedule")
+        ->assertOk()
+        ->assertJsonPath('data.flow_id', $flow->id);
 
-    $templateController = app(\Modules\Workflow\Http\Controllers\Api\WorkflowTemplateController::class);
-    $listResponse        = $templateController->index(request());
-    expect($listResponse->getStatusCode())->toBe(200);
+    $this->getJson('/api/v1/automation/template-library')
+        ->assertOk();
 });
 
 it('runs the Workflow AI-assist endpoint without a fatal error using the real Spatie role', function () {

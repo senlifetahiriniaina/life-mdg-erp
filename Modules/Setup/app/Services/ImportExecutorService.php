@@ -7,6 +7,7 @@ namespace Modules\Setup\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Modules\Setup\Data\TargetSchemas;
 use Modules\Setup\Models\FieldMapping;
 use Modules\Setup\Models\ImportError;
 use Modules\Setup\Models\ImportJob;
@@ -142,24 +143,68 @@ class ImportExecutorService
 
     /**
      * Bulk insert a batch of transformed rows into the target table.
-     * Automatically adds tenant_id and timestamps.
+     * Automatically adds the table's real tenant column (if any) and timestamps.
+     *
+     * Chantier 32.10: this used to unconditionally write `tenant_id` on
+     * every table regardless of whether that column existed or was the
+     * table's real tenant-scoping column — two compounding bugs, confirmed
+     * empirically (not just read):
+     *  - `acc_invoices`/`acc_chart_of_accounts` have no `tenant_id` column
+     *    at all — every real invoice/account import row fatally failed on
+     *    "no such column: tenant_id" before this fix.
+     *  - `crm_contacts`/`crm_accounts`/`achats_suppliers` DO have a
+     *    `tenant_id` column, but it is not what `ContactController`/
+     *    `SupplierController` actually filter by — they scope by
+     *    `company_id` (see TargetSchemas::TABLES' own docblock). Rows
+     *    imported via the old code silently landed with `tenant_id` set and
+     *    `company_id` left NULL, making every imported contact/supplier
+     *    permanently invisible to the real CRM/Achats list endpoints —
+     *    confirmed empirically via a real HTTP round trip (import a
+     *    contact, then call `GET crm/contacts` as the same company: 0
+     *    results before this fix).
+     * Now writes only the real tenant column for the resolved target table
+     * (or none, when the table has none) and filters the payload down to
+     * columns that actually exist — defense in depth matching the
+     * established `Schema::getColumnListing()` filter precedent already
+     * used by the sibling `ImportDataJob::bulkInsert()` pipeline.
+     *
+     * Chantier 32.10: `$tenantId` was typed `int`, but `ImportJob.tenant_id`
+     * — what every real call site actually passes — is a real `string(36)`
+     * column (matching this whole module's `(string) ($user->company_id
+     * ?? 0)` tenant-scoping convention). Under this file's own
+     * `declare(strict_types=1)`, that has been a guaranteed fatal
+     * `TypeError` on every real invocation of `execute()` since this
+     * method was written — confirmed empirically (a real HTTP-dispatched
+     * import job, not a direct unit-level call bypassing the type
+     * mismatch), not a hypothetical gap. Widened to `int|string` to match
+     * what's actually passed.
      *
      * @param  list<array<string,mixed>> $rows
      * @return int Number of rows inserted
      */
-    public function insertBatch(string $targetTable, array $rows, int $tenantId): int
+    public function insertBatch(string $targetTable, array $rows, int|string $tenantId, ?string $tenantColumn = null): int
     {
         if (empty($rows)) {
             return 0;
         }
 
+        $columns = DB::getSchemaBuilder()->getColumnListing($targetTable);
         $now     = now()->toDateTimeString();
-        $payload = array_map(function (array $row) use ($tenantId, $now): array {
-            return array_merge($row, [
-                'tenant_id'  => $tenantId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+
+        $payload = array_map(function (array $row) use ($columns, $tenantColumn, $tenantId, $now): array {
+            $filtered = array_intersect_key($row, array_flip($columns));
+
+            if ($tenantColumn !== null && in_array($tenantColumn, $columns, true)) {
+                $filtered[$tenantColumn] = $tenantId;
+            }
+            if (in_array('created_at', $columns, true)) {
+                $filtered['created_at'] = $now;
+            }
+            if (in_array('updated_at', $columns, true)) {
+                $filtered['updated_at'] = $now;
+            }
+
+            return $filtered;
         }, $rows);
 
         DB::table($targetTable)->insert($payload);
@@ -209,8 +254,9 @@ class ImportExecutorService
         }
 
         // For PDF / Excel fallback we re-use CSV parsing (after analysis)
-        $delimiter  = $job->sourceSchema?->detected_delimiter ?? ',';
-        $targetTable = $this->resolveTargetTable($job);
+        $delimiter    = $job->sourceSchema?->detected_delimiter ?? ',';
+        $targetTable  = $this->resolveTargetTable($job);
+        $tenantColumn = TargetSchemas::tenantColumn($job->target_module, $job->target_entity);
 
         $handle = fopen($filePath, 'r');
         if ($handle === false) {
@@ -218,7 +264,7 @@ class ImportExecutorService
         }
 
         // Skip header row
-        fgetcsv($handle, 0, $delimiter);
+        fgetcsv($handle, 0, $delimiter, '"', '\\');
 
         $batch      = [];
         $batchSize  = (int) config('setup.batch_size', 500);
@@ -227,7 +273,7 @@ class ImportExecutorService
         $headers    = array_column($job->sourceSchema?->detected_columns ?? [], 'name');
 
         try {
-            while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            while (($row = fgetcsv($handle, 0, $delimiter, '"', '\\')) !== false) {
                 $rowNumber++;
 
                 // Map numeric-indexed row to header-keyed array
@@ -248,14 +294,14 @@ class ImportExecutorService
                 $batch[] = $result['data'];
 
                 if (count($batch) >= $batchSize) {
-                    $imported += $this->insertBatch($targetTable, $batch, $job->tenant_id);
+                    $imported += $this->insertBatch($targetTable, $batch, $job->tenant_id, $tenantColumn);
                     $job->update(['imported_rows' => $imported]);
                     $batch = [];
                 }
             }
 
             if (!empty($batch)) {
-                $imported += $this->insertBatch($targetTable, $batch, $job->tenant_id);
+                $imported += $this->insertBatch($targetTable, $batch, $job->tenant_id, $tenantColumn);
                 $job->update(['imported_rows' => $imported]);
             }
         } finally {
@@ -271,15 +317,16 @@ class ImportExecutorService
             throw new RuntimeException("ImportJob #{$job->id} has no source_db_config.");
         }
 
-        $sourceTable = $dbConfig['source_table'] ?? $job->target_entity;
-        $targetTable = $this->resolveTargetTable($job);
-        $batchSize   = (int) config('setup.batch_size', 500);
-        $imported    = 0;
+        $sourceTable  = $dbConfig['source_table'] ?? $job->target_entity;
+        $targetTable  = $this->resolveTargetTable($job);
+        $tenantColumn = TargetSchemas::tenantColumn($job->target_module, $job->target_entity);
+        $batchSize    = (int) config('setup.batch_size', 500);
+        $imported     = 0;
 
         $total = $this->dbSourceService->streamRows(
             $dbConfig,
             $sourceTable,
-            function (array $rows) use ($job, $confirmedMappings, $targetTable, $batchSize, &$imported): void {
+            function (array $rows) use ($job, $confirmedMappings, $targetTable, $tenantColumn, $batchSize, &$imported): void {
                 $batch     = [];
                 $rowNumber = 0;
 
@@ -298,7 +345,7 @@ class ImportExecutorService
                 }
 
                 if (!empty($batch)) {
-                    $imported += $this->insertBatch($targetTable, $batch, $job->tenant_id);
+                    $imported += $this->insertBatch($targetTable, $batch, $job->tenant_id, $tenantColumn);
                     $job->update(['imported_rows' => $imported]);
                 }
             },
@@ -436,17 +483,49 @@ class ImportExecutorService
     // Helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 32.10 (deep 14-layer audit, security — critical): this used
+     * to trust `FieldMapping.target_table` outright — a value validated by
+     * `SetupController::saveMappings()` as nothing more than
+     * `required|string|max:100`, with zero allowlist. Any authenticated
+     * user of any tenant able to reach this module (`employee`/`admin`/
+     * `super-admin` — a very common role tier) could set `target_table` to
+     * ANY real table in the whole application (`users`,
+     * `security_encryption_keys`, `core_secrets`, ...) and `target_field`
+     * to any column name, and this pipeline would `DB::table($targetTable)
+     * ->insert()` straight into it — an arbitrary-table write primitive,
+     * confirmed empirically by round-tripping a real HTTP mapping payload
+     * with a spoofed `target_table`.
+     *
+     * The "fallback" derivation (`strtolower(module)_strtolower(entity)`)
+     * was ALSO wrong independently — it produced `accounting_invoices`
+     * (real table: `acc_invoices`) and `accounting_accounts` (real table:
+     * `acc_chart_of_accounts`), and the real frontend
+     * (`ImportDataFlow.vue`) never actually sends a real table name in
+     * `target_table` at all — it sends the bare entity slug (e.g.
+     * `'contacts'`), which resolves to none of this app's real tables. A
+     * real end-to-end run confirmed every entity except `products` (which
+     * collided by coincidence with the unrelated root-level scaffold
+     * `products` table) fatally failed on "table not found" — the real,
+     * live onboarding-wizard import flow has never worked, for any entity,
+     * since it shipped.
+     *
+     * Fixed by trusting neither: the destination is now resolved ONLY from
+     * the hardcoded `TargetSchemas::table()` allowlist, keyed off the job's
+     * own `target_module`/`target_entity` (still free-text at job-creation
+     * time — but that's harmless now, since an unrecognised combination
+     * simply fails to resolve here rather than ever reaching `DB::table()`).
+     */
     private function resolveTargetTable(ImportJob $job): string
     {
-        // Target table is derived from target_entity (snake_case plural)
-        // or from the first confirmed mapping's target_table
-        $firstMapping = $job->fieldMappings()->where('is_confirmed', true)->first();
+        $table = TargetSchemas::table($job->target_module, $job->target_entity);
 
-        if ($firstMapping !== null && $firstMapping->target_table !== '') {
-            return $firstMapping->target_table;
+        if ($table === null) {
+            throw new RuntimeException(
+                "Unknown import target '{$job->target_module}/{$job->target_entity}' — no real destination table is registered for it."
+            );
         }
 
-        // Fallback: derive from module + entity
-        return strtolower($job->target_module) . '_' . strtolower($job->target_entity);
+        return $table;
     }
 }

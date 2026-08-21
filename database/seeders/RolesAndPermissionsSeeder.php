@@ -142,9 +142,12 @@ class RolesAndPermissionsSeeder extends Seeder
     ];
 
     // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
-    // delete} (no resource segment), not the settings.setting.*/settings.group.* the
-    // generic MODULES/ACTIONS loop produces for the 'settings' entry below -- same
-    // reasoning as the other _PERMISSIONS constants above.
+    // delete} (no resource segment), not the settings.setting.* the generic
+    // MODULES/ACTIONS loop produces for the 'settings' entry below -- same
+    // reasoning as the other _PERMISSIONS constants above. (Chantier 32.9:
+    // 'group' was removed from that entry's resource list along with the now-
+    // deleted SettingGroup model, so it only ever generates settings.setting.*
+    // today, not settings.group.* too.)
     private const SETTINGS_PERMISSIONS = [
         'settings.view', 'settings.create', 'settings.update', 'settings.delete',
     ];
@@ -390,7 +393,17 @@ class RolesAndPermissionsSeeder extends Seeder
         // had zero controller/route/permission of any kind before this
         // chantier gave it its first-ever producer.
         'integration'      => ['connector', 'webhook', 'sync-log', 'external-integration'],
-        'settings'         => ['setting', 'group'],
+        // Chantier 32.9: 'group' removed — Modules\Settings\Models\SettingGroup
+        // (and its `setting_groups` table) was deleted this chantier as
+        // confirmed dead code (zero real consumers anywhere, and
+        // independently broken as designed — see that migration's own
+        // docblock). The `settings.group.*` strings this entry used to
+        // generate were already dead weight even before the deletion —
+        // SettingPolicy has only ever checked the flat settings.{view,
+        // create,update,delete} strings from SETTINGS_PERMISSIONS below,
+        // never settings.setting.*/settings.group.* (see that const's own
+        // comment) — so this is pure hygiene, not a behavior change.
+        'settings'         => ['setting'],
         'validation'       => ['workflow', 'rule', 'hierarchy', 'request'],
         // Chantier 20: internal team messaging — every seeded role picks this
         // up automatically via the generic loop below (employee gets it minus

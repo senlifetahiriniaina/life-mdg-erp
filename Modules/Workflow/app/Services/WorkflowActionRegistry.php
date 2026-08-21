@@ -6,8 +6,23 @@ namespace Modules\Workflow\Services;
 
 use Illuminate\Support\Str;
 use Modules\Workflow\Services\Actions\AchatsInventoryActionHandler;
+use Modules\Workflow\Services\Actions\AiActionHandler;
+use Modules\Workflow\Services\Actions\CalendarActionHandler;
+use Modules\Workflow\Services\Actions\CrmSalesActionHandler;
+use Modules\Workflow\Services\Actions\DataTransformHandler;
+use Modules\Workflow\Services\Actions\DelayActionHandler;
+use Modules\Workflow\Services\Actions\DocumentsActionHandler;
+use Modules\Workflow\Services\Actions\EcommerceActionHandler;
+use Modules\Workflow\Services\Actions\HelpdeskActionHandler;
+use Modules\Workflow\Services\Actions\HrPayrollActionHandler;
+use Modules\Workflow\Services\Actions\HttpActionHandler;
 use Modules\Workflow\Services\Actions\InventoryAccountingActionHandler;
+use Modules\Workflow\Services\Actions\LogisticsActionHandler;
 use Modules\Workflow\Services\Actions\NotificationActionHandler;
+use Modules\Workflow\Services\Actions\ProjectsActionHandler;
+use Modules\Workflow\Services\Actions\QualityActionHandler;
+use Modules\Workflow\Services\Actions\SalesManufacturingActionHandler;
+use Modules\Workflow\Services\Actions\StrategyActionHandler;
 
 /**
  * WorkflowActionRegistry
@@ -36,10 +51,45 @@ class WorkflowActionRegistry
      */
     private array $actionMeta = [];
 
+    /**
+     * Chantier 32.11: this constructor previously declared only 3 parameters
+     * (Achats/InventoryAccounting/Notification) while
+     * WorkflowServiceProvider's `WorkflowActionRegistry::class` singleton
+     * factory already instantiated it with `new WorkflowActionRegistry(...)`
+     * passing all 18 real action handlers positionally — PHP binds extra
+     * positional constructor arguments to whatever parameter sits at that
+     * position rather than rejecting them, so argument #2 (a
+     * CrmSalesActionHandler) was being force-fit into the
+     * $inventoryAccountingHandler parameter (typed
+     * InventoryAccountingActionHandler) — a guaranteed fatal TypeError on
+     * every single attempt to resolve this class from the container,
+     * confirmed empirically via `app(WorkflowActionRegistry::class)` before
+     * this fix. This is why WorkflowNodeController (the one real consumer,
+     * itself unrouted — see Chantier 32.11's other fixes) could never even
+     * be constructed. Extended to accept all 18 handlers, in the exact
+     * order the provider's factory closure already passes them, and to
+     * register the 12 "new batch" handlers (previously invisible to this
+     * registry entirely) under their real action-key prefixes.
+     */
     public function __construct(
-        private readonly AchatsInventoryActionHandler    $achatsInventoryHandler,
-        private readonly InventoryAccountingActionHandler $inventoryAccountingHandler,
-        private readonly NotificationActionHandler        $notificationHandler,
+        private readonly AchatsInventoryActionHandler     $achatsInventoryHandler,
+        private readonly CrmSalesActionHandler             $crmSalesHandler,
+        private readonly HrPayrollActionHandler            $hrPayrollHandler,
+        private readonly InventoryAccountingActionHandler  $inventoryAccountingHandler,
+        private readonly NotificationActionHandler         $notificationHandler,
+        private readonly SalesManufacturingActionHandler   $salesManufacturingHandler,
+        private readonly AiActionHandler                   $aiHandler,
+        private readonly CalendarActionHandler             $calendarHandler,
+        private readonly DataTransformHandler              $dataTransformHandler,
+        private readonly DelayActionHandler                $delayHandler,
+        private readonly DocumentsActionHandler            $documentsHandler,
+        private readonly EcommerceActionHandler            $ecommerceHandler,
+        private readonly HelpdeskActionHandler             $helpdeskHandler,
+        private readonly HttpActionHandler                 $httpHandler,
+        private readonly LogisticsActionHandler            $logisticsHandler,
+        private readonly ProjectsActionHandler             $projectsHandler,
+        private readonly QualityActionHandler              $qualityHandler,
+        private readonly StrategyActionHandler             $strategyHandler,
     ) {
         $this->registerDefaults();
     }
@@ -178,11 +228,44 @@ class WorkflowActionRegistry
         // Achats ↔ Inventory
         $this->register(['achats', 'inventory'], $this->achatsInventoryHandler);
 
+        // CRM → Sales (Phase-39 WF-001 to WF-004)
+        $this->register(['crm', 'sales'], $this->crmSalesHandler);
+
+        // Sales → Manufacturing
+        $this->register('manufacturing', $this->salesManufacturingHandler);
+
+        // HR → Payroll / IT provisioning (Phase-39 WF-010 to WF-015)
+        $this->register(['hr', 'it'], $this->hrPayrollHandler);
+
         // Inventory → Accounting
         $this->register('accounting', $this->inventoryAccountingHandler);
 
         // Notifications & Approvals
         $this->register(['notify', 'approval'], $this->notificationHandler);
+
+        // Chantier 32.11: the "new batch" handlers below were already
+        // registered as singletons and passed into this class's constructor
+        // by WorkflowServiceProvider, but were never actually reachable —
+        // neither this registry (constructor crashed, see the docblock
+        // above) nor WorkflowEngineService::executeAction()'s own inline
+        // match() block (its own separate, real dispatch path used by
+        // WorkflowChainDefinition executions — fixed alongside this file)
+        // had a case for any of these 12 module prefixes. Registered here
+        // under the exact prefix each handler's own dispatch() match()
+        // recognizes in its action keys (e.g. DataTransformHandler's keys
+        // are 'transform.*', not 'datatransform.*').
+        $this->register('ai', $this->aiHandler);
+        $this->register('calendar', $this->calendarHandler);
+        $this->register('transform', $this->dataTransformHandler);
+        $this->register('delay', $this->delayHandler);
+        $this->register('documents', $this->documentsHandler);
+        $this->register('ecommerce', $this->ecommerceHandler);
+        $this->register('helpdesk', $this->helpdeskHandler);
+        $this->register('http', $this->httpHandler);
+        $this->register('logistics', $this->logisticsHandler);
+        $this->register('projects', $this->projectsHandler);
+        $this->register('quality', $this->qualityHandler);
+        $this->register('strategy', $this->strategyHandler);
 
         // ── Action metadata (for visual builder) ─────────────────────────────
 

@@ -75,8 +75,10 @@ test('supportedModules returns array with 7 modules', function () {
     // but never registered here — see AiContextualAssistantService.php).
     // Chantier 32.2 added 'Analytics'/'Integration'/'Security' (same bug
     // class, 3 more real modules called from real pages but never
-    // registered — see supportedModules()'s own comments).
-    expect($modules)->toBeArray()->toHaveCount(37);
+    // registered — see supportedModules()'s own comments). Chantier 32.7
+    // added 'Validation' (identical bug class, again — see
+    // AiContextualAssistantService.php's own comment on that entry).
+    expect($modules)->toBeArray()->toHaveCount(38);
     expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup', 'Strategy', 'Analytics', 'Integration', 'Security');
 });
 

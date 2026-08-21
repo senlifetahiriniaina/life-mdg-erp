@@ -6,9 +6,23 @@ namespace Modules\Shared\Tests\Feature;
 
 use Modules\Shared\Exceptions\TenantException;
 use Modules\Shared\Services\BaseService;
-use Modules\Shared\Services\SentimentAnalysisService;
-use Modules\Shared\Services\UnifiedForecastingService;
 use Tests\TestCase;
+
+/**
+ * Chantier 32.8: this file exclusively used SentimentAnalysisService/
+ * UnifiedForecastingService (both deleted — confirmed fully dead, zero
+ * real callers anywhere, each a functional duplicate of a real, live
+ * implementation elsewhere — see SharedServicesTest.php's docblock) purely
+ * as vehicles to exercise BaseService's own tenant-isolation contract, not
+ * to test anything unique to either service. Rewired onto a small local
+ * concrete BaseService subclass so this real BaseService coverage (still
+ * genuinely load-bearing — 13 real services across Accounting/CRM/
+ * Helpdesk/BI extend it, 3 of them reachable from real routed controllers)
+ * survives the deletion without depending on dead code.
+ */
+class TenancyTestableService extends BaseService
+{
+}
 
 class BaseServiceMultiTenancyTest extends TestCase
 {
@@ -28,7 +42,7 @@ class BaseServiceMultiTenancyTest extends TestCase
     public function test_base_service_validates_company_id(): void
     {
         $this->expectException(TenantException::class);
-        new SentimentAnalysisService(-1);
+        new TenancyTestableService(-1);
     }
 
     /**
@@ -37,7 +51,7 @@ class BaseServiceMultiTenancyTest extends TestCase
     public function test_base_service_rejects_zero_company_id(): void
     {
         $this->expectException(TenantException::class);
-        new SentimentAnalysisService(0);
+        new TenancyTestableService(0);
     }
 
     /**
@@ -45,44 +59,8 @@ class BaseServiceMultiTenancyTest extends TestCase
      */
     public function test_base_service_stores_company_id(): void
     {
-        $service = new SentimentAnalysisService($this->companyId);
+        $service = new TenancyTestableService($this->companyId);
         $this->assertEquals($this->companyId, $service->getCompanyId());
-    }
-
-    /**
-     * Test SentimentAnalysisService respects company_id
-     */
-    public function test_sentiment_analysis_respects_company_id(): void
-    {
-        $service = new SentimentAnalysisService($this->companyId);
-        $result = $service->analyze('This is excellent!');
-
-        $this->assertArrayHasKey('sentiment', $result);
-        $this->assertArrayHasKey('score', $result);
-    }
-
-    /**
-     * Test UnifiedForecastingService respects company_id
-     */
-    public function test_forecasting_service_respects_company_id(): void
-    {
-        $service = new UnifiedForecastingService($this->companyId);
-        $historicalData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-        $forecast = $service->forecastARIMA($historicalData, 3);
-        $this->assertInstanceOf(\Illuminate\Support\Collection::class, $forecast);
-    }
-
-    /**
-     * Test service rejects negative company_id in operations
-     */
-    public function test_service_rejects_operations_with_invalid_company_id(): void
-    {
-        $service = new SentimentAnalysisService($this->companyId);
-
-        // Service should process text correctly with valid company_id
-        $result = $service->analyze('Great service');
-        $this->assertIsArray($result);
     }
 
     /**
@@ -90,8 +68,8 @@ class BaseServiceMultiTenancyTest extends TestCase
      */
     public function test_multiple_services_maintain_isolation(): void
     {
-        $service1 = new SentimentAnalysisService($this->companyId);
-        $service2 = new SentimentAnalysisService($this->otherCompanyId);
+        $service1 = new TenancyTestableService($this->companyId);
+        $service2 = new TenancyTestableService($this->otherCompanyId);
 
         $this->assertEquals($this->companyId, $service1->getCompanyId());
         $this->assertEquals($this->otherCompanyId, $service2->getCompanyId());

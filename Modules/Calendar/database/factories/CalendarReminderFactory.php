@@ -16,7 +16,11 @@ class CalendarReminderFactory extends Factory
             'event_id'      => CalendarEvent::factory(),
             'user_id'       => null,
             'minutes_before'=> fake()->randomElement([5, 10, 15, 30, 60]),
-            'method'        => fake()->randomElement(['email', 'popup', 'sms']),
+            // Chantier 32.12: 'sms' was never a real accepted value —
+            // CalendarReminder's own docblock and StoreEvent's validation
+            // (`reminders.*.method' => 'in:email,push,popup'`) both agree
+            // the real vocabulary is email|push|popup.
+            'method'        => fake()->randomElement(['email', 'push', 'popup']),
             'sent_at'       => null,
         ];
     }

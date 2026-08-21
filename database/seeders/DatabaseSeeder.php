@@ -97,6 +97,13 @@ class DatabaseSeeder extends Seeder
         // on the categories/units DefaultDataSeeder just created above.
         $this->call(\Modules\Inventory\Database\Seeders\ProductTemplateSeeder::class);
 
+        // Chantier 32.12: CalendarDatabaseSeeder (3 default calendars for
+        // the bootstrap admin, user_id=1) existed but was never actually
+        // called from anywhere — confirmed via grep, the same "orphaned
+        // module seeder" gap already fixed for Accounting at Chantier 12.
+        // Idempotent (no-op once any calendar already exists).
+        $this->call(\Modules\Calendar\Database\Seeders\CalendarDatabaseSeeder::class);
+
         $this->call(DemoSeeder::class);
     }
 }

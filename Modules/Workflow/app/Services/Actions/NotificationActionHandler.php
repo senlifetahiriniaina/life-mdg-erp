@@ -68,7 +68,7 @@ class NotificationActionHandler
         $to              = $context['to']               ?? $params['to']              ?? null;
         $subjectTemplate = $params['subject_template']  ?? $params['subject']         ?? 'Notification WideHalo ERP';
         $bodyTemplate    = $params['body_template']     ?? $params['body']            ?? '';
-        $tenantId        = $context['tenant_id']        ?? 1;
+        $tenantId        = (int) ($context['tenant_id']        ?? 1);
         $locale          = $params['locale']            ?? $context['locale']         ?? 'fr';
 
         if (!$to) {
@@ -160,7 +160,7 @@ class NotificationActionHandler
         $to          = $context['to']        ?? $params['to']        ?? null;
         $title       = $this->interpolate($params['title_template'] ?? $params['title'] ?? 'Notification', $context);
         $body        = $this->interpolate($params['body_template']  ?? $params['body']  ?? '', $context);
-        $tenantId    = $context['tenant_id'] ?? 1;
+        $tenantId    = (int) ($context['tenant_id'] ?? 1);
         $type        = $params['type']       ?? 'info';
         $actionUrl   = $params['action_url'] ?? null;
         $module      = $params['module']     ?? null;
@@ -240,7 +240,7 @@ class NotificationActionHandler
     {
         $to          = $context['to']        ?? $params['to']        ?? null;
         $body        = $this->interpolate($params['body_template'] ?? $params['body'] ?? '', $context);
-        $tenantId    = $context['tenant_id'] ?? 1;
+        $tenantId    = (int) ($context['tenant_id'] ?? 1);
         $gateway     = $params['gateway']    ?? $this->inferGateway($params['country'] ?? null);
 
         if (!$to || empty($body)) {
@@ -322,7 +322,7 @@ class NotificationActionHandler
         $entityId   = $context['entity_id']    ?? $context['invoice_id'] ?? null;
         $amount     = (float) ($context['amount'] ?? 0);
         $currency   = $context['currency']     ?? 'XOF';
-        $tenantId   = $context['tenant_id']    ?? 1;
+        $tenantId   = (int) ($context['tenant_id']    ?? 1);
 
         if (!$entityId) {
             return [

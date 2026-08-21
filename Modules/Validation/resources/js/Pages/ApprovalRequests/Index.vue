@@ -8,6 +8,8 @@
       </div>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Summary Cards (computed from the current page's results) -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow p-6">
@@ -152,6 +154,10 @@ import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Validation', 'view_approval_dashboard')
 
 const approvals = ref([])
 const loading = ref(false)
@@ -219,7 +225,7 @@ const approveRequest = async (id) => {
   if (!confirm('Approve this request?')) return
 
   try {
-    await axios.post(`/api/v1/validation/approval-requests/${id}/approve`, { comments: '' })
+    await axios.post(`/api/v1/validation/approval-requests/${id}/approve`, { comment: '' })
     await loadApprovals()
   } catch (error) {
     console.error('Failed to approve request:', error)

@@ -32,6 +32,17 @@ class ApprovalRuleController extends Controller
             'condition_field' => 'nullable|string',
             'required_approvers_count' => 'required|integer|min:1',
             'approval_mode' => 'required|in:sequential,parallel',
+            // Chantier 32.7: Workflows/Builder.vue's rule-builder modal has
+            // always sent hierarchy_id in its payload (the "Approver
+            // hierarchy" dropdown), but it was never in this validate()
+            // call — Laravel's validate() only returns fields it was told to
+            // validate, so it was silently dropped on every real rule
+            // creation, confirmed empirically. ApprovalRoutingResolver::
+            // resolveHierarchy() falls back to a generic per-module
+            // hierarchy whenever a rule's hierarchy_id is null, so a workflow
+            // admin's explicit hierarchy choice for a rule has never actually
+            // taken effect.
+            'hierarchy_id' => 'nullable|integer|exists:validation_approval_hierarchies,id',
         ]);
 
         $data['workflow_id'] = $workflow->id;
@@ -58,6 +69,8 @@ class ApprovalRuleController extends Controller
             'required_approvers_count' => 'integer|min:1',
             'approval_mode' => 'in:sequential,parallel',
             'status' => 'in:active,inactive',
+            // Chantier 32.7: same silent-drop bug as store() above.
+            'hierarchy_id' => 'nullable|integer|exists:validation_approval_hierarchies,id',
         ]);
 
         $rule->update($data);

@@ -15,8 +15,26 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
     // -----------------------------------------------------------------------
     // Setup Wizard — company onboarding (6 steps)
     // -----------------------------------------------------------------------
-
-    Route::prefix('wizard')->group(function () {
+    //
+    // Chantier 32.10 (deep 14-layer audit, RBAC layer): this whole group —
+    // including every step-completion endpoint (saveCompany/saveAdmin/
+    // saveModules/saveWorkflows/saveApps/complete) — had NO module/role gate
+    // at all beyond plain `auth:sanctum`, unlike every sibling route group
+    // in this same file (`import-jobs`, `onboarding/*`, `v1/admin`). Any
+    // authenticated user of any role (a `sales-rep`, scoped to `crm.*`
+    // permissions only by design, or any other narrow role) could
+    // reconfigure the company profile, re-run module selection, and mark
+    // onboarding "complete" — a genuine RBAC hole, not just a missing
+    // module-toggle check (`CheckModuleAccess` is a permission check, not a
+    // tenant-module-enabled check, so this closes cleanly with zero
+    // bootstrap/chicken-and-egg risk for a fresh company's first admin).
+    // Fixed with the exact same `module:Setup`+`role:employee,admin,
+    // super-admin` gate already used by every other route group in this
+    // file (`employee` deliberately included — this app's broad
+    // "every non-delete permission across every module" role by design,
+    // confirmed via RolesAndPermissionsSeeder, matching the precedent
+    // already documented throughout CLAUDE.md for this exact pattern).
+    Route::middleware(['module:Setup', 'role:employee,admin,super-admin'])->prefix('wizard')->group(function () {
         Route::get('/state', [SetupWizardController::class, 'getState']);
         Route::post('/company', [SetupWizardController::class, 'saveCompany']);
         Route::post('/admin', [SetupWizardController::class, 'saveAdmin']);
@@ -35,7 +53,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
     // Admin routes — module & company management (admin/super-admin only)
     // -----------------------------------------------------------------------
 
-    Route::prefix('v1/admin')->middleware(['role:admin,super-admin'])->group(function () {
+    // Chantier 32.10: added the module:Setup gate this group was missing
+    // (harmless on its own, given role:admin,super-admin already restricts
+    // access — but every other gated group in this app pairs module:+role:,
+    // and this group's absence of it was the one asymmetry left).
+    Route::prefix('v1/admin')->middleware(['module:Setup', 'role:admin,super-admin'])->group(function () {
         Route::get('modules', [AdminModulesController::class, 'index']);
         Route::put('modules/{module}', [AdminModulesController::class, 'update']);
         Route::post('modules/bulk', [AdminModulesController::class, 'bulk']);

@@ -62,6 +62,16 @@ class ApprovalHierarchyController extends Controller
         $data = $request->validate([
             'name' => 'required|unique:validation_approval_hierarchies',
             'description' => 'nullable|string',
+            // Chantier 32.7: module_name is a real, migrated column
+            // (validation_approval_hierarchies.module_name) that
+            // ApprovalRoutingResolver::resolveHierarchy() actually filters
+            // on ("where('module_name', $workflow->module_name)") — but it
+            // was never accepted here, so every hierarchy created through
+            // this endpoint (as opposed to Achats\ApprovalRoutingService's
+            // direct Eloquent seeding) would permanently have a NULL
+            // module_name and could never be resolved by that lookup.
+            'module_name' => 'nullable|string|max:255',
+            'escalation_role' => 'nullable|string|max:255',
         ]);
 
         $data['is_active'] = true;
@@ -92,6 +102,10 @@ class ApprovalHierarchyController extends Controller
             'name' => 'string|unique:validation_approval_hierarchies,name,'.$approval_hierarchy->id,
             'description' => 'nullable|string',
             'is_active' => 'boolean',
+            // Chantier 32.7: same gap as store() — module_name/escalation_role
+            // are real columns this controller never let an admin edit.
+            'module_name' => 'nullable|string|max:255',
+            'escalation_role' => 'nullable|string|max:255',
         ]);
 
         $updated = $this->service->updateHierarchy($approval_hierarchy, $data);

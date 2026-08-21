@@ -13,6 +13,8 @@
         </button>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div v-if="loading" class="wh-loading-state"><i class="pi pi-spin pi-spinner" /> Chargement...</div>
 
       <table v-else class="wh-table">
@@ -85,8 +87,11 @@ import { Head } from '@inertiajs/vue3'
 import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
 
+const { guidance } = useAiAssistant('Validation', 'manage_validation_rules')
 const toast = useToast()
 
 const rules = ref([])

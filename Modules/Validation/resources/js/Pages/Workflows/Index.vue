@@ -11,6 +11,8 @@
       </Link>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Module Tabs -->
     <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow border-b border-gray-200 dark:border-surface-700">
       <div class="flex gap-0">
@@ -126,6 +128,10 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Validation', 'manage_workflows')
 
 const workflows = ref([])
 const loading = ref(false)

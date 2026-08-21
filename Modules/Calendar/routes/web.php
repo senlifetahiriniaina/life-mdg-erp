@@ -29,4 +29,11 @@ Route::middleware(['auth', 'module:Calendar'])->group(function () {
     // either — wired up for the same URL-only-discoverability reason.
     Route::get('/calendar/events/{event}', fn () => \Inertia\Inertia::render('Calendar/Event/Show'))
         ->name('calendar.events.show');
+
+    // Chantier 32.12: Show.vue's own "Modifier" button has always linked
+    // here — a dead 404 on every click, since this route never existed.
+    // Event/Edit.vue is real, self-fetching (GET/PUT the same real
+    // showEvent()/updateEvent() endpoints Show.vue already uses).
+    Route::get('/calendar/events/{event}/edit', fn () => \Inertia\Inertia::render('Calendar/Event/Edit'))
+        ->name('calendar.events.edit');
 });

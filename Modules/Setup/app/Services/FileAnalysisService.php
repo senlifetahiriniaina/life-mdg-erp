@@ -149,7 +149,7 @@ class FileAnalysisService
             rewind($handle);
 
             // Parse headers
-            $headers = fgetcsv($handle, 0, $delimiter);
+            $headers = fgetcsv($handle, 0, $delimiter, '"', '\\');
             if ($headers === false || $headers === null) {
                 throw new RuntimeException('Cannot parse CSV headers.');
             }
@@ -160,7 +160,7 @@ class FileAnalysisService
             $rowCount = 0;
 
             while ($rowCount < 200) {
-                $row = fgetcsv($handle, 0, $delimiter);
+                $row = fgetcsv($handle, 0, $delimiter, '"', '\\');
                 if ($row === false) {
                     break;
                 }
@@ -176,7 +176,7 @@ class FileAnalysisService
             }
 
             // Count remaining rows
-            while (fgetcsv($handle, 0, $delimiter) !== false) {
+            while (fgetcsv($handle, 0, $delimiter, '"', '\\') !== false) {
                 $rowCount++;
             }
 

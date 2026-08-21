@@ -208,18 +208,29 @@
           <Button v-else icon-pos="right" icon="pi pi-arrow-right" label="Suivant" :loading="saving" @click="nextStep" />
         </div>
       </div>
+
+      <!-- Chantier 32.10 (deep 14-layer audit, AI layer): the 6-step wizard
+           previously had zero AI-assist integration at all — only the
+           import sub-flow above (via ImportDataFlow's own step) had one,
+           via SetupIndex.vue. `useAiAssistant()`'s composable resolves its
+           action once at mount time and doesn't react to a changing step,
+           so this page fetches guidance itself (same request shape/
+           endpoint) and re-fetches whenever the wizard step changes. -->
+      <AIAssistantPanel v-if="wizardGuidance" :guidance="wizardGuidance" class="fixed bottom-4 right-4 z-50" />
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, defineComponent, h } from 'vue'
+import { ref, reactive, computed, watch, onMounted, defineComponent, h } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
+import axios from 'axios'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Checkbox from 'primevue/checkbox'
 import InputSwitch from 'primevue/inputswitch'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import ProgressSpinner from 'primevue/progressspinner'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
@@ -287,6 +298,36 @@ const wizardCompleted = ref(props.state.completed)
 const importSkipped = ref(false)
 const saving = ref(false)
 const errors = reactive<Record<string, string>>({})
+
+// Chantier 32.10: real, per-step AI guidance — see the template's own
+// AIAssistantPanel comment for why this isn't the shared useAiAssistant()
+// composable (its action is fixed at mount time, not reactive to a
+// changing wizard step).
+interface WizardGuidance {
+  enabled: boolean
+  what_to_do: string
+  how_to_do: string[]
+  decision_indicators: Array<{ label: string; value: string; status: string }>
+  warnings: string[]
+  next_actions: Array<{ label: string; action: string; module: string }>
+  tips: string[]
+}
+const wizardGuidance = ref<WizardGuidance | null>(null)
+const fetchWizardGuidance = async () => {
+  try {
+    const locale = document.documentElement.lang || 'fr'
+    const { data } = await axios.post('/api/v1/setup/ai/assist', {
+      module: 'Setup',
+      action: `wizard_${currentStepKey.value}`,
+      context: { step: currentStepIndex.value + 1 },
+      locale,
+    })
+    wizardGuidance.value = data as WizardGuidance
+  } catch {
+    wizardGuidance.value = null
+  }
+}
+watch(currentStepKey, fetchWizardGuidance, { immediate: true })
 
 const wizardSteps = [
   { key: 'company', label: 'Entreprise', icon: 'pi pi-building' },
@@ -416,6 +457,20 @@ interface ModuleEntry {
   requires: string[]
 }
 
+// Chantier 32.10 (deep 14-layer audit, security layer): every mutating
+// fetch() call below (module toggle, each wizard step, complete) was
+// missing a CSRF header — this app runs Sanctum's statefulApi(), which
+// activates real CSRF verification on same-origin browser requests; a raw
+// fetch() never attaches one automatically, unlike axios. Invisible to
+// this file's own Pest HTTP test (VerifyCsrfToken::runningUnitTests()
+// unconditionally bypasses the check whenever APP_ENV=testing), so only a
+// real browser-shaped request surfaces it — the exact same bug class
+// already found and fixed for 9 Inventory/Logistics pages at Chantier 19.
+// This means the real onboarding wizard — every one of its 6 steps, plus
+// module toggling — has been 419'ing on every real (non-test) submission.
+const getCsrf = (): string =>
+  (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+
 const moduleCatalog = ref<ModuleEntry[]>([])
 const modulesLoading = ref(false)
 const moduleToggling = ref<string | null>(null)
@@ -439,7 +494,7 @@ const toggleModule = async (mod: ModuleEntry, active: boolean) => {
   try {
     const res = await fetch(`/api/v1/setup/v1/admin/modules/${mod.name}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify({ is_active: active }),
     })
     const json = await res.json()
@@ -463,7 +518,7 @@ const postStep = async (path: string, payload: Record<string, unknown>): Promise
   try {
     const res = await fetch(`/api/v1/setup/wizard/${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(payload),
     })
     const json = await res.json()
@@ -521,7 +576,7 @@ const completeWizard = async () => {
   try {
     const res = await fetch('/api/v1/setup/wizard/complete', {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
     })
     if (res.ok) wizardCompleted.value = true
   } finally {

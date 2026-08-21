@@ -9,6 +9,11 @@ use Modules\Workflow\Http\Controllers\Api\WorkflowDefinitionController;
 use Modules\Workflow\Http\Controllers\Api\WorkflowExecutionController;
 use Modules\Workflow\Http\Controllers\Api\FlowVersionController;
 use Modules\Workflow\Http\Controllers\Api\CodeNodeController;
+use Modules\Workflow\Http\Controllers\Api\AiWorkflowController;
+use Modules\Workflow\Http\Controllers\Api\AutomationFlowController;
+use Modules\Workflow\Http\Controllers\Api\WorkflowNodeController;
+use Modules\Workflow\Http\Controllers\Api\WorkflowScheduleController;
+use Modules\Workflow\Http\Controllers\Api\WorkflowTemplateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -116,6 +121,96 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:W
         Route::post('/executions/{execution}/retry', [WorkflowExecutionController::class, 'retry']);
     });
 
+    // ─── Chantier 32.11: n8n-like Automation Flows (real n8n-like engine) ─────
+    //
+    // AutomationFlowController/WorkflowScheduleController/
+    // WorkflowTemplateController/WorkflowNodeController/AiWorkflowController
+    // were all real, fully-written, backed by real live models
+    // (AutomationFlow/AutomationNode/AutomationConnection/AutomationVariable/
+    // AutomationExecution/AutomationFlowTemplate, used by the tested
+    // FlowExecutionEngine) but had zero routes registered anywhere since
+    // Chantier 19 Lot 3, which fixed real bugs in place (fatal class-not-
+    // found imports, a header-based tenant IDOR) without wiring them up,
+    // leaving them as a documented gap. Wired up for real now — the
+    // AutomationFlowController::webhookTrigger() endpoint is registered
+    // separately below, outside this auth-gated group, since it must be
+    // reachable by unauthenticated external services per its own docblock.
+    Route::prefix('automation')->group(function () {
+        Route::get('/flows',              [AutomationFlowController::class, 'index']);
+        Route::post('/flows',             [AutomationFlowController::class, 'store']);
+        Route::post('/flows/from-template', [AutomationFlowController::class, 'fromTemplate']);
+        Route::get('/flows/{id}',         [AutomationFlowController::class, 'show'])->where('id', '[0-9]+');
+        Route::put('/flows/{id}',         [AutomationFlowController::class, 'update'])->where('id', '[0-9]+');
+        Route::delete('/flows/{id}',      [AutomationFlowController::class, 'destroy'])->where('id', '[0-9]+');
+        Route::post('/flows/{id}/activate',   [AutomationFlowController::class, 'activate'])->where('id', '[0-9]+');
+        Route::post('/flows/{id}/deactivate', [AutomationFlowController::class, 'deactivate'])->where('id', '[0-9]+');
+        Route::post('/flows/{id}/execute',    [AutomationFlowController::class, 'execute'])->where('id', '[0-9]+');
+        Route::get('/flows/{id}/executions',  [AutomationFlowController::class, 'flowExecutions'])->where('id', '[0-9]+');
+        Route::post('/flows/{id}/nodes',                   [AutomationFlowController::class, 'addNode'])->where('id', '[0-9]+');
+        Route::put('/flows/{flowId}/nodes/{nodeId}',       [AutomationFlowController::class, 'updateNode'])->whereNumber(['flowId', 'nodeId']);
+        Route::delete('/flows/{flowId}/nodes/{nodeId}',    [AutomationFlowController::class, 'removeNode'])->whereNumber(['flowId', 'nodeId']);
+
+        Route::get('/executions',            [AutomationFlowController::class, 'indexExecutions']);
+        Route::get('/executions/{id}',       [AutomationFlowController::class, 'showExecution'])->where('id', '[0-9]+');
+        Route::post('/executions/{id}/retry',  [AutomationFlowController::class, 'retryExecution'])->where('id', '[0-9]+');
+        Route::post('/executions/{id}/pause',  [AutomationFlowController::class, 'pauseExecution'])->where('id', '[0-9]+');
+        Route::post('/executions/{id}/resume', [AutomationFlowController::class, 'resumeExecution'])->where('id', '[0-9]+');
+
+        Route::get('/node-types', [AutomationFlowController::class, 'nodeTypes']);
+
+        // Chantier 32.11: AutomationFlowController::templates()/fromTemplate()
+        // above cover the read-only "browse builtin templates + instantiate
+        // one" flow already; WorkflowTemplateController below adds full CRUD
+        // management of the template catalogue (create/update/delete/preview)
+        // — a genuinely distinct, non-duplicate concern (managing the
+        // catalogue vs. consuming it) — routed under a non-colliding prefix
+        // rather than the same /automation/templates URI both controllers'
+        // read paths would otherwise fight over (the exact silent-
+        // last-registration-wins landmine already documented elsewhere in
+        // this app for Helpdesk's KB routes).
+        Route::get('/templates', [AutomationFlowController::class, 'templates']);
+
+        Route::prefix('template-library')->group(function () {
+            Route::get('/',                [WorkflowTemplateController::class, 'index']);
+            Route::post('/',               [WorkflowTemplateController::class, 'store']);
+            Route::get('/{template}',      [WorkflowTemplateController::class, 'show']);
+            Route::put('/{template}',      [WorkflowTemplateController::class, 'update']);
+            Route::delete('/{template}',   [WorkflowTemplateController::class, 'destroy']);
+            Route::post('/{template}/apply',   [WorkflowTemplateController::class, 'apply']);
+            Route::get('/{template}/preview',  [WorkflowTemplateController::class, 'preview']);
+        });
+
+        Route::prefix('schedules')->group(function () {
+            Route::get('/',      [WorkflowScheduleController::class, 'index']);
+            Route::get('/due',   [WorkflowScheduleController::class, 'due']);
+        });
+        Route::prefix('flows/{flow}/schedule')->group(function () {
+            Route::get('/',         [WorkflowScheduleController::class, 'show']);
+            Route::put('/',         [WorkflowScheduleController::class, 'update']);
+            Route::post('/enable',  [WorkflowScheduleController::class, 'enable']);
+            Route::post('/disable', [WorkflowScheduleController::class, 'disable']);
+        });
+    });
+
+    Route::prefix('workflow/nodes')->group(function () {
+        // Static segments registered before the {key} wildcard — Laravel
+        // matches routes in registration order, so 'by-module'/'by-category'/
+        // 'test' would otherwise be captured as $key.
+        Route::get('/by-module',   [WorkflowNodeController::class, 'byModule']);
+        Route::get('/by-category', [WorkflowNodeController::class, 'byCategory']);
+        Route::post('/test',       [WorkflowNodeController::class, 'test']);
+        Route::get('/',            [WorkflowNodeController::class, 'index']);
+        Route::get('/{key}',       [WorkflowNodeController::class, 'show'])->where('key', '.*');
+    });
+
+    Route::prefix('workflow/ai')->group(function () {
+        Route::get('/suggest',            [AiWorkflowController::class, 'suggest']);
+        Route::get('/analyze-failures',   [AiWorkflowController::class, 'analyzeFailures']);
+        Route::post('/validate',          [AiWorkflowController::class, 'validateFlow']);
+        Route::post('/generate',          [AiWorkflowController::class, 'generate']);
+        Route::get('/flows/{flowId}/summary', [AiWorkflowController::class, 'summary']);
+    });
+
     // Chantier 8.6: the "Legacy Workflow Engine / Builder / Task / Approval
     // Routes" block that used to live here (~34 routes) was deleted — a
     // fully dead parallel subsystem, the same pattern as CRM's
@@ -139,27 +234,24 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:W
     // Modules/Projects and Modules/Validation respectively.
 });
 
-// Chantier 19 Lot 3: AutomationFlowController (n8n-like flow/node CRUD +
-// execution + webhook trigger, its own docblock lists the full intended
-// route set), WorkflowScheduleController (cron-based flow scheduling via
-// FlowSchedulerService), and WorkflowTemplateController (template CRUD +
-// apply-to-flow) are all real, fully-written, and back real, live models
-// (AutomationFlow/AutomationNode/AutomationFlowTemplate, used by the tested
-// FlowExecutionEngine) — but none has ever had a route registered anywhere
-// in this file, and none has a test or a real Vue consumer
-// (AIWorkflowBuilder/Index.vue and RPA/Index.vue, the two pages that would
-// naturally call this, are both already documented as 100% mock with zero
-// fetch calls). A real fatal class-not-found bug in
-// WorkflowScheduleController/WorkflowTemplateController and a header-based
-// tenant IDOR in AutomationFlowController (plus a phantom-tenant_id bug in
-// WorkflowTemplateController::apply()) were all fixed in place (see each
-// controller's own docblock) since they're landmines regardless of routing
-// status, but
-// wiring these up into full routes + RBAC + a real Vue builder UI is a
-// genuinely separate, feature-sized effort (matching the scale of the BI
-// 5-orphan-subsystem build-out, not a routing fix) — left as a documented
-// gap rather than attempted half-built under this pass's re-verification
-// scope.
+// Chantier 32.11: AutomationFlowController/WorkflowScheduleController/
+// WorkflowTemplateController/WorkflowNodeController/AiWorkflowController —
+// left as a documented gap since Chantier 19 Lot 3 ("a genuinely separate,
+// feature-sized effort... left as a documented gap") — are now all routed
+// for real above (inside the main role:manager,admin group). Still
+// deliberately NOT wired to any Vue page: AIWorkflowBuilder/Index.vue and
+// RPA/Index.vue remain 100% mock (zero fetch calls, confirmed unchanged by
+// this chantier) — building a real visual n8n-like builder UI on top of
+// this now-real API surface is still a separate, genuinely feature-sized
+// frontend effort, out of this backend-audit chantier's scope. The one
+// endpoint that must stay outside the auth-gated group above —
+// AutomationFlowController::webhookTrigger(), a public inbound-webhook
+// receiver by design (its own docblock: "no auth:sanctum middleware
+// required") — is registered next, throttled the same way every other
+// public webhook receiver in this app is (config('webhook') rate limiter).
+Route::middleware(['throttle:webhook'])->prefix('v1/automation')->group(function () {
+    Route::post('webhook/{uuid}', [AutomationFlowController::class, 'webhookTrigger']);
+});
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/workflow')->group(function () {

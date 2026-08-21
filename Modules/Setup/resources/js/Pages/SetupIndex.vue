@@ -13,11 +13,20 @@
             Gérez l'onboarding et les imports de données de votre ERP
           </p>
         </div>
-        <Button
-          icon="pi pi-plus"
-          label="Nouvel import"
-          @click="startNewImport"
-        />
+        <div class="flex gap-2">
+          <Button
+            icon="pi pi-sparkles"
+            label="Import IA rapide"
+            severity="secondary"
+            outlined
+            @click="router.visit('/setup/ai-import')"
+          />
+          <Button
+            icon="pi pi-plus"
+            label="Nouvel import"
+            @click="startNewImport"
+          />
+        </div>
       </div>
 
       <!-- Setup progress card (if no setup done yet) -->

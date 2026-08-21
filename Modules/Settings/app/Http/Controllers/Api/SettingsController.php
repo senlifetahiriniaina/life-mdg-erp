@@ -25,15 +25,41 @@ class SettingsController extends Controller
      * GET /api/v1/settings
      *
      * List all settings (admin only).
+     *
+     * Chantier 32.9 (14-layer deep audit, layer 6 — security): confirmed
+     * empirically that this was a real cross-tenant leak, the same class of
+     * bug documented dozens of times elsewhere in this app's history —
+     * `SettingPolicy::viewAll()` gates on the plain `admin` role, which in
+     * this app's convention is a *per-company* role (unlike `super-admin`,
+     * which alone is meant to see every tenant, and already bypasses every
+     * Gate check via Gate::before regardless of what this method does) —
+     * but the query itself had `withoutGlobalScopes()` and no company_id
+     * filter of any kind, so any company's `admin` could list every other
+     * company's settings, including whatever an `encrypted` value_type
+     * setting's ciphertext or a non-public setting's raw value happens to
+     * hold. Fixed to scope to the caller's own company unless they are a
+     * real super-admin.
      */
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAll', Setting::class);
 
-        $settings = Setting::withoutGlobalScopes()
+        $query = Setting::withoutGlobalScopes()
             ->orderBy('module')
-            ->orderBy('key')
-            ->paginate(100);
+            ->orderBy('key');
+
+        if (! $request->user()?->hasRole('super-admin')) {
+            $tenantId = $request->user()?->company_id;
+            $query->where(function ($q) use ($tenantId) {
+                if ($tenantId) {
+                    $q->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+                } else {
+                    $q->whereNull('tenant_id');
+                }
+            });
+        }
+
+        $settings = $query->paginate(100);
 
         return response()->json($settings);
     }
@@ -71,8 +97,26 @@ class SettingsController extends Controller
 
         $this->authorize('update', $setting);
 
+        // Chantier 32.9 (14-layer deep audit, layer 8 — business validation):
+        // `value` previously had no type-conformance rule of any kind beyond
+        // `required` — a caller declaring `value_type=boolean` could submit
+        // any arbitrary string, silently mangled by encodeValue()/setTyped()'s
+        // truthy-cast rather than rejected. Confirmed empirically via
+        // tinker: `value="false"` (a non-empty string, PHP-truthy) with
+        // `value_type=boolean` silently stored as `true` — the exact
+        // "boolean setting set to an arbitrary string" gap this audit's own
+        // checklist named. Fixed with rules keyed off the declared
+        // value_type, matching what a client that actually sends a real JS
+        // boolean/int already produces, and rejecting (422) a client that
+        // sends a type-mismatched string instead of silently corrupting it.
+        $valueRules = match ($request->input('value_type')) {
+            'boolean' => ['required', 'boolean'],
+            'integer' => ['required', 'integer'],
+            default   => ['required'],
+        };
+
         $validated = $request->validate([
-            'value'      => ['required'],
+            'value'      => $valueRules,
             'value_type' => ['sometimes', 'in:string,integer,boolean,json,encrypted'],
             'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'is_public'  => ['sometimes', 'boolean'],

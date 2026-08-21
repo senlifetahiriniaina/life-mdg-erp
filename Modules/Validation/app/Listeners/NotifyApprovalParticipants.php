@@ -12,6 +12,17 @@ use Modules\Validation\Events\ApprovalRequestCreated;
  * First-wave wiring for the Chantier 20 notification-extension rule: notify
  * every real participant in the process plus the direct hierarchical
  * superior of whoever owns the action that just happened.
+ *
+ * Chantier 32.7: every `action_url` below pointed at
+ * "/validation/approval-requests/{id}" — a URL that has never existed.
+ * Modules\Validation\Providers\RouteServiceProvider registers
+ * routes/web.php with NO prefix at all (unlike the API group, which is
+ * prefixed api/v1/validation), so the real, routed page is
+ * "/approval-requests/{id}" (confirmed via `php artisan route:list`).
+ * NotificationBell.vue/Notifications/Index.vue both `router.visit(
+ * notif.meta.action_url)` on click — every approval-related notification's
+ * "view" link has 404'd since Chantier 20 shipped this listener. Fixed to
+ * the real route.
  */
 class NotifyApprovalParticipants
 {
@@ -34,7 +45,7 @@ class NotifyApprovalParticipants
                 $request->current_level ?? 1,
                 $request->total_levels ?? 1,
             ),
-            ['type' => 'warning', 'action_url' => "/validation/approval-requests/{$request->id}"],
+            ['type' => 'warning', 'action_url' => "/approval-requests/{$request->id}"],
         );
     }
 
@@ -47,7 +58,7 @@ class NotifyApprovalParticipants
             $event->approver,
             'Demande approuvée',
             sprintf('Votre demande a été approuvée par %s.', $event->approver->name),
-            ['type' => 'success', 'action_url' => "/validation/approval-requests/{$request->id}"],
+            ['type' => 'success', 'action_url' => "/approval-requests/{$request->id}"],
         );
     }
 
@@ -60,7 +71,7 @@ class NotifyApprovalParticipants
             $event->rejectedBy,
             'Demande rejetée',
             sprintf('Votre demande a été rejetée par %s : %s', $event->rejectedBy->name, $event->reason),
-            ['type' => 'error', 'action_url' => "/validation/approval-requests/{$request->id}"],
+            ['type' => 'error', 'action_url' => "/approval-requests/{$request->id}"],
         );
     }
 
@@ -75,7 +86,7 @@ class NotifyApprovalParticipants
             $event->approved
                 ? 'Toutes les étapes d\'approbation ont été validées.'
                 : 'Le processus d\'approbation a été clôturé sans validation complète.',
-            ['type' => $event->approved ? 'success' : 'error', 'action_url' => "/validation/approval-requests/{$request->id}"],
+            ['type' => $event->approved ? 'success' : 'error', 'action_url' => "/approval-requests/{$request->id}"],
         );
     }
 

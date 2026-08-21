@@ -82,7 +82,14 @@ class AiContextualAssistantService
             'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock'],
             'Sales'               => ['create_order', 'confirm_order', 'create_quotation'],
             'POS'                 => ['open_session', 'process_payment', 'close_session'],
-            'Setup'               => ['import_file', 'map_columns', 'execute_import'],
+            // Chantier 32.10 (Setup deep 14-layer audit): the 6-step
+            // onboarding wizard (SetupWizard.vue) had ZERO AI-assist
+            // integration at all — only the import sub-flow (SetupIndex.vue)
+            // was wired, matching the exact "N of M real pages never call
+            // useAiAssistant()" pattern already found and fixed for
+            // Strategy at Chantier 30. wizard_company/admin/modules/
+            // workflows/apps/complete cover the 6 real steps.
+            'Setup'               => ['import_file', 'map_columns', 'execute_import', 'wizard_company', 'wizard_admin', 'wizard_modules', 'wizard_workflows', 'wizard_apps', 'wizard_complete'],
             'Achats'              => ['create_order', 'approve_order', 'receive_goods', 'three_way_match', 'view_dashboard'],
             'Projects'            => ['create_project', 'assign_task', 'update_progress', 'close_project', 'estimate_task'],
             'Manufacturing'       => ['production_dashboard', 'create_production_order', 'start_production', 'record_output', 'quality_check', 'track_bom_items', 'manage_bom', 'sample_request', 'qqcd_calendar', 'import_component'],
@@ -141,6 +148,16 @@ class AiContextualAssistantService
             'Analytics'        => ['view_dashboard'],
             'Integration'      => ['view_dashboard'],
             'Security'         => ['view_dashboard'],
+            // Chantier 32.7 (14-layer deep audit of Modules\Validation): the
+            // module's own ValidationAiAssistController (POST
+            // /api/v1/validation/ai/assist, delegating here with
+            // module:'Validation') has existed since an earlier chantier,
+            // but 'Validation' was never registered in this map, AND none
+            // of its 5 real Vue pages ever called useAiAssistant() at all —
+            // the exact same double-gap Chantier 30 found and fixed for
+            // 'Strategy'. Confirmed via grep across
+            // Modules/Validation/resources/js before adding the calls.
+            'Validation'       => ['view_approval_dashboard', 'view_approval_request', 'manage_workflows', 'build_workflow', 'manage_validation_rules'],
         ];
     }
 
@@ -261,7 +278,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -709,6 +726,96 @@ PROMPT;
                 'next_actions'        => [],
                 'tips'                => [
                     'Un import test sur 10 lignes est recommandé avant le chargement complet.',
+                ],
+            ],
+
+            // Chantier 32.10: the 6-step onboarding wizard itself (distinct
+            // from the import sub-flow above).
+            'Setup.wizard_company' => [
+                'what_to_do'          => 'Renseignez les informations légales de votre société.',
+                'how_to_do'           => [
+                    'Indiquez le nom commercial et, si différent, la raison sociale.',
+                    'Choisissez le pays — la devise et le fuseau horaire seront suggérés automatiquement.',
+                    'Passez à l\'étape suivante pour créer votre profil administrateur.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Le pays sélectionné détermine les règles fiscales (TVA) et comptables (OHADA) appliquées par défaut.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Profil administrateur', 'action' => 'wizard_admin', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_admin' => [
+                'what_to_do'          => 'Confirmez votre profil administrateur (nom, langue, fuseau horaire).',
+                'how_to_do'           => [
+                    'Vérifiez le nom affiché pour votre compte.',
+                    'Choisissez la langue de l\'interface.',
+                    'Validez pour passer à la sélection des modules.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Sélection des modules', 'action' => 'wizard_modules', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_modules' => [
+                'what_to_do'          => 'Activez les modules dont votre société a besoin.',
+                'how_to_do'           => [
+                    'Cochez les modules à activer immédiatement — vous pourrez en activer d\'autres plus tard.',
+                    'Chaque module activé devient visible dans la navigation principale.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Désactiver un module en cours d\'usage peut masquer des données déjà saisies — elles ne sont jamais supprimées.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Configuration des workflows', 'action' => 'wizard_workflows', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_workflows' => [
+                'what_to_do'          => 'Configurez les règles d\'approbation et les canaux de notification.',
+                'how_to_do'           => [
+                    'Activez l\'approbation obligatoire si les décisions doivent être validées par un responsable.',
+                    'Choisissez les canaux de notification (email, SMS, WhatsApp, push).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Applications à activer', 'action' => 'wizard_apps', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_apps' => [
+                'what_to_do'          => 'Choisissez les applications (web, mobile, API) que votre équipe utilisera.',
+                'how_to_do'           => [
+                    'Activez l\'application web pour un accès depuis un navigateur.',
+                    'Activez l\'API si vous prévoyez d\'intégrer WideHalo à d\'autres systèmes.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Finaliser la configuration', 'action' => 'wizard_complete', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_complete' => [
+                'what_to_do'          => 'Finalisez la configuration pour démarrer avec WideHalo.',
+                'how_to_do'           => [
+                    'Vérifiez le résumé de votre configuration.',
+                    'Cliquez sur Terminer pour activer votre espace de travail.',
+                    'Vous pourrez ensuite importer vos données existantes (clients, produits, factures).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Importer des données', 'action' => 'import_file', 'module' => 'Setup'],
+                ],
+                'tips'                => [
+                    'Toute la configuration reste modifiable après coup depuis les réglages administrateur.',
                 ],
             ],
         ];
@@ -2177,7 +2284,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -2625,6 +2732,96 @@ PROMPT;
                 'next_actions'        => [],
                 'tips'                => [
                     'A test import of 10 rows is recommended before a full load.',
+                ],
+            ],
+
+            // Chantier 32.10: the 6-step onboarding wizard itself (distinct
+            // from the import sub-flow above).
+            'Setup.wizard_company' => [
+                'what_to_do'          => 'Enter your company\'s legal information.',
+                'how_to_do'           => [
+                    'Provide the trading name and, if different, the registered legal name.',
+                    'Pick the country — currency and timezone will be suggested automatically.',
+                    'Continue to create your administrator profile.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'The country you select determines the default tax (VAT) and accounting (OHADA) rules applied.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Administrator profile', 'action' => 'wizard_admin', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_admin' => [
+                'what_to_do'          => 'Confirm your administrator profile (name, language, timezone).',
+                'how_to_do'           => [
+                    'Check the display name for your account.',
+                    'Choose the interface language.',
+                    'Confirm to move on to module selection.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Module selection', 'action' => 'wizard_modules', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_modules' => [
+                'what_to_do'          => 'Enable the modules your company needs.',
+                'how_to_do'           => [
+                    'Tick the modules to enable right away — others can be enabled later.',
+                    'Every enabled module becomes visible in the main navigation.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Disabling a module already in use can hide already-entered data — it is never deleted.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Workflow configuration', 'action' => 'wizard_workflows', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_workflows' => [
+                'what_to_do'          => 'Configure approval rules and notification channels.',
+                'how_to_do'           => [
+                    'Enable mandatory approval if decisions must be validated by a manager.',
+                    'Choose notification channels (email, SMS, WhatsApp, push).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Apps to enable', 'action' => 'wizard_apps', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_apps' => [
+                'what_to_do'          => 'Choose the apps (web, mobile, API) your team will use.',
+                'how_to_do'           => [
+                    'Enable the web app for browser access.',
+                    'Enable the API if you plan to integrate WideHalo with other systems.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Finish setup', 'action' => 'wizard_complete', 'module' => 'Setup'],
+                ],
+                'tips'                => [],
+            ],
+            'Setup.wizard_complete' => [
+                'what_to_do'          => 'Finish setup to start using WideHalo.',
+                'how_to_do'           => [
+                    'Review your configuration summary.',
+                    'Click Finish to activate your workspace.',
+                    'You can then import your existing data (customers, products, invoices).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Import data', 'action' => 'import_file', 'module' => 'Setup'],
+                ],
+                'tips'                => [
+                    'All settings remain editable afterwards from the admin settings.',
                 ],
             ],
         ];
@@ -5350,6 +5547,179 @@ PROMPT;
                     ['label' => 'Back to calendar', 'action' => 'view_calendar', 'module' => 'Calendar'],
                 ],
                 'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.7 (14-layer deep audit of Modules\Validation): 'Validation'
+     * was never registered in supportedModules() at all, and none of the
+     * module's 5 real Vue pages ever called useAiAssistant() — both fixed
+     * here and in each page.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier327(): array
+    {
+        return [
+            'Validation.view_approval_dashboard' => [
+                'what_to_do'          => 'Consultez les demandes d\'approbation en attente et celles qui vous attendent en priorité.',
+                'how_to_do'           => [
+                    'Filtrez par statut ou par module pour retrouver une demande précise.',
+                    'Traitez en priorité les demandes marquées "en attente de votre décision".',
+                    'Ouvrez une demande pour voir son historique complet avant d\'approuver ou de rejeter.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'En attente de votre décision', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une demande à plusieurs niveaux avance d\'un niveau à la fois — approuver ne finalise pas toujours la demande.',
+                ],
+            ],
+            'Validation.view_approval_request' => [
+                'what_to_do'          => 'Examinez le détail d\'une demande d\'approbation avant de décider.',
+                'how_to_do'           => [
+                    'Vérifiez le workflow et le niveau d\'avancement actuel.',
+                    'Consultez l\'historique des décisions déjà prises sur cette demande.',
+                    'Approuvez, rejetez ou déléguez selon votre rôle — un commentaire justificatif est recommandé.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Déléguer transfère la décision à un autre utilisateur de la même société — cette action n\'est pas réversible sans une nouvelle délégation.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Validation.manage_workflows' => [
+                'what_to_do'          => 'Gérez les workflows d\'approbation par module (Achats, Comptabilité, RH…).',
+                'how_to_do'           => [
+                    'Filtrez par module pour retrouver le workflow concerné.',
+                    'Activez ou désactivez un workflow selon vos besoins actuels.',
+                    'Utilisez un modèle de démarrage rapide pour créer un nouveau workflow standard.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Désactiver un workflow ne supprime pas les demandes déjà en cours — seules les nouvelles soumissions cessent d\'être routées.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Créer un workflow', 'action' => 'build_workflow', 'module' => 'Validation'],
+                ],
+                'tips'                => [],
+            ],
+            'Validation.build_workflow' => [
+                'what_to_do'          => 'Composez un workflow d\'approbation : nom, module concerné, puis une liste ordonnée de règles.',
+                'how_to_do'           => [
+                    'Ajoutez une règle par seuil ou condition (ex : montant, catégorie).',
+                    'Choisissez le mode d\'approbation (séquentiel ou parallèle) et le nombre d\'approbateurs requis.',
+                    'Associez une hiérarchie d\'approbateurs à la règle si vous en avez déjà configuré une.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Une règle sans hiérarchie associée sera routée vers la hiérarchie générique du module, pas vers un circuit dédié.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Les modèles de démarrage rapide pré-remplissent un point de départ — vous pouvez toujours ajuster chaque règle ensuite.',
+                ],
+            ],
+            'Validation.manage_validation_rules' => [
+                'what_to_do'          => 'Configurez le moteur générique de validation de données : champ, type de règle, paramètres.',
+                'how_to_do'           => [
+                    'Choisissez le champ concerné et le type de règle (obligatoire, email, regex, plage de valeurs…).',
+                    'Renseignez les paramètres au format JSON pour les types qui en ont besoin.',
+                    'Ajoutez un message d\'erreur personnalisé pour guider l\'utilisateur final.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Ces règles ne s\'appliquent que lorsqu\'un appelant les invoque explicitement — elles ne sont pas branchées automatiquement sur tous les formulaires de l\'application.',
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier327(): array
+    {
+        return [
+            'Validation.view_approval_dashboard' => [
+                'what_to_do'          => 'Review pending approval requests and the ones waiting on your own decision.',
+                'how_to_do'           => [
+                    'Filter by status or module to find a specific request.',
+                    'Handle requests marked "awaiting your decision" first.',
+                    'Open a request to see its full history before approving or rejecting.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Awaiting your decision', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A multi-level request advances one level at a time — approving doesn\'t always finalize the request.',
+                ],
+            ],
+            'Validation.view_approval_request' => [
+                'what_to_do'          => 'Review a single approval request\'s detail before deciding.',
+                'how_to_do'           => [
+                    'Check the workflow and the current progress level.',
+                    'Review the history of decisions already made on this request.',
+                    'Approve, reject, or delegate based on your role — a comment is recommended.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Delegating hands the decision to another user in the same company — this cannot be undone without a new delegation.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Validation.manage_workflows' => [
+                'what_to_do'          => 'Manage approval workflows per module (Achats, Accounting, HR…).',
+                'how_to_do'           => [
+                    'Filter by module to find the relevant workflow.',
+                    'Activate or deactivate a workflow as needed.',
+                    'Use a quick-start template to create a standard new workflow.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Deactivating a workflow doesn\'t affect requests already in progress — only new submissions stop being routed.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Create a workflow', 'action' => 'build_workflow', 'module' => 'Validation'],
+                ],
+                'tips'                => [],
+            ],
+            'Validation.build_workflow' => [
+                'what_to_do'          => 'Compose an approval workflow: name, target module, then an ordered list of rules.',
+                'how_to_do'           => [
+                    'Add one rule per threshold or condition (e.g. amount, category).',
+                    'Choose the approval mode (sequential or parallel) and how many approvers are required.',
+                    'Attach an approver hierarchy to the rule if you have one already configured.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'A rule with no attached hierarchy will be routed to the module\'s generic hierarchy, not a dedicated chain.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Quick-start templates pre-fill a starting point — you can still tweak every rule afterwards.',
+                ],
+            ],
+            'Validation.manage_validation_rules' => [
+                'what_to_do'          => 'Configure the generic data-validation rule engine: field, rule type, parameters.',
+                'how_to_do'           => [
+                    'Pick the target field and rule type (required, email, regex, range, …).',
+                    'Fill in the parameters as JSON for rule types that need them.',
+                    'Add a custom error message to guide the end user.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'These rules only apply when a caller explicitly invokes them — they are not automatically wired into every form in the app.',
+                ],
             ],
         ];
     }

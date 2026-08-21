@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Calendar\Services;
 
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -226,10 +227,27 @@ class ModuleEventAggregatorService
      * is the actual OKR-tree node this feature was describing). Rewired
      * onto the real model rather than guessing new columns onto the wrong
      * one.
+     *
+     * Chantier 32.12: a second, independent bug found in the same method —
+     * zero tenant scoping of any kind. `strategy_objectives` has no
+     * `tenant_id`/`company_id` column of its own (tenancy is inherited via
+     * `plan_id -> strategy_plans.tenant_id`, the same real boundary
+     * `StrategyObjective::scopeForTenant()` already uses — see that
+     * model's own Chantier 19 Lot 5 docblock). Confirmed empirically with
+     * 2 real companies (`Chantier32CalendarDeepAuditTest`) that Company A's
+     * employee got Company B's strategic objective synced into their own
+     * personal calendar — a live cross-tenant leak, not hypothetical.
+     * Fixed by joining through `strategy_plans` and filtering to the
+     * calling user's own company.
      */
     private function importStrategyMilestones(int $userId): int
     {
-        if (! Schema::hasTable('strategy_objectives')) {
+        if (! Schema::hasTable('strategy_objectives') || ! Schema::hasTable('strategy_plans')) {
+            return 0;
+        }
+
+        $companyId = User::find($userId)?->company_id;
+        if ($companyId === null) {
             return 0;
         }
 
@@ -237,9 +255,11 @@ class ModuleEventAggregatorService
         $synced   = 0;
 
         $objectives = DB::table('strategy_objectives')
-            ->whereNotNull('end_date')
-            ->where('status', '!=', 'completed')
-            ->select('id', 'title', 'end_date', 'status')
+            ->join('strategy_plans', 'strategy_objectives.plan_id', '=', 'strategy_plans.id')
+            ->where('strategy_plans.tenant_id', (string) $companyId)
+            ->whereNotNull('strategy_objectives.end_date')
+            ->where('strategy_objectives.status', '!=', 'completed')
+            ->select('strategy_objectives.id', 'strategy_objectives.title', 'strategy_objectives.end_date', 'strategy_objectives.status')
             ->get();
 
         foreach ($objectives as $objective) {
@@ -381,30 +401,71 @@ class ModuleEventAggregatorService
     // Workflow: scheduled automations
     // -----------------------------------------------------------------------
 
+    /**
+     * Chantier 32.12: this method has never actually populated a single
+     * real event — confirmed empirically. `workflow_executions` has never
+     * had a `scheduled_at` column (real columns: `started_at`,
+     * `completed_at`, `triggered_at` — confirmed via
+     * `Schema::getColumnListing()`), a guaranteed "no such column" SQL
+     * error on every real call, silently caught by `aggregateForUser()`'s
+     * own outer try/catch. On top of the wrong column, `workflow_executions`
+     * is also the wrong TABLE for this concept: it records already-
+     * triggered/completed runs, not future-scheduled ones — and the
+     * original query had zero user/company scoping at all, which (had the
+     * column existed) would have leaked every tenant's scheduled
+     * automation runs into every user's personal calendar, the same bug
+     * class just fixed for importStrategyMilestones() above. The real
+     * "scheduled automation" concept in this app lives on
+     * `Modules\Workflow\Models\Automation\AutomationFlow`
+     * (`automation_flows.trigger_type = 'schedule'`, with the actual next-
+     * run timestamp inside the `trigger_config` JSON column, per
+     * `FlowSchedulerService::registerSchedule()`) — rewired onto that real
+     * model. Scoped to the flows the calling user themselves created
+     * (`created_by`), matching the "your own things show on your
+     * calendar" convention every other real source in this class already
+     * follows (leaves/tasks/tickets/timesheet entries), rather than
+     * inventing a new company-wide-visibility rule for this one source.
+     */
     private function importWorkflowSchedules(int $userId): int
     {
-        if (! Schema::hasTable('workflow_executions')) {
+        if (! Schema::hasTable('automation_flows')) {
             return 0;
         }
 
         $calendar = $this->getOrCreateModuleCalendar($userId, 'Workflows Planifiés', '#EC4899', 'workflow');
         $synced   = 0;
 
-        $executions = DB::table('workflow_executions')
-            ->whereNotNull('scheduled_at')
-            ->where('scheduled_at', '>=', now())
-            ->where('status', 'pending')
-            ->select('id', 'workflow_id', 'scheduled_at')
+        $flows = DB::table('automation_flows')
+            ->where('created_by', $userId)
+            ->where('is_active', true)
+            ->where('trigger_type', 'schedule')
+            ->whereNotNull('trigger_config')
+            ->select('id', 'name', 'trigger_config')
             ->limit(50)
             ->get();
 
-        foreach ($executions as $exec) {
-            $scheduledAt = Carbon::parse($exec->scheduled_at);
+        foreach ($flows as $flow) {
+            $config    = json_decode((string) $flow->trigger_config, true) ?? [];
+            $nextRunAt = $config['next_run_at'] ?? null;
+
+            if (! $nextRunAt) {
+                continue;
+            }
+
+            try {
+                $scheduledAt = Carbon::parse($nextRunAt);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($scheduledAt->isPast()) {
+                continue;
+            }
 
             CalendarEvent::updateOrCreate(
-                ['module_type' => 'WorkflowExecution', 'module_id' => $exec->id, 'calendar_id' => $calendar->id],
+                ['module_type' => 'AutomationFlow', 'module_id' => $flow->id, 'calendar_id' => $calendar->id],
                 [
-                    'title'      => "Workflow #{$exec->workflow_id}",
+                    'title'      => "Workflow: {$flow->name}",
                     'start_at'   => $scheduledAt,
                     'end_at'     => $scheduledAt->copy()->addMinutes(5),
                     'all_day'    => false,

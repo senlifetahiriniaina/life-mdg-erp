@@ -4,16 +4,26 @@ declare(strict_types=1);
 
 namespace Modules\Workflow\Services;
 
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\Workflow\Models\WorkflowChainDefinition;
 use Modules\Workflow\Models\WorkflowChainExecution;
 use Modules\Workflow\Services\Actions\AchatsInventoryActionHandler;
+use Modules\Workflow\Services\Actions\AiActionHandler;
+use Modules\Workflow\Services\Actions\CalendarActionHandler;
 use Modules\Workflow\Services\Actions\CrmSalesActionHandler;
+use Modules\Workflow\Services\Actions\DataTransformHandler;
+use Modules\Workflow\Services\Actions\DelayActionHandler;
+use Modules\Workflow\Services\Actions\DocumentsActionHandler;
+use Modules\Workflow\Services\Actions\EcommerceActionHandler;
+use Modules\Workflow\Services\Actions\HelpdeskActionHandler;
+use Modules\Workflow\Services\Actions\HttpActionHandler;
 use Modules\Workflow\Services\Actions\InventoryAccountingActionHandler;
+use Modules\Workflow\Services\Actions\LogisticsActionHandler;
 use Modules\Workflow\Services\Actions\NotificationActionHandler;
+use Modules\Workflow\Services\Actions\ProjectsActionHandler;
+use Modules\Workflow\Services\Actions\QualityActionHandler;
 use Modules\Workflow\Services\Actions\SalesManufacturingActionHandler;
+use Modules\Workflow\Services\Actions\StrategyActionHandler;
 use Modules\Workflow\Services\Actions\Phase52ActionHandler;
 use Modules\Workflow\Services\Actions\HrPayrollActionHandler;
 
@@ -26,17 +36,24 @@ use Modules\Workflow\Services\Actions\HrPayrollActionHandler;
  *  - Execute actions in sequence, logging each step
  *  - Record an execution row (pending → running → completed|failed)
  *
- * Legacy methods (createWorkflow, addStep, publishWorkflow, etc.) are
- * preserved below for backward compatibility with the builder UI.
+ * Chantier 32.11: this class previously also carried a second, entirely
+ * separate Cache-backed "legacy" workflow builder API (createWorkflow/
+ * addStep/publishWorkflow/getWorkflow/getExecution/deleteWorkflow/
+ * duplicateWorkflow/evaluateTrigger/dispatchAction/processChain/
+ * dispatchParallelActions/dispatchWithRetry/dispatchWithTimeout/
+ * logExecution, plus two dead private helpers handleApprovalAction()/
+ * handleNotifyAction()) — confirmed via grep to have zero real callers
+ * anywhere outside its own isolated tests, "preserved for backward
+ * compatibility with the builder UI" that turned out itself to be 100%
+ * mock (AIWorkflowBuilder/Index.vue, already documented since Chantier
+ * 8.5-light as having zero fetch calls). Deleted alongside the equally-dead
+ * ApprovalWorkflowService/WorkflowBuilderService/TaskManagementService — see
+ * this chantier's CLAUDE.md entry for the full rationale. The one real,
+ * live method this class exposes below (executeWorkflow/runDefinition/
+ * executeAction/evaluateConditions/evaluateCondition) is untouched.
  */
 class WorkflowEngineService
 {
-    // ── Legacy constants ───────────────────────────────────────────────────────
-
-    const CACHE_TTL          = 3600;
-    const MAX_WORKFLOW_STEPS = 100;
-    const EXECUTION_TIMEOUT  = 300; // seconds
-
     // ── Phase-39 trigger-based engine ─────────────────────────────────────────
 
     /**
@@ -48,13 +65,22 @@ class WorkflowEngineService
      */
     public function executeWorkflow(string $triggerKeyOrWorkflowId, array $context): array
     {
-        // ── Cache-based workflow (from createWorkflow/addStep/publishWorkflow) ──────
-        $cachedWorkflow = Cache::get("workflow:{$triggerKeyOrWorkflowId}");
-        if ($cachedWorkflow) {
-            return $this->executeCachedWorkflow($triggerKeyOrWorkflowId, $cachedWorkflow, $context);
-        }
-
-        // ── DB-based trigger workflow ─────────────────────────────────────────────
+        // Chantier 32.11: this method previously checked
+        // Cache::get("workflow:{$id}") first, executing a Cache-backed
+        // "legacy" workflow shape (`executeCachedWorkflow()`) if one was
+        // found — but the only 3 methods that could ever have populated
+        // that cache key (createWorkflow()/addStep()/publishWorkflow())
+        // were confirmed to have zero real callers anywhere in the app
+        // (only their own isolated tests and the already-documented 100%
+        // mock AIWorkflowBuilder/Index.vue page, which makes no fetch call
+        // at all) — deleted alongside WorkflowBuilderService/
+        // TaskManagementService/ApprovalWorkflowService as the same
+        // fully-dead-with-zero-producer pattern (see this chantier's
+        // CLAUDE.md entry). The real, live callers of this method
+        // (ExecuteWorkflowJob, WorkflowChainController::manualTrigger())
+        // only ever pass a real trigger_key, never a legacy cache-backed
+        // workflow id, so the branch removed here was permanently
+        // unreachable in production.
         $tenantId    = $context['tenant_id'] ?? 1;
         $definitions = WorkflowChainDefinition::where('trigger_key', $triggerKeyOrWorkflowId)
             ->where('tenant_id', $tenantId)
@@ -66,43 +92,6 @@ class WorkflowEngineService
             $results[] = $this->runDefinition($definition, $context);
         }
         return $results;
-    }
-
-    private function executeCachedWorkflow(string $workflowId, array $workflow, array $context): array
-    {
-        if (($workflow['status'] ?? 'draft') !== 'published') {
-            return ['error' => 'Workflow must be published before it can be executed'];
-        }
-
-        $executionId = uniqid('exec_');
-        $results     = [];
-
-        foreach ($workflow['steps'] ?? [] as $step) {
-            $stepId   = $step['id'] ?? uniqid('step_');
-            $stepType = $step['type'] ?? 'action';
-
-            if ($stepType === 'decision') {
-                $condition = $step['config']['condition'] ?? [];
-                $result    = $this->evaluateCondition($condition, $context);
-                $results[$stepId] = ['type' => 'decision', 'result' => $result];
-            } else {
-                // action / notification / email etc.
-                $results[$stepId] = ['type' => $stepType, 'status' => 'completed'];
-            }
-        }
-
-        $execution = [
-            'execution_id' => $executionId,
-            'workflow_id'  => $workflowId,
-            'status'       => 'completed',
-            'results'      => $results,
-            'context'      => $context,
-            'started_at'   => now()->toIso8601String(),
-            'completed_at' => now()->toIso8601String(),
-        ];
-        Cache::put("execution:{$executionId}", $execution, now()->addHours(24));
-
-        return $execution;
     }
 
     /**
@@ -311,6 +300,33 @@ class WorkflowEngineService
             'smarttable'     => $this->dispatchPhase52($module, $method, $params, $context),
             'reporting'      => $this->dispatchPhase52($module, $method, $params, $context),
             'shared'         => $this->dispatchPhase52($module, $method, $params, $context),
+            // Chantier 32.11: 'ai'/'calendar'/'transform'/'delay'/'documents'/
+            // 'ecommerce'/'helpdesk'/'http'/'logistics'/'projects'/'quality'/
+            // 'strategy' had no case at all here despite their 12 handlers
+            // being real, fully-written, singleton-bound in
+            // WorkflowServiceProvider, and passed into WorkflowActionRegistry
+            // — but this method (executeAction(), called from
+            // runDefinition() below, the real dispatch path for every live
+            // WorkflowChainDefinition execution) never routed to any of
+            // them, so any real workflow action using one of these 12
+            // prefixes silently fell to the `default` "Unknown action
+            // module" branch below, confirmed empirically via tinker before
+            // this fix. Each handler's dispatch() match() recognizes the
+            // FULL action key (e.g. 'strategy.flag_ratio_alert'), not just
+            // the method suffix — matching the same $actionKey-based calling
+            // convention already used above for 'hr'/'it'/'payroll'.
+            'ai'             => app(AiActionHandler::class)->dispatch($actionKey, $params, $context),
+            'calendar'       => app(CalendarActionHandler::class)->dispatch($actionKey, $params, $context),
+            'transform'      => app(DataTransformHandler::class)->dispatch($actionKey, $params, $context),
+            'delay'          => app(DelayActionHandler::class)->dispatch($actionKey, $params, $context),
+            'documents'      => app(DocumentsActionHandler::class)->dispatch($actionKey, $params, $context),
+            'ecommerce'      => app(EcommerceActionHandler::class)->dispatch($actionKey, $params, $context),
+            'helpdesk'       => app(HelpdeskActionHandler::class)->dispatch($actionKey, $params, $context),
+            'http'           => app(HttpActionHandler::class)->dispatch($actionKey, $params, $context),
+            'logistics'      => app(LogisticsActionHandler::class)->dispatch($actionKey, $params, $context),
+            'projects'       => app(ProjectsActionHandler::class)->dispatch($actionKey, $params, $context),
+            'quality'        => app(QualityActionHandler::class)->dispatch($actionKey, $params, $context),
+            'strategy'       => app(StrategyActionHandler::class)->dispatch($actionKey, $params, $context),
             default          => ['status' => 'skipped', 'reason' => "Unknown action module: {$module}"],
         };
     }
@@ -330,28 +346,11 @@ class WorkflowEngineService
         Log::warning("[Workflow] Phase52ActionHandler: no method for {$module}.{$method}");
         return ['status' => 'skipped', 'reason' => "No handler for {$module}.{$method}"];
     }
-    private function handleApprovalAction(string $method, array $params, array $context): array
-    {
-        return match ($method) {
-            'request_multi_level' => [
-                'status'      => 'approval_requested',
-                'levels'      => $params['levels'] ?? 3,
-                'entity_type' => $context['entity_type'] ?? 'sales_order',
-                'entity_id'   => $context['order_id'] ?? null,
-            ],
-            default => ['status' => 'skipped'],
-        };
-    }
-
-    private function handleNotifyAction(string $method, array $params, array $context): array
-    {
-        return [
-            'status'    => 'notification_queued',
-            'recipient' => $params['recipient'] ?? 'manager',
-            'channel'   => $params['channel'] ?? 'email',
-            'context'   => array_intersect_key($context, array_flip(['order_id', 'opportunity_id', 'amount'])),
-        ];
-    }
+    // Chantier 32.11: handleApprovalAction()/handleNotifyAction() (both
+    // private) were dead code — never called from anywhere in this class,
+    // including their own match() dispatcher above, which routes 'approval'/
+    // 'notify' action keys directly to the real NotificationActionHandler
+    // instead. Deleted rather than left as unreachable private methods.
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -366,184 +365,4 @@ class WorkflowEngineService
         return $context[$field] ?? null;
     }
 
-    // ── Legacy cache-based builder methods (preserved for builder UI) ──────────
-
-    public function createWorkflow(array $config): array
-    {
-        $workflowId = uniqid('workflow_');
-        $workflow   = array_merge($config, [
-            'id'         => $workflowId,
-            'status'     => 'draft',
-            'steps'      => [],
-            'created_at' => now()->toIso8601String(),
-            'updated_at' => now()->toIso8601String(),
-        ]);
-        Cache::put("workflow:{$workflowId}", $workflow, now()->addDays(365));
-        return ['workflow_id' => $workflowId, 'status' => 'created'];
-    }
-
-    public function addStep(string $workflowId, array $stepConfig): array
-    {
-        $workflow = Cache::get("workflow:{$workflowId}");
-        if (! $workflow) {
-            return ['error' => 'Workflow not found'];
-        }
-        if (count($workflow['steps']) >= self::MAX_WORKFLOW_STEPS) {
-            return ['error' => 'Maximum steps reached'];
-        }
-        $stepId           = uniqid('step_');
-        $step             = array_merge(['id' => $stepId, 'position' => count($workflow['steps'])], $stepConfig);
-        $workflow['steps'][] = $step;
-        Cache::put("workflow:{$workflowId}", $workflow, now()->addDays(365));
-        return ['workflow_id' => $workflowId, 'step_id' => $stepId, 'status' => 'added'];
-    }
-
-    public function publishWorkflow(string $workflowId): array
-    {
-        $workflow = Cache::get("workflow:{$workflowId}");
-        if (! $workflow) {
-            return ['error' => 'Workflow not found'];
-        }
-        if (empty($workflow['steps'])) {
-            return ['error' => 'Workflow must have at least one step'];
-        }
-        $workflow['status']       = 'published';
-        $workflow['published_at'] = now()->toIso8601String();
-        Cache::put("workflow:{$workflowId}", $workflow, now()->addDays(365));
-        return ['workflow_id' => $workflowId, 'status' => 'published'];
-    }
-
-    public function getWorkflow(string $workflowId): ?array
-    {
-        return Cache::get("workflow:{$workflowId}");
-    }
-
-    public function getExecution(string $executionId): ?array
-    {
-        return Cache::get("execution:{$executionId}");
-    }
-
-    public function deleteWorkflow(string $workflowId): array
-    {
-        Cache::forget("workflow:{$workflowId}");
-        return ['workflow_id' => $workflowId, 'status' => 'deleted'];
-    }
-
-    public function duplicateWorkflow(string $workflowId, string $newName): array
-    {
-        $workflow = Cache::get("workflow:{$workflowId}");
-        if (! $workflow) {
-            return ['error' => 'Workflow not found'];
-        }
-        $newId            = uniqid('workflow_');
-        $workflow['id']   = $newId;
-        $workflow['name'] = $newName;
-        $workflow['status'] = 'draft';
-        Cache::put("workflow:{$newId}", $workflow, now()->addDays(365));
-        return ['new_workflow_id' => $newId, 'status' => 'duplicated'];
-    }
-
-    /**
-     * Evaluate whether a trigger node matches the current context.
-     */
-    public function evaluateTrigger(array $trigger, array $context): bool
-    {
-        $type = $trigger['type'] ?? 'event';
-        if ($type === 'event') {
-            $triggerKey  = $trigger['event_key'] ?? '';
-            $contextKey  = $context['event_key'] ?? '';
-            return $triggerKey === '' || $triggerKey === $contextKey;
-        }
-        return true;
-    }
-
-    /**
-     * Dispatch a single action node (returns true on success).
-     */
-    public function dispatchAction(array $action): bool
-    {
-        $actionKey = $action['action_key'] ?? $action['action'] ?? 'unknown';
-        $params    = $action['params'] ?? [];
-        try {
-            $this->executeAction($actionKey, $params, []);
-        } catch (\Throwable) {
-            // swallow for resilience; return true to indicate dispatch attempt
-        }
-        return true;
-    }
-
-    /**
-     * Process an ordered chain of trigger / condition / action nodes.
-     */
-    public function processChain(array $chain, array $context): array
-    {
-        $results = [];
-        foreach ($chain as $node) {
-            $type = $node['type'] ?? 'action';
-            if ($type === 'trigger') {
-                $results[] = ['node' => $type, 'matched' => $this->evaluateTrigger($node, $context)];
-            } elseif ($type === 'condition') {
-                $passed    = $this->evaluateCondition($node, $context);
-                $results[] = ['node' => $type, 'passed' => $passed];
-                if (!$passed) {
-                    break;
-                }
-            } else {
-                $results[] = ['node' => $type, 'dispatched' => $this->dispatchAction($node)];
-            }
-        }
-        return $results;
-    }
-
-    /**
-     * Dispatch multiple actions in parallel (synchronous emulation).
-     */
-    public function dispatchParallelActions(array $actions): array
-    {
-        $results = [];
-        foreach ($actions as $action) {
-            $results[] = $this->dispatchAction($action);
-        }
-        return $results;
-    }
-
-    /**
-     * Dispatch an action with retry logic.
-     */
-    public function dispatchWithRetry(array $action, int $maxRetries = 3): bool
-    {
-        $attempts = 0;
-        while ($attempts <= $maxRetries) {
-            try {
-                return $this->dispatchAction($action);
-            } catch (\Throwable) {
-                $attempts++;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Dispatch an action respecting a timeout (synchronous stub).
-     */
-    public function dispatchWithTimeout(array $action, int $timeout = 30): bool
-    {
-        return $this->dispatchAction($action);
-    }
-
-    /**
-     * Log a workflow chain execution and return an execution ID.
-     */
-    public function logExecution(array $chain, array $context): string
-    {
-        $executionId = uniqid('exec_', true);
-        Cache::put("execution:{$executionId}", [
-            'id'         => $executionId,
-            'chain'      => $chain,
-            'context'    => $context,
-            'started_at' => now()->toIso8601String(),
-            'status'     => 'logged',
-        ], now()->addHours(24));
-        return $executionId;
-    }
 }

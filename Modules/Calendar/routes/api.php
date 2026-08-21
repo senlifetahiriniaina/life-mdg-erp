@@ -67,9 +67,14 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
 });
 
 // -----------------------------------------------------------------------
-// Webhook endpoints — no auth:sanctum (provider-to-WideHalo callbacks)
+// Webhook endpoints — no auth:sanctum (provider-to-WideHalo callbacks).
+// Chantier 32.12: added the shared `webhook` rate limiter (already used
+// by Core's CSP-report endpoint for the same "unauthenticated external
+// callback" shape) — these routes had no throttling of any kind before,
+// on top of the client-controlled-user-id dispatch gap fixed in the
+// controller itself.
 // -----------------------------------------------------------------------
-Route::prefix('v1/calendar/webhooks')->group(function () {
+Route::prefix('v1/calendar/webhooks')->middleware('throttle:webhook')->group(function () {
     Route::post('google', [CalendarSyncController::class, 'webhookGoogle'])->name('calendar.webhooks.google');
     Route::post('outlook', [CalendarSyncController::class, 'webhookOutlook'])->name('calendar.webhooks.outlook');
 });

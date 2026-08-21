@@ -168,7 +168,7 @@ test('the real POST /api/v1/ai/assist endpoint now returns real guidance for eve
     }
 })->with('newly-covered assist pairs');
 
-test('supportedModules() now reports 37 modules including the 3 newly-registered ones', function () {
+test('supportedModules() now reports 38 modules including the 3 newly-registered ones', function () {
     actingAsUser('admin');
 
     $response = $this->getJson('/api/v1/ai/assist/modules');
@@ -176,7 +176,16 @@ test('supportedModules() now reports 37 modules including the 3 newly-registered
     $response->assertOk();
     $modules = $response->json('modules');
 
-    expect($modules)->toHaveCount(37);
+    // Chantier 32.7 (14-layer deep audit of Modules\Validation) added a
+    // 38th: 'Validation' was never registered at all despite a real,
+    // routed ValidationAiAssistController delegating here — the identical
+    // "registered controller, zero supportedModules() entry" gap this
+    // Chantier 32.2 test file already covers for Analytics/Integration/
+    // Security. Bumped from 37, not rolled back — matches this session's
+    // established precedent (e.g. Chantier 30's 33->34 Strategy fix) of
+    // updating a stale hardcoded total for a real, documented addition
+    // rather than treating it as a regression to undo.
+    expect($modules)->toHaveCount(38);
     expect(array_keys($modules))->toContain('Analytics', 'Integration', 'Security');
     expect($modules['Helpdesk'])->toContain('view_dashboard');
     expect($modules['Calendar'])->toContain('calendar_integrations', 'team_calendar', 'view_event');

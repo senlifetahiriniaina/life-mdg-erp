@@ -7,7 +7,9 @@ use Modules\Validation\Http\Controllers\Api\ValidationRuleSetController;
 // Sibling of api/v1/validation (not nested under it) -- the generic
 // data-validation rule engine's own resource, distinct from the approval
 // engine's routes registered under Modules/Validation/routes/api.php.
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
+// Chantier 32.7: added module:Validation — see the identical note in
+// routes/api.php for the full rationale.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Validation', 'throttle:simple_get'])->group(function () {
     Route::get('validation-rules', [ValidationRuleController::class, 'index']);
     Route::get('validation-rule-sets', [ValidationRuleSetController::class, 'index']);
     Route::get('validation-rule-sets/{ruleSet}', [ValidationRuleSetController::class, 'show']);
