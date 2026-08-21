@@ -15,7 +15,12 @@
           <option :value="null" disabled>Sélectionner un budget...</option>
           <option v-for="b in budgets" :key="b.id" :value="b.id">{{ b.name }} ({{ b.fiscal_year }})</option>
         </select>
+        <input v-model.number="generateFiscalYear" type="number" class="wh-input" style="width: 100px" placeholder="Année" />
+        <button class="wh-input" style="cursor: pointer; background: #F0F9FF; border-color: #2E5BE8; color: #2E5BE8;" :disabled="generating" @click="generateFromHistory">
+          {{ generating ? 'Génération…' : 'Générer un budget depuis l\'historique' }}
+        </button>
       </div>
+      <p v-if="generateFeedback" class="wh-generate-feedback" :class="{ 'wh-generate-error': generateFeedbackIsError }">{{ generateFeedback }}</p>
 
       <div v-if="!selectedBudgetId" class="wh-empty-state">Sélectionnez un budget pour voir son analyse d'écarts.</div>
 
@@ -75,6 +80,33 @@ const overview = ref(null)
 const topVariances = ref([])
 const trending = ref([])
 
+// Chantier 26 (volet C) — générer un budget depuis l'historique réel,
+// corrélé aux objectifs commerciaux validés (Modules\Sales).
+const generateFiscalYear = ref(new Date().getFullYear() + 1)
+const generating = ref(false)
+const generateFeedback = ref('')
+const generateFeedbackIsError = ref(false)
+
+const generateFromHistory = async () => {
+  generating.value = true
+  generateFeedback.value = ''
+  try {
+    const { data } = await axios.post('/api/v1/accounting/budgets/generate-from-history', {
+      fiscal_year: generateFiscalYear.value,
+    })
+    generateFeedback.value = `Budget "${data.data.name}" généré (revenus : ${fmt(data.data.total_revenue_budget)}, dépenses : ${fmt(data.data.total_expense_budget)}).`
+    generateFeedbackIsError.value = false
+    await loadBudgets()
+    selectedBudgetId.value = data.data.id
+    await loadBudgetViews()
+  } catch (err) {
+    generateFeedback.value = err.response?.data?.message || 'Échec de la génération du budget.'
+    generateFeedbackIsError.value = true
+  } finally {
+    generating.value = false
+  }
+}
+
 const loadBudgets = async () => {
   try {
     const { data } = await axios.get('/api/v1/accounting/budgets')
@@ -124,4 +156,6 @@ const fmt = (n) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, ma
 .wh-table th { text-align: left; font-size: 11px; text-transform: uppercase; color: #6B7280; padding: 10px 12px; border-bottom: 1px solid #E5E7EB; background: #F9FAFB; }
 .wh-table td { padding: 10px 12px; border-bottom: 1px solid #E5E7EB; }
 .wh-loading-state, .wh-empty-state { text-align: center; padding: 40px; color: #9CA3AF; font-size: 13px; }
+.wh-generate-feedback { font-size: 13px; color: #059669; margin: -8px 0 16px; }
+.wh-generate-error { color: #DC2626; }
 </style>

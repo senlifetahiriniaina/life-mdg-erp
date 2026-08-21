@@ -227,6 +227,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::get('budgets/department-breakdown', [BudgetManagementController::class, 'departmentBreakdown']);
     Route::get('budgets/{budget}', [BudgetController::class, 'show']);
     Route::post('budgets', [BudgetManagementController::class, 'store']);
+    Route::post('budgets/generate-from-history', [BudgetManagementController::class, 'generateFromHistory']);
     Route::put('budgets/{budget}', [BudgetManagementController::class, 'update']);
     Route::delete('budgets/{budget}', [BudgetManagementController::class, 'destroy']);
     Route::post('budgets/{budget}/lines', [BudgetManagementController::class, 'createLine']);

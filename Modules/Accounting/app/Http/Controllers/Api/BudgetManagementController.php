@@ -7,9 +7,11 @@ namespace Modules\Accounting\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Modules\Accounting\Models\Budget;
 use Modules\Accounting\Models\BudgetLine;
 use Modules\Accounting\Models\BudgetScenario;
+use Modules\Accounting\Services\BudgetGenerationService;
 use Modules\Accounting\Services\BudgetService;
 use Modules\Accounting\Services\BudgetVarianceService;
 
@@ -22,8 +24,37 @@ class BudgetManagementController extends Controller
 {
     public function __construct(
         private BudgetService $budgetService,
-        private BudgetVarianceService $varianceService
+        private BudgetVarianceService $varianceService,
+        private BudgetGenerationService $generationService,
     ) {}
+
+    /**
+     * POST /budgets/generate-from-history — Chantier 26 (volet C).
+     * Génère un budget pour l'année/la période donnée à partir de la
+     * moyenne mensuelle réelle des 6 derniers mois (comptes classe 6/7),
+     * corrélé aux objectifs commerciaux globaux validés (Modules\Sales)
+     * qui couvrent la période demandée.
+     */
+    public function generateFromHistory(Request $request): JsonResponse
+    {
+        $this->authorize('create', Budget::class);
+
+        $validated = $request->validate([
+            'fiscal_year'  => 'required|integer|min:2000|max:2100',
+            'period_start' => 'nullable|date',
+            'period_end'   => 'nullable|date|after_or_equal:period_start',
+        ]);
+
+        $budget = $this->generationService->generateFromHistory(
+            companyId: (int) ($request->user()->company_id ?? 0),
+            fiscalYear: $validated['fiscal_year'],
+            periodStart: isset($validated['period_start']) ? Carbon::parse($validated['period_start']) : null,
+            periodEnd: isset($validated['period_end']) ? Carbon::parse($validated['period_end']) : null,
+            createdBy: $request->user()->id,
+        );
+
+        return response()->json(['data' => $budget->load('lines')], 201);
+    }
 
     /** GET /budgets/over-budget — Lines exceeding their budget amount. */
     public function overBudgetLines(Request $request): JsonResponse
