@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Analytics\Http\Controllers\Api\CashflowForecastExportController;
 use Modules\Analytics\Http\Controllers\Api\ForecastingController;
 use Modules\Analytics\Http\Controllers\MLModelController;
 use Modules\Analytics\Http\Controllers\PredictionController;
@@ -28,6 +29,8 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
     // Prévisions spécialisées
     Route::get('demand/{productId}', [ForecastingController::class, 'demandForecast']);
     Route::get('cashflow', [ForecastingController::class, 'cashflowForecast']);
+    Route::get('cashflow/export/pdf', [CashflowForecastExportController::class, 'pdf']);
+    Route::get('cashflow/export/excel', [CashflowForecastExportController::class, 'excel']);
     Route::get('hr/headcount', [ForecastingController::class, 'hrHeadcountForecast']);
     Route::get('hr/turnover-risk', [ForecastingController::class, 'turnoverRisk']);
     Route::get('production', [ForecastingController::class, 'productionForecast']);

@@ -15,17 +15,24 @@ use Modules\Analytics\Services\ForecastingEngineService;
  */
 class CashflowForecastService
 {
+    /**
+     * Nombre de jours d'historique utilisés pour estimer un flux quotidien
+     * moyen (encaissement/décaissement) hors factures/paie connues —
+     * 180 jours ≈ 6 mois, la base minimale demandée pour ce module.
+     */
+    private const TREASURY_LOOKBACK_DAYS = 180;
+
     public function __construct(private readonly ForecastingEngineService $engine) {}
 
     /**
-     * Prévision de trésorerie sur 90 jours.
+     * Prévision de trésorerie sur un horizon donné (90 jours par défaut).
      *
      * @return array{daily: array, summary: array, gaps: array, narrative: string}
      */
-    public function forecast90Days(int $tenantId): array
+    public function forecast90Days(int $tenantId, int $days = 90): array
     {
-        $projection = $this->getDailyProjection($tenantId, 90);
-        $gaps       = $this->detectGaps($tenantId);
+        $projection = $this->getDailyProjection($tenantId, $days);
+        $gaps       = $this->detectGaps($tenantId, days: $days);
         $ohada      = $this->getOhadaProjection($tenantId);
 
         $values          = array_column($projection, 'running_balance');
@@ -37,7 +44,7 @@ class CashflowForecastService
 
         return [
             'tenant_id'       => $tenantId,
-            'horizon_days'    => 90,
+            'horizon_days'    => $days,
             'daily'           => $projection,
             'gaps'            => $gaps,
             'ohada'           => $ohada,
@@ -51,7 +58,7 @@ class CashflowForecastService
                 'has_deficit'     => $minBalance < 0,
                 'currency'        => $this->getTenantCurrency($tenantId),
             ],
-            'narrative'       => $this->buildNarrative($projection, $gaps),
+            'narrative'       => $this->buildNarrative($projection, $gaps, $this->getTenantCurrency($tenantId)),
         ];
     }
 
@@ -73,15 +80,22 @@ class CashflowForecastService
         // Sorties prévues : factures fournisseurs à payer
         $expectedOutflows = $this->getExpectedOutflows($tenantId, $days);
 
+        // Flux quotidien moyen (hors factures/paie connues) — moyenne
+        // réelle sur les 6 derniers mois du grand livre, calculée une seule
+        // fois plutôt qu'à chaque itération de la boucle ci-dessous.
+        $avgDailyInflow  = $this->estimateDailyInflow($tenantId);
+        $avgDailyOutflow = $this->estimateDailyOutflow($tenantId);
+
         $projection = [];
         $balance    = $startBalance;
 
         for ($i = 1; $i <= $days; $i++) {
-            $date     = now()->addDays($i)->toDateString();
-            $inflow   = (float) ($expectedInflows[$date] ?? $this->estimateDailyInflow($tenantId));
-            $outflow  = (float) ($recurringOutflows[$date] ?? 0) + (float) ($expectedOutflows[$date] ?? 0);
-            $net      = $inflow - $outflow;
-            $balance += $net;
+            $date         = now()->addDays($i)->toDateString();
+            $inflow       = (float) ($expectedInflows[$date] ?? $avgDailyInflow);
+            $knownOutflow = (float) ($recurringOutflows[$date] ?? 0) + (float) ($expectedOutflows[$date] ?? 0);
+            $outflow      = $knownOutflow > 0 ? $knownOutflow : $avgDailyOutflow;
+            $net          = $inflow - $outflow;
+            $balance     += $net;
 
             $projection[] = [
                 'date'            => $date,
@@ -100,9 +114,9 @@ class CashflowForecastService
      *
      * @return array<int, array{start_date: string, end_date: string, min_balance: float, severity: string}>
      */
-    public function detectGaps(int $tenantId, float $threshold = 0): array
+    public function detectGaps(int $tenantId, float $threshold = 0, int $days = 90): array
     {
-        $projection = $this->getDailyProjection($tenantId, 90);
+        $projection = $this->getDailyProjection($tenantId, $days);
         $gaps       = [];
         $inGap      = false;
         $gapStart   = null;
@@ -152,22 +166,32 @@ class CashflowForecastService
      */
     public function getOhadaProjection(int $tenantId): array
     {
-        // acc_chart_of_accounts is the OHADA account-plan definition
-        // (code/name/type), not a ledger with balances — a real Classe 5
-        // balance needs journal-entry aggregation (see getCurrentBalance()).
-        // Lists the Classe 5 accounts themselves; balance defaults to 0
-        // rather than a column that was never defined.
-        $accounts = DB::table('acc_chart_of_accounts')
-            ->where('code', 'like', '5%')
-            ->select('code as account_code', 'name as account_name')
-            ->orderBy('code')
+        // Real per-account Classe 5 balance: LEFT JOIN so an account with
+        // zero movements so far still appears (at 0), matching the module's
+        // seeded chart (512 Banques, 514 CCP, 530 Caisse, 531 Mvola,
+        // 532 Airtel Money, 540 Régies) rather than only accounts already
+        // touched by a journal entry. acc_journal_entries has no
+        // tenant/company column (single shared ledger, same established
+        // precedent as OhadaReportService/JournalEntryApiController), so
+        // $tenantId is kept for signature compatibility but unused to filter.
+        $accounts = DB::table('acc_chart_of_accounts as coa')
+            ->leftJoin('acc_journal_entry_lines as jel', 'jel.account_id', '=', 'coa.id')
+            ->where('coa.code', 'like', '5%')
+            ->where('coa.type', 'asset')
+            ->selectRaw('coa.code as account_code, coa.name as account_name, COALESCE(SUM(jel.debit - jel.credit), 0) as balance')
+            ->groupBy('coa.id', 'coa.code', 'coa.name')
+            ->orderBy('coa.code')
             ->get()
-            ->map(fn ($a) => ['account_code' => $a->account_code, 'account_name' => $a->account_name, 'balance' => 0.0])
+            ->map(fn ($a) => [
+                'account_code' => $a->account_code,
+                'account_name' => $a->account_name,
+                'balance'      => round((float) $a->balance, 2),
+            ])
             ->toArray();
 
         return [
             'classe5'  => $accounts,
-            'total'    => 0.0,
+            'total'    => round(array_sum(array_column($accounts, 'balance')), 2),
             'currency' => $this->getTenantCurrency($tenantId),
             'label'    => 'Trésorerie OHADA (Classe 5)',
         ];
@@ -175,15 +199,32 @@ class CashflowForecastService
 
     // ─── Méthodes privées ─────────────────────────────────────────
 
+    /**
+     * Requête de base sur les lignes d'écriture touchant un compte de
+     * Trésorerie (Classe 5 OHADA — banques/caisse/mobile money), utilisée
+     * pour le solde courant et la moyenne des flux quotidiens.
+     */
+    private function treasuryLinesQuery(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('acc_journal_entry_lines as jel')
+            ->join('acc_journal_entries as je', 'je.id', '=', 'jel.entry_id')
+            ->join('acc_chart_of_accounts as coa', 'coa.id', '=', 'jel.account_id')
+            ->where('coa.code', 'like', '5%')
+            ->where('coa.type', 'asset');
+    }
+
     private function getCurrentBalance(int $tenantId): float
     {
-        // acc_chart_of_accounts is the OHADA account-plan definition
-        // (code/name/type) — it has no tenant_id and no balance column.
-        // Deriving a real Classe 5 balance needs journal-entry aggregation
-        // (GLEntry), which CLAUDE.md already tracks as incomplete backlog
-        // for this Accounting module. Degrades to 0 rather than querying a
-        // column that was never defined.
-        return 0.0;
+        // Real Classe 5 balance = débit − crédit cumulés sur les comptes de
+        // trésorerie du grand livre réel (acc_journal_entry_lines, posté
+        // pour de vrai depuis le Chantier 15 — import caisse/banque — et le
+        // Chantier 22 — écritures d'acompte/solde). Un débit augmente un
+        // compte d'actif comme la trésorerie.
+        $row = $this->treasuryLinesQuery()
+            ->selectRaw('COALESCE(SUM(jel.debit), 0) as total_debit, COALESCE(SUM(jel.credit), 0) as total_credit')
+            ->first();
+
+        return round((float) ($row->total_debit ?? 0) - (float) ($row->total_credit ?? 0), 2);
     }
 
     private function getExpectedInflows(int $tenantId, int $days): array
@@ -241,14 +282,38 @@ class CashflowForecastService
         return $outflows;
     }
 
+    /**
+     * Moyenne réelle des encaissements quotidiens des 6 derniers mois
+     * (débits sur les comptes de trésorerie), utilisée comme flux de
+     * repli pour un jour sans facture client échue connue.
+     */
     private function estimateDailyInflow(int $tenantId): float
     {
-        // accounting_transactions does not exist in this schema (invoicing
-        // is tracked via acc_invoices, already used in getExpectedInflows()).
-        // Falls back to 0 for dates with no invoice due, same "no data"
-        // degrade used elsewhere in this service rather than querying a
-        // table that was never created.
-        return 0.0;
+        return $this->averageDailyTreasuryMovement('debit');
+    }
+
+    /**
+     * Symétrique de estimateDailyInflow() côté sorties — moyenne réelle des
+     * décaissements quotidiens des 6 derniers mois (crédits sur les comptes
+     * de trésorerie), utilisée comme flux de repli pour un jour sans
+     * facture fournisseur échue ni paie connue.
+     */
+    private function estimateDailyOutflow(int $tenantId): float
+    {
+        return $this->averageDailyTreasuryMovement('credit');
+    }
+
+    private function averageDailyTreasuryMovement(string $column): float
+    {
+        $since = now()->subDays(self::TREASURY_LOOKBACK_DAYS);
+
+        $total = (float) $this->treasuryLinesQuery()
+            ->where('je.entry_date', '>=', $since)
+            ->sum("jel.{$column}");
+
+        $daysElapsed = max(1, (int) $since->diffInDays(now()));
+
+        return round($total / $daysElapsed, 2);
     }
 
     private function getTenantCurrency(int $tenantId): string
@@ -258,17 +323,17 @@ class CashflowForecastService
             ->value('currency') ?? 'XOF';
     }
 
-    private function buildNarrative(array $projection, array $gaps): string
+    private function buildNarrative(array $projection, array $gaps, string $currency): string
     {
         $values       = array_column($projection, 'running_balance');
         $finalBalance = count($values) > 0 ? end($values) : 0.0;
         $minBalance   = count($values) > 0 ? min($values) : 0.0;
 
-        $narrative = "Solde final estimé dans 90 jours : " . number_format($finalBalance, 0, ',', ' ') . " XOF. ";
+        $narrative = "Solde final estimé dans 90 jours : " . number_format($finalBalance, 0, ',', ' ') . " {$currency}. ";
 
         if (! empty($gaps)) {
             $narrative .= count($gaps) . " période(s) de déficit détectée(s). ";
-            $narrative .= "Solde minimum : " . number_format($minBalance, 0, ',', ' ') . " XOF. ";
+            $narrative .= "Solde minimum : " . number_format($minBalance, 0, ',', ' ') . " {$currency}. ";
             $narrative .= "Recommandation : prévoir une ligne de crédit ou accélérer les encaissements.";
         } else {
             $narrative .= "Aucun déficit de trésorerie prévu sur la période.";

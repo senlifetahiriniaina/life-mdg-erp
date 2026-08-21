@@ -37,19 +37,29 @@ class ForecastModel extends Model
 
     // ─── Relations ────────────────────────────────────────────────
 
+    /**
+     * Chantier 26: the real migrated FK column on all three of
+     * forecast_predictions/forecast_alerts/forecast_scenarios is
+     * `forecast_model_id` (NOT NULL, from each table's original create
+     * migration) — these relations pointed at `model_id`/`base_model_id`,
+     * columns a later additive patch migration bolted on nullable and
+     * unused, never the real FK. ForecastPrediction/ForecastAlert/
+     * ForecastScenario's own belongsTo() already correctly use
+     * `forecast_model_id`; these hasMany() relations now match.
+     */
     public function predictions(): HasMany
     {
-        return $this->hasMany(ForecastPrediction::class, 'model_id');
+        return $this->hasMany(ForecastPrediction::class, 'forecast_model_id');
     }
 
     public function alerts(): HasMany
     {
-        return $this->hasMany(ForecastAlert::class, 'model_id');
+        return $this->hasMany(ForecastAlert::class, 'forecast_model_id');
     }
 
     public function scenarios(): HasMany
     {
-        return $this->hasMany(ForecastScenario::class, 'base_model_id');
+        return $this->hasMany(ForecastScenario::class, 'forecast_model_id');
     }
 
     // ─── Scopes ───────────────────────────────────────────────────

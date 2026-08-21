@@ -243,10 +243,13 @@ class ForecastingController extends Controller
 
     /**
      * GET /api/v1/forecasting/cashflow
+     * Query: ?days=30|60|90|180 (défaut 90)
      */
     public function cashflowForecast(Request $request): JsonResponse
     {
-        $result = $this->cashflowService->forecast90Days($this->tenantId($request));
+        $days   = (int) $request->input('days', 90);
+        $days   = in_array($days, [30, 60, 90, 180], true) ? $days : 90;
+        $result = $this->cashflowService->forecast90Days($this->tenantId($request), $days);
 
         return response()->json($result);
     }

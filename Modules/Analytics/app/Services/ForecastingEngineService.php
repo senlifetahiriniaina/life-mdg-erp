@@ -57,8 +57,18 @@ class ForecastingEngineService
             ->where('so.tenant_id', $tenantId)
             ->when($entityType === 'product', fn ($q) => $q->where('sol.product_id', $entityId))
             ->where('so.created_at', '>=', now()->subYear())
-            ->groupBy('date')
-            ->orderBy('date')
+            // Chantier 26: GROUP BY/ORDER BY a bare SELECT-list alias
+            // ('date') is ambiguous on SQLite (this app's dev/test/CI
+            // driver) — since no source table has a real column literally
+            // named "date", SQLite's documented double-quoted-identifier
+            // compatibility quirk falls back to treating it as the STRING
+            // LITERAL 'date', silently collapsing every row into one group
+            // instead of one per real date. Confirmed empirically (2 rows
+            // spanning 2 real dates collapsed into 1). groupByRaw/
+            // orderByRaw on the real DATE(...) expression avoids the
+            // alias entirely and works identically on MySQL.
+            ->groupByRaw('DATE(so.created_at)')
+            ->orderByRaw('DATE(so.created_at)')
             ->get();
 
         return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
@@ -66,12 +76,25 @@ class ForecastingEngineService
 
     private function collectCashflowData(int $tenantId): array
     {
-        $rows = DB::table('accounting_transactions')
-            ->selectRaw('DATE(transaction_date) as date, SUM(CASE WHEN type = \'income\' THEN amount ELSE -amount END) as value')
-            ->where('tenant_id', $tenantId)
-            ->where('transaction_date', '>=', now()->subYear())
-            ->groupBy('date')
-            ->orderBy('date')
+        // accounting_transactions never existed in this schema — real cash
+        // movements live on the actual double-entry ledger
+        // (acc_journal_entry_lines/acc_journal_entries, posted for real
+        // since Chantier 15's treasury import and Chantier 22's
+        // deposit/balance postings). Classe 5 Trésorerie accounts only
+        // (banques/caisse/mobile money), matching
+        // CashflowForecastService::treasuryLinesQuery()'s own filter. That
+        // ledger has no tenant/company column (single shared ledger,
+        // established precedent — OhadaReportService), so $tenantId is kept
+        // for signature compatibility but unused to filter.
+        $rows = DB::table('acc_journal_entry_lines as jel')
+            ->join('acc_journal_entries as je', 'je.id', '=', 'jel.entry_id')
+            ->join('acc_chart_of_accounts as coa', 'coa.id', '=', 'jel.account_id')
+            ->where('coa.code', 'like', '5%')
+            ->where('coa.type', 'asset')
+            ->where('je.entry_date', '>=', now()->subYear())
+            ->selectRaw('DATE(je.entry_date) as date, SUM(jel.debit - jel.credit) as value')
+            ->groupByRaw('DATE(je.entry_date)')
+            ->orderByRaw('DATE(je.entry_date)')
             ->get();
 
         return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
@@ -97,8 +120,11 @@ class ForecastingEngineService
             ->where('tenant_id', $tenantId)
             ->whereNotNull('completed_at')
             ->where('completed_at', '>=', now()->subYear())
-            ->groupBy('date')
-            ->orderBy('date')
+            // Same SQLite GROUP-BY-alias-collapses-to-literal bug fixed
+            // above for collectDemandData()/collectCashflowData() — see
+            // that comment for the full explanation.
+            ->groupByRaw('DATE(completed_at)')
+            ->orderByRaw('DATE(completed_at)')
             ->get();
 
         return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
@@ -111,8 +137,8 @@ class ForecastingEngineService
             ->where('tenant_id', $tenantId)
             ->where('status', 'confirmed')
             ->where('created_at', '>=', now()->subYear())
-            ->groupBy('date')
-            ->orderBy('date')
+            ->groupByRaw('DATE(created_at)')
+            ->orderByRaw('DATE(created_at)')
             ->get();
 
         return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
@@ -125,8 +151,8 @@ class ForecastingEngineService
             ->where('tenant_id', $tenantId)
             ->where('product_id', $productId)
             ->where('created_at', '>=', now()->subYear())
-            ->groupBy('date')
-            ->orderBy('date')
+            ->groupByRaw('DATE(created_at)')
+            ->orderByRaw('DATE(created_at)')
             ->get();
 
         return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
@@ -490,7 +516,7 @@ USER;
      *
      * @return array<int, array{date: string, value: float, lower: float, upper: float}>
      */
-    public function predict(ForecastModel $model, int $horizonDays = null): array
+    public function predict(ForecastModel $model, ?int $horizonDays = null): array
     {
         $horizon = $horizonDays ?? $model->horizon_days;
         $data    = $this->collectHistoricalData(
@@ -1070,13 +1096,17 @@ USER;
 
     private function storePredictions(ForecastModel $model, array $predictions): void
     {
-        // Supprimer les prévisions futures existantes
-        ForecastPrediction::where('model_id', $model->id)
+        // Supprimer les prévisions futures existantes. forecast_model_id is
+        // the real NOT NULL FK column (see ForecastPrediction::model()'s
+        // own comment) — this insert previously wrote the dead 'model_id'
+        // column instead, guaranteeing a NOT NULL constraint violation the
+        // moment a real forecast had ≥1 prediction row to store.
+        ForecastPrediction::where('forecast_model_id', $model->id)
             ->where('forecast_date', '>', now()->toDateString())
             ->delete();
 
         $rows = array_map(fn ($p) => [
-            'model_id'              => $model->id,
+            'forecast_model_id'     => $model->id,
             'tenant_id'             => $model->tenant_id,
             'forecast_date'         => $p['date'],
             'predicted_value'       => $p['value'],

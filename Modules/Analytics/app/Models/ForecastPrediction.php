@@ -15,7 +15,7 @@ class ForecastPrediction extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'model_id',
+        'forecast_model_id',
         'tenant_id',
         'forecast_date',
         'predicted_value',
@@ -43,7 +43,11 @@ class ForecastPrediction extends Model
 
     public function model(): BelongsTo
     {
-        return $this->belongsTo(ForecastModel::class, 'model_id');
+        // forecast_model_id is the real NOT NULL FK column (from this
+        // table's original migration) — 'model_id' (this table's own
+        // separate nullable column) was never it; see ForecastModel's
+        // predictions()/alerts()/scenarios() relations for the sibling fix.
+        return $this->belongsTo(ForecastModel::class, 'forecast_model_id');
     }
 
     // ─── Helpers ──────────────────────────────────────────────────

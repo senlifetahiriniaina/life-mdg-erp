@@ -16,7 +16,7 @@ class ForecastPredictionFactory extends Factory
     public function definition(): array
     {
         return [
-            'model_id' => ForecastModel::factory(),
+            'forecast_model_id' => ForecastModel::factory(),
             'tenant_id' => fake()->numberBetween(1, 100),
             'forecast_date' => fake()->dateTimeBetween('-30 days', '+90 days')->format('Y-m-d'),
             'predicted_value' => fake()->randomFloat(4, 0, 100000),
