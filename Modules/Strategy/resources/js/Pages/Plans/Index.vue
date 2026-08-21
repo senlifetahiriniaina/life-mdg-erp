@@ -11,6 +11,8 @@
         <Link href="/strategy" class="wh-btn wh-btn-secondary">← Cockpit</Link>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div v-if="!plans.data.length" class="wh-empty-state">Aucun plan stratégique trouvé.</div>
 
       <div v-else class="wh-plan-grid">
@@ -57,6 +59,10 @@
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import ProgressBar from 'primevue/progressbar'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_plans')
 
 defineProps({
   plans: {

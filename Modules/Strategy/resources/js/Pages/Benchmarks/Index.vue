@@ -11,6 +11,8 @@
         </div>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div class="wh-card">
         <form class="wh-filters" @submit.prevent="applyFilters">
           <input v-model="form.country" class="wh-input" placeholder="Pays (ex: WW, MG, SN...)" />
@@ -62,6 +64,10 @@
 import { ref } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_benchmarks')
 
 const props = defineProps({
   benchmarks: { type: Array, default: () => [] },

@@ -21,6 +21,8 @@
         />
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <!-- Step 1: warehouse + file -->
       <div class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6 space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -168,6 +170,10 @@ import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import InputNumber from 'primevue/inputnumber'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Inventory', 'import_stock')
 
 interface Warehouse {
   id: number

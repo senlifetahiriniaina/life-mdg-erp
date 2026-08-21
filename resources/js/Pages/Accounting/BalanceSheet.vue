@@ -23,6 +23,8 @@
       </div>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Filters -->
     <div class="wh-panel" style="padding:12px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
       <div style="display:flex;flex-direction:column;gap:4px">
@@ -105,6 +107,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Accounting', 'view_balance_sheet')
 
 const loading = ref(false)
 const exporting = ref(false)

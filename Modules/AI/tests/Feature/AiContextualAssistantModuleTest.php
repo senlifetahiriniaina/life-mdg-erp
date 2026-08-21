@@ -162,7 +162,9 @@ test('Accounting module has 4 actions including ohada_report', function () {
     $service = new AiContextualAssistantService();
     $modules = $service->supportedModules();
 
-    expect($modules['Accounting'])->toHaveCount(7)
+    // Chantier 30 added 'import_treasury' (bulk cash/bank import assist)
+    // and 'view_income_statement' (the IncomeStatement.vue export page).
+    expect($modules['Accounting'])->toHaveCount(9)
         ->toContain('ohada_report');
 });
 

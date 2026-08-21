@@ -15,6 +15,8 @@
         </div>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <!-- Plan meta -->
       <div class="wh-card">
         <div class="wh-meta-grid">
@@ -65,6 +67,10 @@ import { computed, h } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import ProgressBar from 'primevue/progressbar'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_plan_detail')
 
 const props = defineProps({
   plan: { type: Object, required: true },

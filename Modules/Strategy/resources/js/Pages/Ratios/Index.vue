@@ -15,6 +15,8 @@
         </select>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div v-for="(moduleRatios, module) in displayedRatios" :key="module" class="wh-card">
         <h2 class="wh-card-title">{{ module }}</h2>
         <div class="wh-ratio-list">
@@ -71,6 +73,10 @@
 import { ref, computed } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_ratios')
 
 const props = defineProps({
   ratios: { type: Object, default: () => ({}) },

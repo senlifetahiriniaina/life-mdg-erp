@@ -74,9 +74,12 @@ class AiContextualAssistantService
     {
         return [
             'CRM'                 => ['create_contact', 'view_dashboard', 'create_opportunity'],
-            'Accounting'          => ['post_invoice', 'reconcile', 'view_balance_sheet', 'ohada_report', 'invoice_approval', 'view_payment_schedule', 'cost_analysis'],
+            // 'view_income_statement'/'import_treasury' added Chantier 30 (bulk
+            // treasury/cash import assistance, IncomeStatement.vue AI panel).
+            'Accounting'          => ['post_invoice', 'reconcile', 'view_balance_sheet', 'view_income_statement', 'ohada_report', 'invoice_approval', 'view_payment_schedule', 'cost_analysis', 'import_treasury'],
             'HR'                  => ['create_employee', 'approve_leave', 'run_payroll', 'onboarding'],
-            'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert'],
+            // 'import_stock' added Chantier 30 (bulk stock import assistance).
+            'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock'],
             'Sales'               => ['create_order', 'confirm_order', 'create_quotation'],
             'POS'                 => ['open_session', 'process_payment', 'close_session'],
             'Setup'               => ['import_file', 'map_columns', 'execute_import'],
@@ -107,6 +110,13 @@ class AiContextualAssistantService
             'AuditLog'         => ['view_audit_log', 'export_audit', 'filter_events'],
             'Settings'         => ['configure_settings', 'manage_integrations', 'notification_preferences'],
             'Shared'           => ['view_dashboard'],
+            // Chantier 30: 'Strategy' was called from 2 real pages (Index.vue,
+            // Cascade/Index.vue via useAiAssistant('Strategy', ...)) but was
+            // never registered here and had zero fallback map entries — every
+            // call silently resolved to emptyGuidance() (enabled:false, every
+            // field blank) instead of real guidance text, and the other 7
+            // Strategy pages had no AI assistant call at all. Both fixed.
+            'Strategy'         => ['view_dashboard', 'view_cascade_map', 'view_ratios', 'view_plans', 'view_plan_detail', 'view_benchmarks', 'view_correlations', 'view_objectives', 'view_sector_kpi'],
         ];
     }
 
@@ -227,7 +237,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -2143,7 +2153,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -4681,6 +4691,396 @@ PROMPT;
                 'decision_indicators' => [],
                 'warnings'            => [],
                 'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 30 — closes 2 real gaps found while confirming the AI-assist
+     * layer: (1) 'Strategy' was never registered here at all despite 2 real
+     * pages already calling useAiAssistant('Strategy', ...), and 7 more
+     * Strategy pages had no AI-assist call whatsoever; (2) the two real
+     * bulk-data-import flows outside Setup (Inventory's Stock/Import.vue —
+     * Chantier 16 — and Accounting's TreasuryImport/Index.vue — Chantier 15)
+     * had no contextual guidance either, unlike Setup's own import wizard.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function frenchMapChantier30(): array
+    {
+        return [
+            'Strategy.view_dashboard' => [
+                'what_to_do'          => 'Consultez le cockpit stratégique : santé des ratios, plans, alertes, OKR et recommandations IA.',
+                'how_to_do'           => [
+                    'Repérez les ratios en statut critique (rouge) en priorité.',
+                    'Consultez les recommandations IA et les corrélations associées.',
+                    'Exportez un rapport de pilotage complet (PDF ou Excel) avant un comité de direction.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Ratios en alerte', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir tous les ratios', 'action' => 'view_ratios', 'module' => 'Strategy'],
+                    ['label' => 'Voir les OKR', 'action' => 'view_objectives', 'module' => 'Strategy'],
+                ],
+                'tips'                => [
+                    'Le mode hors-ligne (badge gris) signifie que les recommandations viennent du calcul local, pas de l\'IA en direct — toujours basées sur vos vraies données.',
+                ],
+            ],
+            'Strategy.view_cascade_map' => [
+                'what_to_do'          => 'Vérifiez l\'alignement entre les objectifs d\'entreprise et les objectifs opérationnels de chaque équipe.',
+                'how_to_do'           => [
+                    'Repérez un objectif opérationnel non relié à un objectif d\'entreprise.',
+                    'Reliez-le depuis l\'écran Objectifs.',
+                    'Suivez la progression cumulée par niveau.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Gérer les OKR', 'action' => 'view_objectives', 'module' => 'Strategy'],
+                ],
+                'tips'                => [
+                    'Un objectif orphelin (non relié) ne remonte dans aucun indicateur de cockpit.',
+                ],
+            ],
+            'Strategy.view_ratios' => [
+                'what_to_do'          => 'Comparez chaque ratio de pilotage à son repère de secteur (P25/Médiane/P75).',
+                'how_to_do'           => [
+                    'Repérez les ratios sous le P25 (en dessous du secteur).',
+                    'Consultez la tendance (sparkline) pour distinguer une dérive d\'un accident ponctuel.',
+                    'Filtrez par module (finance, commercial, stock, RH, ventes, support) pour cibler une équipe.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les benchmarks détaillés', 'action' => 'view_benchmarks', 'module' => 'Strategy'],
+                ],
+                'tips'                => [
+                    'Plus de 30 ratios couvrent tous les métiers — inutile de tous les surveiller en continu, concentrez-vous sur ceux en alerte.',
+                ],
+            ],
+            'Strategy.view_plans' => [
+                'what_to_do'          => 'Suivez l\'avancement de vos plans stratégiques et leur score de santé.',
+                'how_to_do'           => [
+                    'Identifiez le plan avec le score de santé le plus bas.',
+                    'Ouvrez son détail pour voir l\'arborescence Objectifs → Résultats clés.',
+                    'Dupliquez un plan existant pour démarrer le cycle suivant.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les OKR liés', 'action' => 'view_objectives', 'module' => 'Strategy'],
+                ],
+                'tips'                => [],
+            ],
+            'Strategy.view_plan_detail' => [
+                'what_to_do'          => 'Explorez l\'arborescence complète de ce plan : objectifs, résultats clés et progression.',
+                'how_to_do'           => [
+                    'Développez chaque objectif pour voir ses résultats clés.',
+                    'Vérifiez que chaque résultat clé est bien relié à un ratio réel.',
+                    'Mettez à jour la progression dès qu\'une donnée change.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Strategy.view_benchmarks' => [
+                'what_to_do'          => 'Comparez la performance de l\'entreprise aux repères de référence du secteur pour chaque ratio.',
+                'how_to_do'           => [
+                    'Filtrez par pays ou par secteur si plusieurs repères sont disponibles.',
+                    'Repérez les ratios sous le P25 en priorité.',
+                    'Croisez avec l\'écran Corrélations pour comprendre les causes possibles.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les corrélations', 'action' => 'view_correlations', 'module' => 'Strategy'],
+                ],
+                'tips'                => [],
+            ],
+            'Strategy.view_correlations' => [
+                'what_to_do'          => 'Identifiez les liens statistiques entre vos indicateurs pour prioriser les actions à fort effet de levier.',
+                'how_to_do'           => [
+                    'Repérez les corrélations les plus fortes (proches de 1 ou -1).',
+                    'Lisez l\'interprétation automatique associée à chaque paire d\'indicateurs.',
+                    'Utilisez la matrice complète pour explorer des liens moins évidents.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une corrélation ne prouve pas une causalité — croisez toujours avec votre connaissance métier.',
+                ],
+            ],
+            'Strategy.view_objectives' => [
+                'what_to_do'          => 'Gérez l\'arborescence Objectifs → Résultats clés et reliez-la aux ratios de pilotage réels.',
+                'how_to_do'           => [
+                    'Créez un objectif rattaché à un plan stratégique.',
+                    'Ajoutez ses résultats clés mesurables.',
+                    'Reliez chaque résultat clé à un ratio réel pour un suivi automatique.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir la carte de cascade', 'action' => 'view_cascade_map', 'module' => 'Strategy'],
+                ],
+                'tips'                => [],
+            ],
+            'Strategy.view_sector_kpi' => [
+                'what_to_do'          => 'Consultez les indicateurs propres au métier de la confection : marge, coût de revient, délais de sous-traitance.',
+                'how_to_do'           => [
+                    'Comparez la marge moyenne par famille de produit.',
+                    'Repérez les sous-traitants avec un taux de respect des délais faible.',
+                    'Surveillez l\'écart entre le coût matière chiffré et les prix réellement observés chez les fournisseurs.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Ces indicateurs sont calculés en direct sur vos fiches de chiffrage et commandes de production réelles — aucun chiffre n\'est inventé.',
+                ],
+            ],
+            'Inventory.import_stock' => [
+                'what_to_do'          => 'Importez en masse des mouvements de stock (entrée/sortie) depuis un fichier CSV ou Excel.',
+                'how_to_do'           => [
+                    'Choisissez l\'entrepôt concerné et déposez le fichier.',
+                    'Vérifiez la prévisualisation ligne par ligne — chaque produit est identifié par SKU ou par nom.',
+                    'Validez : tout produit du fichier absent du catalogue est créé automatiquement.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Un stock insuffisant sur une seule ligne annule tout le lot importé — corrigez la ligne concernée et réessayez.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Réceptionner du stock', 'action' => 'receive_stock', 'module' => 'Inventory'],
+                ],
+                'tips'                => [
+                    'Utile pour reprendre un stock existant tenu jusqu\'ici sur un tableur.',
+                ],
+            ],
+            'Accounting.import_treasury' => [
+                'what_to_do'          => 'Importez en masse des opérations de caisse ou de relevé bancaire, avec suggestion automatique du modèle comptable.',
+                'how_to_do'           => [
+                    'Choisissez le compte de trésorerie (caisse, banque, Mvola, Airtel Money) et déposez le fichier CSV ou Excel.',
+                    'Vérifiez la suggestion de modèle comptable proposée pour chaque ligne — modifiez-la si besoin.',
+                    'Validez : une écriture comptable équilibrée est créée pour chaque ligne.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Rapprochement bancaire', 'action' => 'reconcile', 'module' => 'Accounting'],
+                ],
+                'tips'                => [
+                    'Une ligne liée à un compte bancaire est automatiquement pré-rapprochée sur l\'écran de rapprochement.',
+                ],
+            ],
+            'Accounting.view_income_statement' => [
+                'what_to_do'          => 'Consultez le compte de résultat pour suivre chiffre d\'affaires, marge et résultat net.',
+                'how_to_do'           => [
+                    'Sélectionnez la période de référence.',
+                    'Comparez avec la période précédente pour repérer une dérive.',
+                    'Exportez en PDF ou Excel pour le commissaire aux comptes ou un comité de direction.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Résultat net', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir le bilan', 'action' => 'view_balance_sheet', 'module' => 'Accounting'],
+                ],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function englishMapChantier30(): array
+    {
+        return [
+            'Strategy.view_dashboard' => [
+                'what_to_do'          => 'Review the strategy cockpit: ratio health, plans, alerts, OKRs and AI recommendations.',
+                'how_to_do'           => [
+                    'Look at ratios in critical (red) status first.',
+                    'Review AI recommendations and their related correlations.',
+                    'Export a full executive report (PDF or Excel) ahead of a leadership meeting.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Ratios in alert', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View all ratios', 'action' => 'view_ratios', 'module' => 'Strategy'],
+                    ['label' => 'View OKRs', 'action' => 'view_objectives', 'module' => 'Strategy'],
+                ],
+                'tips'                => [
+                    'The offline badge (grey) means recommendations come from the local calculation, not live AI — still based on your real data.',
+                ],
+            ],
+            'Strategy.view_cascade_map' => [
+                'what_to_do'          => 'Check the alignment between company objectives and each team\'s operational objectives.',
+                'how_to_do'           => [
+                    'Spot an operational objective not linked to a company objective.',
+                    'Link it from the Objectives screen.',
+                    'Track cumulative progress by level.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Manage OKRs', 'action' => 'view_objectives', 'module' => 'Strategy'],
+                ],
+                'tips'                => [
+                    'An orphaned (unlinked) objective doesn\'t roll up into any cockpit indicator.',
+                ],
+            ],
+            'Strategy.view_ratios' => [
+                'what_to_do'          => 'Compare each steering ratio against its industry benchmark (P25/Median/P75).',
+                'how_to_do'           => [
+                    'Spot ratios below P25 (below the industry).',
+                    'Check the trend sparkline to tell a drift from a one-off incident.',
+                    'Filter by module (finance, sales, stock, HR, support) to target one team.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View detailed benchmarks', 'action' => 'view_benchmarks', 'module' => 'Strategy'],
+                ],
+                'tips'                => [
+                    'Over 30 ratios cover every function — no need to watch them all continuously, focus on the ones in alert.',
+                ],
+            ],
+            'Strategy.view_plans' => [
+                'what_to_do'          => 'Track the progress of your strategic plans and their health score.',
+                'how_to_do'           => [
+                    'Identify the plan with the lowest health score.',
+                    'Open its detail to see the Objectives → Key Results tree.',
+                    'Duplicate an existing plan to start the next cycle.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View linked OKRs', 'action' => 'view_objectives', 'module' => 'Strategy'],
+                ],
+                'tips'                => [],
+            ],
+            'Strategy.view_plan_detail' => [
+                'what_to_do'          => 'Explore the full tree for this plan: objectives, key results and progress.',
+                'how_to_do'           => [
+                    'Expand each objective to see its key results.',
+                    'Confirm each key result is genuinely linked to a real ratio.',
+                    'Update progress as soon as new data comes in.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'Strategy.view_benchmarks' => [
+                'what_to_do'          => 'Compare company performance against industry benchmarks for each ratio.',
+                'how_to_do'           => [
+                    'Filter by country or industry when several benchmarks are available.',
+                    'Spot ratios below P25 first.',
+                    'Cross-check with the Correlations screen to understand possible causes.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View correlations', 'action' => 'view_correlations', 'module' => 'Strategy'],
+                ],
+                'tips'                => [],
+            ],
+            'Strategy.view_correlations' => [
+                'what_to_do'          => 'Identify statistical links between your indicators to prioritize high-leverage actions.',
+                'how_to_do'           => [
+                    'Spot the strongest correlations (close to 1 or -1).',
+                    'Read the automatic interpretation for each indicator pair.',
+                    'Use the full matrix to explore less obvious links.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A correlation doesn\'t prove causation — always cross-check with your business knowledge.',
+                ],
+            ],
+            'Strategy.view_objectives' => [
+                'what_to_do'          => 'Manage the Objectives → Key Results tree and link it to real steering ratios.',
+                'how_to_do'           => [
+                    'Create an objective attached to a strategic plan.',
+                    'Add its measurable key results.',
+                    'Link each key result to a real ratio for automatic tracking.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View the cascade map', 'action' => 'view_cascade_map', 'module' => 'Strategy'],
+                ],
+                'tips'                => [],
+            ],
+            'Strategy.view_sector_kpi' => [
+                'what_to_do'          => 'Review the KPIs specific to the apparel/PPE business: margin, cost of goods, subcontracting lead times.',
+                'how_to_do'           => [
+                    'Compare average margin by product family.',
+                    'Spot subcontractors with a low on-time rate.',
+                    'Watch the gap between the costed material price and prices actually observed at suppliers.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'These indicators are computed live from your real costing sheets and production orders — nothing is invented.',
+                ],
+            ],
+            'Inventory.import_stock' => [
+                'what_to_do'          => 'Bulk-import stock movements (in/out) from a CSV or Excel file.',
+                'how_to_do'           => [
+                    'Pick the warehouse and drop the file.',
+                    'Review the row-by-row preview — each product is matched by SKU or name.',
+                    'Confirm: any product in the file not yet in the catalogue is created automatically.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Insufficient stock on a single line cancels the whole batch — fix that line and retry.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Receive stock', 'action' => 'receive_stock', 'module' => 'Inventory'],
+                ],
+                'tips'                => [
+                    'Useful for taking over stock previously tracked in a spreadsheet.',
+                ],
+            ],
+            'Accounting.import_treasury' => [
+                'what_to_do'          => 'Bulk-import cash register or bank statement operations, with an automatic accounting template suggestion.',
+                'how_to_do'           => [
+                    'Pick the treasury account (cash, bank, Mvola, Airtel Money) and drop the CSV or Excel file.',
+                    'Review the suggested accounting template for each row — adjust if needed.',
+                    'Confirm: a balanced accounting entry is created for each row.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Bank reconciliation', 'action' => 'reconcile', 'module' => 'Accounting'],
+                ],
+                'tips'                => [
+                    'A row linked to a bank account is automatically pre-matched on the reconciliation screen.',
+                ],
+            ],
+            'Accounting.view_income_statement' => [
+                'what_to_do'          => 'Review the income statement to track revenue, margin and net result.',
+                'how_to_do'           => [
+                    'Select the reference period.',
+                    'Compare with the previous period to spot a drift.',
+                    'Export as PDF or Excel for the auditor or a leadership meeting.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Net result', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View balance sheet', 'action' => 'view_balance_sheet', 'module' => 'Accounting'],
+                ],
                 'tips'                => [],
             ],
         ];

@@ -11,6 +11,8 @@
         </div>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div class="wh-columns">
         <div class="wh-card">
           <h2 class="wh-card-title wh-card-title-pos">Corrélations positives</h2>
@@ -90,6 +92,10 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_correlations')
 
 defineProps({
   matrix: { type: Object, default: () => ({ positive: [], negative: [], all: [] }) },

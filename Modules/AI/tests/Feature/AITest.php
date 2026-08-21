@@ -75,8 +75,10 @@ test('supportedModules returns array with 7 modules', function () {
     $service  = new AiContextualAssistantService();
     $modules  = $service->supportedModules();
 
-    expect($modules)->toBeArray()->toHaveCount(33);
-    expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup');
+    // Chantier 30 added 'Strategy' (previously called from 2 real Vue pages
+    // but never registered here — see AiContextualAssistantService.php).
+    expect($modules)->toBeArray()->toHaveCount(34);
+    expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup', 'Strategy');
 });
 
 test('fallback guidance covers all supported module and action pairs', function () {

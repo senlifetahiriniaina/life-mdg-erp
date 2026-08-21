@@ -14,6 +14,8 @@
         </select>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div class="wh-content">
         <!-- OKR tree -->
         <div class="wh-card wh-tree-card">
@@ -88,6 +90,10 @@ import { ref, h } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_objectives')
 
 const props = defineProps({
   plans: { type: Array, default: () => [] },

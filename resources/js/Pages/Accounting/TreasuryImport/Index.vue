@@ -12,6 +12,8 @@
       </div>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- STEP 1: choose treasury account + upload -->
     <div v-if="rows.length === 0" class="wh-panel" style="padding: 24px; max-width: 640px">
       <h3 style="margin-top: 0">1. Compte de trésorerie</h3>
@@ -123,6 +125,10 @@ import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { Button, Dropdown, DataTable, Column, Tag, Checkbox } from 'primevue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Accounting', 'import_treasury')
 
 interface OperationTemplate {
   code: string

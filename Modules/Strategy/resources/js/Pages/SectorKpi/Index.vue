@@ -11,6 +11,8 @@
         </div>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div class="wh-card">
         <h2 class="wh-card-title">Marge moyenne sur coût de revient</h2>
         <div v-if="margin.overall.sheet_count === 0" class="wh-empty-state">Aucune fiche de chiffrage chiffrée/approuvée pour l'instant.</div>
@@ -109,6 +111,10 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Strategy', 'view_sector_kpi')
 
 defineProps({
   margin: { type: Object, required: true },
