@@ -240,3 +240,33 @@ describe('Helpdesk ticket + comment notifications', function () {
         expect(array_count_values($assigneeTitles)['Nouveau commentaire sur un ticket'] ?? 0)->toBe(1);
     });
 });
+
+// Chantier 31 — found empirically while re-auditing the invoice approval
+// chain: NotificationService::sendToUser() used to json_encode() the
+// payload by hand before assigning it to the model's 'data' attribute,
+// which DatabaseNotification::$casts already declares as an 'array' cast —
+// so Eloquent's own outbound json_encode() wrapped the already-encoded
+// string a second time on every real write. The `is_string()` double-decode
+// in unreadTitlesFor()/NotificationBell.vue masked this from ever
+// surfacing as a visible bug, but the raw DB column — and therefore any
+// consumer that doesn't defensively double-decode — was corrupted.
+test('sendToUser() stores data single-encoded, not double-encoded', function () {
+    $user = User::factory()->create();
+
+    app(App\Services\NotificationService::class)
+        ->sendToUser($user, 'Titre', 'Corps', ['type' => 'info', 'foo' => 'bar']);
+
+    $raw = \Illuminate\Support\Facades\DB::table('notifications')
+        ->where('notifiable_id', $user->id)
+        ->value('data');
+
+    // A single json_encode() of the payload decodes straight to an array —
+    // if it were double-encoded, decoding once would yield a string, not
+    // an array (which is exactly what the pre-fix bug produced).
+    expect(json_decode($raw, true))->toBeArray()
+        ->toMatchArray(['title' => 'Titre', 'body' => 'Corps']);
+
+    $notification = $user->notifications()->first();
+    expect($notification->data)->toBeArray()
+        ->toMatchArray(['title' => 'Titre', 'body' => 'Corps']);
+});

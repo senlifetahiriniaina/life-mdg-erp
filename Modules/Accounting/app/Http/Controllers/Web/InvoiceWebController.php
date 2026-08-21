@@ -6,6 +6,7 @@ namespace Modules\Accounting\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Accounting\Models\Invoice;
@@ -110,14 +111,45 @@ class InvoiceWebController extends Controller
         $level = $this->approvalService->getApprovalLevel((float) $invoice->total);
         $user = request()->user();
 
+        // Chantier 31: this web page had zero role/policy gate of any
+        // kind — `routes/web.php`'s whole group is only `auth`, matching
+        // this module's established convention of leaning on the outer
+        // route-level `role:` gate the sibling API routes carry, which
+        // this web route never had either. Confirmed empirically: any
+        // authenticated user, including one holding no accounting-related
+        // role at all, could open this page and read the full approval
+        // chain (amounts, approver names, comments) for any invoice.
+        // Fixed by authorizing against the real ApprovalRequest via the
+        // same ApprovalRequestPolicy::view() used by the JSON API's
+        // index() (requester, assigned approver, or admin/manager) —
+        // matching the case where no request exists yet (nothing sensitive
+        // to gate) left open, same as the API.
+        $existingRequest = $this->approvalService->findLatestRequest($invoice);
+        if ($existingRequest) {
+            abort_unless($user && Gate::forUser($user)->allows('view', $existingRequest), 403);
+        }
+
+        // Chantier 31: `can_approve` used to only check the broad outer
+        // route-gate role list (accountant/finance-manager/manager/admin),
+        // the same over-permissive check the real approve()/reject() API
+        // endpoints have now been fixed to reject — showing the button to
+        // every accounting-role user regardless of whether they're the
+        // actually-assigned approver, then letting a real 403 surface as a
+        // confusing generic error on click. Now mirrors the real backend
+        // check (ApprovalRequestPolicy::approve(), via the real
+        // ApprovalRequest when one exists) so the button only appears when
+        // the click would actually succeed.
+        $canApprove = $existingRequest
+            ? ($user && Gate::forUser($user)->allows('approve', $existingRequest))
+            : false;
+
         return Inertia::render('Accounting/InvoiceApproval/Show', [
             'invoice' => $invoice->only(['id', 'number', 'partner_name', 'customer_name', 'total', 'currency', 'invoice_date', 'due_date', 'approval_status']),
             'level' => $level,
             'label' => $this->approvalService->getLevelLabel($level),
             'levels' => collect([1, 2, 3])->map(fn ($l) => ['level' => $l, 'label' => $this->approvalService->getLevelLabel($l)]),
             'chain' => $this->approvalService->getApprovalChain($invoice),
-            'can_approve' => $invoice->approval_status === 'pending'
-                && $user?->hasAnyRole(['accountant', 'finance-manager', 'manager', 'admin']),
+            'can_approve' => $canApprove,
         ]);
     }
 }

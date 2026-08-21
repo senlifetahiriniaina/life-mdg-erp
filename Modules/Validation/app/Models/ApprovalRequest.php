@@ -48,6 +48,7 @@ class ApprovalRequest extends Model
         'approvable_id',
         'status',
         'requested_by',
+        'company_id',
         'approver_id',
         'approved_by',
         'approved_at',
@@ -97,6 +98,21 @@ class ApprovalRequest extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Chantier 31: real per-company scoping — company_id is populated from
+     * the requester's own company at creation (see
+     * ApprovalRequestService::createApprovalRequest()), never client-
+     * controlled. A NULL company_id (pre-Chantier-31 legacy rows on an
+     * unmigrated install, or a requester with no company of their own) is
+     * intentionally excluded here rather than treated as "visible to
+     * everyone" — the opposite of ApprovalHierarchy's NULL-means-global
+     * convention, since a NULL here has never meant "shared config."
+     */
+    public function scopeForCompany(Builder $query, ?int $companyId): Builder
+    {
+        return $query->where('company_id', $companyId);
     }
 
     public function scopePending(Builder $query): Builder

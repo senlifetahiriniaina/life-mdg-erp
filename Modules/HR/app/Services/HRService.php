@@ -92,7 +92,13 @@ class HRService
         return LeaveRequest::create($data);
     }
 
-    public function approveLeave(LeaveRequest $request, int $approverId, string $notes = '', ?string $approverRole = null): LeaveRequest
+    // Chantier 31 (HR re-audit): $approverId is now nullable. hr_leave_requests.approved_by
+    // is a hard FK to hr_employees.id (nullOnDelete) — the caller must resolve the acting
+    // user's linked Employee id, never pass a raw users.id (see the LeaveController fix
+    // this same chantier made for the exact bug that mismatch caused). Not every
+    // manager/hr-manager/admin necessarily has an hr_employees row, so null must be a safe,
+    // non-crashing input here rather than forcing every caller to fabricate an id.
+    public function approveLeave(LeaveRequest $request, ?int $approverId, string $notes = '', ?string $approverRole = null): LeaveRequest
     {
         $request->update([
             'status' => 'approved',
@@ -101,12 +107,14 @@ class HRService
             'approved_at' => now(),
         ]);
 
-        $this->logApprovalStep($request, $approverId, $approverRole, 'approved', $notes);
+        if ($approverId !== null) {
+            $this->logApprovalStep($request, $approverId, $approverRole, 'approved', $notes);
+        }
 
         return $request;
     }
 
-    public function rejectLeave(LeaveRequest $request, int $approverId, string $notes = '', ?string $approverRole = null): LeaveRequest
+    public function rejectLeave(LeaveRequest $request, ?int $approverId, string $notes = '', ?string $approverRole = null): LeaveRequest
     {
         $request->update([
             'status' => 'rejected',
@@ -115,7 +123,9 @@ class HRService
             'approved_at' => now(),
         ]);
 
-        $this->logApprovalStep($request, $approverId, $approverRole, 'rejected', $notes);
+        if ($approverId !== null) {
+            $this->logApprovalStep($request, $approverId, $approverRole, 'rejected', $notes);
+        }
 
         return $request;
     }

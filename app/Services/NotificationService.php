@@ -19,7 +19,13 @@ class NotificationService
         $user->notifications()->create([
             'id' => (string) Str::uuid(),
             'type' => 'broadcast',
-            'data' => json_encode(['title' => $title, 'body' => $message, 'meta' => $data]),
+            // Chantier 31: DatabaseNotification::$casts already declares
+            // 'data' => 'array' (Laravel's own JSON cast) — passing a
+            // pre-json_encode()'d string here double-encoded the payload on
+            // every real write (the cast's outbound json_encode() wraps the
+            // already-encoded string a second time), confirmed empirically
+            // via tinker. Pass the raw array and let the cast serialize it.
+            'data' => ['title' => $title, 'body' => $message, 'meta' => $data],
             'read_at' => null,
         ]);
 

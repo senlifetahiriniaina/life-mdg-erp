@@ -29,6 +29,21 @@ class ApprovalRequestController extends Controller
 
         $query = ApprovalRequest::with(['workflow', 'requester', 'approver', 'approvable']);
 
+        // Chantier 31: confirmed empirically via a real cross-company HTTP
+        // request that this listing had zero tenant scoping of any kind —
+        // any authenticated admin/manager/approver of ANY company could
+        // list every OTHER company's pending approval requests (invoices,
+        // purchase orders, ...) via this single endpoint. super-admin
+        // (Gate::before bypass) is the one deliberate exception, matching
+        // its platform-operator role everywhere else in this app.
+        if (! $request->user()->hasRole('super-admin')) {
+            // COALESCE(...,0), not a bare where('company_id', ...) — matches
+            // ApprovalRequestPolicy::sameCompany()'s NULL-normalized-to-0
+            // sentinel exactly, rather than relying on Eloquent's implicit
+            // where(col, null) -> whereNull() conversion for the null case.
+            $query->whereRaw('COALESCE(company_id, 0) = ?', [$request->user()->company_id ?? 0]);
+        }
+
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }

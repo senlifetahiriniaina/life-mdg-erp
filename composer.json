@@ -113,6 +113,7 @@
             "Modules\\Achats\\": "Modules/Achats/app/",
             "Modules\\Achats\\Database\\": "Modules/Achats/database/",
             "Modules\\Achats\\Database\\Factories\\": "Modules/Achats/database/factories/",
+            "Modules\\Achats\\Database\\Seeders\\": "Modules/Achats/database/seeders/",
             "Modules\\BI\\": "Modules/BI/app/",
             "Modules\\BI\\Database\\": "Modules/BI/database/",
             "Modules\\BI\\Database\\Factories\\": "Modules/BI/database/factories/",

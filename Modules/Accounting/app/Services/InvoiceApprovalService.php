@@ -248,10 +248,33 @@ class InvoiceApprovalService
 
     protected function latestPendingRequest(Invoice $invoice): ApprovalRequest
     {
+        return $this->findLatestRequest($invoice) ?? throw new \Illuminate\Database\Eloquent\ModelNotFoundException(
+            'No approval request found for this invoice.'
+        );
+    }
+
+    /**
+     * Chantier 31: exposed as public so InvoiceApprovalController can look
+     * up the real ApprovalRequest *before* calling approve()/reject(), and
+     * authorize() against it via the already-correct, already-registered
+     * Modules\Validation\Policies\ApprovalRequestPolicy — that policy
+     * checks $request->approver_id === $user->id and $request->status ===
+     * 'pending', neither of which InvoiceApprovalController::approve()/
+     * reject() ever checked, since they only ever called this service
+     * directly with zero authorize() call. Confirmed empirically: any user
+     * holding the outer route-gate role (accountant/finance-manager/
+     * manager/admin) — even one not assigned as the approver for this
+     * specific level, or holding a role that doesn't even match the
+     * level's required_role — could approve/reject any invoice's pending
+     * request, and could even act again on an already-decided (non-
+     * pending) request.
+     */
+    public function findLatestRequest(Invoice $invoice): ?ApprovalRequest
+    {
         return ApprovalRequest::where('approvable_type', Invoice::class)
             ->where('approvable_id', $invoice->id)
             ->latest()
-            ->firstOrFail();
+            ->first();
     }
 
     public function getApprovalChain(Invoice $invoice): array

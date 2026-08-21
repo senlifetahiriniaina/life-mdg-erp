@@ -62,6 +62,15 @@ class DatabaseSeeder extends Seeder
         // broken TenantDefaultSeeder/ProvisionTenantJob path, see CLAUDE.md).
         $this->call(\Modules\Accounting\Database\Seeders\AccountingDatabaseSeeder::class);
 
+        // Chantier 31: the amount-based, multi-tier purchase-order approval
+        // routing (ApprovalRoutingService/PurchaseOrderService::submitForApproval())
+        // was fully built and tested but never actually seeded in the real
+        // app — confirmed empirically that a fresh install had zero
+        // Achats ApprovalWorkflow rows, so no real approval chain was ever
+        // created regardless of PO amount. See AchatsDatabaseSeeder's own
+        // docblock.
+        $this->call(\Modules\Achats\Database\Seeders\AchatsDatabaseSeeder::class);
+
         $this->call(WorkflowDefinitionsSeeder::class);
 
         // Chantier 12: minimal real-world defaults (company, customer,

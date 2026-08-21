@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Achats\Database\Factories\PurchaseOrderFactory;
 use Modules\Core\Traits\RecordsActivity;
@@ -129,9 +128,39 @@ class PurchaseOrder extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function approval(): MorphOne
+    /**
+     * Chantier 31: a plain, explicit-value HasOne rather than
+     * morphOne(ApprovalRequest::class, 'approvable') — confirmed empirically
+     * (php artisan tinker) that the latter ALWAYS resolved to null. Root
+     * cause: Modules\Validation\Providers\ValidationServiceProvider AND
+     * Modules\Helpdesk\Providers\HelpdeskServiceProvider both register a
+     * global Relation::morphMap() alias ('purchase_order' =>
+     * PurchaseOrder::class), which makes $this->getMorphClass() — the value
+     * every morphOne()/morphMany() relation auto-constrains against —
+     * resolve to the alias 'purchase_order' instead of the real class name.
+     * But Modules\Validation\Services\ApprovalRequestService::
+     * createApprovalRequest() writes 'approvable_type' via a plain
+     * get_class($approvable) (bypassing the morph map entirely), so the
+     * real stored value is always the raw FQCN
+     * 'Modules\Achats\Models\PurchaseOrder' — the exact same raw-FQCN value
+     * every other Achats query already filters by
+     * (PurchaseOrderController/PurchaseOrderService/ApprovalRoutingService
+     * all query `where('approvable_type', PurchaseOrder::class)` directly).
+     * Overriding PurchaseOrder::getMorphClass() app-wide to fix this was
+     * considered and rejected — this model also uses HelpdeskLinkable's
+     * morphMany('source'), whose write path (TicketService::
+     * createFromSource(), fixed in an earlier chantier) DOES correctly use
+     * the alias-resolving getMorphClass(), so overriding it here would
+     * silently re-break that already-fixed, unrelated relation instead.
+     * Fixing the true root cause (ApprovalRequestService's writer) is out
+     * of this chantier's scope (Modules\Validation). This HasOne matches
+     * the real stored data exactly, with zero blast radius outside this one
+     * relation.
+     */
+    public function approval(): HasOne
     {
-        return $this->morphOne(ApprovalRequest::class, 'approvable');
+        return $this->hasOne(ApprovalRequest::class, 'approvable_id')
+            ->where('approvable_type', static::class);
     }
 
     public function receipt(): HasOne

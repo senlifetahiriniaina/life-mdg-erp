@@ -27,6 +27,11 @@ class ApprovalRequestService
             'approvable_id' => $approvable->id,
             'status' => 'pending',
             'requested_by' => $requestedBy->id,
+            // Chantier 31: the real tenant boundary for this request — never
+            // client-controlled, always derived from the actual requester,
+            // matching this session's established company_id-from-the-real-
+            // acting-user pattern (never a phantom column, never a header).
+            'company_id' => $requestedBy->company_id,
         ]);
     }
 
