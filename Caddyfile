@@ -12,6 +12,14 @@
 # voir docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md.
 
 {$APP_DOMAIN} {
+	# /app/* est le chemin protocole Pusher que le client Reverb (pusher-js,
+	# via laravel-echo) utilise par défaut — relayé vers le conteneur "reverb"
+	# (docker-compose.prod.yml, php artisan reverb:start) avant la règle
+	# catch-all ci-dessous, pour que le navigateur atteigne le WebSocket en
+	# wss:// sur ce même domaine/certificat plutôt que d'ouvrir un port séparé
+	# non-TLS. Voir CLAUDE.md § Chantier 20 (NotificationBell + Messaging).
+	reverse_proxy /app/* reverb:8080
+
 	# Caddy (ce conteneur) voit public/ sous /srv/public (volume app_public),
 	# tandis que php-fpm (conteneur "app") le voit sous /app/public — le
 	# `root` imbriqué dans php_fastcgi indique le chemin tel que le backend

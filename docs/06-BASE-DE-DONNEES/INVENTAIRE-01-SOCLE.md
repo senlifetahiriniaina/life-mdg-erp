@@ -152,3 +152,280 @@ Un bloc entier de 34 routes « Legacy Workflow Engine / Builder / Task / Approva
 | `calendar_sync_tokens` | Jetons OAuth/sync Google/Outlook/Apple |
 
 `CalendarPolicy`/`CalendarEventPolicy` étaient correctement écrites et appelées mais jamais enregistrées auprès du Gate (`CalendarServiceProvider` sans `registerPolicies()`) — chaque update/delete de calendrier ou d'évènement 403ait pour tout le monde, y compris les admins, jusqu'au Chantier 8.5-light.
+
+## Détail des colonnes (succinct)
+
+Extrait le 2026-08-21 directement du schéma SQLite réellement migré (`Schema::getColumns()`), pas des fichiers de migration — la source de vérité la plus fiable compte tenu du mécanisme « racine crée, module patche » documenté dans `SCHEMA-GENERAL.md`. Format : `colonne:type` — `!` = non nullable (requis). Types SQLite génériques (`integer`/`varchar`/`numeric`/`text`/`datetime`/`date`/`tinyint`) ; en production MySQL les types réels sont plus précis (`bigint unsigned`, `decimal(15,4)`, etc.) mais la structure des colonnes est identique.
+
+### AI (3 tables)
+
+**`ai_anomalies`** — `id:integer!,module:varchar!,entity_type:varchar!,entity_id:integer,anomaly_type:varchar!,severity:varchar!,description:text!,detected_at:datetime!,resolved_at:datetime,metadata:text`
+
+**`ai_recommendations`** — `id:integer!,user_id:integer,module:varchar!,recommendation_type:varchar!,title:varchar!,description:text!,priority:varchar!,status:varchar!,metadata:text,created_at:datetime!`
+
+**`ai_usage_limits`** — `id:integer!,tenant_id:integer!,user_id:integer,limit_type:varchar!,limit_value:numeric!,period:varchar!,block_on_exceed:tinyint!,active:tinyint!,created_at:datetime,updated_at:datetime`
+
+### API (7 tables)
+
+**`api_keys`** — `id:integer!,tenant_id:integer!,user_id:integer,name:varchar!,key_hash:varchar!,key_prefix:varchar!,scopes:text,rate_limit:integer!,last_used_at:datetime,expires_at:datetime,revoked_at:datetime,description:text,allowed_ips:text,metadata:text,created_at:datetime,updated_at:datetime`
+
+**`api_requests`** — `id:integer!,tenant_id:integer,api_key_id:integer,user_id:integer,method:varchar!,endpoint:varchar!,query_params:text,request_body:text,response_body:text,status_code:integer,duration_ms:integer,ip_address:varchar,user_agent:varchar,error_message:text,created_at:datetime`
+
+**`api_webhooks`** — `id:integer!,tenant_id:integer!,user_id:integer,name:varchar!,url:varchar!,events:text,secret:varchar,active:tinyint!,last_triggered_at:datetime,last_status_code:integer,failure_count:integer!,headers:text,description:text,created_at:datetime,updated_at:datetime`
+
+**`webhook_audit_logs`** — `id:integer!,provider:varchar!,event_type:varchar,status:varchar!,ip_address:varchar,request_headers:text,response_code:integer!,error_message:text,processing_time_ms:integer,nonce:varchar,timestamp_received:datetime,created_at:datetime,updated_at:datetime`
+
+**`webhook_deliveries`** — `id:integer!,webhook_id:integer!,event:varchar!,payload:text!,http_status:integer,response_body:text,success:tinyint!,attempt:integer!,created_at:datetime,updated_at:datetime`
+
+**`webhook_events`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,webhook_id:integer,event_type:varchar,payload:text,retries:integer!,last_attempted_at:datetime`
+
+**`webhooks`** — `id:integer!,user_id:integer!,url:varchar!,secret:varchar!,events:text!,is_active:tinyint!,description:varchar,created_at:datetime,updated_at:datetime`
+
+### AuditLog (1 tables)
+
+**`audit_logs`** — `id:integer!,tenant_id:integer!,user_id:integer,user_name:varchar,module:varchar!,action:varchar!,entity_type:varchar,entity_id:integer,old_values:text,new_values:text,ip_address:varchar,user_agent:text,created_at:datetime!`
+
+### Calendar (5 tables)
+
+**`calendar_attendees`** — `id:integer!,event_id:integer!,user_id:integer,email:varchar,name:varchar,role:varchar!,status:varchar!,created_at:datetime,updated_at:datetime,is_organizer:tinyint!`
+
+**`calendar_calendars`** — `id:integer!,tenant_id:varchar,user_id:integer!,name:varchar!,color:varchar!,type:varchar!,source:varchar!,is_primary:tinyint!,is_visible:tinyint!,sync_token:varchar,external_calendar_id:varchar,created_at:datetime,updated_at:datetime`
+
+**`calendar_events`** — `id:integer!,tenant_id:varchar,calendar_id:integer!,title:varchar!,description:text,start_at:datetime!,end_at:datetime!,all_day:tinyint!,location:varchar,url:varchar,recurrence_rule:varchar,recurrence_exception_dates:text,status:varchar!,visibility:varchar!,source:varchar!,external_event_id:varchar,external_etag:varchar,module_type:varchar,module_id:varchar,color:varchar,created_by:integer,deleted_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`calendar_reminders`** — `id:integer!,event_id:integer!,method:varchar!,minutes_before:integer!,is_sent:tinyint!,sent_at:datetime,created_at:datetime,updated_at:datetime,user_id:integer`
+
+**`calendar_sync_tokens`** — `id:integer!,provider:varchar!,access_token:varchar,refresh_token:varchar,token_expires_at:datetime,sync_token:varchar,last_synced_at:datetime,created_at:datetime,updated_at:datetime,tenant_id:varchar,user_id:integer,calendar_ids:text,sync_errors:text`
+
+### Core (33 tables)
+
+**`core_api_keys`** — `id:varchar!,tenant_id:varchar,user_id:integer!,name:varchar!,key_hash:varchar!,key_preview:varchar!,scopes:text,ip_restrictions:varchar,expires_at:datetime,last_used_at:datetime,is_active:tinyint!,created_at:datetime,updated_at:datetime`
+
+**`core_approval_decisions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,instance_id:integer,step:integer,step_order:integer,decision:varchar,comment:text,decided_by:integer,approver_id:integer,decided_at:datetime`
+
+**`core_approval_instances`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_id:integer,subject_type:varchar,subject_id:integer,current_step:integer!,initiated_by:integer,completed_at:datetime,escalated_to:integer,escalation_reason:text`
+
+**`core_approval_workflows`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,name:varchar,module:varchar,resource_type:varchar,is_active:tinyint!,steps_count:integer!,requires_all:tinyint!,steps:text,entity_type:varchar,allow_parallel:tinyint!,description:text,created_by:integer`
+
+**`core_audit_logs`** — `id:integer,user_id:integer,user_name:varchar,user_role:varchar,action:varchar!,module:varchar,event_type:varchar,description:varchar,subject_type:varchar,subject_id:integer unsigned,old_values:text,new_values:text,ip_address:varchar,user_agent:text,tenant_id:varchar,created_at:datetime,company_id:integer`
+
+**`core_csrf_tokens`** — `id:varchar!,user_id:varchar!,token_hash:varchar!,action:varchar,scope:varchar,ip_address:varchar,user_agent_hash:varchar,expires_at:datetime!,revoked_at:datetime,last_verified_at:datetime,rotation_count:integer!,tenant_id:varchar,metadata:text,created_at:datetime,updated_at:datetime`
+
+**`core_custom_field_values`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,custom_field_id:integer,entity_type:varchar,entity_id:integer,value:text`
+
+**`core_custom_fields`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,entity_type:varchar,name:varchar,type:varchar!,label:varchar,is_required:tinyint!,options:text,field_key:varchar,field_label:varchar,field_type:varchar!,is_unique:tinyint!,is_searchable:tinyint!,default_value:varchar,validation_rules:text,group_name:varchar,sort_order:integer!,is_active:tinyint!`
+
+**`core_data_requests`** — `id:integer!,user_id:integer,email:varchar,request_type:varchar!,status:varchar!,notes:text,admin_notes:text,requested_at:datetime,completed_at:datetime,expires_at:datetime,data_snapshot:text,created_at:datetime,updated_at:datetime`
+
+**`core_gdpr_consents`** — `id:integer!,user_id:integer,consent_type:varchar!,given:tinyint!,ip_address:varchar,user_agent:varchar,created_at:datetime,updated_at:datetime,email:varchar,granted:tinyint!,granted_at:datetime,revoked_at:datetime,source:varchar`
+
+**`core_import_jobs`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,user_id:integer,filename:varchar,entity_type:varchar,total_rows:integer!,processed:integer!,failed:integer!,is_complete:tinyint!,file_path:text,file_type:varchar,target_entity:varchar,imported:integer!,errors:text,column_mapping:text,started_at:datetime,completed_at:datetime`
+
+**`core_import_rows`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,import_job_id:integer,row_index:integer!,raw_data:text,mapped_data:text,errors:text,error_message:text,created_record_id:integer`
+
+**`core_secret_access_grants`** — `id:varchar!,tenant_id:varchar,secret_id:varchar!,user_id:integer!,scopes:text,expires_at:datetime,revoked_at:datetime,granted_by:integer,reason:text,created_at:datetime,updated_at:datetime`
+
+**`core_secret_access_logs`** — `id:varchar!,tenant_id:varchar,secret_id:varchar,user_id:integer,action:varchar!,ip_address:varchar,success:tinyint!,reason:text,timestamp:datetime`
+
+**`core_secret_rotation_policies`** — `id:varchar!,tenant_id:varchar,secret_id:varchar!,rotation_interval:integer!,last_rotation_at:datetime,next_rotation_at:datetime,auto_rotate:tinyint!,notification_days_before:text,created_at:datetime,updated_at:datetime`
+
+**`core_secrets`** — `id:varchar!,tenant_id:varchar!,name:varchar!,type:varchar!,encrypted_value:text!,key_version:integer!,created_by:integer,expires_at:datetime,rotated_at:datetime,next_rotation:datetime,is_active:tinyint!,tags:text,created_at:datetime,updated_at:datetime`
+
+**`core_security_incident_communications`** — `id:integer!,incident_id:integer!,type:varchar!,message:text!,created_at:datetime,updated_at:datetime`
+
+**`core_security_incidents`** — `id:integer!,title:varchar!,description:text!,severity:varchar!,status:varchar!,user_id:integer,ip_address:varchar,resolved_at:datetime,resolution:text,prevention:text,created_at:datetime,updated_at:datetime`
+
+**`core_tenant_exchange_history`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,exchange_id:integer,action:varchar,actor_user_id:integer,actor_tenant_id:varchar,note:text,notes:text`
+
+**`core_tenant_exchanges`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,source_tenant_id:integer,target_tenant_id:integer,data_type:varchar,payload:text,exchange_type:varchar,message:text,rejection_reason:text,expires_at:datetime,accepted_at:datetime,created_by_user_id:integer,accepted_by_user_id:integer`
+
+**`core_workflow_definitions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,name:varchar,module:varchar,resource_type:varchar,is_active:tinyint!,steps:text,transitions:text`
+
+**`core_workflow_states`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_definition_id:integer,name:varchar,is_initial:tinyint!,is_final:tinyint!,subject_type:varchar,subject_id:integer,current_step:varchar,started_at:datetime,completed_at:datetime,metadata:text`
+
+**`csp_violations`** — `id:varchar!,document_uri:varchar,violated_directive:varchar,effective_directive:varchar,original_policy:text,disposition:varchar!,blocked_uri:varchar,source_file:varchar,line_number:integer,column_number:integer,status_code:integer,ip_address:varchar,user_agent:text,user_id:integer,tenant_id:varchar,module:varchar,violation_data:text,is_internal_request:tinyint!,severity:varchar!,resolved_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`gdpr_audit_logs`** — `id:integer!,action:varchar!,user_id:integer,timestamp:datetime,immutable:tinyint!,tenant_id:varchar,metadata:text,created_at:datetime,updated_at:datetime`
+
+**`gdpr_consents`** — `id:integer!,user_id:integer,analytics:tinyint!,marketing:tinyint!,functional:tinyint!,tenant_id:varchar,created_at:datetime,updated_at:datetime`
+
+**`gdpr_sar_requests`** — `id:integer!,user_id:integer,email:varchar,format:varchar!,status:varchar!,confirmation_token:varchar,confirmed_at:datetime,tenant_id:varchar,created_at:datetime,updated_at:datetime`
+
+**`push_tokens`** — `id:integer!,user_id:integer!,token:varchar!,platform:varchar,device_type:varchar,device_name:varchar,last_used_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`sandboxes`** — `id:integer!,tenant_id:varchar!,parent_tenant_id:varchar!,name:varchar!,expires_at:datetime,status:varchar!,company_id:integer,created_at:datetime,updated_at:datetime,deleted_at:datetime`
+
+**`sync_queue`** — `id:varchar!,user_id:integer,entity_type:varchar!,entity_id:integer,operation:varchar!,payload:text,status:varchar!,retry_count:integer!,client_timestamp:datetime,synced_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`tenant_audit_log`** — `id:integer!,tenant_id:varchar!,user_id:integer,action:varchar!,entity_type:varchar,entity_id:varchar,old_values:text,new_values:text,ip_address:varchar,user_agent:text,created_at:datetime`
+
+**`tenant_invitations`** — `id:integer!,tenant_id:varchar!,email:varchar!,role:varchar!,token:varchar!,invited_by:integer,expires_at:datetime,accepted_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`tenant_modules`** — `id:integer!,tenant_id:varchar!,module:varchar!,enabled:tinyint!,department:varchar,settings:text,created_at:datetime,updated_at:datetime`
+
+**`tenant_users`** — `id:integer!,tenant_id:varchar!,user_id:integer!,role:varchar!,joined_at:datetime,invited_by:integer`
+
+### Integration (9 tables)
+
+**`connector_credentials`** — `id:integer!,tenant_id:integer!,connector_key:varchar!,name:varchar!,credentials:text!,expires_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`connector_definitions`** — `id:integer!,tenant_id:integer,key:varchar!,name:varchar!,category:varchar!,auth_type:varchar!,base_url:varchar!,icon:varchar!,color:varchar!,docs_url:varchar,auth_config:text,actions:text,triggers:text,rate_limit_per_minute:integer!,is_active:tinyint!,created_at:datetime,updated_at:datetime`
+
+**`edi_transactions`** — `id:integer!,type:varchar!,direction:varchar!,content_raw:text!,parsed_json:text,status:varchar!,partner_id:integer,occurred_at:datetime!,created_at:datetime,updated_at:datetime`
+
+**`integration_connectors`** — `id:integer!,tenant_id:varchar!,connector_type:varchar,name:varchar!,status:varchar!,config:text,auth_config:text,created_at:datetime,updated_at:datetime,slug:varchar,provider_type:varchar,last_sync_at:datetime,error_message:text,created_by:integer,deleted_at:datetime`
+
+**`integration_sync_logs`** — `id:integer!,integration_id:integer,sync_type:varchar,status:varchar!,records_processed:integer!,records_failed:integer!,error_details:text,started_at:datetime!,completed_at:datetime,created_at:datetime,updated_at:datetime,direction:varchar,records_synced:integer!,errors:text,connector_id:integer,tenant_id:varchar,payload_size:integer`
+
+**`integration_webhook_endpoints`** — `id:integer!,connector_id:integer,url:varchar!,method:varchar!,headers:text,secret_key:varchar,retry_attempts:integer!,timeout_seconds:integer!,is_active:tinyint!,created_at:datetime,updated_at:datetime`
+
+**`whb_connections`** — `id:integer!,local_tenant_id:varchar!,remote_tenant_id:varchar,remote_server_url:varchar,remote_tenant_name:varchar,connection_type:varchar!,status:varchar!,invite_code:varchar,invite_expires_at:datetime,shared_secret:varchar,session_token:varchar,session_expires_at:datetime,public_key:varchar,initiated_by:varchar,approved_by:varchar,approved_at:datetime,last_sync_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`whb_exchanges`** — `id:integer!,connection_id:integer!,exchange_type:varchar,direction:varchar!,status:varchar!,payload:text,response:text,sent_at:datetime,received_at:datetime,created_at:datetime,updated_at:datetime,data_type:varchar,local_resource_type:varchar,local_resource_id:integer,remote_resource_id:varchar,error_message:text,initiated_by:integer,processed_at:datetime`
+
+**`whb_permissions`** — `id:integer!,connection_id:integer!,resource_type:varchar,permission_level:varchar!,is_granted:tinyint!,created_at:datetime,updated_at:datetime,data_type:varchar,can_receive:tinyint!,can_send:tinyint!,auto_accept:tinyint!`
+
+### Security (15 tables)
+
+**`compliance_audits`** — `id:integer!,company_id:varchar!,audit_type:varchar!,framework:varchar!,audit_start_date:datetime,audit_end_date:datetime,controls_evaluated:integer!,controls_compliant:integer!,controls_non_compliant:integer!,compliance_score:numeric,findings:text,audit_status:varchar!,created_at:datetime,updated_at:datetime`
+
+**`ddos_incidents`** — `id:integer!,ip_address:varchar!,type:varchar,severity:varchar,metadata:text,expires_at:datetime,created_at:datetime,updated_at:datetime,endpoint:varchar,risk_level:varchar,reason:varchar,attack_signatures:text,request_count:integer!,requests_per_second:float,detected_at:datetime,blocked_until:datetime,auto_unblock_at:datetime,auto_blocked:tinyint!,attack_signature:varchar,metrics:text,tenant_id:varchar`
+
+**`encrypted_fields`** — `id:integer!,company_id:varchar!,table_name:varchar!,column_name:varchar!,encryption_algorithm:varchar!,encryption_key_id:integer,is_searchable:tinyint!,is_encrypted:tinyint!,metadata:text,created_at:datetime,updated_at:datetime`
+
+**`key_rotation_logs`** — `id:integer!,encryption_key_id:integer!,rotation_type:varchar!,rotation_status:varchar!,old_key_hash:varchar,new_key_hash:varchar,records_reencrypted:integer!,started_at:datetime,completed_at:datetime,error_message:text,created_at:datetime,updated_at:datetime`
+
+**`security_authentication_events`** — `id:integer!,user_id:integer,user_email:varchar!,event_type:varchar!,authentication_method:varchar!,ip_address:varchar!,user_agent:text,device_info:text,status:varchar!,failure_reason:varchar,trust_score:numeric,risk_factors:text,authenticated_at:datetime!,created_at:datetime!`
+
+**`security_compliance_controls`** — `id:integer!,company_id:varchar!,framework:varchar!,control_id:varchar!,control_name:varchar!,control_description:text,control_type:varchar!,implementation_status:varchar!,implementation_details:text,last_verified_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`security_compliance_violations`** — `id:integer!,compliance_control_id:integer!,violation_type:varchar!,description:text!,severity:varchar!,status:varchar!,detected_at:datetime!,resolved_at:datetime,created_at:datetime,updated_at:datetime,company_id:varchar,violation_description:text,violation_status:varchar!,remediation_deadline:datetime,remediated_at:datetime,remediation_notes:text`
+
+**`security_encryption_keys`** — `id:integer!,company_id:varchar!,key_name:varchar!,key_type:varchar!,key_usage:varchar!,key_status:varchar!,key_material_hash:varchar!,vault_reference:varchar,key_length_bits:integer!,rotated_at:datetime,expires_at:datetime,metadata:text,created_at:datetime,updated_at:datetime`
+
+**`security_incident_responses`** — `id:integer!,security_incident_id:integer!,response_type:varchar!,response_status:varchar!,response_config:text,executed_at:datetime,execution_result:text,created_at:datetime,updated_at:datetime`
+
+**`security_incidents`** — `id:integer!,company_id:varchar!,incident_type:varchar!,severity:varchar!,description:text!,threat_indicators:text,incident_status:varchar!,detected_at:datetime!,investigation_started_at:datetime,resolved_at:datetime,resolution_notes:text,affected_resources:text,deleted_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`security_threat_indicators`** — `id:integer!,indicator_type:varchar!,indicator_value:varchar!,threat_level:varchar!,description:text,source:varchar,is_whitelisted:tinyint!,detected_at:datetime!,expires_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`security_trust_zones`** — `id:integer!,company_id:varchar!,zone_name:varchar!,trust_level:varchar!,ip_ranges:text,allowed_services:text,is_active:tinyint!,created_at:datetime,updated_at:datetime,zone_type:varchar,description:text,cidr_blocks:text,device_policies:text,authentication_policies:text,trust_score_minimum:integer,assigned_resources:text,deleted_at:datetime`
+
+**`service_identities`** — `id:integer!,company_id:varchar!,service_name:varchar!,service_type:varchar!,public_key:text,private_key_hash:varchar,allowed_permissions:text,resource_restrictions:text,last_rotated_at:datetime,expires_at:datetime,is_active:tinyint!,created_at:datetime,updated_at:datetime,deleted_at:datetime`
+
+**`session_security_events`** — `id:integer!,session_id:varchar,user_id:integer,event_type:varchar,ip_address:varchar,old_fingerprint:varchar,new_fingerprint:varchar,reason:text,severity:varchar!,action_taken:varchar!,created_at:datetime,updated_at:datetime,tenant_id:varchar`
+
+**`sessions_enhanced`** — `id:varchar!,user_id:integer,ip_address:varchar,user_agent_hash:varchar,device_fingerprint:varchar,browser_fingerprint:varchar,device_type:varchar,created_at:datetime,updated_at:datetime,last_activity_at:datetime,expires_at:datetime,fingerprint_checked_at:datetime,regeneration_count:integer!,concurrent_session_number:integer!,suspicious_activity_count:integer!,tenant_id:varchar`
+
+### Settings (2 tables)
+
+**`setting_groups`** — `id:integer!,tenant_id:integer!,name:varchar!,label:varchar!,description:text,icon:varchar,sort_order:integer!,is_system:tinyint!,created_at:datetime,updated_at:datetime`
+
+**`settings`** — `id:integer!,tenant_id:integer,group_id:integer,key:varchar!,value:text,type:varchar!,label:varchar,description:text,is_public:tinyint!,is_system:tinyint!,created_at:datetime,updated_at:datetime,module:varchar,value_type:varchar!`
+
+### Setup (9 tables)
+
+**`setup_company_profiles`** — `id:integer!,tenant_id:varchar!,company_name:varchar!,legal_name:varchar,company_type:varchar,industry:varchar,country_code:varchar,currency_code:varchar,timezone:varchar,fiscal_year_start:integer,phone:varchar,email:varchar,website:varchar,address:varchar,city:varchar,postal_code:varchar,vat_number:varchar,logo_path:varchar,admin_profile:text,modules_selected:text,workflows_config:text,apps_config:text,onboarding_completed:tinyint!,onboarding_completed_at:datetime,created_at:datetime,updated_at:datetime,vat_exempt:tinyint!`
+
+**`setup_field_mappings`** — `id:integer!,import_job_id:integer!,source_field:varchar!,target_field:varchar!,transform_type:varchar,transform_config:text,is_required:tinyint!,ai_suggested:tinyint!,ai_confidence:numeric,user_confirmed:tinyint!,created_at:datetime,updated_at:datetime,target_table:varchar,source_sample:text,is_ai_suggested:tinyint!,is_confirmed:tinyint!`
+
+**`setup_funnel_snapshots`** — `id:integer!,tenant_id:varchar!,period:varchar!,snapshot_date:date!,started:integer!,completed:integer!,abandoned:integer!,completion_rate:numeric!,avg_duration_minutes:numeric!,created_at:datetime,updated_at:datetime`
+
+**`setup_import_errors`** — `id:integer!,import_job_id:integer!,row_number:integer!,field_name:varchar,error_type:varchar!,error_message:text!,raw_data:text,created_at:datetime,updated_at:datetime,is_skipped:tinyint!`
+
+**`setup_import_jobs`** — `id:integer!,tenant_id:varchar!,name:varchar!,source_type:varchar!,source_file_path:varchar,source_db_driver:varchar,source_db_config:text,target_module:varchar!,target_entity:varchar!,status:varchar!,total_rows:integer!,imported_rows:integer!,failed_rows:integer!,error_summary:text,ai_mapping_used:tinyint!,ai_mapping_confidence:numeric,created_by:integer,started_at:datetime,completed_at:datetime,deleted_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`setup_onboarding_funnel_snapshots`** — `id:integer!,tenant_id:integer!,snapshot_date:date!,sessions_started:integer!,sessions_completed:integer!,sessions_abandoned:integer!,avg_duration_seconds:integer,median_duration_seconds:integer,step1_completion_rate:numeric,step2_completion_rate:numeric,step3_completion_rate:numeric,step4_completion_rate:numeric,step5_completion_rate:numeric,ai_mapping_adoption_rate:numeric,created_at:datetime`
+
+**`setup_onboarding_sessions`** — `id:integer!,tenant_id:varchar!,user_id:integer,started_at:datetime!,completed_at:datetime,abandoned_at:datetime,current_step:varchar!,total_duration_seconds:integer,source_type:varchar!,rows_imported:integer!,ai_mapping_used:tinyint!,ai_mapping_accepted_percent:numeric,errors_count:integer!,created_at:datetime,updated_at:datetime`
+
+**`setup_onboarding_step_events`** — `id:integer!,onboarding_session_id:integer!,step_name:varchar,event_type:varchar,step_data:text,duration_seconds:integer,occurred_at:datetime,created_at:datetime,updated_at:datetime,tenant_id:integer,user_id:integer,step:integer,event:varchar,metadata:text`
+
+**`setup_source_schemas`** — `id:integer!,import_job_id:integer!,columns:text,sample_data:text,total_rows:integer!,detected_encoding:varchar!,detected_delimiter:varchar,created_at:datetime,updated_at:datetime,detected_columns:text,row_count:integer!,sheet_names:text`
+
+### Shared (3 tables)
+
+**`shared_countries`** — `id:integer!,iso_alpha2:varchar!,iso_alpha3:varchar!,name:varchar!,name_fr:varchar,name_local:varchar,currency_code:varchar,phone_prefix:varchar,region:varchar,subregion:varchar,is_ohada:tinyint!,is_uemoa:tinyint!,is_cemac:tinyint!,vat_rate:numeric,fiscal_year_start:varchar,timezone:varchar,flag_emoji:varchar`
+
+**`shared_currencies`** — `id:integer!,code:varchar!,name:varchar!,name_fr:varchar,symbol:varchar!,symbol_native:varchar,decimals:integer!,is_cfa:tinyint!,is_active:tinyint!,exchange_rate_to_usd:numeric,exchange_rate_updated_at:datetime,region:varchar`
+
+**`shared_preferences`** — `id:integer!,tenant_id:integer!,user_id:integer,preference_key:varchar!,preference_value:text,created_at:datetime,updated_at:datetime`
+
+### Validation (12 tables)
+
+**`validation_approval_actions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,request_id:integer,approver_id:integer,action:varchar,comment:text,acted_at:datetime`
+
+**`validation_approval_hierarchies`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,name:varchar,description:text,company_id:integer,module_name:varchar,is_active:tinyint!,escalation_role:varchar,deleted_at:datetime`
+
+**`validation_approval_history`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,request_id:integer,action:varchar,old_status:varchar,new_status:varchar,changed_by:integer,changed_at:datetime,level:integer`
+
+**`validation_approval_requests`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_id:integer,resource_type:varchar,resource_id:integer,requested_by:integer,amount:numeric,currency:varchar,current_level:integer!,total_levels:integer!,deleted_at:datetime,approver_id:integer,approved_by:integer,approved_at:datetime,rejected_at:datetime,approvable_type:varchar,approvable_id:integer,hierarchy_id:integer,escalated_from_id:integer,escalation_reason:varchar`
+
+**`validation_approval_rules`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_id:integer,rule_order:integer!,condition_type:varchar,condition_operator:varchar,condition_value:varchar,condition_field:varchar,required_approvers_count:integer!,approval_mode:varchar!,hierarchy_id:integer`
+
+**`validation_approval_workflows`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,name:varchar,module:varchar,resource_type:varchar,is_active:tinyint!,threshold_amount:numeric,currency:varchar,module_name:varchar,description:text,created_by:integer,deleted_at:datetime`
+
+**`validation_hierarchy_levels`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,hierarchy_id:integer,level_order:integer!,title:varchar,approver_count:integer!,delegation_allowed:tinyint!`
+
+**`validation_level_approvers`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,hierarchy_level_id:integer,user_id:integer,role:varchar,approver_order:integer!,backup_user_id:integer,backup_role:varchar,is_active:tinyint!`
+
+**`validation_rule_dependencies`** — `id:integer!,rule_id:integer!,depends_on_rule_id:integer!,created_at:datetime,updated_at:datetime`
+
+**`validation_rule_set_rule`** — `id:integer!,rule_set_id:integer!,rule_id:integer!,created_at:datetime,updated_at:datetime`
+
+**`validation_rule_sets`** — `id:integer!,name:varchar!,description:text,version:integer!,created_at:datetime,updated_at:datetime`
+
+**`validation_rules`** — `id:integer!,name:varchar!,field:varchar!,type:varchar!,params:text,message:varchar,created_at:datetime,updated_at:datetime`
+
+### Workflow (25 tables)
+
+**`automation_connections`** — `id:integer!,flow_id:integer,source_node_id:varchar,target_node_id:varchar,condition:varchar,data:text,created_at:datetime,updated_at:datetime,condition_type:varchar!,condition_expr:text`
+
+**`automation_executions`** — `id:integer!,automation_rule_id:integer,triggered_by_user_id:integer,flow_id:integer,flow_key:varchar,tenant_id:integer,module:varchar,trigger:varchar,triggered_payload:text,trigger_data:text,context:text,status:varchar!,error_message:text,execution_result:text,node_results:text,error_node_id:integer,duration_ms:integer,correlation_id:varchar,started_at:datetime,completed_at:datetime,ended_at:datetime,created_at:datetime,updated_at:datetime`
+
+**`automation_flow_templates`** — `id:integer!,key:varchar,name:varchar!,description:text,category:varchar,nodes:text,edges:text,is_active:tinyint!,usage_count:integer!,created_at:datetime,updated_at:datetime`
+
+**`automation_flows`** — `id:integer!,tenant_id:integer,key:varchar,name:varchar!,description:text,trigger:varchar,trigger_type:varchar,trigger_config:text,nodes:text,edges:text,status:varchar!,is_active:tinyint!,icon:varchar,color:varchar,tags:text,version:integer!,created_by:integer,last_run_at:datetime,total_runs:integer!,success_runs:integer!,created_at:datetime,updated_at:datetime,deleted_at:datetime,version_number:integer!,is_published:tinyint!,parent_version_id:integer`
+
+**`automation_nodes`** — `id:integer!,flow_id:integer,node_id:varchar,type:varchar,config:text,position_x:integer!,position_y:integer!,on_success:text,on_error:text,data:text,created_at:datetime,updated_at:datetime,node_type:varchar,node_key:varchar,label:varchar,input_schema:text,output_schema:text,error_handling:varchar!`
+
+**`automation_rules`** — `id:integer!,module:varchar!,action:varchar!,name:varchar,description:text,conditions:text!,actions:text,is_enabled:tinyint!,disabled_for_roles:text,execution_count:integer!,skip_count:integer!,last_executed_at:datetime,created_by:integer,updated_by:integer,created_at:datetime,updated_at:datetime,key:varchar,trigger_event:varchar,is_active:tinyint!`
+
+**`automation_templates`** — `id:integer!,name:varchar!,description:text,category:varchar,icon:varchar,flow_definition:text!,is_builtin:tinyint!,created_at:datetime,updated_at:datetime`
+
+**`automation_variables`** — `id:integer!,flow_id:integer,name:varchar,type:varchar!,default_value:text,created_at:datetime,updated_at:datetime`
+
+**`doc_approval_instances`** — `id:integer!,tenant_id:integer,name:varchar,status:varchar,data:text,created_at:datetime,updated_at:datetime,deleted_at:datetime,completed_at:datetime,document_id:integer,workflow_id:integer,current_step:integer!`
+
+**`documents`** — `id:integer!,folder_id:integer,name:varchar!,type:varchar!,mime_type:varchar,size:integer!,path:varchar,owner_id:integer,is_public:tinyint!,created_at:datetime,updated_at:datetime,deleted_at:datetime,created_by:integer,title:varchar,file_path:text,file_size:integer,storage_path:text,extension:varchar,description:text,disk:varchar!,uploaded_by:integer,version:varchar!,tags:text,is_locked:tinyint!,status:varchar!,requires_approval:tinyint!`
+
+**`flow_versions`** — `id:integer!,flow_id:integer!,version_number:integer!,label:varchar,created_by:integer,nodes_snapshot:text!,connections_snapshot:text!,flow_meta:text,created_at:datetime,updated_at:datetime`
+
+**`logic_action_types`** — `id:integer!,slug:varchar!,label:varchar!,description:varchar!,required_params:text!,target_models:text,sort_order:integer!,created_at:datetime,updated_at:datetime`
+
+**`logic_condition_types`** — `id:integer!,slug:varchar!,label:varchar!,description:varchar!,applicable_types:text!,sort_order:integer!,created_at:datetime,updated_at:datetime`
+
+**`logic_rule_executions`** — `id:integer!,rule_id:integer!,trigger_data:text!,conditions_met:tinyint!,actions_executed:text!,error_message:text,duration_ms:integer!,executed_at:datetime!`
+
+**`logic_rules`** — `id:integer!,tenant_id:integer!,name:varchar!,description:text,trigger:varchar!,conditions:text!,actions:text!,is_enabled:tinyint!,execution_count:integer!,last_executed_at:datetime,created_by:integer!,created_at:datetime,updated_at:datetime,deleted_at:datetime`
+
+**`wfd_actions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_id:integer,name:varchar,type:varchar,config:text,order:integer!,action_type:varchar,action_config:text,node_id:varchar,flow_id:integer,position_x:integer!,position_y:integer!,sort_order:integer!,deleted_at:datetime`
+
+**`wfd_definitions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,name:varchar,description:varchar,is_active:tinyint!,trigger_type:varchar,nodes:text,edges:text,created_by:integer,module:varchar,trigger_event:varchar,conditions:text,actions:text,trigger_conditions:text,deleted_at:datetime,last_run_at:datetime,run_count:integer!`
+
+**`wfd_execution_logs`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,execution_id:integer,action_id:integer,output:text,error_message:text,executed_at:datetime,duration_ms:integer,result:text`
+
+**`wfd_executions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,definition_id:integer,trigger_data:text,started_at:datetime,completed_at:datetime,error_message:text,workflow_id:integer,input:text,output:text,flow_id:integer,context:text,node_results:text,deleted_at:datetime`
+
+**`workflow_actions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_id:integer,action_type:varchar,action_target:varchar,action_params:text,delay_seconds:integer!,retry_count:integer!,sequence:integer!,is_active:tinyint!,notes:text,deleted_at:datetime`
+
+**`workflow_chain_definitions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,deleted_at:datetime,trigger_key:varchar,is_active:tinyint!,name:varchar,description:text,trigger_module:varchar,conditions:text,actions:text,execution_count:integer!,last_executed_at:datetime`
+
+**`workflow_chain_executions`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,workflow_definition_id:integer,trigger_key:varchar,context_snapshot:text,started_at:datetime,completed_at:datetime,result_log:text,error_message:text`
+
+**`workflow_execution_steps`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,execution_id:integer,step_index:integer,action_key:varchar,input_context:text,output:text,duration_ms:integer,executed_at:datetime,error_message:text`
+
+**`workflow_executions`** — `id:integer!,workflow_id:integer!,triggered_by:integer,trigger_data:text,status:varchar!,context:text,started_at:datetime,completed_at:datetime,duration_ms:integer!,error_message:text,trigger_entity_id:integer,trigger_entity_type:varchar,triggered_at:datetime,notes:text,execution_depth:integer!,payload_size_bytes:integer!,parent_execution_id:integer,deleted_at:datetime`
+
+**`workflow_steps`** — `id:integer!,tenant_id:integer,status:varchar,data:text,created_at:datetime,updated_at:datetime,execution_id:integer,action_type:varchar,sequence:integer!,result:text,error_message:text,started_at:datetime,completed_at:datetime,duration_ms:integer,notes:text,deleted_at:datetime`
+

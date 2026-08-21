@@ -41,6 +41,22 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# VITE_* env vars are inlined into the built JS at `npm run build` time, not
+# read at container runtime — `.env` is intentionally .dockerignore'd (see
+# below), so without these build ARGs the frontend would always fall back to
+# bootstrap.js's dev default (`wsHost: 'localhost'`) regardless of what
+# REVERB_HOST/.env says in production. docker-compose.prod.yml passes these
+# through as build args (sourced from the deploy .env) so the browser
+# connects to the real public domain over Caddy/wss, not localhost.
+ARG VITE_REVERB_APP_KEY=app-key
+ARG VITE_REVERB_HOST=localhost
+ARG VITE_REVERB_PORT=8080
+ARG VITE_REVERB_SCHEME=http
+ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY} \
+    VITE_REVERB_HOST=${VITE_REVERB_HOST} \
+    VITE_REVERB_PORT=${VITE_REVERB_PORT} \
+    VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
+
 # Install Node dependencies and build (package-lock.json is intentionally
 # gitignored — npm install resolves fresh; npm ci would need an existing
 # lockfile, see the .github/workflows/ commit history). --legacy-peer-deps

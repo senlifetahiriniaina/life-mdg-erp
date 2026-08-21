@@ -37,7 +37,7 @@ Chaque workflow a été corrigé pour fonctionner avec la structure réelle de l
 
 **Voir le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md) pour la marche à suivre complète.** Résumé de l'architecture :
 
-- `docker-compose.prod.yml` (racine) lance 6 services : `app` (php-fpm), `queue` (worker), `scheduler` (cron interne), `mysql`, `redis`, et `caddy` (reverse-proxy + certificat SSL Let's Encrypt automatique, seul service exposé sur les ports 80/443).
+- `docker-compose.prod.yml` (racine) lance 7 services : `app` (php-fpm), `queue` (worker), `scheduler` (cron interne), `reverb` (serveur WebSocket — notifications temps réel + Messaging, voir `CLAUDE.md` § Chantier 20), `mysql`, `redis`, et `caddy` (reverse-proxy + certificat SSL Let's Encrypt automatique, seul service exposé sur les ports 80/443 — relaie aussi `/app/*` vers `reverb`).
 - `scripts/deploy.sh` orchestre le déploiement en une commande depuis un clone frais : construction de l'image, démarrage de la stack, migrations, vérification santé.
 - `Caddyfile` définit le seul bloc de configuration nécessaire (`php_fastcgi` vers le service `app`) — Caddy gère lui-même l'obtention/le renouvellement du certificat SSL, aucune étape certbot manuelle.
 

@@ -19,6 +19,7 @@ Voir `.env.example` pour la liste complète et les valeurs de démarrage. Points
 | `SENTRY_DSN` / `SENTRY_ENABLED` | vide / `false` | Configurer pour le suivi d'erreurs en production |
 | `BACKUP_S3_BUCKET`, `BACKUP_DISK` | `s3` | Configurer un vrai bucket + identifiants AWS |
 | `GRAFANA_PASSWORD` | `changeme` | Mot de passe fort |
+| `VITE_REVERB_HOST` / `VITE_REVERB_PORT` / `VITE_REVERB_SCHEME` | `localhost` / `8080` / `http` (dev, `npm run dev` uniquement) | **Rien à faire** pour un déploiement via `scripts/deploy.sh` — `docker-compose.prod.yml`'s `x-build.args` dérive automatiquement ces 3 valeurs depuis `APP_DOMAIN`/`443`/`https` au moment du `docker build`, pour que le **navigateur** se connecte au WebSocket via Caddy (`/app/*`, voir `Caddyfile`) sur le même domaine/certificat que le reste de l'app. Ne pas confondre avec `REVERB_HOST`/`REVERB_PORT` (l'adresse d'écoute interne du serveur Reverb, jamais exposée directement). |
 
 ## Modules actifs
 

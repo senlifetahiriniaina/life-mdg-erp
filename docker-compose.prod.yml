@@ -19,13 +19,34 @@
 # Ce détour est nécessaire parce que l'image ne déclare pas `public/` comme
 # volume : sans lui, Caddy n'aurait aucun moyen de lire les fichiers construits
 # dans l'image de l'application.
+#
+# `reverb` fait tourner le serveur WebSocket (voir CLAUDE.md § Chantier 20 —
+# NotificationBell + Messaging temps réel). Caddy relaie /app/* (chemin
+# protocole Pusher qu'utilise le client Reverb) vers ce conteneur — voir
+# Caddyfile — pour que le navigateur atteigne Reverb en wss:// sur le même
+# domaine/certificat que le reste de l'app, sans port supplémentaire à ouvrir.
+#
+# `x-build` factorise le build (mêmes ARGs partout) : les 4 VITE_REVERB_*
+# doivent être identiques sur tous les services qui partagent le même tag
+# `image:`, sans quoi le dernier service construit écraserait silencieusement
+# les assets frontend buildés par un autre avec des variables différentes.
+# Sourcées depuis .env (docker compose lit automatiquement le .env du même
+# répertoire que ce fichier pour l'interpolation ${...}, en plus de la
+# lecture via `env_file:` pour l'environnement runtime des conteneurs).
+x-build: &app-build
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:-app-key}
+      VITE_REVERB_HOST: ${APP_DOMAIN:-localhost}
+      VITE_REVERB_PORT: "443"
+      VITE_REVERB_SCHEME: https
+  image: life-mdg-erp:${IMAGE_TAG:-latest}
 
 services:
   app-publish:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    <<: *app-build
     user: root
     entrypoint: ["/bin/sh", "-c"]
     command: ["mkdir -p /shared/public && cp -r /app/public/. /shared/public/"]
@@ -35,10 +56,7 @@ services:
       - life-mdg-erp
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    <<: *app-build
     restart: unless-stopped
     depends_on:
       app-publish:
@@ -65,10 +83,7 @@ services:
       - life-mdg-erp
 
   queue:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    <<: *app-build
     restart: unless-stopped
     command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
     depends_on:
@@ -90,10 +105,7 @@ services:
       - life-mdg-erp
 
   scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: life-mdg-erp:${IMAGE_TAG:-latest}
+    <<: *app-build
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]
     command: ["while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
@@ -112,6 +124,25 @@ services:
       QUEUE_CONNECTION: redis
     volumes:
       - storage_data:/app/storage/app
+    networks:
+      - life-mdg-erp
+
+  reverb:
+    <<: *app-build
+    restart: unless-stopped
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    depends_on:
+      app-publish:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      REVERB_HOST: 0.0.0.0
     networks:
       - life-mdg-erp
 

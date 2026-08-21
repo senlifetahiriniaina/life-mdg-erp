@@ -11,6 +11,7 @@ La stack utilisée est **Docker Compose + Caddy** (`docker-compose.prod.yml` + `
 | `app` | Application Laravel (php-fpm), image buildée depuis le `Dockerfile` racine |
 | `queue` | Worker de file d'attente (`php artisan queue:work`) |
 | `scheduler` | Planificateur (`php artisan schedule:run` toutes les 60s) |
+| `reverb` | Serveur WebSocket (`php artisan reverb:start`) — notifications temps réel et messagerie interne (voir `CLAUDE.md` § Chantier 20), relayé par Caddy sur `/app/*` |
 | `mysql` | Base de données (MySQL 8.4, volume persistant, non exposée sur Internet) |
 | `redis` | Cache/session/queue (volume persistant, non exposée sur Internet) |
 | `caddy` | Reverse-proxy + certificat SSL automatique (seul service exposé sur 80/443) |
@@ -89,7 +90,7 @@ Ce script (idempotent — peut être relancé sans risque, y compris après un `
 
 - Ouvrez `https://votre-domaine` dans un navigateur — le cadenas SSL doit apparaître (certificat émis par Let's Encrypt, visible en cliquant sur le cadenas).
 - `curl https://votre-domaine/api/health` doit répondre `200`.
-- `docker compose -f docker-compose.prod.yml ps` doit lister 6 services, tous `Up` (et `app` en `healthy`).
+- `docker compose -f docker-compose.prod.yml ps` doit lister 7 services (`app`, `queue`, `scheduler`, `reverb`, `mysql`, `redis`, `caddy` — `app-publish` s'arrête normalement une fois `public/` copié, ne pas s'attendre à le voir `Up`), tous `Up` (et `app` en `healthy`).
 
 ## Mettre à jour l'application
 

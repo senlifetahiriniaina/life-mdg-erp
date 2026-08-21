@@ -15,6 +15,7 @@
 - [ ] Sauvegardes configurées et testées (`BACKUP_*` dans `.env`, cf. `spatie/laravel-backup`)
 - [ ] Health check (`GET /api/health`) répond correctement depuis l'infrastructure de monitoring cible
 - [ ] `ANTHROPIC_API_KEY` configurée si les guidances IA dynamiques sont souhaitées dès le lancement (sinon repli statique automatique, non bloquant)
+- [ ] Temps réel (notifications, Messaging — voir `CLAUDE.md` § Chantier 20) fonctionnel après déploiement : ouvrir la console développeur du navigateur sur l'app déployée, confirmer une connexion WebSocket établie vers `wss://$APP_DOMAIN/app/...` (pas d'erreur de connexion refusée) — `docker compose -f docker-compose.prod.yml ps reverb` doit être `Up`
 
 ## Après le premier déploiement
 
