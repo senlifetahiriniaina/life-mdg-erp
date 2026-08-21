@@ -7,7 +7,6 @@ namespace Modules\Reporting\Services;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Modules\Reporting\Models\ReportDefinition;
 use Modules\Reporting\Models\ReportExecution;
 use Modules\Reporting\Models\ReportSchedule;
@@ -118,86 +117,12 @@ class ReportingService
         return DB::select($template, $bindings);
     }
 
-    /**
-     * Generate a PDF export for a completed execution.
-     * Returns the storage path of the generated file.
-     */
-    public function generatePdf(ReportExecution $execution): string
-    {
-        if (! $execution->isCompleted()) {
-            throw new \RuntimeException('Cannot generate PDF for an execution that is not completed.');
-        }
-
-        $filename = sprintf(
-            'reports/pdf/execution_%d_%s.pdf',
-            $execution->id,
-            now()->format('Ymd_His'),
-        );
-
-        // Build a simple CSV-like text payload as a PDF stand-in
-        // (full PDF generation requires a library like DomPDF/Snappy — plug in here)
-        $content = $this->buildTextReport($execution);
-        Storage::put($filename, $content);
-
-        $execution->update(['file_path' => $filename]);
-
-        return $filename;
-    }
-
-    /**
-     * Generate an Excel export for a completed execution.
-     * Returns the storage path of the generated file.
-     */
-    public function generateExcel(ReportExecution $execution): string
-    {
-        if (! $execution->isCompleted()) {
-            throw new \RuntimeException('Cannot generate Excel for an execution that is not completed.');
-        }
-
-        $filename = sprintf(
-            'reports/excel/execution_%d_%s.csv',
-            $execution->id,
-            now()->format('Ymd_His'),
-        );
-
-        $rows = $execution->result_data ?? [];
-        $csv  = '';
-
-        if (! empty($rows)) {
-            $headers = array_keys((array) $rows[0]);
-            $csv     = implode(',', $headers) . "\n";
-
-            foreach ($rows as $row) {
-                $values = array_map(
-                    fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"',
-                    array_values((array) $row),
-                );
-                $csv .= implode(',', $values) . "\n";
-            }
-        }
-
-        Storage::put($filename, $csv);
-
-        $execution->update(['file_path' => $filename]);
-
-        return $filename;
-    }
-
-    /**
-     * Build a plain-text representation of the execution result for quick export.
-     */
-    private function buildTextReport(ReportExecution $execution): string
-    {
-        $rows  = $execution->result_data ?? [];
-        $lines = ["Report Execution #{$execution->id}", str_repeat('-', 40)];
-
-        foreach ($rows as $row) {
-            foreach ((array) $row as $key => $value) {
-                $lines[] = "{$key}: {$value}";
-            }
-            $lines[] = '';
-        }
-
-        return implode("\n", $lines);
-    }
+    // Chantier 29: generatePdf()/generateExcel()/buildTextReport() were
+    // deleted here — both were fakes (plain-text saved under a .pdf name;
+    // CSV saved under a .csv name regardless of the requested format's real
+    // MIME type), confirmed via grep to have exactly one caller in the
+    // whole app (ReportingController::downloadExecution()), which now
+    // delegates to the real DomPDF/PhpSpreadsheet engine on
+    // ReportGenerationService::exportPdf()/exportXlsx() instead. See that
+    // controller method's own docblock for the full story.
 }

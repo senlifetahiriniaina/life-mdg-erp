@@ -17,6 +17,14 @@
           <Link href="/strategy/cascade" class="wh-subnav-link">Cascade</Link>
           <Link href="/strategy/sector-kpi" class="wh-subnav-link">KPI sectoriels</Link>
         </nav>
+        <div class="wh-export-actions">
+          <button type="button" class="wh-btn wh-btn-secondary" :disabled="exporting" @click="downloadExport('pdf')">
+            <i class="pi pi-file-pdf" /> Exporter PDF
+          </button>
+          <button type="button" class="wh-btn wh-btn-secondary" :disabled="exporting" @click="downloadExport('excel')">
+            <i class="pi pi-file-excel" /> Exporter Excel
+          </button>
+        </div>
       </div>
 
       <AIAssistantPanel v-if="guidance" :guidance="guidance" />
@@ -144,6 +152,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import ProgressBar from 'primevue/progressbar'
@@ -161,6 +170,33 @@ defineProps({
 })
 
 const { guidance } = useAiAssistant('Strategy', 'view_dashboard')
+
+// Chantier 29 — export PDF/Excel du rapport de pilotage stratégique. Même
+// patron fetch()-vers-blob déjà établi par Analytics/CashflowForecast/
+// Index.vue (Chantier 26 volet A) — un GET n'a pas besoin d'axios/du header
+// CSRF, la protection CSRF de Laravel ne s'applique qu'aux verbes qui
+// modifient l'état.
+const exporting = ref(false)
+
+async function downloadExport(format) {
+  exporting.value = true
+  try {
+    const accept = format === 'pdf'
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    const url = `/api/v1/strategy/executive-report/export/${format}`
+    const res = await fetch(url, { headers: { Accept: accept } })
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `rapport-pilotage-strategique.${format === 'pdf' ? 'pdf' : 'xlsx'}`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  } finally {
+    exporting.value = false
+  }
+}
 
 function healthClass(score) {
   if (score >= 70) return 'wh-health-green'
@@ -189,6 +225,7 @@ function formatCoef(c) {
 .wh-page-title { font-size: 22px; font-weight: 700; margin: 0; color: #111827; }
 .wh-page-subtitle { font-size: 13px; color: #6B7280; margin-top: 2px; }
 .wh-subnav { display: flex; gap: 4px; flex-wrap: wrap; }
+.wh-export-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .wh-subnav-link { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; color: #4B5563; background: #F3F4F6; text-decoration: none; }
 .wh-subnav-link:hover { background: #E5E7EB; }
 .wh-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 18px 20px; }

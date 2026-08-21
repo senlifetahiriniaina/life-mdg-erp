@@ -10,6 +10,12 @@
       <div class="page-actions">
         <Link href="/accounting/financial-simulations" class="btn btn-secondary"><i class="pi pi-chart-line" style="font-size:13px" /> Simulation financière</Link>
         <button class="btn btn-secondary" @click="print"><i class="pi pi-print" style="font-size:13px" /> Imprimer / PDF</button>
+        <button class="btn btn-secondary" @click="exportFile('pdf')" :disabled="exporting">
+          <i class="pi pi-file-pdf" style="font-size:13px" /> Exporter PDF
+        </button>
+        <button class="btn btn-secondary" @click="exportFile('excel')" :disabled="exporting">
+          <i class="pi pi-file-excel" style="font-size:13px" /> Exporter Excel
+        </button>
         <button class="btn btn-primary" @click="load" :disabled="loading">
           <i class="pi pi-refresh" style="font-size:13px" />
           Actualiser
@@ -101,6 +107,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
 
 const loading = ref(false)
+const exporting = ref(false)
 const data = ref(null)
 
 const filters = reactive({
@@ -123,6 +130,31 @@ async function load() {
 
 function print() {
   window.print()
+}
+
+// Chantier 29: real PDF/Excel export — the endpoint returns a binary file,
+// so a plain fetch()-to-blob download is used here rather than axios (same
+// pattern already established by Invoices/Index.vue's export button; a GET
+// request needs no CSRF header either way).
+async function exportFile(format) {
+  exporting.value = true
+  try {
+    const accept = format === 'pdf'
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    const url = `/api/v1/accounting/financial-reports/balance-sheet/export/${format}?period=${encodeURIComponent(filters.period)}`
+    const res = await fetch(url, { headers: { Accept: accept } })
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `bilan-syscohada-${filters.period}.${format === 'pdf' ? 'pdf' : 'xlsx'}`
+    a.click()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    exporting.value = false
+  }
 }
 
 function fmt(v) {

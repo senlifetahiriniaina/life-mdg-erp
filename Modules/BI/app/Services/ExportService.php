@@ -85,6 +85,17 @@ class ExportService
 
     /**
      * Export a widget's data as a streamed CSV download.
+     *
+     * Chantier 29: previously wrote only a header row and closed the stream —
+     * a widget CSV export always downloaded an empty body. No generic
+     * "resolve this widget's query/data source into real rows" mechanism
+     * exists anywhere in this module (`DrillDownService::getWidgetBaseData()`
+     * is itself an unfinished stub that always returns `[]`), so this method
+     * prefers real per-row data when the widget's own `config` already
+     * carries it (e.g. a `data_table` widget the builder saved with a
+     * `rows` array alongside its `columns`), and otherwise falls back to a
+     * genuine data row built from the widget's own real, stored attributes
+     * — never an invented value.
      */
     public function exportWidgetCsv(Widget $widget): StreamedResponse
     {
@@ -92,16 +103,52 @@ class ExportService
         $config = $widget->config ?? [];
         $filename = 'widget_'.$widget->id.'_'.now()->format('Ymd_His').'.csv';
 
-        return response()->streamDownload(function () use ($config): void {
+        /** @var list<array<string, mixed>>|null $configRows */
+        $configRows = isset($config['rows']) && is_array($config['rows']) && $config['rows'] !== []
+            ? array_values($config['rows'])
+            : null;
+
+        $summary = [
+            'id' => $widget->id,
+            'title' => $widget->title,
+            'type' => $widget->type,
+            'dashboard' => $widget->dashboard?->name,
+            'refresh_interval' => $widget->refresh_interval,
+            'created_at' => $widget->created_at?->toDateTimeString(),
+        ];
+
+        return response()->streamDownload(function () use ($config, $configRows, $summary): void {
             $out = fopen('php://output', 'w');
             if ($out === false) {
                 return;
             }
-            // Write headers from config or generic ones
-            $headers = isset($config['columns']) && is_array($config['columns'])
-                ? $config['columns']
-                : ['id', 'title', 'value'];
-            fputcsv($out, $headers);
+
+            if ($configRows !== null) {
+                $firstRow = $configRows[0];
+                $headers = isset($config['columns']) && is_array($config['columns'])
+                    ? $config['columns']
+                    : array_keys($firstRow);
+
+                fputcsv($out, $headers);
+
+                foreach ($configRows as $row) {
+                    fputcsv($out, array_map(
+                        fn (string $column) => $row[$column] ?? '',
+                        $headers
+                    ));
+                }
+            } else {
+                $headers = isset($config['columns']) && is_array($config['columns'])
+                    ? $config['columns']
+                    : array_keys($summary);
+
+                fputcsv($out, $headers);
+                fputcsv($out, array_map(
+                    fn (string $column) => $summary[$column] ?? ($config[$column] ?? ''),
+                    $headers
+                ));
+            }
+
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
     }

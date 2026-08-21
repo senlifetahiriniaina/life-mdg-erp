@@ -263,6 +263,26 @@ class ReportingController extends Controller
     /**
      * Download the PDF or Excel file for a completed execution.
      *
+     * Chantier 29: this was the one real, reachable "download my report"
+     * button in the app, and it never produced a real PDF or a real XLSX
+     * file — it delegated to ReportingService::generatePdf()/generateExcel(),
+     * two fakes (a plain-text file saved under a .pdf name; a CSV saved
+     * under a .csv name regardless of the requested format's real MIME
+     * type). The real DomPDF/PhpSpreadsheet engine — ReportGenerationService
+     * — already existed, fully built and already injected into this
+     * controller as $this->generation, but was never actually called from
+     * here (its only other callers, RunReportJob/DeliverScheduledReportJob,
+     * are themselves never dispatched anywhere in the app — a separate,
+     * already-documented gap, left untouched). Rewired onto the real engine:
+     * the execution's already-persisted result_data (the full row set —
+     * ReportingService::execute()'s runQuery() stores it in full, unlike
+     * ReportGenerationService::run()'s own preview-only DB write, which
+     * this download path never uses) is handed to
+     * exportPdf()/exportXlsx(), which render real HTML→PDF via DomPDF and
+     * a real .xlsx via PhpSpreadsheet (both installed — confirmed via
+     * `composer show`) — never the CSV/HTML fallbacks those two methods
+     * also support for an environment without those packages.
+     *
      * @urlParam id integer required The execution ID. Example: 1
      * @queryParam format string Export format: pdf or excel (default: excel). Example: pdf
      */
@@ -277,18 +297,21 @@ class ReportingController extends Controller
         }
 
         $format = $request->get('format', 'excel');
+        $data   = $execution->result_data ?? [];
 
         try {
             $filePath = match ($format) {
-                'pdf'   => $this->service->generatePdf($execution),
-                default => $this->service->generateExcel($execution),
+                'pdf'   => $this->generation->exportPdf($execution, $data),
+                default => $this->generation->exportXlsx($execution, $data),
             };
-        } catch (\RuntimeException $e) {
+        } catch (\Throwable $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $mimeType     = $format === 'pdf' ? 'application/pdf' : 'text/csv';
-        $extension    = $format === 'pdf' ? 'pdf' : 'csv';
+        $mimeType     = $format === 'pdf'
+            ? 'application/pdf'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $extension    = $format === 'pdf' ? 'pdf' : 'xlsx';
         $downloadName = sprintf('report_%d.%s', $execution->id, $extension);
 
         return Storage::download($filePath, $downloadName, [

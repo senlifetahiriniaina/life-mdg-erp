@@ -11,6 +11,7 @@ use Modules\Strategy\Http\Controllers\Api\StrategyAdvisorController;
 use Modules\Strategy\Http\Controllers\Api\StrategyObjectiveLinkController;
 use Modules\Strategy\Http\Controllers\Api\RatioController;
 use Modules\Strategy\Http\Controllers\Api\CascadeController;
+use Modules\Strategy\Http\Controllers\Api\StrategyReportExportController;
 
 // Chantier 8.6: this entire group had no module:/role: gate at all — only
 // auth:sanctum, session.security, tenancy.user — the same RBAC hole already
@@ -76,6 +77,10 @@ Route::prefix('v1/strategy')->middleware('auth:sanctum', 'session.security', 'te
 
     // Cascade alignment map (Item #38)
     Route::get('cascade', [CascadeController::class, 'index']);
+
+    // Chantier 29 — rapport de pilotage stratégique (PDF/Excel export).
+    Route::get('executive-report/export/pdf', [StrategyReportExportController::class, 'pdf']);
+    Route::get('executive-report/export/excel', [StrategyReportExportController::class, 'excel']);
 
     // Ratios & Benchmarks (Strategy First)
     Route::get('ratios', [RatioController::class, 'index']);

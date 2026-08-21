@@ -6,11 +6,17 @@ namespace Modules\Accounting\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
+use Modules\Accounting\Exports\OhadaBalanceSheetExport;
+use Modules\Accounting\Exports\OhadaIncomeStatementExport;
 use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Services\FinancialReportService;
 use Modules\Reporting\Services\OhadaReportService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * @group Accounting - Financial Reporting
@@ -249,16 +255,71 @@ class ReportingController extends Controller
         ]);
     }
 
-    /** GET /financial-reports/{report}/export/excel */
-    public function exportExcel(string $report): JsonResponse
+    /**
+     * Chantier 29: real implementation — these two endpoints used to be pure
+     * stubs returning `{"message":"Export queued."}` JSON with no file ever
+     * generated, despite being routed and reachable. Delegates to the exact
+     * same real, already-working `OhadaReportService::generateBalanceSheet()`/
+     * `generateIncomeStatement()` the on-screen `BalanceSheet.vue`/
+     * `IncomeStatement.vue` pages already call via `ohadaBalanceSheet()`/
+     * `ohadaIncomeStatement()` above (Chantier 18) — so the export always
+     * matches what the user sees on screen, and no report logic is
+     * duplicated. Supports "balance-sheet"/"balance_sheet" and
+     * "income-statement"/"income_statement" (the two OHADA statements this
+     * module has real screen data for); any other `{report}` value 404s
+     * rather than silently returning an empty/wrong file.
+     *
+     * GET /financial-reports/{report}/export/excel?period=YYYY-MM
+     */
+    public function exportExcel(Request $request, string $report, OhadaReportService $ohada): BinaryFileResponse
     {
-        return response()->json(['data' => ['report' => $report, 'format' => 'excel', 'message' => 'Export queued.']]);
+        $type      = $this->normalizeReportType($report);
+        $period    = (string) $request->query('period', now()->format('Y-m'));
+        $companyId = (int) ($request->user()?->company_id ?? 0);
+
+        if ($type === 'balance-sheet') {
+            $data = $ohada->generateBalanceSheet($companyId, $period, 'MGA');
+
+            return Excel::download(new OhadaBalanceSheetExport($data), "bilan-syscohada-{$period}.xlsx");
+        }
+
+        if ($type === 'income-statement') {
+            $data = $ohada->generateIncomeStatement($companyId, $period, 'MGA');
+
+            return Excel::download(new OhadaIncomeStatementExport($data), "compte-de-resultat-syscohada-{$period}.xlsx");
+        }
+
+        abort(404, "Export non pris en charge pour le rapport « {$report} ». Types supportés : balance-sheet, income-statement.");
     }
 
-    /** GET /financial-reports/{report}/export/pdf */
-    public function exportPdf(string $report): JsonResponse
+    /** GET /financial-reports/{report}/export/pdf?period=YYYY-MM — see exportExcel() docblock. */
+    public function exportPdf(Request $request, string $report, OhadaReportService $ohada): Response
     {
-        return response()->json(['data' => ['report' => $report, 'format' => 'pdf', 'message' => 'Export queued.']]);
+        $type      = $this->normalizeReportType($report);
+        $period    = (string) $request->query('period', now()->format('Y-m'));
+        $companyId = (int) ($request->user()?->company_id ?? 0);
+
+        if ($type === 'balance-sheet') {
+            $data = $ohada->generateBalanceSheet($companyId, $period, 'MGA');
+            $pdf  = Pdf::loadView('accounting.financial-reports.balance-sheet', ['data' => $data])->setPaper('a4', 'portrait');
+
+            return $pdf->download("bilan-syscohada-{$period}.pdf");
+        }
+
+        if ($type === 'income-statement') {
+            $data = $ohada->generateIncomeStatement($companyId, $period, 'MGA');
+            $pdf  = Pdf::loadView('accounting.financial-reports.income-statement', ['data' => $data])->setPaper('a4', 'portrait');
+
+            return $pdf->download("compte-de-resultat-syscohada-{$period}.pdf");
+        }
+
+        abort(404, "Export non pris en charge pour le rapport « {$report} ». Types supportés : balance-sheet, income-statement.");
+    }
+
+    /** Normalize a route {report} slug ("balance_sheet", "Balance-Sheet", …) to its canonical hyphenated form. */
+    private function normalizeReportType(string $report): string
+    {
+        return str_replace('_', '-', strtolower($report));
     }
 
     /** POST /financial-reports/export/multiple */

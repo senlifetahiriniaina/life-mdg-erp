@@ -203,8 +203,9 @@ Une suite décisionnelle complète pour transformer les données de l'ERP en tab
 - **Carte de cascade stratégique** : visualisation de l'alignement entre objectifs d'entreprise et objectifs opérationnels.
 - **Recommandations stratégiques par IA** : synthèse automatique de l'état de santé de l'entreprise et suggestions d'actions prioritaires, en langage clair.
 - **Indicateurs sectoriels textile / EPI** : un cockpit dédié au métier de la confection — marge moyenne par famille de produit, structure du coût de revient (part matière, main-d'œuvre, frais fixes…), délai et taux de respect des délais par sous-traitant, répartition de la production par famille, et écart entre le coût matière chiffré et les prix réellement observés chez les fournisseurs — calculé en direct sur les données réelles de chiffrage et de production, jamais un chiffre inventé.
+- **Rapport de pilotage stratégique exportable** : un document de synthèse pour la direction, en un clic, au format PDF ou Excel (classeur à 5 onglets) — ratios de pilotage avec statut, santé des plans stratégiques, principales corrélations avec leur interprétation, arborescence OKR, et indicateurs sectoriels textile/EPI, le tout assemblé depuis les mêmes données déjà réelles que le cockpit à l'écran.
 
-**Comment on l'utilise :** un dirigeant ou un contrôleur de gestion configure ses tableaux de bord clés, consulte en un clin d'œil les ratios de pilotage de l'entreprise comparés au secteur, reçoit une alerte dès qu'un seuil critique est franchi, et suit l'avancement des objectifs stratégiques de l'entreprise dans le temps.
+**Comment on l'utilise :** un dirigeant ou un contrôleur de gestion configure ses tableaux de bord clés, consulte en un clin d'œil les ratios de pilotage de l'entreprise comparés au secteur, reçoit une alerte dès qu'un seuil critique est franchi, suit l'avancement des objectifs stratégiques de l'entreprise dans le temps, et exporte un rapport de synthèse en un clic avant un comité de direction.
 
 ---
 

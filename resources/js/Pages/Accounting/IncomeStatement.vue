@@ -9,6 +9,12 @@
       </div>
       <div class="page-actions">
         <button class="btn btn-secondary" @click="print"><i class="pi pi-print" style="font-size:13px" /> Imprimer / PDF</button>
+        <button class="btn btn-secondary" @click="exportFile('pdf')" :disabled="exporting">
+          <i class="pi pi-file-pdf" style="font-size:13px" /> Exporter PDF
+        </button>
+        <button class="btn btn-secondary" @click="exportFile('excel')" :disabled="exporting">
+          <i class="pi pi-file-excel" style="font-size:13px" /> Exporter Excel
+        </button>
         <button class="btn btn-primary" @click="load" :disabled="loading">
           <i :class="['pi', loading ? 'pi-spin pi-spinner' : 'pi-refresh']" style="font-size:13px" />
           Générer
@@ -150,6 +156,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
 
 const loading = ref(false)
+const exporting = ref(false)
 const data = ref(null)
 
 const filters = reactive({
@@ -172,6 +179,30 @@ async function load() {
 
 function print() {
   window.print()
+}
+
+// Chantier 29: real PDF/Excel export — fetch()-to-blob, matching the pattern
+// already established by Invoices/Index.vue's export button (GET request,
+// no CSRF header needed either way).
+async function exportFile(format) {
+  exporting.value = true
+  try {
+    const accept = format === 'pdf'
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    const url = `/api/v1/accounting/financial-reports/income-statement/export/${format}?period=${encodeURIComponent(filters.period)}`
+    const res = await fetch(url, { headers: { Accept: accept } })
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `compte-de-resultat-syscohada-${filters.period}.${format === 'pdf' ? 'pdf' : 'xlsx'}`
+    a.click()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    exporting.value = false
+  }
 }
 
 function fmt(v) {
