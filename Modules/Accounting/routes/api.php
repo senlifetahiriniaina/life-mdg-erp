@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Accounting\Http\Controllers\Api\BudgetController;
 use Modules\Accounting\Http\Controllers\Api\BudgetManagementController;
+use Modules\Accounting\Http\Controllers\Api\FinanceReviewController;
 use Modules\Accounting\Http\Controllers\Api\ChartOfAccountController;
 use Modules\Accounting\Http\Controllers\Api\ExpenseController;
 use Modules\Accounting\Http\Controllers\Api\FinancialRatiosController;
@@ -171,6 +172,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::get('ratios/leverage', [FinancialRatiosController::class, 'leverageRatios']);
     Route::get('ratios/market', [FinancialRatiosController::class, 'marketRatios']);
     Route::get('ratios/dupont', [FinancialRatiosController::class, 'duPontAnalysis']);
+
+    // Finance Review (Chantier 26, volet D) — réalisation objectifs/budget calculée en direct
+    Route::get('finance-reviews', [FinanceReviewController::class, 'index']);
+    Route::get('finance-reviews/realization', [FinanceReviewController::class, 'realization']);
 });
 
 // Write operations (150 req/min)
@@ -542,4 +547,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
     Route::post('scenario-planning/sensitivity', [ScenarioPlanningController::class, 'sensitivity']);
     Route::post('scenario-planning/impact', [ScenarioPlanningController::class, 'impact']);
     Route::post('scenario-planning/approve', [ScenarioPlanningController::class, 'approve']);
+
+    // Finance Review (Chantier 26, volet D)
+    Route::post('finance-reviews', [FinanceReviewController::class, 'store']);
+    Route::put('finance-reviews/{financeReview}', [FinanceReviewController::class, 'update']);
+    Route::delete('finance-reviews/{financeReview}', [FinanceReviewController::class, 'destroy']);
 });

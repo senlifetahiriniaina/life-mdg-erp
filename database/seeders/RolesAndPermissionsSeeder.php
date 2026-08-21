@@ -371,7 +371,9 @@ class RolesAndPermissionsSeeder extends Seeder
         'inventory'        => ['product', 'category', 'warehouse', 'unit', 'stock-movement', 'purchase-order', 'supplier', 'product-template', 'sourcing-benchmark', 'costing-sheet', 'production-order'],
         'logistics'        => ['shipment', 'route', 'carrier', 'customs-declaration'],
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier', 'purchaseorderline'],
-        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario', 'financial-simulation'],
+        // Chantier 26 (volet D): 'financereview' (revue finance mensuelle/
+        // trimestrielle — objectifs commerciaux + budget) added.
+        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario', 'financial-simulation', 'financereview'],
         'helpdesk'         => ['ticket', 'team', 'agent-performance'],
         'bi'               => ['dashboard', 'kpi', 'report', 'bidatasource'],
         'analytics'        => ['forecast', 'anomaly'],
@@ -665,12 +667,19 @@ class RolesAndPermissionsSeeder extends Seeder
             ])
         ));
 
-        // finance-manager: full Accounting + full BI + Strategy
+        // finance-manager: full Accounting + full BI + Strategy, plus a narrow
+        // read-only grant into Sales (Chantier 26 volet D — la revue finance
+        // mensuelle/trimestrielle compare les objectifs commerciaux validés
+        // aux ventes réelles, donc a besoin de lire Modules\Sales\Models\
+        // SalesObjective/SalesOrder sans porter les permissions d'écriture
+        // commerciale complètes — même précédent que la grille explicite déjà
+        // utilisée ci-dessous pour customer-service).
         $financeManager = Role::firstOrCreate(['name' => 'finance-manager', 'guard_name' => 'web']);
         $financeManager->syncPermissions(array_filter($allPermissions, fn(Permission $p) =>
             str_starts_with($p->name, 'accounting.') ||
             str_starts_with($p->name, 'bi.') ||
-            str_starts_with($p->name, 'strategy.')
+            str_starts_with($p->name, 'strategy.') ||
+            $p->name === 'sales.read'
         ));
 
         // customer-service: full Helpdesk + CRM contact/account view

@@ -7,12 +7,14 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
 use Modules\Accounting\Models\Company;
+use Modules\Accounting\Models\FinanceReview;
 use Modules\Accounting\Models\FinancialSimulation;
 use Modules\Accounting\Models\FinancialSimulationLine;
 use Modules\Accounting\Models\GLAccount;
 use Modules\Accounting\Models\Invoice;
 use Modules\Accounting\Observers\InvoiceObserver;
 use Modules\Accounting\Policies\CompanyPolicy;
+use Modules\Accounting\Policies\FinanceReviewPolicy;
 use Modules\Accounting\Policies\FinancialSimulationPolicy;
 use Modules\Accounting\Policies\GLAccountPolicy;
 use Modules\Accounting\Services\AccountingService;
@@ -57,6 +59,10 @@ class AccountingServiceProvider extends ServiceProvider {
         // 403 on every mutating consolidation endpoint for every non-super-admin,
         // confirmed empirically. See CompanyPolicy's own docblock.
         Gate::policy(Company::class, CompanyPolicy::class);
+        // Chantier 26 (volet D): FinanceReviewController calls authorize()
+        // against FinanceReview — registered explicitly, matching the
+        // Modules-namespaced-policies-don't-auto-discover precedent.
+        Gate::policy(FinanceReview::class, FinanceReviewPolicy::class);
         // Payment model does not exist yet; PaymentObserver available for future use
         // \Modules\Accounting\Models\Payment::observe(\Modules\Accounting\Observers\PaymentObserver::class);
 $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));

@@ -19,6 +19,9 @@
         <button class="wh-input" style="cursor: pointer; background: #F0F9FF; border-color: #2E5BE8; color: #2E5BE8;" :disabled="generating" @click="generateFromHistory">
           {{ generating ? 'Génération…' : 'Générer un budget depuis l\'historique' }}
         </button>
+        <a href="/accounting/finance-review" class="wh-input" style="text-decoration: none; background: #ECFDF5; border-color: #059669; color: #059669;">
+          Revue finance mensuelle/trimestrielle
+        </a>
       </div>
       <p v-if="generateFeedback" class="wh-generate-feedback" :class="{ 'wh-generate-error': generateFeedbackIsError }">{{ generateFeedback }}</p>
 

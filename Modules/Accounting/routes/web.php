@@ -77,4 +77,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('intercompany-clearances', [IntercompanyClearanceWebController::class, 'index'])->name('intercompany-clearances.index');
     Route::get('scenario-planning', [ScenarioPlanningWebController::class, 'index'])->name('scenario-planning.index');
     Route::get('treasury-import', [TreasuryImportWebController::class, 'index'])->name('treasury-import.index');
+
+    // Chantier 26 (volet D) — revue finance mensuelle/trimestrielle
+    Route::get('finance-review', fn () => \Inertia\Inertia::render('Accounting/FinanceReview/Index'))->name('finance-review.index');
 });
