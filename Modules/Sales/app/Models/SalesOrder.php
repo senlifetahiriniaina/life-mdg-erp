@@ -65,6 +65,9 @@ class SalesOrder extends Model
         'confirmed_at',
         'cancelled_at',
         'created_by',
+        // Chantier 26 (volet B — objectifs commerciaux) : le commercial
+        // responsable du compte, distinct de created_by (qui a saisi).
+        'sales_rep_id',
         // Chantier 22 (volet B — cycle acompte/solde).
         'deposit_percent',
         'deposit_required_amount',
@@ -97,6 +100,11 @@ class SalesOrder extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
+    public function salesRep(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'sales_rep_id');
     }
 
     public function depositInvoice(): BelongsTo

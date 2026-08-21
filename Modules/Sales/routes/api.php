@@ -74,6 +74,18 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:S
         ->name('sales.recurring-order-templates.destroy');
     Route::post('sales/recurring-order-templates/{id}/run', [\Modules\Sales\Http\Controllers\Api\RecurringOrderTemplateController::class, 'runNow'])
         ->name('sales.recurring-order-templates.run');
+
+    // ─── Chantier 26 (volet B) — objectifs commerciaux assistés par IA ────────
+    Route::get('sales/objectives', [\Modules\Sales\Http\Controllers\Api\SalesObjectiveController::class, 'index'])
+        ->name('sales.objectives.index');
+    Route::post('sales/objectives/propose', [\Modules\Sales\Http\Controllers\Api\SalesObjectiveController::class, 'propose'])
+        ->name('sales.objectives.propose');
+    Route::put('sales/objectives/{id}', [\Modules\Sales\Http\Controllers\Api\SalesObjectiveController::class, 'update'])
+        ->name('sales.objectives.update');
+    Route::post('sales/objectives/{id}/validate', [\Modules\Sales\Http\Controllers\Api\SalesObjectiveController::class, 'validateObjective'])
+        ->name('sales.objectives.validate');
+    Route::delete('sales/objectives/{id}', [\Modules\Sales\Http\Controllers\Api\SalesObjectiveController::class, 'destroy'])
+        ->name('sales.objectives.destroy');
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────

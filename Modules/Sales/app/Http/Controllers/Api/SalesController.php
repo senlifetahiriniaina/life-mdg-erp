@@ -123,10 +123,15 @@ class SalesController extends Controller
             'lines.*.unit_price'      => 'required|numeric|min:0',
             'lines.*.discount_percent' => 'nullable|numeric|min:0|max:100',
             'lines.*.tax_rate'        => 'nullable|numeric|min:0|max:100',
+            'sales_rep_id'            => 'nullable|integer',
         ]);
 
         $validated['tenant_id'] = $this->tenantId($request);
         $validated['created_by'] = $request->user()->id;
+        // Chantier 26 (volet B): defaults to the creator, but explicitly
+        // overridable — an admin often enters an order on behalf of the
+        // rep actually responsible for the account.
+        $validated['sales_rep_id'] ??= $request->user()->id;
 
         $order = $this->service->createOrder($validated);
 

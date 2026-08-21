@@ -27,4 +27,9 @@ Route::middleware(['web', 'auth', 'module:Sales'])->group(function () {
     // même précédent que SalesIndex.vue.
     Route::get('/sales/recurring-orders', fn () => Inertia::render('Sales/RecurringOrders/Index'))
         ->name('sales.recurring-orders.index');
+
+    // Chantier 26 (volet B) — objectifs commerciaux assistés par IA,
+    // self-fetch page, même précédent que SalesIndex.vue.
+    Route::get('/sales/objectives', fn () => Inertia::render('Sales/Objectives/Index'))
+        ->name('sales.objectives.index');
 });

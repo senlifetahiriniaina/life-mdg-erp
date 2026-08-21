@@ -90,6 +90,7 @@ class SalesService
                 'shipping_address'        => $data['shipping_address'] ?? null,
                 'expected_delivery_date'  => $data['expected_delivery_date'] ?? null,
                 'created_by'              => $data['created_by'],
+                'sales_rep_id'            => $data['sales_rep_id'] ?? $data['created_by'],
             ]);
 
             foreach ($lines as $line) {
