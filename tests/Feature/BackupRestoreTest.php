@@ -129,3 +129,51 @@ PHP
         File::deleteDirectory(storage_path('app/private/backups'));
     }
 });
+
+/**
+ * Regression test for a real bug found while verifying backup/restore
+ * compatibility against everything added in Chantiers 15-27: BackupDatabase
+ * only ever deleted its `tmp_*` working directory on the success path — any
+ * failure partway through (this repo's own default, BACKUP_DISK=s3 with no
+ * Flysystem S3 adapter installed, is a guaranteed one — see CLAUDE.md's
+ * Chantier 14 "Known gaps") silently leaked a full, uncompressed copy of
+ * the dump into storage/backups/ forever, never swept by backup:cleanup
+ * (which only globs *.zip/*.sql.gz, not tmp_* directories). Inert while the
+ * scheduler wasn't wired to a real console kernel; actively accumulating
+ * disk now that the Chantier 19 root-scheduler fix runs `backup:database
+ * --s3` for real every day. Fixed with a `finally` block — this test proves
+ * it stays fixed.
+ */
+it('cleans up its working directory even when the configured upload disk fails', function () {
+    $tmpDb = storage_path('framework/testing/chantier27_backup_leak_probe.sqlite');
+    $backupDir = storage_path('backups');
+
+    @unlink($tmpDb);
+    touch($tmpDb);
+    File::deleteDirectory($backupDir);
+
+    // BACKUP_DISK=s3 with no league/flysystem-aws-s3-v3 installed (this
+    // repo's real, documented state) reliably reproduces the failure path
+    // without needing real AWS credentials or network access.
+    $env = ['DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => $tmpDb, 'BACKUP_DISK' => 's3'];
+    $artisan = fn (string $cmd) => Process::path(base_path())->env($env)->timeout(180)->run("php artisan {$cmd}");
+
+    try {
+        $migrate = $artisan('migrate --force');
+        expect($migrate->successful())->toBeTrue($migrate->errorOutput());
+
+        $backup = $artisan('backup:database --s3');
+        expect($backup->successful())->toBeFalse(); // the S3 upload is expected to fail
+
+        $leftoverTmpDirs = glob("{$backupDir}/tmp_*");
+        expect($leftoverTmpDirs)->toBe([]);
+
+        // The local .zip copy is deliberately kept — it's a real, restorable
+        // backup and a better outcome than losing the dump entirely.
+        $archives = glob("{$backupDir}/*.zip");
+        expect($archives)->not->toBeEmpty();
+    } finally {
+        @unlink($tmpDb);
+        File::deleteDirectory($backupDir);
+    }
+});

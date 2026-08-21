@@ -30,6 +30,21 @@ class BackupDatabase extends Command
 
     public function handle(SchemaSnapshotService $snapshots): int
     {
+        // $workDir is declared before the try so the `finally` block below can
+        // always reach it, even if the command fails before it's assigned (an
+        // early exception) or after (e.g. the S3 upload in store() throwing —
+        // confirmed live via the real, undocumented gap this fixes: the
+        // "tmp_*" working directory was previously only deleted on the
+        // success path, so every failed upload (BACKUP_DISK=s3 with no
+        // Flysystem S3 adapter installed is the default in this repo — see
+        // CLAUDE.md Chantier 14 "Known gaps") silently leaked a full,
+        // uncompressed copy of the dump into storage/backups/ forever, never
+        // swept by backup:cleanup (which only globs *.zip/*.sql.gz, not
+        // tmp_* directories) — inert while the scheduler wasn't wired to a
+        // real console kernel, but actively accumulating disk now that it is
+        // (see the Chantier 19 root-scheduler-fix entry).
+        $workDir = null;
+
         try {
             $this->info('Starting database backup...');
 
@@ -59,7 +74,10 @@ class BackupDatabase extends Command
             $disk = $this->option('s3') ? 's3' : config('backup.disk', 'local');
             $this->store($archivePath, $archiveName, $disk);
 
-            $this->deleteDirectory($workDir);
+            // A failed upload leaves the local .zip in place on purpose — it's
+            // a real, restorable backup and a better outcome than losing the
+            // dump entirely; backup:cleanup's normal retention sweep (it
+            // already globs *.zip) reaps it like any other local backup.
             if ($disk !== 'local') {
                 unlink($archivePath);
             }
@@ -80,6 +98,16 @@ class BackupDatabase extends Command
                 'timestamp' => now()->toIso8601String(),
             ]);
             return 1;
+        } finally {
+            // Always reached, success or failure — the working directory's
+            // content is either already inside the compressed archive (real
+            // success) or a no-longer-needed partial attempt (any failure
+            // before or during compression); either way there is nothing left
+            // to gain from keeping it around. See the comment on $workDir's
+            // declaration above for why this used to only run on success.
+            if ($workDir !== null && is_dir($workDir)) {
+                $this->deleteDirectory($workDir);
+            }
         }
     }
 
