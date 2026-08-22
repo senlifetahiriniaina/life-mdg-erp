@@ -121,6 +121,8 @@ class FreightInvoiceController extends Controller
 
     public function approve(Request $request, FreightInvoice $freightInvoice): JsonResponse
     {
+        $this->authorizeFinancialAction($request);
+
         abort_if(
             in_array($freightInvoice->status, ['approved', 'paid', 'disputed'], true),
             422,
@@ -134,6 +136,8 @@ class FreightInvoiceController extends Controller
 
     public function dispute(Request $request, FreightInvoice $freightInvoice): JsonResponse
     {
+        $this->authorizeFinancialAction($request);
+
         abort_if(
             in_array($freightInvoice->status, ['approved', 'paid', 'disputed'], true),
             422,
@@ -147,5 +151,27 @@ class FreightInvoiceController extends Controller
         $this->service->dispute($freightInvoice, $data['reason']);
 
         return response()->json($freightInvoice->fresh());
+    }
+
+    /**
+     * Chantier 32.23: this controller has no Policy class at all (consistent
+     * with 11 of the 15 controllers in this module, which rely purely on the
+     * route-level `role:logistics-manager,warehouse-operator,manager,admin`
+     * gate) — but approve()/dispute() are a real financial action, not a
+     * routine CRUD one, and `warehouse-operator` (a physical-operations
+     * role) had zero additional check beyond that broad route gate before
+     * this fix, matching the exact "financial approve/reject with no real
+     * permission check" bug class already fixed for Achats' PurchaseOrder
+     * approval flow. Restricted to the roles that actually make financial
+     * decisions rather than building a full Policy+seeded-permission stack
+     * for one module whose other 11 controllers deliberately don't have one.
+     */
+    private function authorizeFinancialAction(Request $request): void
+    {
+        abort_unless(
+            $request->user()->hasAnyRole(['logistics-manager', 'manager', 'admin', 'super-admin']),
+            403,
+            'Seuls un logistics-manager, manager ou admin peuvent approuver/contester une facture transporteur.'
+        );
     }
 }

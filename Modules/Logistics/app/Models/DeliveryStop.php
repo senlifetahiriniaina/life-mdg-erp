@@ -20,10 +20,30 @@ class DeliveryStop extends Model
 
     protected $table = 'logistics_delivery_stops';
 
+    /**
+     * Chantier 32.23 (deep 14-layer audit): $fillable was missing 6 real,
+     * physically-migrated columns (location_id, sequence, delivery_window,
+     * address, contact_name, notes) that DeliveryRoundController::store()/
+     * addStop() both validate and pass through unconditionally — confirmed
+     * empirically via `php artisan tinker` that every one of them was
+     * silently dropped on mass-assignment (create() with all 6 keys present
+     * left every one of them NULL). A delivery round's stops have never
+     * actually recorded which address to deliver to, who the contact is, or
+     * any delivery-window/notes since this model was built — only
+     * shipment_id/stop_order ever persisted. `sequence` is kept as an alias
+     * column (the controller itself already reconciles it into stop_order
+     * when stop_order is absent) so a caller sending either key round-trips.
+     */
     protected $fillable = [
         'delivery_round_id',
         'stop_order',
+        'sequence',
         'shipment_id',
+        'location_id',
+        'delivery_window',
+        'address',
+        'contact_name',
+        'notes',
         'recipient_name',
         'recipient_address',
         'recipient_city',

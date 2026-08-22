@@ -131,6 +131,17 @@ class MLModelController extends Controller
 
         $version = MLModelVersion::findOrFail($validated['version_id']);
 
+        // Chantier 32.25 (audit 14 couches, Analytics — couche 6, IDOR) :
+        // confirmé empiriquement que rollback() acceptait n'importe quel
+        // version_id existant, y compris une version appartenant au modèle
+        // ML d'une autre société — contrairement à deploy() juste
+        // au-dessus, qui vérifie déjà cette appartenance. $mlModel->
+        // production_version/production_accuracy pouvaient donc être
+        // écrasés avec des valeurs d'un enregistrement d'une société tierce.
+        if ($version->ml_model_id !== $mlModel->id) {
+            return response()->json(['message' => 'Version does not belong to this model'], 422);
+        }
+
         $mlModel->update([
             'production_version' => $version->version_number,
             'production_accuracy' => $version->validation_accuracy,

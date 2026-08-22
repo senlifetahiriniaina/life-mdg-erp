@@ -130,15 +130,31 @@ PROMPT;
 
     /**
      * Get database schema description
+     *
+     * Chantier 32.22: `DB::getDoctrineSchemaManager()` was removed from
+     * Laravel's Connection classes once doctrine/dbal became fully
+     * optional (confirmed empirically: `BadMethodCallException: Method
+     * Illuminate\Database\SQLiteConnection::getDoctrineSchemaManager does
+     * not exist`, and `doctrine/dbal` isn't in this app's composer
+     * requirements at all) — a guaranteed fatal error on every real call to
+     * queryToSql() *whenever an Anthropic API key is actually configured*,
+     * silently masked end-to-end by queryToSql()'s own `catch (\Exception
+     * $e)` (BadMethodCallException is an \Exception), which just falls back
+     * to "Claude API not available" — a real, working NL→SQL feature that
+     * has never once worked, pretending the API key is missing instead of
+     * reporting the schema-introspection bug that's actually breaking it.
+     * Rewritten onto Schema::getTables()/getColumnListing() — the same
+     * portable, generic Laravel introspection already used elsewhere in
+     * this app (SchemaSnapshotService).
      */
     private function getSchemaDescription(): string
     {
-        $tables = DB::getDoctrineSchemaManager()->listTableNames();
+        $tables = collect(\Illuminate\Support\Facades\Schema::getTables())->pluck('name');
 
         $schema = "Tables available:\n\n";
 
-        foreach (array_slice($tables, 0, 20) as $table) { // Limit to first 20 tables
-            $columns = DB::getSchemaBuilder()->getColumnListing($table);
+        foreach ($tables->take(20) as $table) { // Limit to first 20 tables
+            $columns = \Illuminate\Support\Facades\Schema::getColumnListing($table);
             $schema .= "- {$table}: " . implode(', ', array_slice($columns, 0, 10)) . "\n";
         }
 

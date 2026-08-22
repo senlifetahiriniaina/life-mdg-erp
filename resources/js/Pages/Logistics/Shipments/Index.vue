@@ -6,6 +6,8 @@ import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 interface Carrier { id: number; name: string; type: string }
 interface Shipment {
@@ -211,11 +213,18 @@ async function runShipmentAction(action: 'book' | 'dispatch' | 'deliver' | 'canc
 }
 
 load()
+
+// Chantier 32.23 (deep 14-layer audit, layer 13 — IA): this real, routed
+// page never called useAiAssistant() at all despite LogisticsAiAssistController
+// (POST /api/v1/logistics/ai/assist) already existing.
+const { guidance } = useAiAssistant('Logistics', 'create_shipment')
+const showAiPanel = ref(true)
 </script>
 
 <template>
   <AppLayout>
     <Head title="Expéditions" />
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Expéditions</h1>

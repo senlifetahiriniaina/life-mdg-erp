@@ -78,10 +78,31 @@ class CustomsRouteController extends Controller
         return response()->json($declaration, 201);
     }
 
-    /** GET /api/v1/logistics/customs/{id} */
-    public function customsShow(int $id): JsonResponse
+    /**
+     * Chantier 32.23: customsShow/customsCalculateDuties/customsSubmit/
+     * customsClear all resolved a CustomsDeclaration by bare id with zero
+     * tenant scoping — a real, confirmed cross-company IDOR distinct from
+     * (and missed by) the Chantier 19 Lot 4 fix, which only scoped the
+     * separate CustomsDeclarationController's own routes and explicitly
+     * assumed this controller's `logistics/customs/{id}` path was
+     * "unreachable from any UI page" — true for the frontend, but the real,
+     * role-gated route is reachable by any direct API call regardless.
+     * Confirmed empirically via a real cross-company HTTP request (company
+     * B could read/submit/clear company A's declaration by id) before this
+     * fix. Reuses the exact same real tenant_id column customsIndex()/
+     * customsStore() already scope by.
+     */
+    private function findOwnedDeclaration(Request $request, int $id): CustomsDeclaration
     {
-        $declaration = CustomsDeclaration::findOrFail($id);
+        $companyId = $request->user()->company_id ?? 0;
+
+        return CustomsDeclaration::where('tenant_id', $companyId)->findOrFail($id);
+    }
+
+    /** GET /api/v1/logistics/customs/{id} */
+    public function customsShow(Request $request, int $id): JsonResponse
+    {
+        $declaration = $this->findOwnedDeclaration($request, $id);
 
         $checklist = [];
         if ($declaration->incoterm && $declaration->country_of_destination) {
@@ -95,20 +116,26 @@ class CustomsRouteController extends Controller
     }
 
     /** POST /api/v1/logistics/customs/{id}/calculate-duties */
-    public function customsCalculateDuties(int $id): JsonResponse
+    public function customsCalculateDuties(Request $request, int $id): JsonResponse
     {
+        $this->findOwnedDeclaration($request, $id);
+
         return response()->json($this->customs->calculateDuties($id));
     }
 
     /** PUT /api/v1/logistics/customs/{id}/submit */
-    public function customsSubmit(int $id): JsonResponse
+    public function customsSubmit(Request $request, int $id): JsonResponse
     {
+        $this->findOwnedDeclaration($request, $id);
+
         return response()->json($this->customs->submit($id));
     }
 
     /** PUT /api/v1/logistics/customs/{id}/clear */
     public function customsClear(Request $request, int $id): JsonResponse
     {
+        $this->findOwnedDeclaration($request, $id);
+
         $data = $request->validate([
             'duties_paid' => 'nullable|numeric|min:0',
             'vat_paid'    => 'nullable|numeric|min:0',

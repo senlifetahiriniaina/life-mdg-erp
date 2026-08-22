@@ -125,7 +125,7 @@ test('the messaging web route is reachable for an authenticated user', function 
     $response->assertInertia(fn ($page) => $page->component('Messaging/Index'));
 });
 
-test('the AI assist endpoint returns fallback guidance without a configured provider', function () {
+test('the AI assist endpoint returns real fallback guidance without a configured provider', function () {
     actingAsUser('employee');
 
     $response = $this->postJson('/api/v1/messaging/ai/assist', [
@@ -134,6 +134,15 @@ test('the AI assist endpoint returns fallback guidance without a configured prov
 
     $response->assertOk();
     expect($response->json('enabled'))->toBeFalse();
+    // Chantier 32.28: this assertion alone (enabled === false) previously
+    // passed regardless of whether 'Messaging' was even registered in
+    // AiContextualAssistantService::supportedModules() — a totally
+    // unregistered module also returns enabled:false via emptyGuidance(),
+    // just with every field blank. Confirmed empirically that this test
+    // gave a false sense of coverage: real content is what actually proves
+    // the fallback map entry exists.
+    expect($response->json('what_to_do'))->not->toBeEmpty();
+    expect($response->json('how_to_do'))->not->toBeEmpty();
 });
 
 test('the users directory is company-scoped and excludes the caller', function () {

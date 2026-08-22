@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="BI · Sources de données" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">BI · Sources de données</h1>
@@ -135,6 +137,10 @@ import { ref, reactive } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import { Dialog, InputText, InputNumber, Select, Password } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('BI', 'view_data_sources')
 
 interface DataSource {
   id: number

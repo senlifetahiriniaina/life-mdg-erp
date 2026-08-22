@@ -207,7 +207,8 @@ class ForecastingController extends Controller
         $scenario = $this->engine->createScenario(
             $validated['model_id'],
             $validated['name'],
-            $validated['assumptions']
+            $validated['assumptions'],
+            $this->tenantId($request)
         );
 
         return response()->json($scenario, 201);
@@ -225,7 +226,7 @@ class ForecastingController extends Controller
             return response()->json(['error' => 'Au moins 2 scénarios requis pour la comparaison.'], 422);
         }
 
-        return response()->json($this->engine->compareScenarios(array_map('intval', $ids)));
+        return response()->json($this->engine->compareScenarios(array_map('intval', $ids), $this->tenantId($request)));
     }
 
     // ─── Prévisions spécialisées ──────────────────────────────────

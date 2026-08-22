@@ -104,6 +104,17 @@ class DatabaseSeeder extends Seeder
         // Idempotent (no-op once any calendar already exists).
         $this->call(\Modules\Calendar\Database\Seeders\CalendarDatabaseSeeder::class);
 
+        // Chantier 32.22: ReportTemplateSeeder (10 real, pre-built
+        // SYSCOHADA/OHADA report templates) existed, fully written, but was
+        // never called from anywhere — the same orphaned-module-seeder gap
+        // already fixed for Accounting (Chantier 12) and Calendar
+        // (Chantier 32.12). Confirmed empirically: on a fresh install none
+        // of the 10 templates existed, so every one of ReportsIndex.vue's
+        // 4 "quick report" tiles 404'd on `POST .../reports/{slug}/execute`
+        // — the module's headline discoverable feature had never worked.
+        // Idempotent (updateOrCreate on `slug`).
+        $this->call(\Modules\Reporting\Database\Seeders\ReportTemplateSeeder::class);
+
         $this->call(DemoSeeder::class);
     }
 }

@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Supplier;
 
 /**
@@ -14,9 +15,11 @@ use Modules\Inventory\Models\Supplier;
  */
 class SupplierController extends Controller
 {
+    use ScopesToCompany;
+
     public function index(Request $request): JsonResponse
     {
-        $suppliers = Supplier::query()
+        $suppliers = $this->scopeToCompany(Supplier::query(), $request)
             ->when($request->input('search'), fn ($q, $v) => $q->where('name', 'like', "%{$v}%"))
             ->when($request->boolean('active_only'), fn ($q) => $q->where('is_active', true))
             ->withCount('purchaseOrders')
@@ -42,19 +45,24 @@ class SupplierController extends Controller
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
         ]);
+        $data['company_id'] = $this->companyId($request);
 
         $supplier = Supplier::create($data);
 
         return response()->json($supplier, 201);
     }
 
-    public function show(Supplier $supplier): JsonResponse
+    public function show(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->assertSameCompany($request, $supplier);
+
         return response()->json($supplier->load('purchaseOrders'));
     }
 
     public function update(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->assertSameCompany($request, $supplier);
+
         $data = $request->validate([
             'name' => 'sometimes|string|max:200',
             'email' => 'nullable|email',
@@ -69,8 +77,10 @@ class SupplierController extends Controller
         return response()->json($supplier);
     }
 
-    public function destroy(Supplier $supplier): JsonResponse
+    public function destroy(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->assertSameCompany($request, $supplier);
+
         $supplier->delete();
 
         return response()->json(null, 204);

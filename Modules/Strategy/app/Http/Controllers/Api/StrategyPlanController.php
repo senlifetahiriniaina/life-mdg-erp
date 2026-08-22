@@ -49,6 +49,7 @@ class StrategyPlanController extends Controller
     public function show(int $id): JsonResponse
     {
         $plan = StrategyPlan::with(['pillars', 'objectives'])->findOrFail($id);
+        $this->authorize('view', $plan);
 
         return response()->json($plan);
     }
@@ -82,9 +83,11 @@ class StrategyPlanController extends Controller
         return response()->json(['message' => 'Plan deleted.']);
     }
 
-    public function tree(int $id): JsonResponse
+    public function tree(Request $request, int $id): JsonResponse
     {
-        $tree = $this->service->getFullTree($id);
+        $plan = $this->planInTenant($id, $this->tenantId($request));
+
+        $tree = $this->service->getFullTree($plan->id);
 
         return response()->json($tree);
     }
@@ -94,14 +97,23 @@ class StrategyPlanController extends Controller
         $this->authorize('create', StrategyPlan::class);
         $request->validate(['name' => 'required|string|max:255']);
 
-        $plan = $this->service->duplicatePlan($id, $request->input('name'));
+        // Chantier 32.27: previously duplicated ANY plan by id regardless of
+        // owning company — confirmed empirically that Company A could
+        // duplicate Company B's real plan (name/vision/mission/pillars/
+        // objectives all copied into the response body, a real data leak
+        // even though the copy's tenant_id stayed on the original company).
+        $plan = $this->planInTenant($id, $this->tenantId($request));
 
-        return response()->json($plan, 201);
+        $duplicated = $this->service->duplicatePlan($plan->id, $request->input('name'));
+
+        return response()->json($duplicated, 201);
     }
 
-    public function health(int $id): JsonResponse
+    public function health(Request $request, int $id): JsonResponse
     {
-        $plan  = StrategyPlan::with('objectives')->findOrFail($id);
+        $plan = $this->planInTenant($id, $this->tenantId($request), with: 'objectives');
+        $this->authorize('view', $plan);
+
         $score = $this->service->computeHealthScore($plan);
 
         $plan->update(['health_score' => $score]);
@@ -118,6 +130,20 @@ class StrategyPlanController extends Controller
                 'avg_progress'        => round($plan->objectives->avg('progress') ?? 0, 2),
             ],
         ]);
+    }
+
+    /**
+     * Load a plan and 404 unless it belongs to the caller's own tenant —
+     * mirrors OkrController::objectiveInTenant()'s established shape.
+     */
+    private function planInTenant(int $id, string $tenantId, ?string $with = null): StrategyPlan
+    {
+        $query = $with ? StrategyPlan::with($with) : StrategyPlan::query();
+        $plan  = $query->findOrFail($id);
+
+        abort_if((string) ($plan->tenant_id ?? '') !== $tenantId, 404);
+
+        return $plan;
     }
 
     /**

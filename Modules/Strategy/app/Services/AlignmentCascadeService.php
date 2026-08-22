@@ -21,11 +21,21 @@ class AlignmentCascadeService
      *
      * Returns the OKR tree with linked ratio data and aggregate stats.
      *
-     * @return array{nodes: array<int, array<string, mixed>>, stats: array<string, int>}
+     * Chantier 32.27 (audit 14 couches — layer 6, sécurité approfondie):
+     * $tenantId was already threaded in from CascadeController but never
+     * actually applied to this query — confirmed empirically (2 real
+     * companies, 2 real objectives) that every company's cascade map showed
+     * every OTHER company's real strategic objectives mixed in, a live
+     * cross-tenant leak on the one page this module's own Chantier 8.5ars
+     * changelog entry called "already real and complete". StrategyObjective
+     * has no tenant_id column of its own — filtered via its plan's
+     * tenant_id, the same relation objectiveInTenant() uses elsewhere in
+     * this module.
      */
     public function getCascadeMap(string $tenantId = 'default'): array
     {
-        $objectives = StrategyObjective::with(['keyResults', 'links'])
+        $objectives = StrategyObjective::with(['keyResults', 'links', 'plan'])
+            ->whereHas('plan', fn ($q) => $q->where('tenant_id', $tenantId))
             ->get()
             ->all();
 

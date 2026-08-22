@@ -21,9 +21,19 @@ class CarrierController extends Controller
     {
         $this->authorize('viewAny', Carrier::class);
 
+        // Chantier 32.23: filtered on `status`, a scaffold column that
+        // physically exists on logistics_carriers but is never in
+        // Carrier::$fillable (never populated by store()/update()), while
+        // the real, active/inactive Carriers/Index.vue page's own filter
+        // dropdown has always sent `is_active` — confirmed empirically the
+        // filter was a complete no-op regardless of what a caller selected.
+        // Also added `search` support (name/code), matching the page's own
+        // search box, which was silently ignored the same way.
         $q = Carrier::query()
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
-            ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
+            ->when($request->input('is_active') !== null, fn ($q) => $q->where('is_active', $request->boolean('is_active')))
+            ->when($request->input('search'), fn ($q, $v) => $q->where(fn ($sq) => $sq->where('name', 'like', "%{$v}%")
+                ->orWhere('code', 'like', "%{$v}%")))
             ->withCount('shipments')
             ->latest()
             ->paginate(20);

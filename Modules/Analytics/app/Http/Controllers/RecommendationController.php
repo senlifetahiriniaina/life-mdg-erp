@@ -37,11 +37,18 @@ class RecommendationController extends Controller
     {
         $this->authorize('create', Recommendation::class);
 
+        // Chantier 32.25 (audit 14 couches, Analytics — couche 6, IDOR) :
+        // `recipient_type`/`recommended_type` étaient validés en simple
+        // 'string' — voir le docblock de `Recommendation::MORPH_TYPE_ALIASES`
+        // pour le détail de la fuite confirmée empiriquement (un FQCN réel
+        // en guise de type, ex. `App\Models\User`, exposait ses vraies
+        // colonnes une fois eager-loadé par show()/index()). Restreint à la
+        // liste blanche déjà réellement utilisée par le frontend/les tests.
         $validated = $request->validate([
             'recommendation_model_id' => 'required|exists:recommendation_models,id',
-            'recipient_type' => 'required|string',
+            'recipient_type' => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys(Recommendation::MORPH_TYPE_ALIASES))],
             'recipient_id' => 'required|integer',
-            'recommended_type' => 'required|string',
+            'recommended_type' => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys(Recommendation::MORPH_TYPE_ALIASES))],
             'recommended_id' => 'required|integer',
             'relevance_score' => 'required|numeric|between:0,1',
             'reason' => 'nullable|string|max:255',

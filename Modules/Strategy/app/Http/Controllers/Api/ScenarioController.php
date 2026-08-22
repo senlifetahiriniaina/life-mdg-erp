@@ -43,9 +43,9 @@ class ScenarioController extends Controller
         return response()->json($scenario, 201);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        $scenario = StrategyScenario::with('assumptions')->findOrFail($id);
+        $scenario = $this->scenarioInTenant($id, $this->tenantId($request), with: 'assumptions');
 
         return response()->json($scenario);
     }
@@ -60,10 +60,24 @@ class ScenarioController extends Controller
             'status'      => 'nullable|in:draft,active,archived',
         ]);
 
-        $scenario = StrategyScenario::findOrFail($id);
+        $scenario = $this->scenarioInTenant($id, $this->tenantId($request));
         $scenario->update($validated);
 
         return response()->json($scenario->fresh());
+    }
+
+    /**
+     * Chantier 32.27: `Route::apiResource('scenarios', ...)` registers
+     * `DELETE scenarios/{scenario}` against destroy(), which never existed
+     * on this controller — confirmed via reflection, a guaranteed fatal
+     * error on every real call.
+     */
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $scenario = $this->scenarioInTenant($id, $this->tenantId($request));
+        $scenario->delete();
+
+        return response()->json(['message' => 'Scenario deleted.']);
     }
 
     public function addAssumption(Request $request, int $id): JsonResponse
@@ -75,6 +89,8 @@ class ScenarioController extends Controller
             'adjusted_value' => 'required|numeric',
             'impact_scope'   => 'nullable|string|max:255',
         ]);
+
+        $this->scenarioInTenant($id, $this->tenantId($request));
 
         $assumption = $this->service->addAssumption($id, $validated);
 
@@ -90,14 +106,18 @@ class ScenarioController extends Controller
             'impact_scope'   => 'nullable|string|max:255',
         ]);
 
+        $this->scenarioInTenant($id, $this->tenantId($request));
+
         $assumption = StrategyScenarioAssumption::where('scenario_id', $id)->findOrFail($aId);
         $assumption->update($validated);
 
         return response()->json($assumption->fresh());
     }
 
-    public function impact(int $id): JsonResponse
+    public function impact(Request $request, int $id): JsonResponse
     {
+        $this->scenarioInTenant($id, $this->tenantId($request));
+
         $impact = $this->service->computeImpact($id);
 
         return response()->json($impact);
@@ -110,9 +130,33 @@ class ScenarioController extends Controller
             'scenario_ids.*' => 'integer|exists:strategy_scenarios,id',
         ]);
 
-        $comparison = $this->service->compareScenarios($request->input('scenario_ids'));
+        // Chantier 32.27: `exists:strategy_scenarios,id` alone doesn't check
+        // ownership — confirmed empirically that any user could compare
+        // (and read the full detail of) another company's real scenarios by
+        // id. Every id in the batch must belong to the caller's own tenant.
+        $tenantId = $this->tenantId($request);
+        $ids      = $request->input('scenario_ids');
+        $owned    = StrategyScenario::whereIn('id', $ids)->where('tenant_id', $tenantId)->pluck('id');
+        abort_if($owned->count() !== count($ids), 404);
+
+        $comparison = $this->service->compareScenarios($ids);
 
         return response()->json($comparison);
+    }
+
+    /**
+     * Load a scenario and 404 unless it belongs to the caller's own tenant —
+     * mirrors OkrController::objectiveInTenant()'s established shape.
+     * StrategyScenario carries a real tenant_id column.
+     */
+    private function scenarioInTenant(int $id, string $tenantId, ?string $with = null): StrategyScenario
+    {
+        $query    = $with ? StrategyScenario::with($with) : StrategyScenario::query();
+        $scenario = $query->findOrFail($id);
+
+        abort_if((string) ($scenario->tenant_id ?? '') !== $tenantId, 404);
+
+        return $scenario;
     }
 
     /**

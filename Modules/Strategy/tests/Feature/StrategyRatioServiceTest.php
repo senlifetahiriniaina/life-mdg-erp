@@ -3,7 +3,6 @@
 namespace Modules\Strategy\Tests\Feature;
 
 use Tests\TestCase;
-use Modules\Strategy\Models\StrategyRatioDefinition;
 use Modules\Strategy\Services\StrategyRatioService;
 use Modules\Strategy\Services\KPIRegistryService;
 

@@ -243,7 +243,16 @@ class CarrierIntegrationService
                 'accounts' => [['typeCode' => 'shipper', 'number' => config('services.dhl.account')]],
                 'content'  => [
                     'unitOfMeasurement' => 'metric',
-                    'packages'          => [['weight' => ['value' => $shipment->total_weight_kg ?? 1, 'unitOfMeasurement' => 'kg']]],
+                    // Chantier 32.23: read a `total_weight_kg` attribute
+                    // that has never existed on Shipment (the real fillable
+                    // column is `weight_kg`) — every real DHL booking has
+                    // always sent a hardcoded 1kg regardless of the
+                    // shipment's actual weight, confirmed via
+                    // Schema::getColumnListing. Only reachable when a real
+                    // services.dhl.api_key is configured, which it isn't in
+                    // this environment, so this was dormant rather than
+                    // actively breaking any test.
+                    'packages'          => [['weight' => ['value' => $shipment->weight_kg ?? 1, 'unitOfMeasurement' => 'kg']]],
                 ],
             ]);
 

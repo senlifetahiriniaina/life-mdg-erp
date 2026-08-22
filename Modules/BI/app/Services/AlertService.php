@@ -12,8 +12,69 @@ use Modules\BI\Models\ScheduledReport;
 
 class AlertService
 {
+    public function __construct(private readonly QueryRunnerService $queryRunner) {}
+
+    /**
+     * Chantier 32.24 (BI 14-layer audit, layer 8 — validation métier): before this
+     * fix, `bi_alerts.last_value` was never written by any live code path — the
+     * only writer was `EvaluateAlertRulesJob::fetchMetricValue()`, a job confirmed
+     * dead/fake (rand()-based) and deleted in this same chantier — so `checkAlert()`
+     * always short-circuited to `false` on a freshly created alert and
+     * `AlertController::test()` was permanently non-functional. For a query-backed
+     * alert (`query_id` set), this resolves a real current value via the already-
+     * live, tested `QueryRunnerService::runQuery()` — the first numeric value found
+     * in the query's first row, preferring a column matching `metric_name` when
+     * present. Widget-backed alerts (`widget_id` set) have no equivalent real
+     * "resolve this widget's current value" mechanism anywhere in this module
+     * (`DrillDownService::getWidgetBaseData()` is itself a documented stub
+     * returning `[]`, per the Chantier 29 changelog entry) — building one would be
+     * new business logic, not a wiring fix, so it stays a documented gap: the
+     * alert's `last_value` is left untouched and `checkAlert()` falls back to its
+     * pre-existing behaviour for that case.
+     */
+    public function refreshValue(BiAlert $alert): ?float
+    {
+        if ($alert->query_id === null) {
+            return null;
+        }
+
+        $query = $alert->biQuery;
+        if ($query === null) {
+            return null;
+        }
+
+        try {
+            $result = $this->queryRunner->runQuery($query);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($result['rows'] === []) {
+            return null;
+        }
+
+        $row = $result['rows'][0];
+
+        if ($alert->metric_name !== '' && array_key_exists($alert->metric_name, $row) && is_numeric($row[$alert->metric_name])) {
+            return (float) $row[$alert->metric_name];
+        }
+
+        foreach ($row as $value) {
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+        }
+
+        return null;
+    }
+
     public function checkAlert(BiAlert $alert): bool
     {
+        $refreshed = $this->refreshValue($alert);
+        if ($refreshed !== null) {
+            $alert->last_value = $refreshed;
+        }
+
         $value = $alert->last_value;
         if ($value === null) {
             return false;
@@ -25,10 +86,14 @@ class AlertService
             'change_pct' => abs($value) >= $alert->threshold,
             default => false,
         };
-        $alert->update(['last_checked_at' => now()]);
+        $alert->last_checked_at = now();
         if ($triggered) {
-            $alert->update(['last_triggered_at' => now()]);
+            $alert->last_triggered_at = now();
         }
+        // Explicit save (not update([...])) so the refreshed last_value assigned
+        // above is guaranteed to persist alongside last_checked_at/last_triggered_at
+        // in the same write, rather than relying on it merely being "dirty".
+        $alert->save();
 
         return $triggered;
     }

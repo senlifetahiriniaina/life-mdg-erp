@@ -211,8 +211,15 @@ describe('Strategy API - Plans', function () {
             ->assertCreated();
     });
 
+    // Chantier 32.27: StrategyPlan::factory()->create() (no override) always
+    // gets a random fake()->uuid() tenant_id — before this chantier's tenant
+    // -ownership fix, show()/update()/destroy() never checked it against the
+    // caller's own tenant at all, so these 3 tests passed against ANY
+    // plan's id regardless of ownership. Now that they correctly enforce
+    // real tenant ownership (see StrategyPlanPolicy/StrategyPlanController),
+    // the fixture must be created under the acting user's own tenant.
     test('can view a strategy plan', function () {
-        $plan = StrategyPlan::factory()->create();
+        $plan = StrategyPlan::factory()->create(['tenant_id' => (string) ($this->user->company_id ?? 0)]);
 
         $this->actingAs($this->user, 'sanctum')
             ->getJson("/api/v1/strategy/plans/{$plan->id}")
@@ -220,7 +227,7 @@ describe('Strategy API - Plans', function () {
     });
 
     test('can update a strategy plan', function () {
-        $plan = StrategyPlan::factory()->create();
+        $plan = StrategyPlan::factory()->create(['tenant_id' => (string) ($this->user->company_id ?? 0)]);
 
         $this->actingAs($this->user, 'sanctum')
             ->putJson("/api/v1/strategy/plans/{$plan->id}", [
@@ -230,11 +237,19 @@ describe('Strategy API - Plans', function () {
     });
 
     test('can delete a strategy plan', function () {
-        $plan = StrategyPlan::factory()->create();
+        $plan = StrategyPlan::factory()->create(['tenant_id' => (string) ($this->user->company_id ?? 0)]);
 
         $this->actingAs($this->user, 'sanctum')
             ->deleteJson("/api/v1/strategy/plans/{$plan->id}")
             ->assertOk()->assertJson(['message' => 'Plan deleted.']);
+    });
+
+    test('cannot view another company\'s strategy plan', function () {
+        $plan = StrategyPlan::factory()->create(); // random fake tenant_id, not $this->user's
+
+        $this->actingAs($this->user, 'sanctum')
+            ->getJson("/api/v1/strategy/plans/{$plan->id}")
+            ->assertForbidden();
     });
 
     test('unauthenticated user cannot access strategy plans', function () {

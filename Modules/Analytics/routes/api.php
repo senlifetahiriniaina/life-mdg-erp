@@ -6,6 +6,7 @@ use Modules\Analytics\Http\Controllers\Api\ForecastingController;
 use Modules\Analytics\Http\Controllers\MLModelController;
 use Modules\Analytics\Http\Controllers\PredictionController;
 use Modules\Analytics\Http\Controllers\RecommendationController;
+use Modules\Analytics\Http\Controllers\RecommendationModelController;
 
 // ── Phase 41 : Moteur de prévision IA ──────────────────────────────────────
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Analytics', 'role:employee,inventory-analyst,manager,admin'])->prefix('v1/forecasting')->group(function () {
@@ -67,6 +68,15 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:A
     // here would 500 with "Call to undefined method" since the controller never
     // implemented them.
     Route::apiResource('recommendations', RecommendationController::class)->only(['index', 'store', 'show']);
+
+    // Chantier 32.25 (audit 14 couches, Analytics — couche 9, fake/dead) :
+    // RecommendationModel/RecommendationModelPolicy n'avaient aucune route
+    // du tout avant ce chantier, malgré être le parent obligatoire
+    // (recommendation_model_id) de toute Recommendation réellement créée —
+    // voir le docblock de RecommendationModelController pour le détail.
+    Route::apiResource('recommendation-models', RecommendationModelController::class)
+        ->parameters(['recommendation-models' => 'recommendation_model']);
+    Route::post('recommendation-models/{recommendation_model}/train', [RecommendationModelController::class, 'train']);
     Route::post('recommendations/{recommendation}/act', [RecommendationController::class, 'act']);
     Route::post('recommendations/{recommendation}/dismiss', [RecommendationController::class, 'dismiss']);
 

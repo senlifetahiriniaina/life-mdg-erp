@@ -1157,16 +1157,100 @@ class OhadaReportService
         }
     }
 
+    /**
+     * Chantier 32.22: this queried `companies.tenant_id`/`companies.country_code`
+     * — confirmed via Schema::getColumnListing() that NEITHER column has ever
+     * existed on the real `companies` table (`id, name, code, currency,
+     * timezone, is_active, created_at, updated_at`). The surrounding
+     * try/catch silently swallowed the SQL error on every real call and
+     * always fell back to 'SN' — so generateTvaReport()/generateIsReport()
+     * (both live, routed, already-shipped endpoints — `GET reporting/ohada/
+     * {tva,is}` — not something this chantier's own new work made
+     * reachable) have applied Sénégal's 18%/30% TVA/IS rates to *every*
+     * tenant regardless of real country, confirmed empirically (a real
+     * Madagascar-seeded tenant, whose real country is 'MG'/20%, returned
+     * 'SN'/18%). The real per-tenant country lives on
+     * Modules\Setup\Models\CompanyProfile.country_code, keyed by the
+     * module's own `tenant_id` column — note this is a documented, known,
+     * pre-existing ambiguity this fix does not resolve: CompanyProfile's
+     * `tenant_id` is keyed to the bootstrap admin's own `users.id` (Chantier
+     * 12's own convention), not necessarily the same value as the
+     * `$tenantId` (→ `users.company_id`) this service receives everywhere
+     * else — out of this Reporting-module audit's scope to reconcile system-
+     * wide. Falls back to 'SN' exactly as before when no match is found,
+     * so behavior can only improve, never regress.
+     */
     private function getTenantCountry(int $tenantId): string
     {
         try {
-            $country = DB::table('companies')
-                ->where('tenant_id', $tenantId)
+            $country = DB::table('setup_company_profiles')
+                ->where('tenant_id', (string) $tenantId)
                 ->value('country_code');
 
             return $country ?? 'SN';
         } catch (\Exception $e) {
             return 'SN';
         }
+    }
+
+    // ─── Chantier 32.22: dispatch table for generic-report-executor delegation ─
+
+    /**
+     * Slugs from ReportTemplateSeeder's 7 "OHADA financial report" system
+     * templates whose `query_template` is a literal SQL comment
+     * ("-- Handled by OhadaReportService::...") — not real SQL. Confirmed
+     * empirically: ReportingService::execute()/ReportGenerationService::run(),
+     * the two generic executors every "run this report" button in the app
+     * goes through (ReportsIndex.vue's quick tiles, Show.vue's "Exécuter",
+     * and — once scheduled delivery is wired — DeliverScheduledReportJob),
+     * would hand this comment string straight to DB::select(), which is not
+     * a valid SQL statement. Only one of these 7 (`bilan-syscohada-mensuel`)
+     * had a frontend-only workaround (ReportsIndex.vue redirects that one
+     * tile to Accounting's dedicated Bilan page instead of executing it
+     * generically) — the other 6 had none. This map lets both generic
+     * executors delegate straight to the real, already-built, already-tested
+     * OHADA engine instead, closing the gap for all 7 at the single point
+     * both executors already call through.
+     *
+     * @return array<string, mixed>|null  the OHADA report payload, or null
+     *                                     if $slug isn't a recognised system
+     *                                     report (caller falls back to
+     *                                     treating query_template as SQL)
+     */
+    public function runTemplate(string $slug, int $tenantId, array $params = []): ?array
+    {
+        return match ($slug) {
+            'bilan-syscohada-mensuel' => $this->generateBalanceSheet(
+                $tenantId,
+                $params['period'] ?? now()->format('Y'),
+                $params['currency'] ?? 'XOF',
+            ),
+            'compte-de-resultat-trimestriel' => $this->generateIncomeStatement(
+                $tenantId,
+                $params['period'] ?? now()->format('Y') . '-Q' . (int) ceil(now()->format('n') / 3),
+                $params['currency'] ?? 'XOF',
+            ),
+            'balance-generale' => $this->generateTrialBalance(
+                $tenantId,
+                $params['period'] ?? now()->format('Y-m'),
+            ),
+            'balance-agee-clients' => $this->generateAgedReceivables(
+                $tenantId,
+                $params['as_of_date'] ?? now()->toDateString(),
+            ),
+            'balance-agee-fournisseurs' => $this->generateAgedPayables(
+                $tenantId,
+                $params['as_of_date'] ?? now()->toDateString(),
+            ),
+            'rapport-tva-mensuel' => $this->generateTvaReport(
+                $tenantId,
+                $params['period'] ?? now()->format('Y-m'),
+            ),
+            'rapport-is-annuel' => $this->generateIsReport(
+                $tenantId,
+                $params['fiscal_year'] ?? (string) (now()->year - 1),
+            ),
+            default => null,
+        };
     }
 }

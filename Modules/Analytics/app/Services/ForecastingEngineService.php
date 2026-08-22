@@ -113,8 +113,23 @@ class ForecastingEngineService
             ->toArray();
     }
 
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics — couche 5) : confirmé
+     * empiriquement que `manufacturing_orders` n'existe dans aucune
+     * migration de ce dépôt (Manufacturing hors périmètre Life MDG, voir
+     * CLAUDE.md § « Known gaps ») — un vrai `ForecastModel` de module
+     * `production` planterait fatalement sur `train()`/`predict()` (des
+     * endpoints réels et routés), pas juste sur
+     * `ProductionForecastService` (déjà corrigé plus haut dans ce
+     * chantier). Dégrade proprement vers un historique vide plutôt qu'une
+     * erreur SQL brute.
+     */
     private function collectProductionData(int $tenantId): array
     {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('manufacturing_orders')) {
+            return [];
+        }
+
         $rows = DB::table('manufacturing_orders')
             ->selectRaw('DATE(completed_at) as date, COUNT(*) as value')
             ->where('tenant_id', $tenantId)
@@ -144,11 +159,23 @@ class ForecastingEngineService
         return $rows->map(fn ($r) => ['date' => $r->date, 'value' => (float) $r->value])->toArray();
     }
 
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics — couche 5) : `stock_
+     * movements` n'a jamais existé dans ce dépôt — confirmé empiriquement
+     * (`SQLSTATE... no such table`) qu'un vrai `ForecastModel` de module
+     * `inventory` planterait fatalement sur `train()`/`predict()`. La
+     * vraie table de ce module est `inventory_stock_movements`
+     * (product_id/type/quantity/created_at, sans tenant_id — Inventory n'a
+     * aucun cloisonnement société module-wide, déjà documenté au
+     * Chantier 19 Lot 4-5) — le type par défaut réel est `'in'`
+     * (`InventoryService::recordMovement()`), donc la même logique
+     * CASE WHEN type='in' déjà écrite ici reste correcte une fois
+     * repointée sur la vraie table.
+     */
     private function collectInventoryData(int $productId, int $tenantId): array
     {
-        $rows = DB::table('stock_movements')
+        $rows = DB::table('inventory_stock_movements')
             ->selectRaw('DATE(created_at) as date, SUM(CASE WHEN type = \'in\' THEN quantity ELSE -quantity END) as value')
-            ->where('tenant_id', $tenantId)
             ->where('product_id', $productId)
             ->where('created_at', '>=', now()->subYear())
             ->groupByRaw('DATE(created_at)')
@@ -701,10 +728,20 @@ USER;
 
     /**
      * Crée un scénario "et si…" avec des hypothèses modifiées.
+     *
+     * Chantier 32.25 (audit 14 couches, Analytics): confirmé empiriquement
+     * (couche 6, IDOR) que `ForecastModel::findOrFail($modelId)` sans
+     * cloisonnement société laissait n'importe quel utilisateur authentifié
+     * créer un scénario contre le `ForecastModel` de n'importe quelle autre
+     * société — l'historique réel de cette société était alors collecté et
+     * renvoyé dans `results.predictions` de la réponse 201. `$tenantId` est
+     * désormais requis et le modèle est résolu via le même scope
+     * `forTenant()` que le reste du contrôleur (404, pas 403, même
+     * convention déjà établie partout ailleurs dans ce dépôt).
      */
-    public function createScenario(int $modelId, string $name, array $assumptions): ForecastScenario
+    public function createScenario(int $modelId, string $name, array $assumptions, int $tenantId): ForecastScenario
     {
-        $model = ForecastModel::findOrFail($modelId);
+        $model = ForecastModel::forTenant($tenantId)->findOrFail($modelId);
         $data  = $this->collectHistoricalData(
             $model->module,
             $model->entity_type ?? 'global',
@@ -727,10 +764,21 @@ USER;
 
     /**
      * Comparaison côte à côte de plusieurs scénarios.
+     *
+     * Chantier 32.25 (audit 14 couches, Analytics): confirmé empiriquement
+     * (couche 6, IDOR) que `whereIn('id', $scenarioIds)` sans aucun
+     * cloisonnement société renvoyait les hypothèses/prédictions de
+     * n'importe quel scénario d'une autre société, sur simple devinette
+     * d'id. `$tenantId` est désormais requis — un id d'une autre société
+     * est silencieusement filtré (jamais un 403 qui confirmerait son
+     * existence), même convention que `forTenant()` ailleurs dans ce
+     * fichier.
      */
-    public function compareScenarios(array $scenarioIds): array
+    public function compareScenarios(array $scenarioIds, int $tenantId): array
     {
-        $scenarios = ForecastScenario::whereIn('id', $scenarioIds)->get();
+        $scenarios = ForecastScenario::whereIn('id', $scenarioIds)
+            ->whereHas('forecastModel', fn ($q) => $q->where('tenant_id', $tenantId))
+            ->get();
 
         return $scenarios->map(function ($scenario) {
             $predictions = $scenario->results['predictions'] ?? [];
@@ -1153,12 +1201,28 @@ USER;
         }, $data);
     }
 
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics — couche 5, format de
+     * données) : confirmé empiriquement (`SQLSTATE... no such table:
+     * stock_levels`) que `checkModelAlerts()` plantait fatalement — sans
+     * try/catch autour de son seul appelant réel,
+     * `RunForecastingJob::handle()` — dès qu'un vrai `ForecastModel` de
+     * module `inventory` existait pour un tenant, cassant le job nocturne
+     * planifié pour ce tenant entier, pas seulement l'alerte de stock.
+     * `stock_levels` n'a jamais existé dans ce dépôt — la vraie source
+     * réelle de quantité en stock de ce module est `inventory_stock`
+     * (product_id/warehouse_id/location_id/quantity), sans colonne
+     * tenant_id propre (Inventory n'a aucun cloisonnement société
+     * module-wide, déjà documenté au Chantier 19 Lot 4-5) — sommée sur tous
+     * les entrepôts, cohérent avec le reste de ce module qui a déjà
+     * abandonné le filtre tenant sur Inventory faute de colonne réelle
+     * fiable.
+     */
     private function getCurrentStock(int $productId, int $tenantId): float
     {
-        return (float) DB::table('stock_levels')
+        return (float) DB::table('inventory_stock')
             ->where('product_id', $productId)
-            ->where('tenant_id', $tenantId)
-            ->value('quantity') ?? 0.0;
+            ->sum('quantity');
     }
 
     private function stdError(array $values): float

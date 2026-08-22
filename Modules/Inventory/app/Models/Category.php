@@ -6,15 +6,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Modules\Core\Traits\RecordsActivity;
 use Modules\Inventory\Database\Factories\CategoryFactory;
 
 class Category extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, RecordsActivity, SoftDeletes;
+
+    protected static string $auditModule = 'Inventory';
 
     protected $table = 'inventory_categories';
 
     protected $fillable = [
+        'company_id',
         'parent_id',
         'name',
         'slug',

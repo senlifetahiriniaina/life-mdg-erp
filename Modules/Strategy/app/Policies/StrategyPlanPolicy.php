@@ -22,6 +22,18 @@ use Modules\Strategy\Models\StrategyPlan;
  * verbs are already seeded via the generic MODULES['strategy'] =>
  * ['ratio', 'objective', 'plan'] loop in RolesAndPermissionsSeeder, so this
  * policy needed no seeder change.
+ *
+ * Chantier 32.27 (audit 14 couches — layer 6, sécurité approfondie): this
+ * policy was written at Chantier 10 to close the *role* gap above, but
+ * view()/update()/delete() never actually compared $strategyPlan->tenant_id
+ * against the caller's own company — view() was an unconditional `true`,
+ * and update()/delete() only checked role, never ownership. Confirmed
+ * empirically that any strategy-analyst/admin of Company A could
+ * read/update/delete Company B's real strategic plan by id (the
+ * StrategyPlanController::show() method didn't even call authorize() at
+ * all, compounding this). Fixed with a real same-company check on all
+ * three, plus authorize() calls added on the controller side (see
+ * StrategyPlanController).
  */
 class StrategyPlanPolicy
 {
@@ -32,7 +44,7 @@ class StrategyPlanPolicy
 
     public function view(User $user, StrategyPlan $strategyPlan): bool
     {
-        return true;
+        return $this->sameCompany($user, $strategyPlan);
     }
 
     public function create(User $user): bool
@@ -43,14 +55,27 @@ class StrategyPlanPolicy
 
     public function update(User $user, StrategyPlan $strategyPlan): bool
     {
-        return $user->hasAnyRole(['strategy-analyst', 'admin', 'super-admin'])
-            || $user->hasPermissionTo('strategy.plan.update');
+        return $this->sameCompany($user, $strategyPlan)
+            && ($user->hasAnyRole(['strategy-analyst', 'admin', 'super-admin'])
+                || $user->hasPermissionTo('strategy.plan.update'));
     }
 
     public function delete(User $user, StrategyPlan $strategyPlan): bool
     {
-        return $user->hasAnyRole(['admin', 'super-admin'])
-            || $user->hasPermissionTo('strategy.plan.delete');
+        return $this->sameCompany($user, $strategyPlan)
+            && ($user->hasAnyRole(['admin', 'super-admin'])
+                || $user->hasPermissionTo('strategy.plan.delete'));
+    }
+
+    /**
+     * StrategyPlan.tenant_id is populated from the caller's company_id at
+     * creation time (StrategyPlanController::tenantId()) — compared as
+     * strings since the column is `string`, matching every tenantId()
+     * helper's own (string) cast throughout this module.
+     */
+    private function sameCompany(User $user, StrategyPlan $strategyPlan): bool
+    {
+        return (string) ($user->company_id ?? 0) === (string) ($strategyPlan->tenant_id ?? '');
     }
 
     public function restore(User $user, StrategyPlan $strategyPlan): bool

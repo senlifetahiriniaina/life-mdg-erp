@@ -185,7 +185,10 @@ test('supportedModules() now reports 38 modules including the 3 newly-registered
     // established precedent (e.g. Chantier 30's 33->34 Strategy fix) of
     // updating a stale hardcoded total for a real, documented addition
     // rather than treating it as a regression to undo.
-    expect($modules)->toHaveCount(38);
+    // Chantier 32.28 (14-layer deep audit of Modules\Messaging) added a
+    // 39th: 'Messaging' had the identical gap (a real MessagingAiAssistController
+    // existed since Chantier 20 but was never registered here).
+    expect($modules)->toHaveCount(39);
     expect(array_keys($modules))->toContain('Analytics', 'Integration', 'Security');
     expect($modules['Helpdesk'])->toContain('view_dashboard');
     expect($modules['Calendar'])->toContain('calendar_integrations', 'team_calendar', 'view_event');

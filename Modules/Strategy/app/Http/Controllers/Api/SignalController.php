@@ -40,20 +40,35 @@ class SignalController extends Controller
         return response()->json(['message' => 'Signals refreshed.']);
     }
 
-    public function markRead(int $id): JsonResponse
+    public function markRead(Request $request, int $id): JsonResponse
     {
-        $signal = StrategySignal::findOrFail($id);
+        $signal = $this->signalInTenant($id, $this->tenantId($request));
         $signal->update(['is_read' => true]);
 
         return response()->json(['message' => 'Signal marked as read.', 'id' => $id]);
     }
 
-    public function dismiss(int $id): JsonResponse
+    public function dismiss(Request $request, int $id): JsonResponse
     {
-        $signal = StrategySignal::findOrFail($id);
+        $signal = $this->signalInTenant($id, $this->tenantId($request));
         $signal->update(['is_dismissed' => true]);
 
         return response()->json(['message' => 'Signal dismissed.', 'id' => $id]);
+    }
+
+    /**
+     * Chantier 32.27: markRead()/dismiss() resolved a route-bound
+     * StrategySignal via findOrFail() with zero tenant check — confirmed
+     * empirically that any user of any company could mark another
+     * company's real strategic signal as read/dismissed by id.
+     */
+    private function signalInTenant(int $id, string $tenantId): StrategySignal
+    {
+        $signal = StrategySignal::findOrFail($id);
+
+        abort_if((string) ($signal->tenant_id ?? '') !== $tenantId, 404);
+
+        return $signal;
     }
 
     /**

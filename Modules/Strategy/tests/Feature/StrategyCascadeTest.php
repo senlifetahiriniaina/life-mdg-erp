@@ -131,13 +131,20 @@ describe('GET /api/v1/strategy/cascade', function () {
 
     // ── Test 3 ────────────────────────────────────────────────────────────────
 
+    // Chantier 32.27: getCascadeMap() previously ignored the $tenantId
+    // argument entirely (confirmed a real, empirically-verified cross-tenant
+    // leak) — the literal string 'default' happened to "work" only because
+    // the filter was a no-op. Now that it's real (StrategyObjective ->
+    // plan.tenant_id), these 3 tests must pass the fixture's actual tenant
+    // (createPlan() sets it to $this->user->company_id) rather than a
+    // string that never matches any real plan.
     test('RAG is green for progress >= 70, amber for 40-69, red for < 40', function () {
         createObjective($this->plan, ['title' => 'Green obj',  'status' => 'draft', 'progress' => 80.0]);
         createObjective($this->plan, ['title' => 'Amber obj',  'status' => 'draft', 'progress' => 55.0]);
         createObjective($this->plan, ['title' => 'Red obj',    'status' => 'draft', 'progress' => 20.0]);
 
         $service = app(AlignmentCascadeService::class);
-        $map     = $service->getCascadeMap('default');
+        $map     = $service->getCascadeMap((string) ($this->user->company_id ?? 0));
         $nodes   = $map['nodes'];
 
         $findByTitle = fn (string $t) => collect($nodes)->firstWhere('title', $t);
@@ -160,7 +167,7 @@ describe('GET /api/v1/strategy/cascade', function () {
         createObjective($this->plan, ['status' => 'behind',   'progress' => 15.0]);
 
         $service = app(AlignmentCascadeService::class);
-        $map     = $service->getCascadeMap('default');
+        $map     = $service->getCascadeMap((string) ($this->user->company_id ?? 0));
         $stats   = $map['stats'];
 
         expect($stats['total'])->toBe(4)
@@ -194,7 +201,7 @@ describe('GET /api/v1/strategy/cascade', function () {
         ]);
 
         $service = app(AlignmentCascadeService::class);
-        $map     = $service->getCascadeMap('default');
+        $map     = $service->getCascadeMap((string) ($this->user->company_id ?? 0));
 
         // Tree roots (parent_id = null)
         $roots = $map['nodes'];

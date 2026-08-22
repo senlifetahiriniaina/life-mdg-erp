@@ -53,6 +53,27 @@ class KpiController extends Controller
         return response()->json($kpi, 201);
     }
 
+    /**
+     * Chantier 32.27: `Route::apiResource('kpis', ...)` registers
+     * `GET kpis/{kpi}` against this method, but it never existed on this
+     * controller — a guaranteed fatal "call to undefined method" on every
+     * real request to that route, confirmed via reflection (not just
+     * reading the routes file). Same bug class already documented
+     * repeatedly elsewhere this session (apiResource registering a verb the
+     * controller doesn't implement). Built for real rather than restricting
+     * the route, since a single-KPI detail view is a legitimate, currently
+     * missing need (index()/values() only ever return a list or a value
+     * history, never the KPI's own definition fields).
+     */
+    public function show(int $id): JsonResponse
+    {
+        $kpi = StrategyKpi::findOrFail($id);
+
+        $this->authorize('view', $kpi);
+
+        return response()->json($kpi);
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $kpi = StrategyKpi::findOrFail($id);
@@ -87,16 +108,32 @@ class KpiController extends Controller
         return response()->json(['message' => 'KPI deleted.']);
     }
 
-    public function values(int $id): JsonResponse
+    /**
+     * Chantier 32.27: had zero authorize() call and zero tenant scoping —
+     * any authenticated user of any company could read another company's
+     * KPI value history just by guessing its id. Fixed with the same
+     * tenant-ownership check as update()/destroy().
+     */
+    public function values(Request $request, int $id): JsonResponse
     {
+        $kpi = StrategyKpi::findOrFail($id);
+        $this->authorize('view', $kpi);
+
         $history = $this->service->getHistory($id);
 
         return response()->json(['kpi_id' => $id, 'values' => $history]);
     }
 
-    public function refresh(int $id): JsonResponse
+    /**
+     * Chantier 32.27: had zero authorize() call and zero tenant scoping —
+     * any authenticated user of any company could trigger a live refresh
+     * (and mutate the value-history table) of another company's KPI by id.
+     */
+    public function refresh(Request $request, int $id): JsonResponse
     {
-        $kpi   = StrategyKpi::findOrFail($id);
+        $kpi = StrategyKpi::findOrFail($id);
+        $this->authorize('update', $kpi);
+
         $value = $this->service->fetchLiveValue($kpi);
         $entry = $this->service->recordValue($kpi, $value);
 

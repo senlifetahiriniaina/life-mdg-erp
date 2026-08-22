@@ -9,7 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Modules\Reporting\Jobs\RunReportJob;
 use Modules\Reporting\Models\Dashboard;
 use Modules\Reporting\Models\ReportDefinition;
 use Modules\Reporting\Models\ReportExecution;
@@ -50,6 +49,20 @@ class ReportingController extends Controller
      */
     public function listReports(Request $request): JsonResponse
     {
+        // Chantier 32.22 (layer 7 — RBAC): ReportPolicy was written and
+        // registered on the Gate (ReportingServiceProvider::boot()) since
+        // this controller was first built, but never once actually invoked
+        // from any of its methods — real access has only ever been
+        // enforced by the outer `role:employee,manager,admin` route gate
+        // plus the tenant-scoping query scopes (visibleTo()/forTenant()),
+        // never by a per-action ability check. Not previously exploitable
+        // (every role that role gate admits already carries full
+        // reporting.report.* via the generic seeder loop, confirmed), but
+        // wiring it in closes the gap for real rather than leaving a
+        // registered-but-dead policy, and costs nothing today since it
+        // can't deny anyone the route gate doesn't already deny.
+        $this->authorize('viewAny', ReportDefinition::class);
+
         $tenantId  = $this->tenantId($request);
         $module    = $request->get('module');
         $type      = $request->get('report_type');
@@ -82,6 +95,8 @@ class ReportingController extends Controller
      */
     public function storeReport(Request $request): JsonResponse
     {
+        $this->authorize('create', ReportDefinition::class);
+
         $tenantId = $this->tenantId($request);
 
         $validated = $request->validate([
@@ -123,6 +138,8 @@ class ReportingController extends Controller
 
         $report = ReportDefinition::visibleTo($tenantId)->findOrFail($id);
 
+        $this->authorize('view', $report);
+
         return response()->json($report->load('createdBy:id,name,email'));
     }
 
@@ -136,6 +153,8 @@ class ReportingController extends Controller
         $tenantId = $this->tenantId($request);
 
         $report = ReportDefinition::forTenant($tenantId)->findOrFail($id);
+
+        $this->authorize('update', $report);
 
         $validated = $request->validate([
             'name'              => 'sometimes|string|max:100',
@@ -163,6 +182,8 @@ class ReportingController extends Controller
         $tenantId = $this->tenantId($request);
 
         $report = ReportDefinition::forTenant($tenantId)->findOrFail($id);
+
+        $this->authorize('delete', $report);
 
         if ($report->is_system) {
             return response()->json(['message' => 'Cannot delete a system report.'], 422);
@@ -271,9 +292,12 @@ class ReportingController extends Controller
      * type). The real DomPDF/PhpSpreadsheet engine — ReportGenerationService
      * — already existed, fully built and already injected into this
      * controller as $this->generation, but was never actually called from
-     * here (its only other callers, RunReportJob/DeliverScheduledReportJob,
-     * are themselves never dispatched anywhere in the app — a separate,
-     * already-documented gap, left untouched). Rewired onto the real engine:
+     * here (its only other real caller, DeliverScheduledReportJob, was
+     * itself never dispatched anywhere in the app — since fixed for real at
+     * Chantier 32.22, see Modules\Reporting\Console\Commands\
+     * DeliverScheduledReportsCommand; RunReportJob, a second, genuinely
+     * redundant would-be caller with no viable low-risk activation path,
+     * was deleted at the same chantier). Rewired onto the real engine:
      * the execution's already-persisted result_data (the full row set —
      * ReportingService::execute()'s runQuery() stores it in full, unlike
      * ReportGenerationService::run()'s own preview-only DB write, which

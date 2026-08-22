@@ -5,6 +5,8 @@ namespace Modules\Analytics\Services\Forecasting;
 use Illuminate\Support\Facades\DB;
 use Modules\Analytics\Services\ForecastingEngineService;
 use Modules\HR\Models\EmployeeCompensation;
+use Modules\HR\Models\LeaveRequest;
+use Modules\HR\Models\LeaveType;
 
 /**
  * Service de prévision des ressources humaines.
@@ -283,11 +285,33 @@ class HrForecastService
             ->toArray();
     }
 
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics): `hr_leave_balances` a
+     * été confirmé mort et supprimé par l'audit HR (Chantier 32.17,
+     * migration `2026_08_30_000001_chantier_3217_hr_deep_audit_schema.php`)
+     * — son propre grep de « consommateurs » ne pouvait pas voir cette
+     * requête `DB::table()` brute d'un autre module, le même angle mort déjà
+     * documenté pour la suppression de `Modules\CRM\Models\Company` au
+     * Chantier 32.13-16. Confirmé empiriquement (`SQLSTATE... no such
+     * table`) que `predictTurnoverRisk()` — un vrai endpoint routé,
+     * `GET forecasting/hr/turnover-risk` — plantait sur chaque employé actif
+     * réel. Recalculé désormais sur la même formule réelle déjà utilisée par
+     * les endpoints self-service réels du module
+     * (`EmployeeSelfServiceController::leaveBalance()` :
+     * days_per_year des types de congé actifs moins les jours pris
+     * approuvés cette année) plutôt qu'une colonne stockée qui n'a plus de
+     * table.
+     */
     private function getUnusedLeaveDays(int $employeeId, int $tenantId): int
     {
-        return (int) (DB::table('hr_leave_balances')
-            ->where('employee_id', $employeeId)
-            ->value('balance') ?? 0);
+        $totalEntitlement = (float) LeaveType::where('is_active', true)->sum('days_per_year');
+
+        $taken = (float) LeaveRequest::where('employee_id', $employeeId)
+            ->where('status', 'approved')
+            ->whereYear('start_date', now()->year)
+            ->sum('days');
+
+        return (int) max(0, $totalEntitlement - $taken);
     }
 
     private function getAverageOvertimeHours(int $employeeId, int $tenantId): float
@@ -299,23 +323,22 @@ class HrForecastService
         return 0.0;
     }
 
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics): `job_postings` n'existe
+     * dans aucune migration de ce dépôt — l'ATS/recrutement est un
+     * périmètre explicitement exclu de `Modules\HR` "basique" (voir
+     * CLAUDE.md § « HR: "basique" scope only »). Confirmé empiriquement
+     * (`SQLSTATE... no such table: job_postings`) que `forecastHeadcount()`
+     * plantait dès qu'un vrai écart positif (`gap > 0`) était calculé — pas
+     * un cas marginal, le chemin normal d'une entreprise en croissance.
+     * Ce module n'a aucune autre source réelle de "rôles les plus
+     * demandés" (aucun module d'offre d'emploi dans ce périmètre) —
+     * dégrade proprement vers le seul repli déjà écrit ici, plutôt que
+     * d'interroger une table qui n'existera jamais dans ce périmètre.
+     */
     private function suggestRoles(int $gap, int $tenantId): array
     {
-        // Récupérer les rôles les plus demandés parmi les offres récentes
-        $roles = DB::table('job_postings')
-            ->where('tenant_id', $tenantId)
-            ->where('status', 'open')
-            ->select('title', 'department')
-            ->limit($gap)
-            ->get()
-            ->map(fn ($r) => ['title' => $r->title, 'department' => $r->department])
-            ->toArray();
-
-        if (empty($roles)) {
-            return array_fill(0, min($gap, 3), ['title' => 'Poste à définir', 'department' => null]);
-        }
-
-        return $roles;
+        return array_fill(0, min($gap, 3), ['title' => 'Poste à définir', 'department' => null]);
     }
 
     private function buildRetentionSuggestions(array $factors): array

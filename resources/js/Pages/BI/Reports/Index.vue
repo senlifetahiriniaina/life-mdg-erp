@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="BI · Rapports" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Header -->
     <div class="page-head">
       <div>
@@ -262,7 +264,11 @@ import { ref, reactive, computed } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import { Dialog, InputText, Select, Textarea } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('BI', 'view_reports')
 
 const props = defineProps({
   reports: { type: Object, required: true },

@@ -2,9 +2,11 @@
 
 namespace Modules\BI\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\BI\Jobs\CheckBiAlertsJob;
 use Modules\BI\Models\AlertRule;
 use Modules\BI\Models\CustomVisualization;
 use Modules\BI\Models\DataStory;
@@ -82,13 +84,25 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
 
     /**
      * Register command Schedules.
+     *
+     * Chantier 32.24 (BI 14-layer audit): `CheckBiAlertsJob` (the module's one
+     * real, correctly-written periodic alert sweep — it queries real active
+     * `BiAlert` rows and delegates to the real, tested `AlertService::checkAlert()`)
+     * was never scheduled anywhere in the app — confirmed via grep before this
+     * fix, matching the exact same "real job, zero producer" pattern already
+     * found and fixed for Analytics'/Helpdesk's own scheduled jobs earlier this
+     * session. Wired here via the same `callAfterResolving(Schedule::class, ...)`
+     * mechanism already proven working (`php artisan schedule:list`) for those
+     * two modules, independent of the root Kernel binding.
      */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('inspire')->hourly();
-        // });
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->job(new CheckBiAlertsJob())
+                ->everyFifteenMinutes()
+                ->name('bi:check-alerts')
+                ->withoutOverlapping();
+        });
     }
 
     /**

@@ -58,7 +58,7 @@ class CashflowForecastService
                 'has_deficit'     => $minBalance < 0,
                 'currency'        => $this->getTenantCurrency($tenantId),
             ],
-            'narrative'       => $this->buildNarrative($projection, $gaps, $this->getTenantCurrency($tenantId)),
+            'narrative'       => $this->buildNarrative($projection, $gaps, $this->getTenantCurrency($tenantId), $days),
         ];
     }
 
@@ -323,13 +323,22 @@ class CashflowForecastService
             ->value('currency') ?? 'XOF';
     }
 
-    private function buildNarrative(array $projection, array $gaps, string $currency): string
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics — couche 8, validation
+     * métier) : confirmé empiriquement qu'un horizon de 30 jours produisait
+     * quand même « Solde final estimé dans 90 jours » — `buildNarrative()`
+     * n'a jamais reçu le vrai `$days` demandé par l'appelant, un littéral
+     * codé en dur indépendant du sélecteur d'horizon réellement câblé côté
+     * écran (`CashflowForecast/Index.vue`, 30/60/90/180). `$days` est
+     * désormais un paramètre réel, plus utilisé pour de vrai dans le texte.
+     */
+    private function buildNarrative(array $projection, array $gaps, string $currency, int $days = 90): string
     {
         $values       = array_column($projection, 'running_balance');
         $finalBalance = count($values) > 0 ? end($values) : 0.0;
         $minBalance   = count($values) > 0 ? min($values) : 0.0;
 
-        $narrative = "Solde final estimé dans 90 jours : " . number_format($finalBalance, 0, ',', ' ') . " {$currency}. ";
+        $narrative = "Solde final estimé dans {$days} jours : " . number_format($finalBalance, 0, ',', ' ') . " {$currency}. ";
 
         if (! empty($gaps)) {
             $narrative .= count($gaps) . " période(s) de déficit détectée(s). ";

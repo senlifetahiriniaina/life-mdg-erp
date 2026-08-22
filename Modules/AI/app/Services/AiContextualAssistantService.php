@@ -104,7 +104,15 @@ class AiContextualAssistantService
             // claimed the literal "3217" name on this same shared file).
             'HR'                  => ['create_employee', 'approve_leave', 'run_payroll', 'onboarding', 'view_dashboard', 'clock_attendance', 'view_compensation', 'view_employees_list', 'view_employee_detail', 'view_payslips', 'employee_portal', 'manage_attendance', 'manage_departments', 'view_leave_analytics', 'manage_shifts'],
             // 'import_stock' added Chantier 30 (bulk stock import assistance).
-            'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock'],
+            // 'view_catalog'/'manage_warehouses'/'manage_suppliers'/
+            // 'manage_costing_sheets' added Chantier 32.22 (Inventory deep
+            // 14-layer audit): only 2 of the module's 25 real Vue pages
+            // (Stock/Import.vue, DemandForecast/Index.vue) ever called
+            // useAiAssistant() at all — the same "N of M real pages never
+            // wired" pattern already found and fixed for Strategy (Chantier
+            // 30), Validation (Chantier 32.7), CRM (Chantier 32.15), Sales
+            // (Chantier 32.16) and HR (Chantier 32.17).
+            'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock', 'view_catalog', 'manage_warehouses', 'manage_suppliers', 'manage_costing_sheets'],
             // 'manage_deposit_balance'/'manage_recurring_orders'/
             // 'manage_sales_objectives' added Chantier 32.16 (Sales deep
             // 14-layer audit): 3 of the module's 4 real Vue pages
@@ -143,11 +151,30 @@ class AiContextualAssistantService
             'Quality'             => ['quality_control', 'inspect_component', 'iso_compliance', 'iso_textile', 'iso_construction'],
             'PLM'                 => ['view_dashboard', 'configure_product', 'cpq_index', 'cpq_configure', 'cpq_summary'],
             'Ecommerce'           => ['add_product', 'process_order', 'manage_returns', 'view_analytics'],
-            'Logistics'           => ['create_shipment', 'track_delivery', 'manage_carrier', 'warehouse_receipt'],
+            // Chantier 32.23 (Logistics deep 14-layer audit): 6 new actions
+            // added — view_dashboard/plan_delivery_round/manage_freight_
+            // invoices/manage_customs/view_analytics/optimize_routes — since
+            // 8 of the module's 8 real, routed Vue pages (Dashboard,
+            // Shipments, Carriers, DeliveryRounds, FreightInvoices, Customs,
+            // Analytics, RouteOptimization) called useAiAssistant() exactly
+            // zero times before this fix, despite the real, live
+            // LogisticsAiAssistController/POST logistics/ai/assist endpoint
+            // already existing — the same "real backend, zero real caller"
+            // pattern already fixed for Strategy at Chantier 30.
+            'Logistics'           => ['create_shipment', 'track_delivery', 'manage_carrier', 'warehouse_receipt', 'view_dashboard', 'plan_delivery_round', 'manage_freight_invoices', 'manage_customs', 'view_analytics', 'optimize_routes'],
             'Contracts'           => ['create_contract', 'activate_contract', 'renew_contract', 'expiry_alert'],
             'Assets'              => ['add_asset', 'post_depreciation', 'schedule_maintenance', 'dispose_asset'],
             'Reporting'           => ['create_report', 'schedule_report', 'export_report', 'interpret_results', 'view_dashboard'],
-            'BI'                  => ['analyze_data'],
+            // Chantier 32.24 (BI 14-layer deep audit): 'analyze_data' was the
+            // module's only registered action, and — confirmed via grep — not
+            // one of the module's 10 real, mounted root-level pages
+            // (resources/js/Pages/BI/*) ever called useAiAssistant() at all,
+            // the same "module registered, zero page consumer" pattern
+            // already found and fixed for Strategy (Chantier 30), Validation
+            // (32.7), CRM (32.15), Sales (32.16) and Projects/Timesheets/
+            // Helpdesk (32.17-32.21). Added 9 real actions matching each
+            // page's actual content and wired useAiAssistant() into all 10.
+            'BI'                  => ['analyze_data', 'view_hub', 'view_dashboard', 'use_builder', 'view_alerts', 'view_analytics', 'view_data_sources', 'view_kpis', 'natural_language_query', 'use_sql_editor', 'view_reports'],
             // Chantier 32.2: 'view_dashboard' added — resources/js/Pages/Helpdesk/
             // Tickets/Show.vue (the real ticket-detail screen) calls
             // useAiAssistant('Helpdesk', 'view_dashboard'), which is not the same
@@ -228,6 +255,16 @@ class AiContextualAssistantService
             // 'Strategy'. Confirmed via grep across
             // Modules/Validation/resources/js before adding the calls.
             'Validation'       => ['view_approval_dashboard', 'view_approval_request', 'manage_workflows', 'build_workflow', 'manage_validation_rules'],
+            // Chantier 32.28 (14-layer deep audit of Modules\Messaging): the
+            // module's own MessagingAiAssistController (POST
+            // /api/v1/messaging/ai/assist) has existed since Chantier 20,
+            // but 'Messaging' was never registered here at all — every call
+            // silently resolved to emptyGuidance() (enabled:false, every
+            // field blank), and the module's one real Vue page
+            // (Pages/Messaging/Index.vue) never called useAiAssistant() in
+            // the first place — the exact same double-gap Chantier 30 found
+            // and fixed for 'Strategy'.
+            'Messaging'        => ['view_dashboard', 'start_conversation'],
         ];
     }
 
@@ -348,7 +385,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216(), $this->frenchMapChantier3217(), $this->frenchMapChantier3219(), $this->frenchMapChantier3221(), $this->frenchMapHrDeepAudit());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216(), $this->frenchMapChantier3217(), $this->frenchMapChantier3219(), $this->frenchMapChantier3221(), $this->frenchMapHrDeepAudit(), $this->frenchMapChantier3222(), $this->frenchMapChantier3224(), $this->frenchMapChantier3228());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -1669,6 +1706,108 @@ PROMPT;
                     'Utilisez le scan de codes-barres pour accélérer la réception.',
                 ],
             ],
+            // Chantier 32.23: 6 new Logistics actions — see the array note above.
+            'Logistics.view_dashboard' => [
+                'what_to_do'          => 'Consultez le tableau de bord logistique : expéditions, retards, coût moyen, CO₂.',
+                'how_to_do'           => [
+                    'Repérez le taux de livraison à l\'heure et le taux d\'exception.',
+                    'Identifiez les expéditions en cours nécessitant un suivi.',
+                    'Basculez vers Analytics pour une vue détaillée par transporteur.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Expéditions en cours', 'value' => '—', 'status' => 'ok'],
+                    ['label' => 'Taux à l\'heure', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir les analyses', 'action' => 'view_analytics', 'module' => 'Logistics'],
+                ],
+                'tips'                => [
+                    'Un taux d\'exception élevé signale souvent un problème avec un transporteur précis.',
+                ],
+            ],
+            'Logistics.plan_delivery_round' => [
+                'what_to_do'          => 'Planifiez une tournée de livraison du dernier kilomètre pour un chauffeur.',
+                'how_to_do'           => [
+                    'Renseignez le chauffeur, le véhicule et la date planifiée.',
+                    'Ajoutez les arrêts dans l\'ordre de passage souhaité.',
+                    'Démarrez la tournée puis enregistrez la preuve de livraison à chaque arrêt.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Tournées planifiées aujourd\'hui', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Une tournée ne peut être modifiée une fois terminée ou annulée.',
+                ],
+            ],
+            'Logistics.manage_freight_invoices' => [
+                'what_to_do'          => 'Rapprochez les factures transporteur (montant coté vs facturé) et gérez leur approbation.',
+                'how_to_do'           => [
+                    'Comparez le montant coté et le montant facturé pour détecter un écart.',
+                    'Approuvez la facture si elle est conforme, ou contestez-la avec un motif.',
+                    'Une facture approuvée ou payée ne peut plus être modifiée.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Factures en écart', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Un écart récurrent avec un même transporteur mérite une renégociation tarifaire.',
+                ],
+            ],
+            'Logistics.manage_customs' => [
+                'what_to_do'          => 'Gérez les déclarations en douane (import/export/transit) d\'une expédition.',
+                'how_to_do'           => [
+                    'Renseignez la valeur déclarée, le code SH et l\'incoterm.',
+                    'Consultez la liste des documents requis selon la destination.',
+                    'Soumettez la déclaration une fois complète.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Déclarations en brouillon', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'Un code SH incorrect peut entraîner un redressement douanier.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Utilisez la suggestion de code SH pour gagner du temps sur les produits courants.',
+                ],
+            ],
+            'Logistics.view_analytics' => [
+                'what_to_do'          => 'Analysez la performance logistique : coûts, délais, émissions CO₂ par transporteur et par mode.',
+                'how_to_do'           => [
+                    'Comparez les transporteurs sur le volume et la ponctualité.',
+                    'Suivez l\'évolution des émissions CO₂ par mode de transport.',
+                    'Identifiez les postes de coût à optimiser.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Coût moyen par expédition', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Comparez sur une période glissante de 90 jours pour lisser les variations saisonnières.',
+                ],
+            ],
+            'Logistics.optimize_routes' => [
+                'what_to_do'          => 'Optimisez l\'affectation des arrêts aux véhicules pour minimiser la distance parcourue.',
+                'how_to_do'           => [
+                    'Renseignez les arrêts (position, fenêtre horaire, demande).',
+                    'Renseignez les véhicules disponibles et leur capacité.',
+                    'Lancez l\'optimisation puis exportez le plan de tournée obtenu.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Distance totale estimée', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Au-delà de 20 arrêts, le calcul peut prendre quelques secondes de plus.',
+                ],
+            ],
 
             // ------------------------------------------------------------------
             // Contracts
@@ -2382,7 +2521,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216(), $this->englishMapChantier3217(), $this->englishMapChantier3219(), $this->englishMapChantier3221(), $this->englishMapHrDeepAudit());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216(), $this->englishMapChantier3217(), $this->englishMapChantier3219(), $this->englishMapChantier3221(), $this->englishMapHrDeepAudit(), $this->englishMapChantier3222(), $this->englishMapChantier3224(), $this->englishMapChantier3228());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -3698,7 +3837,109 @@ PROMPT;
                     ['label' => 'Update stock', 'action' => 'receive_stock', 'module' => 'Inventory'],
                 ],
                 'tips'                => [
-                    'Use barcode scanning to speed up the receiving process.',
+                    'Use barcode scanning to speed up receiving.',
+                ],
+            ],
+            // Chantier 32.23: 6 new Logistics actions — see the array note above.
+            'Logistics.view_dashboard' => [
+                'what_to_do'          => 'Review the logistics dashboard: shipments, delays, average cost, CO₂.',
+                'how_to_do'           => [
+                    'Check the on-time delivery rate and the exception rate.',
+                    'Identify in-transit shipments that need follow-up.',
+                    'Switch to Analytics for a detailed per-carrier breakdown.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Active shipments', 'value' => '—', 'status' => 'ok'],
+                    ['label' => 'On-time rate', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View analytics', 'action' => 'view_analytics', 'module' => 'Logistics'],
+                ],
+                'tips'                => [
+                    'A high exception rate often points to an issue with one specific carrier.',
+                ],
+            ],
+            'Logistics.plan_delivery_round' => [
+                'what_to_do'          => 'Plan a last-mile delivery round for a driver.',
+                'how_to_do'           => [
+                    'Enter the driver, vehicle, and planned date.',
+                    'Add stops in the desired visiting order.',
+                    'Start the round, then record proof of delivery at each stop.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Rounds planned today', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A round can no longer be edited once completed or cancelled.',
+                ],
+            ],
+            'Logistics.manage_freight_invoices' => [
+                'what_to_do'          => 'Reconcile carrier invoices (quoted vs. invoiced amount) and manage their approval.',
+                'how_to_do'           => [
+                    'Compare the quoted and invoiced amounts to spot a variance.',
+                    'Approve the invoice if it matches, or dispute it with a reason.',
+                    'An approved or paid invoice can no longer be edited.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Invoices with variance', 'value' => '—', 'status' => 'warning'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'A recurring variance with the same carrier is worth renegotiating.',
+                ],
+            ],
+            'Logistics.manage_customs' => [
+                'what_to_do'          => 'Manage customs declarations (import/export/transit) for a shipment.',
+                'how_to_do'           => [
+                    'Enter the declared value, HS code, and incoterm.',
+                    'Check the required document checklist for the destination.',
+                    'Submit the declaration once complete.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Draft declarations', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [
+                    'An incorrect HS code can trigger a customs reassessment.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Use the HS code suggestion to save time on common products.',
+                ],
+            ],
+            'Logistics.view_analytics' => [
+                'what_to_do'          => 'Analyze logistics performance: cost, transit time, and CO₂ emissions by carrier and mode.',
+                'how_to_do'           => [
+                    'Compare carriers on volume and punctuality.',
+                    'Track CO₂ emissions trends by transport mode.',
+                    'Identify cost items to optimize.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Average cost per shipment', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Compare over a rolling 90-day window to smooth out seasonal swings.',
+                ],
+            ],
+            'Logistics.optimize_routes' => [
+                'what_to_do'          => 'Optimize stop-to-vehicle assignment to minimize total distance travelled.',
+                'how_to_do'           => [
+                    'Enter the stops (position, time window, demand).',
+                    'Enter the available vehicles and their capacity.',
+                    'Run the optimization, then export the resulting route plan.',
+                ],
+                'decision_indicators' => [
+                    ['label' => 'Estimated total distance', 'value' => '—', 'status' => 'ok'],
+                ],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Beyond 20 stops, the computation may take a few extra seconds.',
                 ],
             ],
 
@@ -7435,6 +7676,534 @@ PROMPT;
                     'This module manages recurring weekly templates, not a day-by-day monthly calendar.',
                 ],
                 'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.24 — 9 new BI actions, matching the 10 real root-level
+     * pages under resources/js/Pages/BI/ (Index.vue reuses two actions:
+     * the hub tiles link out to the other 9 pages, so it gets its own
+     * 'view_hub' key rather than duplicating one of the others).
+     */
+    private function frenchMapChantier3224(): array
+    {
+        return [
+            'BI.view_hub' => [
+                'what_to_do'          => 'Vue d\'ensemble du module BI : accédez à vos tableaux de bord, l\'éditeur SQL, les sources de données, les alertes et les rapports depuis un seul endroit.',
+                'how_to_do'           => [
+                    'Cliquez une tuile pour ouvrir le tableau de bord, le rapport ou l\'outil correspondant.',
+                    'Utilisez "Nouveau Dashboard" pour créer un tableau de bord personnalisé avec le Builder.',
+                    'Les indicateurs clés (KPIs) sont accessibles depuis leur propre page dédiée.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Nouveau Dashboard', 'action' => 'use_builder', 'module' => 'BI'],
+                ],
+                'tips'                => [
+                    'Un tableau de bord peut être partagé en lecture seule via un lien "embed" (jeton dédié, révocable à tout moment).',
+                ],
+            ],
+            'BI.view_dashboard' => [
+                'what_to_do'          => 'Consultez les widgets de ce tableau de bord (indicateurs, graphiques, tables) et exportez-le si besoin.',
+                'how_to_do'           => [
+                    'Cliquez sur un widget pour l\'explorer plus en détail (drill-down) si la donnée le permet.',
+                    'Utilisez "Modifier" pour rouvrir ce tableau de bord dans le Builder et ajuster ses widgets.',
+                    'Le bouton d\'export génère un PDF ou un CSV du contenu affiché.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Un widget dont la source de données est indisponible affiche un état "Données temporairement indisponibles" plutôt qu\'un chiffre erroné.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Exporter', 'action' => 'export', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.use_builder' => [
+                'what_to_do'          => 'Composez votre tableau de bord en ajoutant, redimensionnant et positionnant des widgets (KPI, graphique, table).',
+                'how_to_do'           => [
+                    'Glissez un type de widget depuis la palette, puis configurez sa source de données.',
+                    'Ajustez la position/taille de chaque widget directement sur la grille.',
+                    'Cliquez "Enregistrer" pour sauvegarder la disposition — elle est restituée telle quelle à la prochaine ouverture.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Un widget non enregistré est perdu si vous quittez la page sans cliquer "Enregistrer".',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.view_alerts' => [
+                'what_to_do'          => 'Surveillez les alertes déclenchées sur vos indicateurs (seuils dépassés) et configurez-en de nouvelles.',
+                'how_to_do'           => [
+                    'Cliquez "Nouvelle alerte" pour définir un widget/requête, une condition et un seuil.',
+                    'Choisissez les canaux de notification (email, Slack, in-app) et les destinataires.',
+                    'Utilisez "Tester" pour vérifier immédiatement si la condition est actuellement remplie.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Une alerte n\'a de valeur courante ("dernière valeur") que si elle a déjà été testée au moins une fois — une alerte jamais testée affiche "—".',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Nouvelle alerte', 'action' => 'create', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.view_analytics' => [
+                'what_to_do'          => 'Explorez les analyses avancées : tendances, comparaisons et répartitions sur vos données métier.',
+                'how_to_do'           => [
+                    'Changez la période analysée pour comparer plusieurs intervalles.',
+                    'Utilisez les filtres pour vous concentrer sur un module ou un segment précis.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.view_data_sources' => [
+                'what_to_do'          => 'Gérez les connexions aux sources de données externes (base de données, API REST, Google Sheets) utilisées par vos tableaux de bord.',
+                'how_to_do'           => [
+                    'Cliquez "Nouvelle source" et choisissez le type de connecteur.',
+                    'Renseignez les identifiants de connexion — ils sont chiffrés (AES-256) avant stockage.',
+                    'Utilisez "Tester la connexion" avant d\'utiliser la source dans un widget.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Une source dont le dernier test a échoué (statut "error") ne doit pas être considérée comme fiable tant qu\'un nouveau test n\'a pas réussi.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Nouvelle source', 'action' => 'create', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.view_kpis' => [
+                'what_to_do'          => 'Suivez vos indicateurs clés (KPI) avec leur valeur actuelle, leur tendance et leur objectif.',
+                'how_to_do'           => [
+                    'Cliquez "Nouveau KPI" pour définir un indicateur (nom, formule, cible).',
+                    'Configurez une alerte sur un KPI directement depuis sa fiche pour être notifié en cas de dérive.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Nouveau KPI', 'action' => 'create', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.natural_language_query' => [
+                'what_to_do'          => 'Posez une question en langage naturel sur vos données — elle est traduite en requête SQL sécurisée et le résultat est présenté sous forme de graphique.',
+                'how_to_do'           => [
+                    'Formulez votre question comme à un collègue : "Quel est le chiffre d\'affaires du mois dernier par client ?"',
+                    'Vérifiez la requête SQL générée avant de l\'exécuter si vous voulez la valider vous-même.',
+                    'Enregistrez une question fréquente pour la relancer sans la reformuler.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'La requête générée est en lecture seule (SELECT uniquement) — elle ne peut jamais modifier vos données.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.use_sql_editor' => [
+                'what_to_do'          => 'Exécutez des requêtes SQL personnalisées sur vos sources de données et enregistrez les requêtes utiles.',
+                'how_to_do'           => [
+                    'Choisissez la source de données à interroger, puis écrivez votre requête.',
+                    'Cliquez "Exécuter" pour voir le résultat directement dans le tableau ci-dessous.',
+                    'Enregistrez une requête pour la retrouver plus tard ou l\'exporter (CSV/XLSX).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Seul un rôle admin/manager peut exécuter une requête SQL brute (`run-raw`) sur une base interne — les autres rôles sont limités aux sources externes configurées.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.view_reports' => [
+                'what_to_do'          => 'Générez et téléchargez vos rapports BI (PDF/Excel/CSV) ou planifiez leur envoi périodique.',
+                'how_to_do'           => [
+                    'Cliquez une tuile de rapport rapide pour le générer immédiatement.',
+                    'Utilisez "Planifier" pour recevoir ce rapport automatiquement par email selon la fréquence choisie.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Exporter', 'action' => 'export', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    private function englishMapChantier3224(): array
+    {
+        return [
+            'BI.view_hub' => [
+                'what_to_do'          => 'BI module overview: reach your dashboards, the SQL editor, data sources, alerts and reports from one place.',
+                'how_to_do'           => [
+                    'Click a tile to open the matching dashboard, report, or tool.',
+                    'Use "New Dashboard" to build a custom dashboard with the Builder.',
+                    'Key indicators (KPIs) have their own dedicated page.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'New Dashboard', 'action' => 'use_builder', 'module' => 'BI'],
+                ],
+                'tips'                => [
+                    'A dashboard can be shared read-only via an "embed" link (a dedicated, revocable token).',
+                ],
+            ],
+            'BI.view_dashboard' => [
+                'what_to_do'          => 'Review this dashboard\'s widgets (metrics, charts, tables) and export it if needed.',
+                'how_to_do'           => [
+                    'Click a widget to drill down further when the underlying data supports it.',
+                    'Use "Edit" to reopen this dashboard in the Builder and adjust its widgets.',
+                    'The export button generates a PDF or CSV of what is displayed.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'A widget whose data source is unavailable shows "Data temporarily unavailable" rather than a wrong number.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Export', 'action' => 'export', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.use_builder' => [
+                'what_to_do'          => 'Compose your dashboard by adding, resizing and positioning widgets (KPI, chart, table).',
+                'how_to_do'           => [
+                    'Drag a widget type from the palette, then configure its data source.',
+                    'Adjust each widget\'s position/size directly on the grid.',
+                    'Click "Save" to persist the layout — it is restored exactly as-is next time you open it.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'An unsaved widget is lost if you leave the page without clicking "Save".',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.view_alerts' => [
+                'what_to_do'          => 'Monitor alerts triggered on your metrics (breached thresholds) and configure new ones.',
+                'how_to_do'           => [
+                    'Click "New Alert" to define a widget/query, a condition and a threshold.',
+                    'Choose notification channels (email, Slack, in-app) and recipients.',
+                    'Use "Test" to immediately check whether the condition currently holds.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'An alert only has a meaningful current value once it has been tested at least once — a never-tested alert shows "—".',
+                ],
+                'next_actions'        => [
+                    ['label' => 'New alert', 'action' => 'create', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.view_analytics' => [
+                'what_to_do'          => 'Explore advanced analytics: trends, comparisons and breakdowns across your business data.',
+                'how_to_do'           => [
+                    'Change the analyzed period to compare several intervals.',
+                    'Use the filters to focus on a specific module or segment.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.view_data_sources' => [
+                'what_to_do'          => 'Manage connections to external data sources (database, REST API, Google Sheets) used by your dashboards.',
+                'how_to_do'           => [
+                    'Click "New Source" and pick the connector type.',
+                    'Enter the connection credentials — they are AES-256 encrypted before storage.',
+                    'Use "Test Connection" before using the source in a widget.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'A source whose last test failed ("error" status) should not be trusted until a new test succeeds.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'New source', 'action' => 'create', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.view_kpis' => [
+                'what_to_do'          => 'Track your key performance indicators (KPIs) with their current value, trend and target.',
+                'how_to_do'           => [
+                    'Click "New KPI" to define an indicator (name, formula, target).',
+                    'Set up an alert on a KPI directly from its detail view to be notified of drift.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'New KPI', 'action' => 'create', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+            'BI.natural_language_query' => [
+                'what_to_do'          => 'Ask a plain-language question about your data — it is translated into a safe SQL query and the result is shown as a chart.',
+                'how_to_do'           => [
+                    'Phrase your question as you would to a colleague: "What was last month\'s revenue by customer?"',
+                    'Review the generated SQL before running it if you want to validate it yourself.',
+                    'Save a frequent question to rerun it without rephrasing.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'The generated query is read-only (SELECT only) — it can never modify your data.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.use_sql_editor' => [
+                'what_to_do'          => 'Run custom SQL queries against your data sources and save the useful ones.',
+                'how_to_do'           => [
+                    'Pick the data source to query, then write your query.',
+                    'Click "Run" to see the result directly in the table below.',
+                    'Save a query to find it again later or export it (CSV/XLSX).',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Only an admin/manager role can run a raw SQL query (`run-raw`) against an internal database — other roles are limited to configured external sources.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+            'BI.view_reports' => [
+                'what_to_do'          => 'Generate and download your BI reports (PDF/Excel/CSV) or schedule their periodic delivery.',
+                'how_to_do'           => [
+                    'Click a quick-report tile to generate it immediately.',
+                    'Use "Schedule" to receive this report automatically by email at your chosen frequency.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Export', 'action' => 'export', 'module' => 'BI'],
+                ],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.28 (14-layer deep audit of Modules\Messaging). See the
+     * registration comment in supportedModules() for the full story: the
+     * module's real AI-assist endpoint and its one real Vue page both
+     * silently resolved to an empty guidance shell before this.
+     */
+    private function frenchMapChantier3228(): array
+    {
+        return [
+            'Messaging.view_dashboard' => [
+                'what_to_do'          => 'Consultez vos conversations et échangez en temps réel avec vos collègues.',
+                'how_to_do'           => [
+                    'Cliquez sur une conversation dans la liste pour l\'ouvrir et voir les messages.',
+                    'Utilisez "Nouvelle conversation" pour démarrer un échange direct ou de groupe — les destinataires proposés appartiennent tous à votre société.',
+                    'Un point bleu ou un badge sur une conversation indique des messages non lus.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Nouvelle conversation', 'action' => 'start_conversation', 'module' => 'Messaging'],
+                ],
+                'tips'                => [
+                    'Les messages sont livrés en temps réel — pas besoin de rafraîchir la page pour voir une réponse.',
+                    'Une conversation directe entre les deux mêmes personnes est automatiquement réutilisée plutôt que dupliquée.',
+                ],
+            ],
+            'Messaging.start_conversation' => [
+                'what_to_do'          => 'Sélectionnez un ou plusieurs destinataires pour démarrer une nouvelle conversation.',
+                'how_to_do'           => [
+                    'Choisissez un seul destinataire pour une conversation directe, ou plusieurs pour créer un groupe.',
+                    'Donnez un nom à une conversation de groupe pour la retrouver facilement plus tard.',
+                    'Cliquez "Démarrer" pour ouvrir la conversation et envoyer votre premier message.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Seuls des collègues de votre propre société peuvent être sélectionnés comme destinataires.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    private function englishMapChantier3228(): array
+    {
+        return [
+            'Messaging.view_dashboard' => [
+                'what_to_do'          => 'View your conversations and chat with colleagues in real time.',
+                'how_to_do'           => [
+                    'Click a conversation in the list to open it and view its messages.',
+                    'Use "New conversation" to start a direct or group chat — every recipient offered belongs to your own company.',
+                    'A dot or badge on a conversation means it has unread messages.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'New conversation', 'action' => 'start_conversation', 'module' => 'Messaging'],
+                ],
+                'tips'                => [
+                    'Messages arrive in real time — no need to refresh the page to see a reply.',
+                    'A direct conversation between the same two people is reused automatically rather than duplicated.',
+                ],
+            ],
+            'Messaging.start_conversation' => [
+                'what_to_do'          => 'Pick one or more recipients to start a new conversation.',
+                'how_to_do'           => [
+                    'Pick a single recipient for a direct chat, or several to create a group.',
+                    'Name a group conversation so you can find it again easily later.',
+                    'Click "Start" to open the conversation and send your first message.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Only colleagues from your own company can be selected as recipients.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 32.22 (Modules\Inventory 14-layer deep audit): confirmed via
+     * grep that only 2 of the module's 25 real Vue pages (Stock/Import.vue,
+     * DemandForecast/Index.vue) ever called useAiAssistant() — every other
+     * real page (catalogue, warehouses, suppliers, purchase orders, costing
+     * sheets) had zero AI guidance, the same pattern already found and fixed
+     * for Strategy/Validation/CRM/Sales/HR earlier this session.
+     */
+    private function frenchMapChantier3222(): array
+    {
+        return [
+            'Inventory.view_catalog' => [
+                'what_to_do'          => 'Parcourez et gérez le catalogue de produits de votre société.',
+                'how_to_do'           => [
+                    'Utilisez la recherche ou les filtres pour retrouver un produit par nom, SKU ou catégorie.',
+                    'Cliquez sur un produit pour voir son stock par entrepôt et son historique de mouvements.',
+                    'Les produits en rupture ou sous le seuil de réapprovisionnement sont mis en évidence.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Créer un produit', 'action' => 'create_product', 'module' => 'Inventory'],
+                ],
+                'tips'                => [
+                    'Seuls les produits de votre propre société apparaissent dans cette liste.',
+                ],
+            ],
+            'Inventory.manage_warehouses' => [
+                'what_to_do'          => 'Gérez les entrepôts et sites de stockage de votre société.',
+                'how_to_do'           => [
+                    'Créez un entrepôt avec son adresse et son type (principal, transit, retour…).',
+                    'Consultez les mouvements de stock rattachés à un entrepôt en cliquant dessus.',
+                    'Un entrepôt lié à des mouvements de stock ne peut pas être supprimé.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Enregistrer un mouvement', 'action' => 'receive_stock', 'module' => 'Inventory'],
+                ],
+                'tips'                => [],
+            ],
+            'Inventory.manage_suppliers' => [
+                'what_to_do'          => 'Gérez vos fournisseurs et suivez leurs commandes d\'achat.',
+                'how_to_do'           => [
+                    'Renseignez les coordonnées, la devise et les conditions de paiement du fournisseur.',
+                    'Consultez l\'historique des commandes d\'achat passées auprès d\'un fournisseur.',
+                    'Créez une commande d\'achat depuis la fiche fournisseur pour réceptionner du stock.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Réceptionner du stock', 'action' => 'receive_stock', 'module' => 'Inventory'],
+                ],
+                'tips'                => [
+                    'Seuls les fournisseurs de votre propre société sont visibles et modifiables.',
+                ],
+            ],
+            'Inventory.manage_costing_sheets' => [
+                'what_to_do'          => 'Créez et suivez les fiches de chiffrage (coût de revient) de vos articles.',
+                'how_to_do'           => [
+                    'Ajoutez les lignes de coût par section (matière, accessoires, main-d\'œuvre, frais fixes).',
+                    'Le coût de revient et le prix de vente suggéré sont recalculés à chaque enregistrement.',
+                    'Dupliquez une fiche en révision plutôt que de modifier un devis déjà envoyé au client.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Une fiche déjà envoyée au client ne doit pas être modifiée directement — dupliquez-la en révision.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Suivre la production', 'action' => 'manage_production_orders', 'module' => 'Inventory'],
+                ],
+                'tips'                => [],
+            ],
+        ];
+    }
+
+    private function englishMapChantier3222(): array
+    {
+        return [
+            'Inventory.view_catalog' => [
+                'what_to_do'          => 'Browse and manage your company\'s product catalogue.',
+                'how_to_do'           => [
+                    'Use search or filters to find a product by name, SKU, or category.',
+                    'Click a product to see its stock per warehouse and its movement history.',
+                    'Products out of stock or below their reorder threshold are highlighted.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Create a product', 'action' => 'create_product', 'module' => 'Inventory'],
+                ],
+                'tips'                => [
+                    'Only your own company\'s products appear in this list.',
+                ],
+            ],
+            'Inventory.manage_warehouses' => [
+                'what_to_do'          => 'Manage your company\'s warehouses and storage sites.',
+                'how_to_do'           => [
+                    'Create a warehouse with its address and type (main, transit, returns…).',
+                    'View stock movements tied to a warehouse by clicking it.',
+                    'A warehouse linked to stock movements cannot be deleted.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Record a movement', 'action' => 'receive_stock', 'module' => 'Inventory'],
+                ],
+                'tips'                => [],
+            ],
+            'Inventory.manage_suppliers' => [
+                'what_to_do'          => 'Manage your suppliers and track their purchase orders.',
+                'how_to_do'           => [
+                    'Fill in the supplier\'s contact details, currency, and payment terms.',
+                    'Review the purchase order history for a given supplier.',
+                    'Create a purchase order from the supplier record to receive stock.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Receive stock', 'action' => 'receive_stock', 'module' => 'Inventory'],
+                ],
+                'tips'                => [
+                    'Only your own company\'s suppliers are visible and editable.',
+                ],
+            ],
+            'Inventory.manage_costing_sheets' => [
+                'what_to_do'          => 'Create and track costing sheets (cost price) for your items.',
+                'how_to_do'           => [
+                    'Add cost lines per section (material, trims, labour, overhead).',
+                    'The cost price and suggested selling price are recalculated on every save.',
+                    'Duplicate a sheet as a new revision rather than editing a quote already sent to the client.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'A sheet already sent to the client should not be edited directly — duplicate it as a revision.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Track production', 'action' => 'manage_production_orders', 'module' => 'Inventory'],
+                ],
                 'tips'                => [],
             ],
         ];

@@ -44,6 +44,22 @@ class RitualController extends Controller
         return response()->json($ritual, 201);
     }
 
+    /**
+     * Chantier 32.27: `Route::apiResource('rituals', ...)` registers
+     * `GET rituals/{ritual}` and `DELETE rituals/{ritual}` against show()/
+     * destroy(), neither of which existed on this controller — confirmed
+     * via reflection, a guaranteed fatal error on both real routes. Built
+     * for real rather than restricting the route (a single-ritual detail
+     * view and the ability to remove a stale/duplicate ritual are both
+     * legitimate needs already implied by the rest of this CRUD).
+     */
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $ritual = $this->ritualInTenant($id, $this->tenantId($request));
+
+        return response()->json($ritual->loadCount('sessions'));
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
@@ -53,14 +69,16 @@ class RitualController extends Controller
             'is_active'      => 'nullable|boolean',
         ]);
 
-        $ritual = StrategyRitual::findOrFail($id);
+        $ritual = $this->ritualInTenant($id, $this->tenantId($request));
         $ritual->update($validated);
 
         return response()->json($ritual->fresh());
     }
 
-    public function sessions(int $id): JsonResponse
+    public function sessions(Request $request, int $id): JsonResponse
     {
+        $this->ritualInTenant($id, $this->tenantId($request));
+
         $sessions = StrategyRitualSession::where('ritual_id', $id)
             ->orderBy('scheduled_at', 'desc')
             ->paginate(20);
@@ -70,14 +88,16 @@ class RitualController extends Controller
 
     public function createSession(Request $request, int $id): JsonResponse
     {
-        $ritual  = StrategyRitual::findOrFail($id);
+        $ritual  = $this->ritualInTenant($id, $this->tenantId($request));
         $session = $this->service->generateNextSession($ritual);
 
         return response()->json($session, 201);
     }
 
-    public function startSession(int $id): JsonResponse
+    public function startSession(Request $request, int $id): JsonResponse
     {
+        $this->sessionInTenant($id, $this->tenantId($request));
+
         $session = $this->service->startSession($id);
 
         return response()->json($session);
@@ -90,9 +110,51 @@ class RitualController extends Controller
             'action_items' => 'nullable|array',
         ]);
 
+        $this->sessionInTenant($id, $this->tenantId($request));
+
         $session = $this->service->completeSession($id, $validated);
 
         return response()->json($session);
+    }
+
+    /**
+     * Chantier 32.27 (audit 14 couches — layer 6, sécurité approfondie):
+     * update()/sessions()/createSession()/startSession()/completeSession()
+     * all resolved a route-bound StrategyRitual/StrategyRitualSession via
+     * findOrFail() with zero tenant check anywhere — confirmed empirically
+     * that any user of any company could read/mutate/complete another
+     * company's real strategy ritual and its session decisions/action items
+     * just by guessing the id. StrategyRitual carries a real tenant_id
+     * column (unlike StrategyObjective) so no join through a parent record
+     * is needed. No dedicated RitualPolicy exists (route-level role gate
+     * only, matching the RateLimitController/AuthenticationEventController
+     * "no natural per-ability model" precedent) — these two helpers are the
+     * tenant-ownership check for this controller's mutating/reading actions.
+     */
+    private function ritualInTenant(int $ritualId, string $tenantId): StrategyRitual
+    {
+        $ritual = StrategyRitual::findOrFail($ritualId);
+
+        abort_if((string) ($ritual->tenant_id ?? '') !== $tenantId, 404);
+
+        return $ritual;
+    }
+
+    private function sessionInTenant(int $sessionId, string $tenantId): StrategyRitualSession
+    {
+        $session = StrategyRitualSession::with('ritual')->findOrFail($sessionId);
+
+        abort_if((string) ($session->ritual?->tenant_id ?? '') !== $tenantId, 404);
+
+        return $session;
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $ritual = $this->ritualInTenant($id, $this->tenantId($request));
+        $ritual->delete();
+
+        return response()->json(['message' => 'Ritual deleted.']);
     }
 
     public function upcoming(Request $request): JsonResponse

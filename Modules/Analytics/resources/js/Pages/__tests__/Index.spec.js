@@ -7,6 +7,11 @@ vi.mock('axios')
 
 vi.mock('@inertiajs/vue3', () => ({
   Head: { template: '<div><slot /></div>' },
+  // Chantier 32.25 (audit 14 couches, Analytics — couche 3, découvrabilité) :
+  // Index.vue gained a real <Link> to /analytics/cashflow-forecast, matching
+  // the same stub pattern already used elsewhere in this app
+  // (Modules/Inventory/.../Products/__tests__/Show.spec.js).
+  Link: { template: '<a><slot /></a>' },
   usePage: () => ({ props: { auth: { user: { roles: ['manager'], permissions: [] } } } }),
 }))
 

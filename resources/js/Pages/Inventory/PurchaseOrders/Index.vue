@@ -14,6 +14,8 @@
       </div>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Filters -->
     <div class="wh-panel" style="margin-bottom:16px">
       <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
@@ -111,8 +113,12 @@
 import { ref, reactive } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { Select, Dialog, InputNumber, Paginator } from 'primevue'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('Inventory', 'manage_suppliers')
 
 interface PurchaseOrder {
   id: number

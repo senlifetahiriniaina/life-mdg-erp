@@ -144,6 +144,12 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
         Route::post('ai/analyze-anomalies', [InventoryAIController::class, 'analyzeAnomalies']);
         Route::post('ai/classify-abc', [InventoryAIController::class, 'classifyABC']);
         Route::post('ai/detect-obsolete', [InventoryAIController::class, 'detectObsolete']);
+
+        // Chantier 32.22: deterministic Pareto ABC/EOQ analysis, distinct
+        // from the LLM-guess-based ai/classify-abc above — see
+        // AbcAnalysisController's docblock.
+        Route::get('abc-analysis', [\Modules\Inventory\Http\Controllers\Api\AbcAnalysisController::class, 'analyze']);
+        Route::get('abc-analysis/velocity', [\Modules\Inventory\Http\Controllers\Api\AbcAnalysisController::class, 'velocity']);
     });
 
     // Purchase Order specific routes

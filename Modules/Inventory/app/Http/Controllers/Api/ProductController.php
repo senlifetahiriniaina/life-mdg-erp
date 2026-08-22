@@ -4,6 +4,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Http\Requests\StoreProductRequest;
 use Modules\Inventory\Http\Requests\UpdateProductRequest;
 use Modules\Inventory\Http\Resources\ProductResource;
@@ -17,6 +18,8 @@ use Modules\Inventory\Services\InventoryService;
  */
 class ProductController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected InventoryService $service) {}
 
     /**
@@ -37,7 +40,7 @@ class ProductController extends Controller
         $sortParam = $request->query('sort', '-created_at');
         $perPage = min((int) ($request->query('per_page', 15)), 100);
 
-        $query = Product::with('category');
+        $query = $this->scopeToCompany(Product::with('category'), $request);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -106,6 +109,7 @@ class ProductController extends Controller
 
         // Add tenant_id from authenticated user
         $data['tenant_id'] = auth()->user()->tenant_id ?? null;
+        $data['company_id'] = $this->companyId($request);
 
         $product = $this->service->createProduct($data);
 
@@ -115,8 +119,10 @@ class ProductController extends Controller
     /**
      * Show a single product with all related data.
      */
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
+        $this->assertSameCompany($request, $product);
+
         // Eager load all relationships to prevent N+1 queries on detail view
         $product->load('category', 'stockMovements', 'supplier');
 
@@ -125,6 +131,8 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product)
     {
+        $this->assertSameCompany($request, $product);
+
         $data = $request->validated();
 
         // Validate selling_price >= cost_price
@@ -149,8 +157,10 @@ class ProductController extends Controller
         return new ProductResource($updated);
     }
 
-    public function destroy(Product $product)
+    public function destroy(Request $request, Product $product)
     {
+        $this->assertSameCompany($request, $product);
+
         // Only inactive products can be deleted
         $status = $product->status ?? ($product->is_active ? 'active' : 'inactive');
         if ($status === 'active') {

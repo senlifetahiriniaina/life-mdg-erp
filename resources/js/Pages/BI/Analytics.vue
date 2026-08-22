@@ -4,6 +4,8 @@
 
     <GuidedTour tour-id="bi-analytics" :steps="biTourSteps" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Analytics</h1>
@@ -95,7 +97,11 @@ import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useHelpStore } from '@/stores/help'
+
+const { guidance } = useAiAssistant('BI', 'view_analytics')
 
 // Lazy load ApexCharts - splits 556KB into separate chunk
 const VueApexCharts = defineAsyncComponent(() => import('vue-apexcharts'))

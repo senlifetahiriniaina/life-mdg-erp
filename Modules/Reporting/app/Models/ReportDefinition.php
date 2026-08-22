@@ -41,6 +41,7 @@ class ReportDefinition extends Model
         'name',
         'slug',
         'module',
+        'category',
         'description',
         'query_template',
         'parameters_schema',

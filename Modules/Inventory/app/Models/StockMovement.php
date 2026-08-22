@@ -16,8 +16,8 @@ class StockMovement extends Model
     public $timestamps = true;
 
     protected $fillable = [
+        'company_id',
         'product_id',
-        'sku_id',
         'warehouse_id',
         'type',
         'quantity',

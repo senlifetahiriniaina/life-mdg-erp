@@ -5,16 +5,19 @@ namespace Modules\Inventory\Http\Controllers\Web;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Inertia\Inertia;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Services\InventoryService;
 
 class ProductController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected InventoryService $service) {}
 
     public function index(Request $request)
     {
-        $query = Product::query();
+        $query = $this->scopeToCompany(Product::query(), $request);
 
         if ($search = $request->get('search')) {
             $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
@@ -40,17 +43,27 @@ class ProductController extends Controller
         return redirect()->route('inventory.products.index');
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $product = $this->service->getProduct($id);
+        if ($product) {
+            $this->assertSameCompany($request, $product);
+        }
+
         return Inertia::render('Inventory/Products/Show', [
-            'product' => $this->service->getProduct($id),
+            'product' => $product,
         ]);
     }
 
-    public function edit($id)
+    public function edit(Request $request, $id)
     {
+        $product = $this->service->getProduct($id);
+        if ($product) {
+            $this->assertSameCompany($request, $product);
+        }
+
         return Inertia::render('Inventory/Products/Form', [
-            'product' => $this->service->getProduct($id),
+            'product' => $product,
             'categories' => $this->service->getAllCategories()->get(),
             'method' => 'PATCH',
         ]);

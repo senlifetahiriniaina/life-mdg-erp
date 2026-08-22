@@ -45,6 +45,7 @@ class PurchaseOrder extends Model
     protected $table = 'inventory_purchase_orders';
 
     protected $fillable = [
+        'company_id',
         'reference', 'supplier_id', 'warehouse_id', 'created_by',
         'status', 'currency', 'subtotal', 'tax_total', 'shipping_cost', 'grand_total',
         'notes', 'expected_at', 'sent_at', 'received_at',

@@ -45,6 +45,23 @@ class AnalyticsServiceProvider extends ServiceProvider
         $this->registerPolicies();
         $this->registerCommands();
         $this->registerSchedule();
+        $this->registerRecommendationMorphMap();
+    }
+
+    /**
+     * Chantier 32.25 (audit 14 couches, Analytics) : voir le docblock de
+     * `Recommendation::MORPH_TYPE_ALIASES` — enregistre les alias déjà
+     * réellement utilisés par le frontend/les tests de ce module comme les
+     * seules valeurs valides pour `recipient_type`/`recommended_type`,
+     * plutôt qu'un FQCN brut venu du client. `Relation::morphMap()` fusionne
+     * entre providers (précédent déjà confirmé sans conflit dans
+     * `CRMServiceProvider::registerActivitySubjectMorphMap()`), donc cet
+     * appel est sans risque même si d'autres modules enregistrent leurs
+     * propres alias ailleurs.
+     */
+    protected function registerRecommendationMorphMap(): void
+    {
+        \Illuminate\Database\Eloquent\Relations\Relation::morphMap(Recommendation::MORPH_TYPE_ALIASES);
     }
 
     protected function registerCommands(): void

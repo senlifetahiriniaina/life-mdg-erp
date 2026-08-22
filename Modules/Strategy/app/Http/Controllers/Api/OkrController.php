@@ -70,6 +70,20 @@ class OkrController extends Controller
         return response()->json($objective, 201);
     }
 
+    /**
+     * Chantier 32.27: `Route::apiResource('objectives', ...)` registers
+     * `GET objectives/{objective}` against show(), which never existed on
+     * this controller — confirmed via reflection, a guaranteed fatal error
+     * on every real call.
+     */
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $objective = $this->objectiveInTenant($id, $this->tenantId($request));
+        $this->authorize('view', $objective);
+
+        return response()->json($objective->load(['keyResults', 'pillar']));
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $objective = $this->objectiveInTenant($id, $this->tenantId($request));

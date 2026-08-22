@@ -201,19 +201,6 @@ class CustomsService
     }
 
     /**
-     * @return array<int, mixed>
-     */
-    public function getPendingDeclarations(int $companyId): array
-    {
-        return CustomsDeclaration::where('company_id', $companyId)
-            ->whereIn('status', ['draft', 'submitted', 'under_review'])
-            ->with('items')
-            ->orderByDesc('created_at')
-            ->get()
-            ->toArray();
-    }
-
-    /**
      * AI-assisted HS code suggestion. Graceful fallback to 50-code static table.
      *
      * @return array{code: string, description_fr: string, description_en: string, confidence: string, source: string}
