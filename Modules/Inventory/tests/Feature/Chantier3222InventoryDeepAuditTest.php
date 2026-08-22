@@ -141,4 +141,58 @@ describe('Chantier 32.22 — company/tenant isolation', function () {
 
         $this->getJson("/api/v1/inventory/products/{$product->id}")->assertStatus(200);
     });
+
+    test('warehouse search cannot leak another company\'s data via the unguarded orWhere', function () {
+        Warehouse::factory()->create(['name' => 'Unrelated', 'city' => 'Antananarivo', 'company_id' => $this->companyA->id]);
+
+        $userB = inventoryOtherCompanyUser($this->companyB->id);
+        $this->actingAs($userB, 'sanctum');
+        Warehouse::factory()->create(['name' => 'MyWh', 'city' => 'Toamasina', 'company_id' => $this->companyB->id]);
+
+        // Before the fix, `->orWhere('city', ...)` broke out of the
+        // `where('company_id', ...)` AND-group, so searching from company B
+        // for company A's own city ("Antananarivo") would still return
+        // company A's warehouse.
+        $resp = $this->getJson('/api/v1/inventory/warehouses?search=Antananarivo');
+        $resp->assertStatus(200);
+        expect(collect($resp->json('data'))->pluck('city')->all())->not->toContain('Antananarivo');
+    });
+
+    test('category search no longer 500s on the Postgres-only ilike operator', function () {
+        Category::factory()->create(['name' => 'Findable', 'company_id' => $this->companyA->id]);
+
+        $resp = $this->getJson('/api/v1/inventory/categories?search=Find');
+        $resp->assertStatus(200);
+        expect(collect($resp->json('data'))->pluck('name')->all())->toContain('Findable');
+    });
+});
+
+describe('Chantier 32.22 — layer 9 (fake/dead): ABCAnalysisService activated', function () {
+    beforeEach(function () {
+        $this->user = actingAsUser('inventory-analyst');
+    });
+
+    test('SKU/StockService/StockManagementService are confirmed removed', function () {
+        expect(class_exists(\Modules\Inventory\Models\SKU::class))->toBeFalse();
+        expect(class_exists(\Modules\Inventory\Services\StockService::class))->toBeFalse();
+        expect(class_exists(\Modules\Inventory\Services\StockManagementService::class))->toBeFalse();
+    });
+
+    test('velocity analysis no longer fatals on the phantom InventoryMovement class', function () {
+        $product = Product::factory()->create();
+        $warehouse = Warehouse::factory()->create();
+        \Modules\Inventory\Models\StockMovement::factory()->create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'out',
+        ]);
+
+        $resp = $this->getJson('/api/v1/inventory/abc-analysis/velocity');
+        $resp->assertStatus(200)->assertJsonStructure(['velocity_summary']);
+    });
+
+    test('deterministic ABC analysis is reachable via a real route', function () {
+        $resp = $this->getJson('/api/v1/inventory/abc-analysis');
+        $resp->assertStatus(200);
+    });
 });

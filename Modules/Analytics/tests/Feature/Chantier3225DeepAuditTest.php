@@ -308,7 +308,7 @@ class Chantier3225DeepAuditTest extends TestCase
         // positive hiring gap, forcing the suggestRoles() branch that used to
         // query the never-migrated job_postings table.
         \Illuminate\Support\Facades\DB::table('sales_orders')->insert([
-            'tenant_id' => $company->id, 'status' => 'confirmed', 'total' => 1_000_000,
+            'tenant_id' => $company->id, 'reference' => 'SO-TEST-1', 'status' => 'confirmed', 'total' => 1_000_000,
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
