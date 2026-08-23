@@ -85,10 +85,10 @@ class StockImportService
      * @param  list<array{sku: ?string, name: string, quantity: float, type: string, unit_cost: ?float}>  $rows
      * @return list<array{sku: ?string, name: string, quantity: float, type: string, unit_cost: ?float, product_exists: bool, matched_product_id: ?int}>
      */
-    public function preview(array $rows): array
+    public function preview(array $rows, ?int $companyId = null): array
     {
-        return array_map(function (array $row) {
-            $product = $this->findProduct($row['sku'], $row['name']);
+        return array_map(function (array $row) use ($companyId) {
+            $product = $this->findProduct($row['sku'], $row['name'], $companyId);
 
             return [
                 ...$row,
@@ -102,11 +102,11 @@ class StockImportService
      * @param  list<array{sku: ?string, name: string, quantity: float, type: string, unit_cost: ?float}>  $rows
      * @return array{movements: int, products_created: list<array{id: int, sku: string, name: string}>}
      */
-    public function commit(array $rows, int $warehouseId, ?int $userId): array
+    public function commit(array $rows, int $warehouseId, ?int $userId, ?int $companyId = null): array
     {
         $warehouse = Warehouse::findOrFail($warehouseId);
 
-        return DB::transaction(function () use ($rows, $warehouse, $userId) {
+        return DB::transaction(function () use ($rows, $warehouse, $userId, $companyId) {
             $productsCreated = [];
             $movementCount = 0;
 
@@ -115,10 +115,10 @@ class StockImportService
                     throw new \InvalidArgumentException("Type de mouvement invalide pour \"{$row['name']}\" : {$row['type']}");
                 }
 
-                $product = $this->findProduct($row['sku'], $row['name']);
+                $product = $this->findProduct($row['sku'], $row['name'], $companyId);
 
                 if ($product === null) {
-                    $product = $this->createProduct($row['sku'], $row['name'], $row['unit_cost']);
+                    $product = $this->createProduct($row['sku'], $row['name'], $row['unit_cost'], $companyId);
                     $productsCreated[] = ['id' => $product->id, 'sku' => $product->sku, 'name' => $product->name];
                 }
 
@@ -132,6 +132,7 @@ class StockImportService
                         'reference_type' => 'stock_import',
                         'reason' => "Import de stock — {$row['name']}",
                         'created_by' => $userId,
+                        'company_id' => $companyId,
                     ]);
                 } catch (\InvalidArgumentException $e) {
                     throw new \InvalidArgumentException("{$row['name']} : {$e->getMessage()}");
@@ -147,25 +148,32 @@ class StockImportService
         });
     }
 
-    private function findProduct(?string $sku, string $name): ?Product
+    private function findProduct(?string $sku, string $name, ?int $companyId = null): ?Product
     {
+        // Chantier 32: scoped to the caller's own company — matching an
+        // existing product by SKU/name from a *different* company would
+        // otherwise silently attach this import's stock movements to a
+        // record the caller has no real ownership of, and reuse its
+        // cost_price/category as if it were their own catalogue entry.
         if ($sku !== null && $sku !== '') {
-            $bySku = Product::where('sku', $sku)->first();
+            $bySku = Product::where('sku', $sku)->where('company_id', $companyId)->first();
             if ($bySku !== null) {
                 return $bySku;
             }
         }
 
-        return Product::whereRaw('LOWER(name) = ?', [mb_strtolower(trim($name))])->first();
+        return Product::whereRaw('LOWER(name) = ?', [mb_strtolower(trim($name))])
+            ->where('company_id', $companyId)
+            ->first();
     }
 
-    private function createProduct(?string $sku, string $name, ?float $unitCost): Product
+    private function createProduct(?string $sku, string $name, ?float $unitCost, ?int $companyId = null): Product
     {
-        $category = Category::firstOrCreate(['name' => 'Marchandises']);
-        $unit = Unit::firstOrCreate(['name' => 'Pièce'], ['symbol' => 'pc', 'type' => 'unit']);
+        $category = Category::firstOrCreate(['name' => 'Marchandises', 'company_id' => $companyId]);
+        $unit = Unit::firstOrCreate(['name' => 'Pièce', 'company_id' => $companyId], ['symbol' => 'pc', 'type' => 'unit']);
 
         return Product::create([
-            'sku' => $sku ?: $this->generateSku($name),
+            'sku' => $sku ?: $this->generateSku($name, $companyId),
             'name' => $name,
             'category_id' => $category->id,
             // `category`/`unit` are separate plain-string display columns on
@@ -182,10 +190,11 @@ class StockImportService
             'cost_price' => $unitCost ?? 0,
             'sale_price' => 0,
             'is_active' => true,
+            'company_id' => $companyId,
         ]);
     }
 
-    private function generateSku(string $name): string
+    private function generateSku(string $name, ?int $companyId = null): string
     {
         $base = Str::of($name)->slug()->upper()->limit(20, '')->value();
         $base = $base !== '' ? $base : 'PRODUIT';

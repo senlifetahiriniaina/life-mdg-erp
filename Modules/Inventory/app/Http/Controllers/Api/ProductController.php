@@ -15,6 +15,16 @@ use Modules\Inventory\Services\InventoryService;
  * @group Controllers - Product
  *
  * Products and catalog.
+ *
+ * Chantier 32: had zero company/tenant scoping of any kind (only a dead
+ * `tenant_id` write in store() — the phantom `users.tenant_id` column,
+ * never read back by anything for filtering) — fixed via ScopesToCompany,
+ * same proportionality precedent as CategoryController. The Stock-touching
+ * methods below (adjustStock/transferStock/stock/lowStockReport/valuation)
+ * are scoped by company_id directly rather than through StockPolicy's
+ * authorize() — see StockPolicy's own docblock for why: 'stock' isn't a
+ * seeded permission resource in RolesAndPermissionsSeeder, so wiring
+ * authorize() there would fail-closed for every role including admin.
  */
 class ProductController extends Controller
 {
@@ -107,8 +117,12 @@ class ProductController extends Controller
             $data['selling_price'] = $data['sale_price'];
         }
 
-        // Add tenant_id from authenticated user
-        $data['tenant_id'] = auth()->user()->tenant_id ?? null;
+        // Chantier 32: was writing the phantom `users.tenant_id` column
+        // here — real, migrated, never populated by any real registration
+        // path, and never read back by anything for filtering (confirmed
+        // via grep — index() above never filtered on it either). Replaced
+        // with the real company_id boundary column, server-derived from
+        // the caller, never trusted from client input.
         $data['company_id'] = $this->companyId($request);
 
         $product = $this->service->createProduct($data);
@@ -172,9 +186,10 @@ class ProductController extends Controller
         return response()->noContent();
     }
 
-    public function lowStock()
+    public function lowStock(Request $request)
     {
-        $products = $this->service->getLowStockProducts();
+        $products = $this->service->getLowStockProducts()
+            ->where('company_id', $this->companyId($request));
 
         return ProductResource::collection($products);
     }
@@ -195,9 +210,11 @@ class ProductController extends Controller
      * `ReorderRule` for the exact (product, warehouse) pair when one
      * exists, falling back to the product-level default otherwise.
      */
-    public function lowStockReport()
+    public function lowStockReport(Request $request)
     {
-        $stocks = \Modules\Inventory\Models\Stock::with(['product'])->get();
+        $stocks = \Modules\Inventory\Models\Stock::with(['product'])
+            ->where('company_id', $this->companyId($request))
+            ->get();
 
         $rulesByProductAndWarehouse = \Modules\Inventory\Models\ReorderRule::active()
             ->get()
@@ -232,9 +249,11 @@ class ProductController extends Controller
         return response()->json($this->service->getInventoryMetrics());
     }
 
-    public function valuation()
+    public function valuation(Request $request)
     {
-        $stocks = \Modules\Inventory\Models\Stock::with(['product', 'warehouse'])->get();
+        $stocks = \Modules\Inventory\Models\Stock::with(['product', 'warehouse'])
+            ->where('company_id', $this->companyId($request))
+            ->get();
 
         $totalValue = 0;
         $byWarehouse = [];
@@ -257,6 +276,8 @@ class ProductController extends Controller
 
     public function adjustStock(Request $request, Product $product, $warehouseId)
     {
+        $this->assertSameCompany($request, $product);
+
         $data = $request->validate([
             'quantity' => 'required|numeric|min:0',
             'reason' => 'nullable|string',
@@ -264,7 +285,7 @@ class ProductController extends Controller
 
         $stock = \Modules\Inventory\Models\Stock::firstOrCreate(
             ['product_id' => $product->id, 'warehouse_id' => $warehouseId],
-            ['quantity' => 0, 'reserved_quantity' => 0]
+            ['quantity' => 0, 'reserved_quantity' => 0, 'company_id' => $this->companyId($request)]
         );
 
         $stock->update(['quantity' => $data['quantity']]);
@@ -282,6 +303,8 @@ class ProductController extends Controller
 
     public function transferStock(Request $request, Product $product)
     {
+        $this->assertSameCompany($request, $product);
+
         $data = $request->validate([
             'from_warehouse_id' => 'required|integer',
             'to_warehouse_id' => 'required|integer',
@@ -300,15 +323,17 @@ class ProductController extends Controller
 
         $toStock = \Modules\Inventory\Models\Stock::firstOrCreate(
             ['product_id' => $product->id, 'warehouse_id' => $data['to_warehouse_id']],
-            ['quantity' => 0, 'reserved_quantity' => 0]
+            ['quantity' => 0, 'reserved_quantity' => 0, 'company_id' => $this->companyId($request)]
         );
         $toStock->increment('quantity', $data['quantity']);
 
         return response()->json(['message' => 'Stock transferred successfully.']);
     }
 
-    public function stock(Product $product)
+    public function stock(Request $request, Product $product)
     {
+        $this->assertSameCompany($request, $product);
+
         $stocks = $product->stock()
             ->with('warehouse', 'location')
             ->get();

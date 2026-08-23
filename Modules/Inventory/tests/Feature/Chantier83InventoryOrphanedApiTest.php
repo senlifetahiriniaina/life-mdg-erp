@@ -138,8 +138,11 @@ test('units crud round-trip', function () {
 
 test('units destroy is blocked when the unit is in use', function () {
     $user = inventoryOrphanedApiTestUser();
-    $unit = Unit::factory()->create();
-    Product::factory()->create(['unit_id' => $unit->id]);
+    // Chantier 32: Unit now scopes by company_id — must match the acting
+    // user's own company for assertSameCompany() to pass and actually reach
+    // the in-use check this test exercises.
+    $unit = Unit::factory()->create(['company_id' => $user->company_id]);
+    Product::factory()->create(['unit_id' => $unit->id, 'company_id' => $user->company_id]);
 
     $response = test()->actingAs($user, 'sanctum')->deleteJson("/api/v1/inventory/units/{$unit->id}");
 
@@ -155,7 +158,8 @@ test('barcode product lookup returns 404 for an unknown barcode', function () {
 
 test('barcode product lookup finds a product by its barcode', function () {
     $user = inventoryOrphanedApiTestUser();
-    $product = Product::factory()->create(['barcode' => '1234567890123']);
+    // Chantier 32: Product now scopes by company_id.
+    $product = Product::factory()->create(['barcode' => '1234567890123', 'company_id' => $user->company_id]);
 
     $response = test()->actingAs($user, 'sanctum')->getJson('/api/v1/inventory/barcode/product/1234567890123');
 
@@ -165,8 +169,9 @@ test('barcode product lookup finds a product by its barcode', function () {
 
 test('barcode stock-movement records a movement for a scanned product', function () {
     $user = inventoryOrphanedApiTestUser();
-    $product = Product::factory()->create(['barcode' => '1234567890123']);
-    $warehouse = Warehouse::factory()->create();
+    // Chantier 32: Product/Warehouse now scope by company_id.
+    $product = Product::factory()->create(['barcode' => '1234567890123', 'company_id' => $user->company_id]);
+    $warehouse = Warehouse::factory()->create(['company_id' => $user->company_id]);
 
     $response = test()->actingAs($user, 'sanctum')->postJson('/api/v1/inventory/barcode/stock-movement', [
         'product_barcode' => '1234567890123',

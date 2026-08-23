@@ -39,9 +39,14 @@ class InventoryServiceProvider extends ServiceProvider {
     public function boot(): void
     {
         Product::observe(ProductObserver::class);
-        // TODO: Uncomment when Stock model observer is fully implemented
-        // \Modules\Inventory\Models\Stock::observe(\Modules\Inventory\Observers\WarehouseStockObserver::class);
-$this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
+        // Chantier 32: the WarehouseStock model/observer/event this
+        // commented-out line referenced were confirmed dead code (a second,
+        // never-registered model mapped to the same `inventory_stock`
+        // table as the real, live `Stock` model — zero real consumers
+        // anywhere besides its own factory and one test file that has
+        // since been switched onto Stock::factory()) and deleted outright
+        // rather than left as a landmine.
+        $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         $this->loadTranslationsFrom(__DIR__.'/../../lang', 'inventory');
         $this->registerPolicies();
     }

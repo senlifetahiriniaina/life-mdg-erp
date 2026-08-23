@@ -33,6 +33,7 @@ class EdiTransaction extends Model
         'status',
         'partner_id',
         'occurred_at',
+        'company_id',
     ];
 
     protected $casts = [

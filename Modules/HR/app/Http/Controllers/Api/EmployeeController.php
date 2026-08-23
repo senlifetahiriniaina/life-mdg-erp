@@ -37,16 +37,13 @@ class EmployeeController extends Controller
         $perPage = min((int) ($request->query('per_page', 15)), 100);
 
         // Eager load all frequently-accessed relationships
+        // Chantier 32: this module had zero company/tenant scoping anywhere
+        // at all — any authenticated user of any company could list every
+        // other company's employees (confirmed empirically, see CLAUDE.md /
+        // Chantier19HRReauditTest.php). Unconditional company_id filter,
+        // matching the established RFQController::index() precedent.
         $query = Employee::with('department', 'jobPosition', 'manager', 'user')
-            // Chantier 32.17 (HR deep 14-layer audit): this had zero
-            // tenant/company scoping at all — any authenticated user with
-            // hr.employee.view-any (which includes the broad 'employee'
-            // role) could list every company's employees, confirmed
-            // empirically. when()-guarded: a no-op when the caller has no
-            // real company_id (pre-chantier data, not-yet-provisioned
-            // user), matching the established pattern used throughout this
-            // app for this ongoing company_id rollout.
-            ->when($request->user()?->company_id, fn ($q, $companyId) => $q->where('company_id', $companyId));
+            ->where('company_id', $request->user()->company_id);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -78,15 +75,14 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', Employee::class);
 
-        // Chantier 32.17: company_id was never populated anywhere on
-        // Employee — set here (server-side, never client-supplied, since
-        // StoreEmployeeRequest's own rules() never allow it) so it flows
-        // through to index()'s scoping and to Employee{,Department,
-        // JobPosition}Policy's sameCompany() checks above.
-        $employee = $this->service->createEmployee(array_merge(
-            $request->validated(),
-            ['company_id' => $request->user()->company_id],
-        ));
+        // Chantier 32: company_id is always derived server-side from the
+        // acting user — never trusted from client input (StoreEmployeeRequest
+        // has no company_id rule at all, so there is nothing to strip).
+        $data = array_merge($request->validated(), [
+            'company_id' => $request->user()->company_id,
+        ]);
+
+        $employee = $this->service->createEmployee($data);
 
         return (new EmployeeResource($employee))->response()->setStatusCode(201);
     }
@@ -185,19 +181,19 @@ class EmployeeController extends Controller
         return response()->noContent();
     }
 
-    public function byDepartment(int $departmentId)
+    public function byDepartment(Request $request, int $departmentId)
     {
         $this->authorize('viewAny', Employee::class);
 
-        $employees = $this->service->getEmployeesByDepartment($departmentId);
+        $employees = $this->service->getEmployeesByDepartment($departmentId, $request->user()->company_id);
 
         return EmployeeResource::collection($employees);
     }
 
-    public function metrics()
+    public function metrics(Request $request)
     {
         $this->authorize('viewAny', Employee::class);
 
-        return response()->json($this->service->getHRMetrics());
+        return response()->json($this->service->getHRMetrics($request->user()->company_id));
     }
 }

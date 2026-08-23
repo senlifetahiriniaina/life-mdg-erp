@@ -252,7 +252,18 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:I
     // Crossdock operations (no caching — time-sensitive)
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('crossdock/{crossdockOperation}/execute', [CrossdockController::class, 'execute']);
-        Route::apiResource('crossdock', CrossdockController::class);
+        // Chantier 32: apiResource('crossdock', ...) defaults its wildcard to
+        // {crossdock} (Str::singular('crossdock') is a no-op — the word is
+        // already singular), but CrossdockController's show/update/destroy
+        // all type-hint CrossdockOperation $crossdockOperation — a genuine
+        // name mismatch (not just casing), confirmed empirically to make
+        // implicit route-model binding silently resolve a blank, unsaved
+        // model instead of the real record regardless of id, matching this
+        // app's well-documented route-parameter-name-mismatch bug class.
+        // Renaming the wildcard to match Str::snake('crossdockOperation')
+        // fixes binding without touching the controller's method signatures.
+        Route::apiResource('crossdock', CrossdockController::class)
+            ->parameters(['crossdock' => 'crossdock_operation']);
         Route::apiResource('waves', WavePickingController::class);
     });
 });

@@ -31,16 +31,22 @@ class PayrollIntegrationService
         Carbon $endDate,
         string $payrollCycle = 'monthly'
     ): array {
-        // Chantier 8.3: hr_employees.tenant_id is a real column but not in
-        // Employee's $fillable — never set by any real create()/update() call
-        // in this app (confirmed: EmployeeController::store() and every other
-        // live Employee write path skip it entirely), so filtering by it here
-        // silently returned zero employees for any tenant. Employee has no
-        // real tenant scoping today (EmployeeController::index(), the live
-        // employee-listing endpoint, doesn't filter by tenant either) — drop
-        // the filter to match how Employee is actually queried elsewhere.
+        // Chantier 8.3 (superseded — see Chantier 32 below): hr_employees.tenant_id
+        // is a real column but not in Employee's $fillable — never set by any real
+        // create()/update() call in this app, so filtering by it here silently
+        // returned zero employees for any tenant. The filter was dropped entirely
+        // to match how Employee was queried elsewhere at the time.
+        //
+        // Chantier 32: Employee now has a real, populated company_id column (HR
+        // had zero company/tenant scoping anywhere at all — see
+        // Modules\HR\Policies\EmployeePolicy's docblock for the full
+        // rationale) — EmployeeController::index() and every other real HR
+        // read path now filter by it, so this generator must too, or a
+        // payroll run for one tenant would silently pull in every other
+        // tenant's employees as well.
         $employees = Employee::where('status', 'active')
             ->whereNull('termination_date')
+            ->when($tenantId !== null, fn ($q) => $q->where('company_id', $tenantId))
             ->get();
 
         $records = [];
@@ -106,28 +112,24 @@ class PayrollIntegrationService
         // Idempotent — skip if already exists for this tenant+period.
         // Confirmed empirically (php artisan tinker, 2 real companies) that
         // this check used to match by employee_id+period ALONE, with no
-        // tenant_id filter — Modules\HR\Models\Employee has no company/
-        // tenant-scoping column of its own at all (confirmed via
-        // Schema::hasColumn: no company_id anywhere in hr_employees, nor on
-        // Department/JobPosition), so generatePayslips() already pulls in
-        // every active employee system-wide regardless of which tenant
-        // called it (see that method's own pre-existing comment). Without
-        // this fix, that gap compounded into something worse: once ANY
-        // tenant generated a payslip for a given employee+period, every
-        // OTHER tenant's later call for the same employee+period silently
-        // returned that first tenant's payslip (tagged with the WRONG
-        // tenant_id) instead of ever creating its own correctly-tenant-
-        // tagged one — permanently blocking that tenant from generating a
-        // payslip of its own for that employee/period. Scoping the
-        // idempotency lookup by tenant_id makes payroll generation
-        // independent per tenant, matching PayrollRun's own
-        // ['tenant_id','period'] uniqueness. This does NOT fully close the
-        // underlying gap — Employee still has no real per-company
-        // ownership, so a tenant's "generate payslips" call still pulls in
-        // every active employee in the whole system, including other
-        // companies' — that root cause lives in Modules\HR\Models\Employee
-        // (no company_id column anywhere in that module) and is out of
-        // this module's scope to fix; documented in the chantier report.
+        // tenant_id filter. Without this fix, that gap compounded into
+        // something worse: once ANY tenant generated a payslip for a given
+        // employee+period, every OTHER tenant's later call for the same
+        // employee+period silently returned that first tenant's payslip
+        // (tagged with the WRONG tenant_id) instead of ever creating its own
+        // correctly-tenant-tagged one — permanently blocking that tenant
+        // from generating a payslip of its own for that employee/period.
+        // Scoping the idempotency lookup by tenant_id makes payroll
+        // generation independent per tenant, matching PayrollRun's own
+        // ['tenant_id','period'] uniqueness.
+        //
+        // Chantier 32: the underlying root cause this comment used to flag —
+        // Employee having no real per-company ownership at all, so
+        // generatePayslips() pulled in every active employee system-wide
+        // regardless of which tenant called it — is now closed: Employee has
+        // a real, populated company_id column (see
+        // Modules\HR\Policies\EmployeePolicy's docblock), and
+        // generatePayslips() above now filters by it.
         $existing = Payslip::where('employee_id', $employee->id)
             ->where('tenant_id', $tenantId)
             ->whereDate('period', $startDate->toDateString())

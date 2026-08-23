@@ -46,6 +46,7 @@ class Product extends Model
         'attributes',
         'ecommerce_synced_at',
         'ecommerce_sync_pending',
+        'company_id',
     ];
 
     protected $casts = [

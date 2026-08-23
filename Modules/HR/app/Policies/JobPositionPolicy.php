@@ -8,8 +8,8 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Chantier 32.17 (HR deep 14-layer audit): same sameCompany() retrofit as
- * EmployeePolicy — see that class's docblock for the full rationale.
+ * Chantier 32: same-company gating on top of the existing permission
+ * check — see EmployeePolicy's docblock for the full rationale.
  */
 class JobPositionPolicy
 {

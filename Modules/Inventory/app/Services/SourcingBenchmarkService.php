@@ -28,18 +28,25 @@ class SourcingBenchmarkService
     /**
      * @param  array{product_id: ?int, product_template_id: ?int, material_label: ?string, source: string, source_name_other: ?string, source_url: ?string, unit_price: float, currency: string, unit: ?string, quantity_reference: ?float, observed_at: string, notes: ?string}  $data
      */
-    public function record(array $data, ?int $userId): SourcingBenchmark
+    public function record(array $data, ?int $userId, ?int $companyId = null): SourcingBenchmark
     {
         if (empty($data['product_id']) && empty($data['product_template_id']) && empty($data['material_label'])) {
             throw new \InvalidArgumentException('Une observation de prix doit être rattachée à un produit, un template, ou porter un libellé de matière.');
         }
 
-        return SourcingBenchmark::create([...$data, 'created_by' => $userId]);
+        return SourcingBenchmark::create([...$data, 'created_by' => $userId, 'company_id' => $companyId]);
     }
 
-    public function history(?int $productId = null, ?int $productTemplateId = null): Collection
+    /**
+     * @param  int|null  $companyId  Chantier 32 — filters to the caller's own
+     *   company when given; a caller with no real company_id (null) sees
+     *   only the same "untagged" bucket, matching this app's established
+     *   null==null convention rather than an unconditional list-everything.
+     */
+    public function history(?int $productId = null, ?int $productTemplateId = null, ?int $companyId = null): Collection
     {
         return SourcingBenchmark::query()
+            ->where('company_id', $companyId)
             ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->when($productTemplateId, fn ($q) => $q->where('product_template_id', $productTemplateId))
             ->orderByDesc('observed_at')

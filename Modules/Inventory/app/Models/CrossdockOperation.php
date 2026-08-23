@@ -40,6 +40,7 @@ class CrossdockOperation extends Model
         'qty',
         'status',
         'executed_at',
+        'company_id',
     ];
 
     /** @var array<string, string> */

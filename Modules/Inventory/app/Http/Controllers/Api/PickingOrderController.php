@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\PickingLine;
 use Modules\Inventory\Models\PickingOrder;
 use Modules\Inventory\Services\WmsService;
@@ -17,6 +18,8 @@ use Modules\Inventory\Services\WmsService;
  */
 class PickingOrderController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly WmsService $service) {}
 
     /**
@@ -26,6 +29,7 @@ class PickingOrderController extends Controller
     {
         $orders = PickingOrder::with(['warehouse:id,name', 'assignee:id,name'])
             ->withCount('lines')
+            ->where('company_id', $this->companyId($request))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->input('warehouse_id'), fn ($q, $v) => $q->where('warehouse_id', $v))
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
@@ -59,6 +63,12 @@ class PickingOrderController extends Controller
             (int) $data['warehouse_id']
         );
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation since
+        // WmsService::createPickingOrder() builds the record from an
+        // explicit array literal rather than spreading arbitrary $data.
+        $po->update(['company_id' => $this->companyId($request)]);
+
         if (isset($data['priority'])) {
             $po->update(['priority' => $data['priority']]);
         }
@@ -73,8 +83,10 @@ class PickingOrderController extends Controller
     /**
      * Show a picking order.
      */
-    public function show(PickingOrder $pickingOrder): JsonResponse
+    public function show(Request $request, PickingOrder $pickingOrder): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
+
         return response()->json(
             $pickingOrder->load([
                 'warehouse:id,name',
@@ -90,6 +102,8 @@ class PickingOrderController extends Controller
      */
     public function update(Request $request, PickingOrder $pickingOrder): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
+
         $data = $request->validate([
             'priority' => 'nullable|integer|min:1|max:5',
             'status' => 'nullable|in:pending,in_progress,cancelled',
@@ -103,8 +117,10 @@ class PickingOrderController extends Controller
     /**
      * Delete a picking order.
      */
-    public function destroy(PickingOrder $pickingOrder): JsonResponse
+    public function destroy(Request $request, PickingOrder $pickingOrder): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
+
         abort_if(
             in_array($pickingOrder->status, ['in_progress', 'completed'], true),
             422,
@@ -121,6 +137,8 @@ class PickingOrderController extends Controller
      */
     public function assign(Request $request, PickingOrder $pickingOrder): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
+
         $data = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
         ]);
@@ -136,6 +154,7 @@ class PickingOrderController extends Controller
      */
     public function pickLine(Request $request, PickingOrder $pickingOrder, PickingLine $pickingLine): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
         abort_if($pickingLine->picking_order_id !== $pickingOrder->id, 404);
 
         $data = $request->validate([
@@ -150,8 +169,9 @@ class PickingOrderController extends Controller
     /**
      * Complete a picking order.
      */
-    public function complete(PickingOrder $pickingOrder): JsonResponse
+    public function complete(Request $request, PickingOrder $pickingOrder): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
         abort_if($pickingOrder->status === 'completed', 422, 'Already completed.');
 
         $this->service->completePicking($pickingOrder);
@@ -162,8 +182,10 @@ class PickingOrderController extends Controller
     /**
      * Get next pick line (mobile-optimized).
      */
-    public function nextPick(PickingOrder $pickingOrder): JsonResponse
+    public function nextPick(Request $request, PickingOrder $pickingOrder): JsonResponse
     {
+        $this->assertSameCompany($request, $pickingOrder);
+
         $line = $this->service->getNextPickLine($pickingOrder);
 
         if (! $line instanceof PickingLine) {
@@ -180,6 +202,7 @@ class PickingOrderController extends Controller
     {
         $order = PickingOrder::with(['warehouse:id,name'])
             ->withCount('lines')
+            ->where('company_id', $this->companyId($request))
             ->where('status', 'pending')
             ->whereNull('assigned_to')
             ->when($request->input('warehouse_id'), fn ($q, $v) => $q->where('warehouse_id', $v))

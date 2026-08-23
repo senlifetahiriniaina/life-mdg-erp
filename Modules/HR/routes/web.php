@@ -5,7 +5,12 @@ use Inertia\Inertia;
 use Modules\HR\Http\Controllers\Web\EmployeeWebController;
 use Modules\HR\Http\Controllers\Web\LeaveAnalyticsWebController;
 
-Route::middleware(['auth'])->group(function () {
+// Chantier 32: this whole group had no role gate at all (unlike
+// Modules/HR/routes/api.php, which already gates on the same role list) —
+// any authenticated user of any role could reach every HR admin web page.
+// Matches the module:X + role:... shape already proven at
+// Modules/Achats/routes/web.php.
+Route::middleware(['auth', 'module:HR', 'role:employee,hr-manager,payroll-officer,manager,admin'])->group(function () {
     // Chantier 8.3: this rendered a Blade view (hr::dashboard) that never
     // existed anywhere under Modules/HR/resources/views — GET /hr threw
     // "View not found" on every request. HR/Dashboard.vue is a real,

@@ -53,7 +53,13 @@ class LeaveController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', LeaveRequest::class);
+
+        // Chantier 32: unconditional company_id scoping — see
+        // EmployeeController::index()'s comment for the confirmed empirical
+        // finding this closes.
         $query = LeaveRequest::with('employee', 'leaveType', 'approver')
+            ->where('company_id', $request->user()->company_id)
             ->when($request->employee_id, fn ($q, $v) => $q->where('employee_id', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->year, fn ($q, $v) => $q->whereYear('start_date', $v));
@@ -78,7 +84,15 @@ class LeaveController extends Controller
         // reachable reads it; the real leave-balance endpoints sum 'days' instead — see
         // CLAUDE.md), but a real inconsistency vs. LeaveRequestController::store(), which
         // always sets it. Closed rather than left as a landmine for a future reader.
-        $request = LeaveRequest::create(array_merge($validated, ['days' => $days, 'days_requested' => $days]));
+        //
+        // Chantier 32: company_id always derived server-side, never from client input.
+        // (the right-hand side below is evaluated — including $request->user() — before
+        // the assignment overwrites the local $request variable with the created model.)
+        $request = LeaveRequest::create(array_merge($validated, [
+            'days' => $days,
+            'days_requested' => $days,
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json($request->load('employee', 'leaveType'), 201);
     }

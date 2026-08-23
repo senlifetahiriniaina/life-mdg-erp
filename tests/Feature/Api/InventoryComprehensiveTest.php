@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Inventory\Models\Product;
-use Modules\Inventory\Models\WarehouseStock;
+use Modules\Inventory\Models\Stock;
 use Modules\Inventory\Models\Warehouse;
 
 uses(RefreshDatabase::class);
@@ -182,7 +182,7 @@ test('can show product with warehouse stock', function () {
     $user = actingAsUser('employee');
     $warehouse = Warehouse::factory()->create();
     $product = Product::factory()->create();
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'warehouse_id' => $warehouse->id,
         'product_id' => $product->id,
     ]);
@@ -247,7 +247,7 @@ test('can adjust stock level', function () {
     $user = actingAsUser('manager');
     $warehouse = Warehouse::factory()->create();
     $product = Product::factory()->create();
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse->id,
         'quantity'     => 100,
@@ -258,7 +258,7 @@ test('can adjust stock level', function () {
         'reason'   => 'inbound',
     ])->assertOk();
 
-    $stock = WarehouseStock::where('product_id', $product->id)->first();
+    $stock = Stock::where('product_id', $product->id)->first();
     expect($stock->quantity)->toBe(150);
 });
 
@@ -266,7 +266,7 @@ test('validates low stock alerts', function () {
     $user = actingAsUser('manager');
     $warehouse = Warehouse::factory()->create();
     $product = Product::factory()->create(['reorder_level' => 20]);
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse->id,
         'quantity'     => 50,
@@ -287,12 +287,12 @@ test('can transfer stock between warehouses', function () {
     $warehouse2 = Warehouse::factory()->create();
     $product = Product::factory()->create();
 
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse1->id,
         'quantity'     => 100,
     ]);
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse2->id,
         'quantity'     => 50,
@@ -304,12 +304,12 @@ test('can transfer stock between warehouses', function () {
         'quantity'          => 30,
     ])->assertOk();
 
-    expect(WarehouseStock::where([
+    expect(Stock::where([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse1->id,
     ])->first()->quantity)->toBe(70);
 
-    expect(WarehouseStock::where([
+    expect(Stock::where([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse2->id,
     ])->first()->quantity)->toBe(80);
@@ -337,7 +337,7 @@ test('can get inventory valuation report', function () {
     $user = actingAsUser('employee');
     $product = Product::factory()->create(['cost_price' => 100]);
     $warehouse = Warehouse::factory()->create();
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse->id,
         'quantity'     => 50,
@@ -355,12 +355,12 @@ test('can get low stock report', function () {
     $product2 = Product::factory()->create(['reorder_level' => 20]);
     $warehouse = Warehouse::factory()->create();
 
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product1->id,
         'warehouse_id' => $warehouse->id,
         'quantity'     => 30, // Below reorder level
     ]);
-    WarehouseStock::factory()->create([
+    Stock::factory()->create([
         'product_id'   => $product2->id,
         'warehouse_id' => $warehouse->id,
         'quantity'     => 100, // Above reorder level

@@ -15,6 +15,10 @@ use Modules\Inventory\Services\InventoryService;
  * @group Controllers - Stock Movement
  *
  * Manage Stock Movement resources.
+ *
+ * Chantier 32: authorize() (permission, 403) + assertSameCompany()
+ * (per-record ownership, 404) as two separate calls, matching Achats'
+ * real precedent.
  */
 class StockMovementController extends Controller
 {
@@ -95,6 +99,8 @@ class StockMovementController extends Controller
 
     public function productHistory(Product $product, Request $request)
     {
+        $this->assertSameCompany($request, $product);
+
         $limit = $request->query('limit', 50);
         $movements = $this->service->getStockHistory($product, $limit);
 

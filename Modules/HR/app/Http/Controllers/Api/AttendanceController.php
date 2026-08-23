@@ -152,20 +152,29 @@ class AttendanceController extends Controller
             }
         }
 
-        // Chantier 32.17 (HR deep 14-layer audit): with('employee') alone
-        // eager-loads the FULL raw Employee model — including
-        // national_id/passport_number/bank_details when set — bypassing the
-        // deliberate redaction every other real employee-facing endpoint in
-        // this module goes through (EmployeeResource never exposes those
-        // fields at all, even to hr-manager/admin; SelfServiceEmployeeResource
-        // only exposes a masked bank detail). Confirmed empirically via
-        // tinker that the unscoped relation returned every raw PII column.
-        // Scoped to the same minimal, safe field set the sibling
-        // AttendanceRecord-backed listAttendance() already uses.
+        // Chantier 32: with('employee') alone eager-loads the FULL raw
+        // Employee model — including national_id/passport_number/
+        // bank_details when set — bypassing the deliberate redaction every
+        // other real employee-facing endpoint in this module goes through
+        // (EmployeeResource never exposes those fields at all, even to
+        // hr-manager/admin; SelfServiceEmployeeResource only exposes a
+        // masked bank detail). Confirmed empirically via tinker that the
+        // unscoped relation returned every raw PII column. Scoped to the
+        // same minimal, safe field set the sibling AttendanceRecord-backed
+        // listAttendance() already uses.
+        //
+        // hr_attendance (the Attendance model, distinct from
+        // AttendanceRecord/hr_attendance_records) has no company_id column
+        // of its own, so its tenant boundary is resolved through the
+        // employee it belongs to, same pattern as AttendancePolicy's
+        // employee-derived checks. Admin listing had zero company scoping
+        // at all before, matching the same confirmed empirical finding as
+        // every other HR listing endpoint (see EmployeeController::index()'s
+        // comment).
         $query = \Modules\HR\Models\Attendance::query()->with([
-            'employee:id,first_name,last_name,department_id',
+            'employee:id,first_name,last_name,department_id,company_id',
             'employee.department:id,name',
-        ]);
+        ])->whereHas('employee', fn ($q) => $q->where('company_id', $user->company_id));
 
         if ($request->filled('date')) {
             $query->whereDate('date', $request->date);
@@ -205,11 +214,20 @@ class AttendanceController extends Controller
             'notes'       => 'nullable|string',
         ]);
 
-        // Chantier 32.17: real columns are check_in_time/check_out_time, not
-        // check_in/check_out (see Attendance model's docblock) — mapped here
-        // rather than in $fillable so the request/JSON contract this
-        // controller and HR/Attendance/Manage.vue both already use never
-        // has to change.
+        // Chantier 32: the given employee_id must belong to the caller's own
+        // company — matching the same not-your-tenant-data-doesn't-exist-to-
+        // you (404) convention used throughout this app's other company
+        // scoping fixes.
+        $employee = Employee::findOrFail($data['employee_id']);
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($employee->company_id ?? 0)),
+            404
+        );
+
+        // Real columns are check_in_time/check_out_time, not check_in/
+        // check_out (see Attendance model's docblock) — mapped here rather
+        // than in $fillable so the request/JSON contract this controller and
+        // HR/Attendance/Manage.vue both already use never has to change.
         if (isset($data['check_in'])) {
             $data['check_in_time'] = \Carbon\Carbon::parse($data['check_in'])->format('H:i:s');
             unset($data['check_in']);
@@ -235,7 +253,16 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $record = \Modules\HR\Models\Attendance::findOrFail($id);
+        // Chantier 32: no ownership check at all before — any authenticated
+        // admin-role user could edit any other company's attendance record
+        // by id, since Attendance has no company_id column to scope by
+        // directly, only via its employee relation.
+        $record = \Modules\HR\Models\Attendance::with('employee')->findOrFail($id);
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($record->employee?->company_id ?? 0)),
+            404
+        );
+
         $data = $request->validate([
             'employee_id' => 'sometimes|exists:hr_employees,id',
             'date'        => 'sometimes|date',
@@ -244,8 +271,8 @@ class AttendanceController extends Controller
             'check_out'   => 'nullable|string',
             'notes'       => 'nullable|string',
         ]);
-        // Chantier 32.17: same check_in/check_out → check_in_time/
-        // check_out_time mapping as store() above.
+        // Same check_in/check_out → check_in_time/check_out_time mapping as
+        // store() above.
         if (isset($data['check_in'])) {
             $data['check_in_time'] = \Carbon\Carbon::parse($data['check_in'])->format('H:i:s');
             unset($data['check_in']);
@@ -260,7 +287,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Chantier 32.17: same "real method, zero route" gap — HR/Attendance/
+     * Chantier 32: same "real method, zero route" gap — HR/Attendance/
      * Manage.vue's "Delete" button has always 404'd.
      */
     public function destroy(Request $request, int $id): JsonResponse
@@ -269,7 +296,17 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        \Modules\HR\Models\Attendance::findOrFail($id)->delete();
+        // Chantier 32: no ownership check at all before — any authenticated
+        // admin-role user could delete any other company's attendance record
+        // by id, since Attendance has no company_id column to scope by
+        // directly, only via its employee relation.
+        $record = \Modules\HR\Models\Attendance::with('employee')->findOrFail($id);
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($record->employee?->company_id ?? 0)),
+            404
+        );
+
+        $record->delete();
 
         return response()->json(null, 204);
     }
@@ -277,14 +314,19 @@ class AttendanceController extends Controller
     public function statistics(Request $request): JsonResponse
     {
         $date = $request->input('date', now()->toDateString());
+        $companyId = $request->user()->company_id;
 
-        $query = \Modules\HR\Models\Attendance::whereDate('date', $date);
+        // Chantier 32: unconditional company scoping (via the employee
+        // relation, Attendance has no company_id column of its own) — see
+        // index()'s comment for the confirmed empirical finding this closes.
+        $query = \Modules\HR\Models\Attendance::whereDate('date', $date)
+            ->whereHas('employee', fn ($q) => $q->where('company_id', $companyId));
         if ($request->filled('department_id')) {
             $query->whereHas('employee', fn ($q) => $q->where('department_id', $request->department_id));
         }
 
         $records = $query->get();
-        $total = Employee::count();
+        $total = Employee::where('company_id', $companyId)->count();
 
         return response()->json([
             'date'           => $date,

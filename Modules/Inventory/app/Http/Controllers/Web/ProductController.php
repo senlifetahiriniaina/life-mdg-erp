@@ -9,6 +9,14 @@ use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Services\InventoryService;
 
+/**
+ * Chantier 32: index()/show()/edit() had zero company/tenant scoping —
+ * server-rendering another company's product catalog/detail into Inertia
+ * props is a real leak independent of any API fix (the JSON is embedded in
+ * the page response regardless of whether the frontend reads it) — same
+ * "the Web layer needs its own inline fix" precedent Achats' Chantier 19
+ * Web/PurchaseOrderController already established.
+ */
 class ProductController extends Controller
 {
     use ScopesToCompany;
@@ -46,9 +54,7 @@ class ProductController extends Controller
     public function show(Request $request, $id)
     {
         $product = $this->service->getProduct($id);
-        if ($product) {
-            $this->assertSameCompany($request, $product);
-        }
+        abort_unless($product !== null && $product->company_id === $this->companyId($request), 404);
 
         return Inertia::render('Inventory/Products/Show', [
             'product' => $product,
@@ -58,9 +64,7 @@ class ProductController extends Controller
     public function edit(Request $request, $id)
     {
         $product = $this->service->getProduct($id);
-        if ($product) {
-            $this->assertSameCompany($request, $product);
-        }
+        abort_unless($product !== null && $product->company_id === $this->companyId($request), 404);
 
         return Inertia::render('Inventory/Products/Form', [
             'product' => $product,

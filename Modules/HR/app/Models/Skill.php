@@ -30,7 +30,7 @@ class Skill extends Model
 
     protected $table = 'hr_skills';
 
-    protected $fillable = ['name', 'category', 'description'];
+    protected $fillable = ['company_id', 'name', 'category', 'description'];
 
     public function employeeSkills(): HasMany
     {

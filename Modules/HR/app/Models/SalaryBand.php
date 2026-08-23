@@ -32,6 +32,7 @@ class SalaryBand extends Model
     }
 
     protected $fillable = [
+        'company_id',
         'title',
         'level',
         'min_salary',

@@ -40,6 +40,7 @@ class DemandForecast extends Model
     protected $fillable = [
         'product_id', 'warehouse_id', 'period_type', 'period_start', 'period_end',
         'forecasted_qty', 'actual_qty', 'confidence', 'method', 'metadata', 'status',
+        'company_id',
     ];
 
     protected function casts(): array

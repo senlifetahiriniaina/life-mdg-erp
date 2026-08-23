@@ -21,6 +21,11 @@ class LeaveRequestController extends Controller
 
     public function index(Request $request)
     {
+        // Chantier 32: index()/show() had zero authorize() call at all —
+        // any authenticated user could list/view every company's leave
+        // requests. Added, alongside unconditional company_id scoping.
+        $this->authorize('viewAny', LeaveRequest::class);
+
         $status = $request->query('status');
         $employee = $request->query('employee_id');
         $type = $request->query('type');
@@ -28,7 +33,8 @@ class LeaveRequestController extends Controller
         $startDateAfter = $request->query('start_date_after');
         $perPage = $request->query('per_page', 15);
 
-        $query = LeaveRequest::with('employee', 'leaveType');
+        $query = LeaveRequest::with('employee', 'leaveType')
+            ->where('company_id', $request->user()->company_id);
 
         if ($status) {
             $query->where('status', $status);
@@ -111,6 +117,9 @@ class LeaveRequestController extends Controller
             $data['days_requested'] = $data['days'] ?? 0;
         }
 
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $data['company_id'] = $user->company_id;
+
         $leave = $this->service->requestLeave($data);
         $leave->load('leaveType');
 
@@ -119,18 +128,11 @@ class LeaveRequestController extends Controller
 
     public function show(LeaveRequest $leaveRequest)
     {
-        // Chantier 32.17 (HR deep 14-layer audit): the only method on this
-        // controller with zero authorize() call at all, unlike its siblings
-        // update()/destroy()/approve()/reject(). Added for defense-in-depth
-        // and consistency with the rest of this controller — note this does
-        // NOT close a real privacy gap on its own: App\Policies\
-        // LeaveRequestPolicy::view() (outside Modules/HR/**, out of this
-        // chantier's file boundary) unconditionally returns true for any
-        // authenticated user regardless of ownership/company, matching the
-        // same "vacuous by design" pattern already documented elsewhere in
-        // this app for BaseErpPolicy-derived view() methods (e.g.
-        // ProjectPolicy). Flagged for a future dedicated pass rather than
-        // fixed here.
+        // Chantier 32: no authorize() call at all before — any authenticated
+        // user could view any other company's leave request by id.
+        // App\Policies\LeaveRequestPolicy::view() now real-checks
+        // sameCompany() too (was an unconditional `true` before this
+        // chantier), so this authorize() call is no longer vacuous.
         $this->authorize('view', $leaveRequest);
 
         $leaveRequest->load('employee', 'leaveType', 'approver');
@@ -214,9 +216,15 @@ class LeaveRequestController extends Controller
         return new LeaveRequestResource($rejected);
     }
 
-    public function pending()
+    public function pending(Request $request)
     {
-        $pending = $this->service->getPendingLeaveRequests();
+        $this->authorize('viewAny', LeaveRequest::class);
+
+        $pending = LeaveRequest::pending()
+            ->where('company_id', $request->user()->company_id)
+            ->with('employee', 'leaveType')
+            ->orderBy('start_date')
+            ->paginate(15);
 
         return LeaveRequestResource::collection($pending);
     }

@@ -19,7 +19,7 @@ class Stock extends Model
     use HasFactory;
     protected $table = 'inventory_stock';
 
-    protected $fillable = ['product_id', 'warehouse_id', 'location_id', 'quantity', 'reserved_quantity', 'avg_cost'];
+    protected $fillable = ['product_id', 'warehouse_id', 'location_id', 'quantity', 'reserved_quantity', 'avg_cost', 'company_id'];
 
     protected $casts = [
         'quantity' => 'decimal:4',

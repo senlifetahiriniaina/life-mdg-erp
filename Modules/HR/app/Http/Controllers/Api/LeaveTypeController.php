@@ -21,7 +21,11 @@ class LeaveTypeController extends Controller
     {
         $this->authorize('viewAny', LeaveType::class);
 
+        // Chantier 32: unconditional company_id scoping — see
+        // EmployeeController::index()'s comment for the confirmed empirical
+        // finding this closes.
         $query = LeaveType::query()
+            ->where('company_id', $request->user()->company_id)
             ->when($request->search, fn ($q, $s) => $q->where(function ($q) use ($s) {
                 $q->where('name', 'like', "%{$s}%")
                     ->orWhere('code', 'like', "%{$s}%");
@@ -45,7 +49,10 @@ class LeaveTypeController extends Controller
             'max_carry_forward_days' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $leaveType = LeaveType::create($validated);
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $leaveType = LeaveType::create(array_merge($validated, [
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json(new LeaveTypeResource($leaveType), 201);
     }

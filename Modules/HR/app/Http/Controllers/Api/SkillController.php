@@ -23,7 +23,11 @@ class SkillController extends Controller
     {
         $this->authorize('viewAny', Skill::class);
 
+        // Chantier 32: unconditional company_id scoping — see
+        // EmployeeController::index()'s comment for the confirmed empirical
+        // finding this closes.
         $skills = Skill::query()
+            ->where('company_id', $request->user()->company_id)
             ->when($request->filled('category'), fn ($q) => $q->where('category', $request->category))
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', "%{$request->search}%"))
             ->withCount('employeeSkills')
@@ -46,7 +50,10 @@ class SkillController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        $skill = Skill::create($data);
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $skill = Skill::create(array_merge($data, [
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json($skill, 201);
     }
@@ -96,7 +103,14 @@ class SkillController extends Controller
      */
     public function employeeSkills(Employee $employee): JsonResponse
     {
-        $this->authorize('viewAny', Skill::class);
+        // Chantier 32: EmployeeSkill deliberately has no company_id column of
+        // its own (see the migration's docblock) — its tenant boundary is
+        // resolved through the parent Employee, so the real per-record check
+        // here is authorize('view', $employee) (now sameCompany-gated),
+        // not the previous global 'viewAny' Skill ability, which let any
+        // Skill-viewing user pull any other company's employee's skill list
+        // by id.
+        $this->authorize('view', $employee);
 
         $skills = EmployeeSkill::where('employee_id', $employee->id)
             ->with('skill')

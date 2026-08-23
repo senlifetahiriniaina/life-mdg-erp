@@ -30,6 +30,7 @@ class Category extends Model
         'default_purchase_account_code',
         'default_sale_account_code',
         'default_variance_account_code',
+        'company_id',
     ];
 
     protected static function newFactory()

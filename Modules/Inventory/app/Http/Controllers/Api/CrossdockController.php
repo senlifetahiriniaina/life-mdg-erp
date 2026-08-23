@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\CrossdockOperation;
 use Modules\Inventory\Services\CrossdockService;
 
@@ -17,11 +18,16 @@ use Modules\Inventory\Services\CrossdockService;
  */
 class CrossdockController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly CrossdockService $service) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $operations = CrossdockOperation::with('product')->latest()->paginate(20);
+        $operations = CrossdockOperation::with('product')
+            ->where('company_id', $this->companyId($request))
+            ->latest()
+            ->paginate(20);
 
         return response()->json($operations);
     }
@@ -36,13 +42,18 @@ class CrossdockController extends Controller
         ]);
 
         $op = $this->service->planCrossdock($data);
+
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation.
+        $op->update(['company_id' => $this->companyId($request)]);
         $op->load('product');
 
         return response()->json($op, 201);
     }
 
-    public function show(CrossdockOperation $crossdockOperation): JsonResponse
+    public function show(Request $request, CrossdockOperation $crossdockOperation): JsonResponse
     {
+        $this->assertSameCompany($request, $crossdockOperation);
         $crossdockOperation->load('product');
 
         return response()->json($crossdockOperation);
@@ -50,6 +61,8 @@ class CrossdockController extends Controller
 
     public function update(Request $request, CrossdockOperation $crossdockOperation): JsonResponse
     {
+        $this->assertSameCompany($request, $crossdockOperation);
+
         $data = $request->validate([
             'inbound_shipment_id' => 'nullable|integer',
             'outbound_order_id' => 'nullable|integer',
@@ -61,8 +74,10 @@ class CrossdockController extends Controller
         return response()->json($crossdockOperation);
     }
 
-    public function destroy(CrossdockOperation $crossdockOperation): JsonResponse
+    public function destroy(Request $request, CrossdockOperation $crossdockOperation): JsonResponse
     {
+        $this->assertSameCompany($request, $crossdockOperation);
+
         if ($crossdockOperation->status === 'executed') {
             return response()->json(['message' => 'Cannot delete an executed operation.'], 422);
         }
@@ -72,8 +87,9 @@ class CrossdockController extends Controller
         return response()->json(null, 204);
     }
 
-    public function execute(CrossdockOperation $crossdockOperation): JsonResponse
+    public function execute(Request $request, CrossdockOperation $crossdockOperation): JsonResponse
     {
+        $this->assertSameCompany($request, $crossdockOperation);
         $this->service->execute($crossdockOperation);
         $crossdockOperation->load('product');
 

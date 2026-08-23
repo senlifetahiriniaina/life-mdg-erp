@@ -36,9 +36,14 @@ class HRService
             ->paginate($perPage);
     }
 
-    public function getEmployeesByDepartment(int $departmentId)
+    // Chantier 32: threaded an optional $companyId through — the caller
+    // (EmployeeController::byDepartment()) now scopes this to the acting
+    // user's own company, matching the same tenant-isolation fix applied
+    // throughout this module.
+    public function getEmployeesByDepartment(int $departmentId, ?int $companyId = null)
     {
         return Employee::where('department_id', $departmentId)
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->with('position')
             ->get();
     }
@@ -56,14 +61,14 @@ class HRService
         return $department;
     }
 
-    // Chantier 32.17 (HR deep 14-layer audit): $companyId added — see
-    // DepartmentController::index()'s own docblock for the full rationale
-    // (same cross-tenant leak already fixed on Employee's index()).
+    // Chantier 32: threaded an optional $companyId through — same rationale
+    // as getEmployeesByDepartment()/getHRMetrics() above (same cross-tenant
+    // leak already fixed on Employee's index()).
     public function getAllDepartments($perPage = 15, ?int $companyId = null)
     {
         return Department::withCount('employees')
             ->with('manager:id,first_name,last_name')
-            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->orderBy('name')
             ->paginate($perPage);
     }
@@ -193,25 +198,33 @@ class HRService
     }
 
     // HR Metrics
-    public function getHRMetrics()
+    // Chantier 32: threaded an optional $companyId through the aggregate
+    // counts — same rationale as getEmployeesByDepartment() above.
+    // 'open_positions' stays a hardcoded 0 below: Position/hr_positions
+    // (a confirmed-dead, always-empty model/table) was deleted outright in
+    // this same chantier's deep audit — there is no real per-position
+    // headcount-target data source anywhere in this trimmed HR scope.
+    public function getHRMetrics(?int $companyId = null)
     {
+        $employeeQuery = fn () => Employee::active()->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId));
+
         return [
-            'total_employees' => Employee::active()->count(),
-            'departments' => Department::active()->count(),
-            'pending_leaves' => LeaveRequest::pending()->count(),
-            // Chantier 32.17 (HR deep 14-layer audit): confirmed empirically
-            // via tinker that this returned a nonsensical negative number
-            // (e.g. -10) on real data — Position::sum('headcount') always
-            // returned 0 against the confirmed-dead, always-empty
-            // hr_positions table (see the migration that drops it in the
-            // same chantier), so this was really just `0 - $activeCount`.
+            'total_employees' => $employeeQuery()->count(),
+            'departments' => Department::active()->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))->count(),
+            'pending_leaves' => LeaveRequest::pending()->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))->count(),
+            // Chantier 32: confirmed empirically via tinker that this
+            // returned a nonsensical negative number (e.g. -10) on real
+            // data — Position::sum('headcount') always returned 0 against
+            // the confirmed-dead, always-empty hr_positions table (Position
+            // + hr_positions were dropped entirely in this same chantier's
+            // deep audit), so this was really just `0 - $activeCount`.
             // Matches the identical fix already applied to
             // HrDashboardService::getStats() at Chantier 19 Lot 2 — no real
             // per-position headcount-target data source exists anywhere in
             // this trimmed HR scope, so kept at the same honest 0 fallback
             // rather than a misleading negative figure.
             'open_positions' => 0,
-            'hired_this_month' => Employee::where('hire_date', '>=', now()->startOfMonth())->count(),
+            'hired_this_month' => $employeeQuery()->where('hire_date', '>=', now()->startOfMonth())->count(),
         ];
     }
 

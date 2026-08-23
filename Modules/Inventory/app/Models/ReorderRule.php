@@ -20,6 +20,7 @@ class ReorderRule extends Model
         'reorder_quantity',
         'lead_time_days',
         'status',
+        'company_id',
     ];
 
     public function product(): BelongsTo

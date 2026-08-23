@@ -66,6 +66,7 @@ class CostingSheet extends Model
         'total_cost_price',
         'suggested_selling_price',
         'created_by',
+        'company_id',
     ];
 
     protected $casts = [

@@ -75,6 +75,12 @@ function chantier29Report(): array
         'status'                  => 'approved',
         'total_cost_price'        => 10000,
         'suggested_selling_price' => 15000,
+        // Chantier 32: CostingSheet/ProductionOrder now carry a real
+        // company_id, and the executive-report export threads the real
+        // caller's own company_id through TextileSectorKpiService — must
+        // match $company->id above or this fixture's data is correctly
+        // excluded from the report as another company's data.
+        'company_id'              => $company->id,
     ]);
     CostingSheetLine::create([
         'costing_sheet_id'    => $sheet->id,
@@ -94,6 +100,7 @@ function chantier29Report(): array
         'started_at'                 => now()->subDays(10),
         'expected_delivery_at'       => now()->subDays(1),
         'delivered_at'               => now()->subDays(2),
+        'company_id'                 => $company->id,
     ]);
 
     return compact('user', 'company', 'plan', 'objective');

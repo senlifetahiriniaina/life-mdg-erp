@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\CycleCount;
 use Modules\Inventory\Models\CycleCountLine;
 use Modules\Inventory\Models\Warehouse;
@@ -17,6 +18,8 @@ use Modules\Inventory\Services\CycleCountService;
  */
 class CycleCountController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly CycleCountService $service) {}
 
     /**
@@ -26,6 +29,7 @@ class CycleCountController extends Controller
     {
         $counts = CycleCount::with(['warehouse:id,name', 'assignee:id,name'])
             ->withCount('lines')
+            ->where('company_id', $this->companyId($request))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->input('warehouse_id'), fn ($q, $v) => $q->where('warehouse_id', $v))
             ->latest()
@@ -51,6 +55,10 @@ class CycleCountController extends Controller
         $warehouse = Warehouse::findOrFail($data['warehouse_id']);
         $cc = $this->service->generateCycleCount($warehouse, $data['product_ids']);
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation.
+        $cc->update(['company_id' => $this->companyId($request)]);
+
         if (isset($data['assigned_to'])) {
             $cc->update(['assigned_to' => $data['assigned_to']]);
         }
@@ -69,8 +77,10 @@ class CycleCountController extends Controller
     /**
      * Show a cycle count.
      */
-    public function show(CycleCount $cycleCount): JsonResponse
+    public function show(Request $request, CycleCount $cycleCount): JsonResponse
     {
+        $this->assertSameCompany($request, $cycleCount);
+
         return response()->json(
             $cycleCount->load([
                 'warehouse:id,name',
@@ -86,6 +96,7 @@ class CycleCountController extends Controller
      */
     public function update(Request $request, CycleCount $cycleCount): JsonResponse
     {
+        $this->assertSameCompany($request, $cycleCount);
         abort_if($cycleCount->status === 'completed', 422, 'Cannot edit a completed cycle count.');
 
         $data = $request->validate([
@@ -103,8 +114,9 @@ class CycleCountController extends Controller
     /**
      * Delete a cycle count.
      */
-    public function destroy(CycleCount $cycleCount): JsonResponse
+    public function destroy(Request $request, CycleCount $cycleCount): JsonResponse
     {
+        $this->assertSameCompany($request, $cycleCount);
         abort_if($cycleCount->status === 'completed', 422, 'Cannot delete a completed cycle count.');
 
         $cycleCount->delete();
@@ -117,6 +129,7 @@ class CycleCountController extends Controller
      */
     public function countLine(Request $request, CycleCount $cycleCount, CycleCountLine $cycleCountLine): JsonResponse
     {
+        $this->assertSameCompany($request, $cycleCount);
         abort_if($cycleCountLine->cycle_count_id !== $cycleCount->id, 404);
         abort_if($cycleCount->status === 'completed', 422, 'Cycle count is already completed.');
 
@@ -132,8 +145,9 @@ class CycleCountController extends Controller
     /**
      * Validate a cycle count and apply adjustments.
      */
-    public function approve(CycleCount $cycleCount): JsonResponse
+    public function approve(Request $request, CycleCount $cycleCount): JsonResponse
     {
+        $this->assertSameCompany($request, $cycleCount);
         abort_if($cycleCount->status === 'completed', 422, 'Already completed.');
         abort_if($cycleCount->status === 'cancelled', 422, 'Cycle count is cancelled.');
 
@@ -147,8 +161,8 @@ class CycleCountController extends Controller
      * the routes file registers. Shadows ValidatesRequests::validate() on
      * purpose; controller actions here never used the trait helper.
      */
-    public function validate(CycleCount $cycleCount): JsonResponse
+    public function validate(Request $request, CycleCount $cycleCount): JsonResponse
     {
-        return $this->approve($cycleCount);
+        return $this->approve($request, $cycleCount);
     }
 }

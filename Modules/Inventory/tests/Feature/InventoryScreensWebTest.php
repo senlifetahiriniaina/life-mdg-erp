@@ -17,12 +17,32 @@ use Tests\TestCase;
  * /api/v1/inventory/stock-movements, and ReorderAutomation/DemandForecast/
  * MarketplaceSync were rewritten off invented endpoints onto the real
  * low-stock/ai/suggest-reorder, demand-forecasts, and sync/ecommerce APIs.
+ *
+ * Chantier 32: Modules/Inventory/routes/web.php's outer group gained a
+ * role: gate (matching routes/api.php's own, previously missing entirely
+ * from the web layer) — a bare, unroled User::factory()->create() no
+ * longer passes it, so every test here now seeds real roles and assigns
+ * 'employee' (this app's established broad-by-design role), the same
+ * seed-guard + assignRole() pattern already used repeatedly elsewhere in
+ * this session for the identical class of fix.
  */
 class InventoryScreensWebTest extends TestCase
 {
+    private function inventoryWebUser(): User
+    {
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
+
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+
+        return $user;
+    }
+
     public function test_stock_movements_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/stock/movements');
 
@@ -32,7 +52,7 @@ class InventoryScreensWebTest extends TestCase
 
     public function test_reorder_automation_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/reorder-automation');
 
@@ -42,7 +62,7 @@ class InventoryScreensWebTest extends TestCase
 
     public function test_demand_forecast_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/demand-forecast');
 
@@ -52,7 +72,7 @@ class InventoryScreensWebTest extends TestCase
 
     public function test_marketplace_sync_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/marketplace-sync');
 
@@ -77,7 +97,7 @@ class InventoryScreensWebTest extends TestCase
      */
     public function test_categories_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/categories');
 
@@ -87,7 +107,7 @@ class InventoryScreensWebTest extends TestCase
 
     public function test_warehouses_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/warehouses');
 
@@ -103,7 +123,7 @@ class InventoryScreensWebTest extends TestCase
      */
     public function test_stock_adjustments_route_no_longer_exists()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/stock-adjustments');
 

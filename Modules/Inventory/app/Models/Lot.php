@@ -44,6 +44,7 @@ class Lot extends Model
         'warehouse_id',
         'notes',
         'created_by',
+        'company_id',
     ];
 
     protected $casts = [

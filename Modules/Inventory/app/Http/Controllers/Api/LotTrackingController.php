@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Lot;
 use Modules\Inventory\Services\LotTrackingService;
 
@@ -14,14 +15,21 @@ use Modules\Inventory\Services\LotTrackingService;
  * @group Controllers - Lot Tracking
  *
  * Manage Lot Tracking resources.
+ *
+ * Chantier 32: had zero company/tenant scoping of any kind — fixed via
+ * ScopesToCompany, same proportionality precedent as CategoryController
+ * (no Policy class introduced, since no authorize() call existed here
+ * before this either).
  */
 class LotTrackingController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly LotTrackingService $service) {}
 
     public function index(Request $request): JsonResponse
     {
-        $query = Lot::query();
+        $query = Lot::query()->where('company_id', $this->companyId($request));
 
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->integer('product_id'));
@@ -48,7 +56,7 @@ class LotTrackingController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $lot = $this->service->createLot($data);
+        $lot = $this->service->createLot($data + ['company_id' => $this->companyId($request)]);
 
         return response()->json($lot, 201);
     }
@@ -61,13 +69,17 @@ class LotTrackingController extends Controller
         return response()->json(['data' => $lots]);
     }
 
-    public function show(Lot $lot): JsonResponse
+    public function show(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         return response()->json($lot->load('movements'));
     }
 
     public function update(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         $data = $request->validate([
             'lot_number' => 'sometimes|string|max:100|unique:inventory_lots,lot_number,'.$lot->id,
             'product_id' => 'nullable|integer|exists:inventory_products,id',
@@ -85,8 +97,10 @@ class LotTrackingController extends Controller
         return response()->json($lot->fresh());
     }
 
-    public function destroy(Lot $lot): JsonResponse
+    public function destroy(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         $lot->delete();
 
         return response()->json(null, 204);
@@ -94,6 +108,8 @@ class LotTrackingController extends Controller
 
     public function receive(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         $data = $request->validate([
             'qty' => 'required|numeric|min:0.0001',
             'reference' => 'nullable|string|max:100',
@@ -106,6 +122,8 @@ class LotTrackingController extends Controller
 
     public function issue(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         $data = $request->validate([
             'qty' => 'required|numeric|min:0.0001',
             'reference' => 'nullable|string|max:100',
@@ -122,6 +140,8 @@ class LotTrackingController extends Controller
 
     public function transfer(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         $data = $request->validate([
             'from_warehouse_id' => 'required|integer',
             'to_warehouse_id' => 'required|integer',
@@ -140,6 +160,8 @@ class LotTrackingController extends Controller
 
     public function quarantine(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         $data = $request->validate([
             'reason' => 'nullable|string',
         ]);
@@ -149,8 +171,10 @@ class LotTrackingController extends Controller
         return response()->json(['message' => 'Lot quarantined successfully.']);
     }
 
-    public function movements(Lot $lot): JsonResponse
+    public function movements(Request $request, Lot $lot): JsonResponse
     {
+        $this->assertSameCompany($request, $lot);
+
         return response()->json($lot->movements()->paginate(20));
     }
 

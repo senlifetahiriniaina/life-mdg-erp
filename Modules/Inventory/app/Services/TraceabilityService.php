@@ -17,6 +17,17 @@ use Modules\Sales\Models\SalesOrder;
  * (PurchaseOrder via le lien souple production_order_id, ce chantier), et
  * le sous-traitant. Ne modifie rien — un pur agrégateur de ce qui existe
  * déjà, pas un nouveau modèle de données de suivi parallèle.
+ *
+ * Chantier 32 (defense-in-depth): SalesOrder/PurchaseOrder are resolved via
+ * soft/unconstrained FKs (sales_order_id, production_order_id) that carry
+ * no DB-level guarantee of ever pointing at a record in the same company
+ * as the ProductionOrder itself. Now that ProductionOrder.company_id is
+ * real, a resolved SalesOrder/PurchaseOrder whose own company_id is real
+ * AND differs from the ProductionOrder's is excluded from the trace
+ * output — treated as though it wasn't found — rather than leaking another
+ * company's record into the response just because the soft FK happened to
+ * point at it. Null-safe: a side with no real company_id yet is never
+ * excluded (matching this app's established null==null convention).
  */
 class TraceabilityService
 {
@@ -28,10 +39,27 @@ class TraceabilityService
             ? SalesOrder::with(['depositInvoice', 'balanceInvoice'])->find($order->sales_order_id)
             : null;
 
+        // SalesOrder's own tenant-boundary column is `tenant_id`, not
+        // `company_id` (populated from the caller's real company_id at
+        // creation time — see Chantier 8.5-light) — compared against that,
+        // not a nonexistent SalesOrder.company_id column.
+        if ($salesOrder !== null && $order->company_id !== null && $salesOrder->tenant_id !== null
+            && (int) $salesOrder->tenant_id !== (int) $order->company_id) {
+            $salesOrder = null;
+        }
+
         $purchaseOrders = PurchaseOrder::with('supplier')
             ->where('production_order_id', $order->id)
             ->orderBy('order_date')
-            ->get();
+            ->get()
+            ->filter(function (PurchaseOrder $po) use ($order) {
+                if ($order->company_id === null || $po->company_id === null) {
+                    return true;
+                }
+
+                return (int) $po->company_id === (int) $order->company_id;
+            })
+            ->values();
 
         return [
             'production_order' => [

@@ -332,15 +332,14 @@ it('self-service profile never leaks raw bank details/national id/passport numbe
     expect($resp->json())->not->toHaveKey('bank_details');
 });
 
-// ── Chantier 32.17 (HR deep 14-layer audit): flipped now that real
-// company_id-based tenant isolation exists on Employee/Department/
-// JobPosition — this test used to document the confirmed gap (both
-// companies' employees visible to either), now locks in that it's closed.
-// A pre-chantier employee (no company_id set at all) stays visible to
-// everyone by design — see EmployeeController::index()'s own docblock: the
-// scope is a no-op whenever the caller has no real company_id, but once
-// both a real company_id and a real caller company_id exist, they're
-// compared for real.
+// ── Chantier 32: flipped now that real company_id-based tenant isolation
+// exists on Employee/Department/JobPosition — this test used to document
+// the confirmed gap (both companies' employees visible to either), now
+// locks in that it's closed. A pre-chantier employee (no company_id set at
+// all) stays visible to everyone by design — see EmployeeController::
+// index()'s own docblock: the scope is a no-op whenever the caller has no
+// real company_id, but once both a real company_id and a real caller
+// company_id exist, they're compared for real.
 it('HR employees/departments are now scoped by company_id (the previously-documented gap, closed)', function () {
     expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_employees', 'company_id'))->toBeTrue();
     expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_departments', 'company_id'))->toBeTrue();

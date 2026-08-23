@@ -15,6 +15,12 @@ use Modules\Inventory\Services\InventoryService;
  * @group Controllers - Category
  *
  * Manage Category resources.
+ *
+ * Chantier 32: had zero company/tenant scoping of any kind and no Policy
+ * class — fixed via ScopesToCompany, matching this controller's own
+ * proportionality (no authorize() call existed here before this either;
+ * a new Policy class would have been out of proportion with the rest of
+ * this controller, matching Achats' own precedent for the same fix).
  */
 class CategoryController extends Controller
 {

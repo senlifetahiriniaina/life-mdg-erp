@@ -7,6 +7,8 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
+use Modules\Inventory\Models\Warehouse;
 use Modules\Inventory\Services\StockImportService;
 
 /**
@@ -19,6 +21,8 @@ use Modules\Inventory\Services\StockImportService;
  */
 class StockImportController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private StockImportService $service) {}
 
     /** POST /inventory/stock-imports/preview */
@@ -42,7 +46,7 @@ class StockImportController extends Controller
         return response()->json([
             'headers' => $parsed['headers'],
             'row_count' => count($parsed['rows']),
-            'rows' => $this->service->preview($parsed['rows']),
+            'rows' => $this->service->preview($parsed['rows'], $this->companyId($request)),
         ]);
     }
 
@@ -59,8 +63,21 @@ class StockImportController extends Controller
             'rows.*.unit_cost' => 'nullable|numeric|min:0',
         ]);
 
+        // Chantier 32: verify the target warehouse actually belongs to the
+        // caller's own company before importing anything into it — a real
+        // record, not just an id, so this uses assertSameCompany rather
+        // than a raw ->where() filter (which would silently produce a 404
+        // via exists: validation instead of the correct 404-not-403 shape).
+        $warehouse = Warehouse::findOrFail((int) $validated['warehouse_id']);
+        $this->assertSameCompany($request, $warehouse);
+
         try {
-            $result = $this->service->commit($validated['rows'], (int) $validated['warehouse_id'], $request->user()?->id);
+            $result = $this->service->commit(
+                $validated['rows'],
+                (int) $validated['warehouse_id'],
+                $request->user()?->id,
+                $this->companyId($request),
+            );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

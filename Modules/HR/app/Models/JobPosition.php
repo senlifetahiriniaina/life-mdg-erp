@@ -31,9 +31,9 @@ class JobPosition extends Model
 
     protected $table = 'hr_job_positions';
 
-    // Chantier 32.17 (HR deep 14-layer audit): 'company_id' closes the same
-    // cross-tenant leak fixed on Employee/Department in the same chantier.
-    protected $fillable = ['department_id', 'title', 'level', 'description', 'requirements', 'is_active', 'company_id'];
+    // Chantier 32: 'company_id' closes the same cross-tenant leak fixed on
+    // Employee/Department in the same chantier.
+    protected $fillable = ['company_id', 'department_id', 'title', 'level', 'description', 'requirements', 'is_active'];
 
     protected $casts = [
         'requirements' => 'array',

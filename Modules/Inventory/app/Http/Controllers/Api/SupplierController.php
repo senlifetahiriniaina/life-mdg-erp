@@ -12,6 +12,14 @@ use Modules\Inventory\Models\Supplier;
 
 /**
  * @group Inventory - Suppliers
+ *
+ * Chantier 32: this is a real, distinct Inventory-side supplier catalogue
+ * (own table `inventory_suppliers`, own `purchaseOrders()` relation onto
+ * Inventory's own `PurchaseOrder` model — confirmed via grep, NOT an
+ * alias/re-export of Achats' `Modules\Achats\Models\Supplier`, which is a
+ * separate model backing the RFQ/PO workflow instead) — had zero company/
+ * tenant scoping of any kind, fixed via ScopesToCompany, same
+ * proportionality precedent as CategoryController.
  */
 class SupplierController extends Controller
 {
@@ -47,7 +55,7 @@ class SupplierController extends Controller
         ]);
         $data['company_id'] = $this->companyId($request);
 
-        $supplier = Supplier::create($data);
+        $supplier = Supplier::create($data + ['company_id' => $this->companyId($request)]);
 
         return response()->json($supplier, 201);
     }

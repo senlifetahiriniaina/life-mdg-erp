@@ -16,10 +16,16 @@ class DocumentExpiryService
      *
      * @return Collection<EmployeeDocument>
      */
-    public function getExpiringDocuments(int $days = 30): Collection
+    // Chantier 32: threaded an optional $companyId through (EmployeeDocument
+    // has no company_id column of its own — resolved via the employee it
+    // belongs to, same pattern as AttendancePolicy's employee-derived
+    // checks) — DocumentAlertController::expiring() now scopes this to the
+    // acting user's own company.
+    public function getExpiringDocuments(int $days = 30, ?int $companyId = null): Collection
     {
         return EmployeeDocument::with('employee')
             ->expiring($days)
+            ->when($companyId !== null, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('company_id', $companyId)))
             ->orderBy('expiry_date')
             ->get();
     }
@@ -122,9 +128,13 @@ class DocumentExpiryService
      *   missing_documents: array
      * }
      */
-    public function complianceReport(): array
+    // Chantier 32: threaded an optional $companyId through — same rationale
+    // as getExpiringDocuments() above.
+    public function complianceReport(?int $companyId = null): array
     {
-        $all = EmployeeDocument::with('employee')->get();
+        $all = EmployeeDocument::with('employee')
+            ->when($companyId !== null, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('company_id', $companyId)))
+            ->get();
 
         $grouped = $all->groupBy('status');
 

@@ -29,7 +29,7 @@ class AttendanceRecord extends Model
     protected $table = 'hr_attendance_records';
 
     protected $fillable = [
-        'employee_id', 'clock_in', 'clock_out', 'break_minutes',
+        'company_id', 'employee_id', 'clock_in', 'clock_out', 'break_minutes',
         'type', 'notes', 'ip_address', 'location_lat', 'location_lng',
         'device_id', 'clock_in_method', 'device_name', 'verification_status',
         'location',

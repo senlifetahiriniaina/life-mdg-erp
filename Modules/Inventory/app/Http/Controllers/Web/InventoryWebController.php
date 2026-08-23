@@ -25,6 +25,8 @@ class InventoryWebController extends Controller
 
     public function suppliers(Request $request): Response
     {
+        // Chantier 32: server-rendering another company's supplier list
+        // into Inertia props is a real leak independent of the API fix.
         $suppliers = $this->scopeToCompany(Supplier::query(), $request)
             ->withCount('purchaseOrders')
             ->when(

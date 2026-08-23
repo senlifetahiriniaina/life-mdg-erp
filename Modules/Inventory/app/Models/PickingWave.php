@@ -42,6 +42,7 @@ class PickingWave extends Model
         'order_ids',
         'started_at',
         'completed_at',
+        'company_id',
     ];
 
     /** @var array<string, string> */

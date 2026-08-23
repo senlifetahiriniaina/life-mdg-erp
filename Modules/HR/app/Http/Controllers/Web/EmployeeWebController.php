@@ -19,8 +19,14 @@ class EmployeeWebController extends Controller
 {
     public function index(Request $request): Response
     {
+        // Chantier 32: unconditional company_id scoping — same finding as
+        // the API EmployeeController::index() (see its comment) — this web
+        // page server-renders full employee detail into Inertia props
+        // regardless of the frontend's own display logic, so a real leak
+        // here is independent of and just as real as the API's.
         $employees = Employee::query()
             ->with(['department'])
+            ->where('company_id', $request->user()->company_id)
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
                 $q->where('first_name', 'like', "%{$request->search}%")
                     ->orWhere('last_name', 'like', "%{$request->search}%");
@@ -32,18 +38,22 @@ class EmployeeWebController extends Controller
 
     public function show(Employee $employee): Response
     {
-        // Chantier 32.17 (HR deep 14-layer audit): the raw $employee model
-        // used to be handed straight to Inertia::render() — since Inertia
-        // props are serialized directly into the page's initial HTML, this
-        // embedded every PII field (bank_details_encrypted, national_id,
-        // passport_number — all decrypted plaintext via the model's own
-        // accessors) into the page source of a route gated by nothing more
-        // than plain `auth` (any authenticated user, no role restriction).
-        // The exact same class of PII leak already fixed once for the API
-        // side of this module (Chantier 8.3's SelfServiceEmployeeResource)
-        // was still live here. Now goes through the same EmployeeResource
-        // the real employees API already uses, which never exposes those
-        // fields at all.
+        // Chantier 32: relying on the updated EmployeePolicy's sameCompany
+        // check rather than trusting Laravel's route-model-binding alone to
+        // have found the right (same-company) record.
+        $this->authorize('view', $employee);
+
+        // Chantier 32: the raw $employee model used to be handed straight to
+        // Inertia::render() — since Inertia props are serialized directly
+        // into the page's initial HTML, this embedded every PII field
+        // (bank_details_encrypted, national_id, passport_number — all
+        // decrypted plaintext via the model's own accessors) into the page
+        // source of a route gated by nothing more than plain `auth` (any
+        // authenticated user, no role restriction). The exact same class of
+        // PII leak already fixed once for the API side of this module
+        // (Chantier 8.3's SelfServiceEmployeeResource) was still live here.
+        // Now goes through the same EmployeeResource the real employees API
+        // already uses, which never exposes those fields at all.
         $employee->load('department', 'jobPosition');
 
         // Chantier 32.17: "Soldes de congés" on Employees/Show.vue was
@@ -105,6 +115,10 @@ class EmployeeWebController extends Controller
 
     public function edit(Employee $employee): Response
     {
+        // Chantier 32: same rationale as show() above — this also
+        // server-renders full employee detail into props.
+        $this->authorize('view', $employee);
+
         return Inertia::render('HR/Employees/Form', ['employee' => $employee]);
     }
 
@@ -170,7 +184,11 @@ class EmployeeWebController extends Controller
 
     public function compensation(Request $request): Response
     {
+        // Chantier 32: unconditional company_id scoping — SalaryBand is what
+        // this page actually lists (not a single Employee), so the same
+        // ->where('company_id', ...) filtering applies to it directly.
         $bands = SalaryBand::query()
+            ->where('company_id', $request->user()->company_id)
             ->when($request->filled('search'), fn ($q) => $q->where('title', 'like', "%{$request->search}%"))
             ->orderBy('level')
             ->paginate(25)

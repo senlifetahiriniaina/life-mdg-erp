@@ -18,6 +18,7 @@ class Department extends Model
     protected $table = 'hr_departments';
 
     protected $fillable = [
+        'company_id',
         'name',
         'code',
         'description',

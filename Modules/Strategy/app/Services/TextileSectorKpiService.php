@@ -25,11 +25,18 @@ use Modules\Inventory\Models\ProductionOrder;
  * tables Inventory/Achats — même précédent cross-module déjà établi par
  * FinanceReviewService (Accounting) interrogeant Sales.
  *
- * Note documentée : `CostingSheet`/`ProductionOrder` n'ont aucune colonne
- * de tenant/company (gap déjà confirmé et documenté au Chantier 19 pour
- * l'ensemble du module Inventory) — ce service hérite donc du même
- * périmètre non scopé par tenant que le reste d'Inventory, pas une
- * régression introduite ici.
+ * Chantier 32 update: `CostingSheet`/`ProductionOrder` now DO carry a real
+ * `company_id` column (Inventory "core" tenant-isolation fix) — every
+ * public method below gained an optional `?int $companyId = null`
+ * parameter, filtered in with a `->when($companyId !== null, ...)` guard,
+ * matching the exact convention already established by
+ * `Modules\Strategy\Services\FinanceReviewService::objectiveRealization()`
+ * for the same shape of cross-module company-scoped query. Passing null
+ * (the default) keeps the previous unfiltered behavior — a deliberate,
+ * backward-compatible default so this service's own pre-existing test
+ * suite (Chantier26SectorKpiTest.php) keeps passing unchanged; real callers
+ * (StrategyReportExportController, StrategyPageController::sectorKpi())
+ * now pass the caller's own company_id explicitly.
  */
 class TextileSectorKpiService
 {
@@ -41,11 +48,12 @@ class TextileSectorKpiService
      *
      * @return array{overall: array{avg_margin_percent: float|null, sheet_count: int}, by_family: array<int, array{family: string, avg_margin_percent: float, sheet_count: int}>}
      */
-    public function marginByFamily(): array
+    public function marginByFamily(?int $companyId = null): array
     {
         $sheets = CostingSheet::query()
             ->whereIn('status', ['quoted', 'approved', 'archived'])
             ->where('suggested_selling_price', '>', 0)
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->with('productTemplate')
             ->get();
 
@@ -94,11 +102,12 @@ class TextileSectorKpiService
      *
      * @return array{sheet_count: int, structure: array<string, float>}
      */
-    public function costStructure(): array
+    public function costStructure(?int $companyId = null): array
     {
         $sheets = CostingSheet::query()
             ->whereIn('status', ['quoted', 'approved', 'archived'])
             ->where('total_cost_price', '>', 0)
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->get();
 
         if ($sheets->isEmpty()) {
@@ -141,12 +150,13 @@ class TextileSectorKpiService
      *
      * @return array{overall: array{avg_lead_time_days: float|null, on_time_percent: float|null, delivered_count: int}, by_subcontractor: array<int, array{subcontractor: string, avg_lead_time_days: float, on_time_percent: float, delivered_count: int}>}
      */
-    public function subcontractingLeadTime(): array
+    public function subcontractingLeadTime(?int $companyId = null): array
     {
         $delivered = ProductionOrder::query()
             ->where('status', 'delivered')
             ->whereNotNull('started_at')
             ->whereNotNull('delivered_at')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->with('subcontractor')
             ->get();
 
@@ -192,10 +202,11 @@ class TextileSectorKpiService
      *
      * @return array<int, array{family: string, order_count: int, total_quantity: int}>
      */
-    public function productionMixByFamily(): array
+    public function productionMixByFamily(?int $companyId = null): array
     {
         $orders = ProductionOrder::query()
             ->where('status', '!=', 'cancelled')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->with('costingSheet.productTemplate')
             ->get();
 
@@ -226,13 +237,15 @@ class TextileSectorKpiService
      *
      * @return array{compared_count: int, avg_variance_percent: float|null}
      */
-    public function materialPriceVariance(): array
+    public function materialPriceVariance(?int $companyId = null): array
     {
         $rows = DB::table('inventory_costing_sheet_lines as csl')
+            ->join('inventory_costing_sheets as cs', 'cs.id', '=', 'csl.costing_sheet_id')
             ->join('inventory_sourcing_benchmarks as sb', 'sb.product_template_id', '=', 'csl.product_template_id')
             ->where('csl.section', 'matiere')
             ->whereNotNull('csl.product_template_id')
             ->whereColumn('csl.currency', 'sb.currency')
+            ->when($companyId !== null, fn ($q) => $q->where('cs.company_id', $companyId)->where('sb.company_id', $companyId))
             ->select('csl.unit_price as quoted_price', 'sb.unit_price as observed_price')
             ->get();
 

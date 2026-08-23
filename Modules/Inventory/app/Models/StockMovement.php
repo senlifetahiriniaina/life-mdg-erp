@@ -26,6 +26,7 @@ class StockMovement extends Model
         'reference',
         'reason',
         'created_by',
+        'company_id',
     ];
 
     protected static function newFactory()

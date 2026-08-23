@@ -52,6 +52,7 @@ class SourcingBenchmark extends Model
         'observed_at',
         'notes',
         'created_by',
+        'company_id',
     ];
 
     protected $casts = [

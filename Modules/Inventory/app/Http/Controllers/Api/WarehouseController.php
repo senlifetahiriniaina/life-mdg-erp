@@ -15,6 +15,13 @@ use Modules\Inventory\Services\InventoryService;
  * @group Controllers - Warehouse
  *
  * Manage Warehouse resources.
+ *
+ * Chantier 32: authorize() (permission check, 403 on failure) and
+ * assertSameCompany() (real per-record ownership check, 404 on failure —
+ * never confirming another company's warehouse even exists) are two
+ * separate calls, matching Achats' own real precedent
+ * (Modules\Achats\Http\Controllers\Api\PurchaseOrderController) rather
+ * than folding the company check into the Policy itself.
  */
 class WarehouseController extends Controller
 {
@@ -53,6 +60,8 @@ class WarehouseController extends Controller
     {
         $this->authorize('create', Warehouse::class);
 
+        // Chantier 32: company_id is always server-derived from the caller,
+        // never trusted from client input.
         $data = $request->validated();
         $data['company_id'] = $this->companyId($request);
 

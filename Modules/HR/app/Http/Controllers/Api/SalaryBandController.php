@@ -19,7 +19,11 @@ class SalaryBandController extends Controller
     {
         $this->authorize('viewAny', SalaryBand::class);
 
+        // Chantier 32: unconditional company_id scoping — see
+        // EmployeeController::index()'s comment for the confirmed empirical
+        // finding this closes.
         $bands = SalaryBand::query()
+            ->where('company_id', $request->user()->company_id)
             ->when($request->currency, fn ($q, $v) => $q->where('currency', $v))
             ->orderBy('level')
             ->get();
@@ -40,7 +44,10 @@ class SalaryBandController extends Controller
             'currency' => 'sometimes|string|size:3',
         ]);
 
-        $band = SalaryBand::create($validated);
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $band = SalaryBand::create(array_merge($validated, [
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json($band, 201);
     }
@@ -102,13 +109,16 @@ class SalaryBandController extends Controller
     /**
      * AI equity analysis across all bands.
      */
-    public function equityAnalysis(): JsonResponse
+    public function equityAnalysis(Request $request): JsonResponse
     {
         $this->authorize('viewAny', SalaryBand::class);
 
         /** @var AIService $ai */
         $ai = app('ai');
-        $bands = SalaryBand::orderBy('level')->get(['title', 'level', 'min_salary', 'mid_salary', 'max_salary', 'currency']);
+        // Chantier 32: unconditional company_id scoping — same rationale as index().
+        $bands = SalaryBand::where('company_id', $request->user()->company_id)
+            ->orderBy('level')
+            ->get(['title', 'level', 'min_salary', 'mid_salary', 'max_salary', 'currency']);
 
         $summary = $bands->map(fn ($b) => "{$b->level} {$b->title}: min={$b->min_salary}, mid={$b->mid_salary}, max={$b->max_salary} {$b->currency}")->implode('; ');
 

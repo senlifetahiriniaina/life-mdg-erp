@@ -21,7 +21,7 @@ class Unit extends Model
 
     protected $table = 'inventory_units';
 
-    protected $fillable = ['name', 'symbol', 'type'];
+    protected $fillable = ['name', 'symbol', 'type', 'company_id'];
 
     public function products(): HasMany
     {

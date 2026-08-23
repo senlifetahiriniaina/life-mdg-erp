@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\DemandForecast;
 use Modules\Inventory\Models\SeasonalFactor;
 use Modules\Inventory\Services\DemandForecastService;
@@ -19,11 +20,14 @@ use Modules\Inventory\Services\DemandForecastService;
  */
 class DemandForecastController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly DemandForecastService $service) {}
 
     public function index(Request $request): JsonResponse
     {
         $forecasts = DemandForecast::with(['product', 'warehouse'])
+            ->where('company_id', $this->companyId($request))
             ->when($request->product_id, fn ($q) => $q->where('product_id', $request->product_id))
             ->when($request->warehouse_id, fn ($q) => $q->where('warehouse_id', $request->warehouse_id))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
@@ -33,8 +37,10 @@ class DemandForecastController extends Controller
         return response()->json($forecasts);
     }
 
-    public function show(DemandForecast $demandForecast): JsonResponse
+    public function show(Request $request, DemandForecast $demandForecast): JsonResponse
     {
+        $this->assertSameCompany($request, $demandForecast);
+
         return response()->json($demandForecast->load(['product', 'warehouse']));
     }
 
@@ -52,13 +58,20 @@ class DemandForecastController extends Controller
             'metadata' => 'nullable|array',
         ]);
 
-        $forecast = DemandForecast::create($data + ['status' => 'draft']);
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own.
+        $forecast = DemandForecast::create($data + [
+            'status' => 'draft',
+            'company_id' => $this->companyId($request),
+        ]);
 
         return response()->json($forecast->load(['product', 'warehouse']), 201);
     }
 
     public function update(Request $request, DemandForecast $demandForecast): JsonResponse
     {
+        $this->assertSameCompany($request, $demandForecast);
+
         $data = $request->validate([
             'forecasted_qty' => 'sometimes|numeric|min:0',
             'actual_qty' => 'nullable|numeric|min:0',
@@ -72,8 +85,9 @@ class DemandForecastController extends Controller
         return response()->json($demandForecast->fresh(['product', 'warehouse']));
     }
 
-    public function destroy(DemandForecast $demandForecast): JsonResponse
+    public function destroy(Request $request, DemandForecast $demandForecast): JsonResponse
     {
+        $this->assertSameCompany($request, $demandForecast);
         $demandForecast->delete();
 
         return response()->json(null, 204);

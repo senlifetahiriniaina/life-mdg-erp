@@ -13,6 +13,11 @@ use Modules\Inventory\Services\PurchaseOrderService;
 
 /**
  * @group Inventory - Purchase Orders
+ *
+ * Inventory's OWN purchase order concept (`inventory_purchase_orders`) —
+ * distinct from Achats' `achats_purchase_orders`/`PurchaseOrder`, which has
+ * its own separate, already-scoped ScopesToCompany trait/controller. Do not
+ * confuse the two same-short-name classes.
  */
 class PurchaseOrderController extends Controller
 {
@@ -50,9 +55,16 @@ class PurchaseOrderController extends Controller
         ]);
 
         $items = $data['items'];
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own. Safe to include in $poData here since
+        // PurchaseOrderService::createPO() spreads the whole array onto
+        // PurchaseOrder::create(), unlike this module's other services.
         $poData = array_merge(
             array_diff_key($data, ['items' => true]),
-            ['created_by' => $request->user()->id, 'company_id' => $this->companyId($request)]
+            [
+                'created_by' => $request->user()->id,
+                'company_id' => $this->companyId($request),
+            ]
         );
 
         $po = $this->service->createPO($poData, $items);
