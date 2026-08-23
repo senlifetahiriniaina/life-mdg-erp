@@ -80,4 +80,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Chantier 26 (volet D) — revue finance mensuelle/trimestrielle
     Route::get('finance-review', fn () => \Inertia\Inertia::render('Accounting/FinanceReview/Index'))->name('finance-review.index');
+
+    // Chantier 37 — administration des rôles de compte comptable (Modules\Settings)
+    Route::get('account-roles', fn () => \Inertia\Inertia::render('Accounting/AccountRoles/Index'))->name('account-roles.index');
 });

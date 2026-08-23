@@ -217,10 +217,48 @@ test('postPayslipsToAccounting posts a real balanced journal entry with real acc
     expect(round($totalDebit, 2))->toBe(round($totalCredit, 2));
     expect(round($totalDebit, 2))->toBe(round((float) $payslip->gross_salary, 2));
 
-    // Real seeded chart-of-account codes, not a phantom/never-seeded one.
+    // Real seeded chart-of-account codes. Chantier 37 note: this assertion
+    // originally expected the pre-Chantier-36 codes 641/421 — stale, since
+    // Chantier 36's real Life MDG chart of accounts has no '641' at all and
+    // '421' means something else entirely ("Personnel, avances et
+    // acomptes", an asset — advances paid TO personnel — not what's posted
+    // here). The real codes this service has posted since Chantier 36 (now
+    // resolved dynamically via AccountRoleService, Chantier 37) are 661
+    // ("Rémunérations directes versées au personnel national", the real
+    // expense account) and 422 ("Personnel, rémunérations dues", the real
+    // salary-payable liability) — confirmed via
+    // AccountRoleService::DEFAULT_ROLES' own default_code for
+    // personnel_remuneration_expense/salary_payable_liability.
     $accountCodes = $lines->map(fn ($l) => ChartOfAccount::find($l->account_id)?->code)->filter()->values();
-    expect($accountCodes)->toContain('641'); // Rémunérations du personnel
-    expect($accountCodes)->toContain('421'); // Personnel — Rémunérations dues
+    expect($accountCodes)->toContain('661'); // Rémunérations directes versées au personnel national
+    expect($accountCodes)->toContain('422'); // Personnel, rémunérations dues
+});
+
+test('Chantier 37: overriding personnel_remuneration_expense/salary_payable_liability changes which accounts the payslip is posted to', function () {
+    test()->seed(\Modules\Accounting\Database\Seeders\AccountingDatabaseSeeder::class);
+
+    $company = Company::factory()->create();
+    $user = payroll19User($company, 'payroll-officer');
+    test()->actingAs($user, 'sanctum');
+
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('personnel_remuneration_expense', '62');
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('salary_payable_liability', '46');
+
+    $employee = payroll19Employee(baseSalary: 700_000);
+
+    $service = app(PayrollIntegrationService::class);
+    $payslip = $service->generatePayslip($employee, now()->startOfMonth(), now()->endOfMonth(), tenantId: $company->id);
+    $payslip->update(['status' => 'approved']);
+
+    $service->postPayslipsToAccounting([$payslip->id]);
+
+    $entry = JournalEntry::where('reference_type', 'Payslip')->where('reference_id', $payslip->id)->first();
+    $accountCodes = $entry->lines()->get()->map(fn ($l) => ChartOfAccount::find($l->account_id)?->code)->filter()->values();
+
+    expect($accountCodes)->toContain('62');
+    expect($accountCodes)->toContain('46');
+    expect($accountCodes)->not->toContain('661');
+    expect($accountCodes)->not->toContain('422');
 });
 
 test('an employee can view their own payslip via the real self-service endpoint but not another employee\'s', function () {

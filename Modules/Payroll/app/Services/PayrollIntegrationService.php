@@ -8,8 +8,8 @@ use Modules\HR\Models\Employee;
 use Modules\HR\Models\EmployeeCompensation;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Models\PayrollRun;
-use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Models\JournalEntry;
+use Modules\Accounting\Services\AccountRoleService;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Payroll\Data\StatutorySchemes;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +22,8 @@ use Carbon\Carbon;
  */
 class PayrollIntegrationService
 {
+    public function __construct(private readonly AccountRoleService $accountRoles) {}
+
     /**
      * Generate payroll records for all active employees in a period.
      */
@@ -560,18 +562,22 @@ class PayrollIntegrationService
      * other as a single entry is not a real accounting posting — it never
      * appeared anywhere in the Bilan/Compte de Résultat regardless of
      * this being called. Rewritten onto the real header+lines scheme,
-     * resolving real seeded OHADA-adapted account codes: 641
-     * (Rémunérations du personnel, expense) debited for the full gross
-     * salary, 421 (Personnel — Rémunérations dues, liability) credited
-     * for the net amount owed to the employee, and — only when there are
-     * real deductions to balance — 447 (État — IRSA, liability) credited
-     * for the total withheld. Lumping every deduction category (income
-     * tax, social security, pension, etc.) into the single 447 line
-     * rather than splitting across 431/437/447 individually is a
-     * documented simplification, matching the same HT-only/no-VAT-split
-     * precedent already established for Chantier 15's TreasuryImportService
-     * and Chantier 18's FinancialSimulationService — a real per-category
-     * split is a future enhancement, not invented here.
+     * resolving real seeded OHADA-adapted account codes: 661
+     * (Rémunérations directes versées au personnel national, expense)
+     * debited for the full gross salary, 422 (Personnel — Rémunérations
+     * dues, liability — Chantier 36: a real new account, distinct from
+     * 421 "Personnel — avances et acomptes", which is an asset for
+     * advances made TO staff, not a payable owed to them) credited for
+     * the net amount owed to the employee, and — only when there are
+     * real deductions to balance — 4471 (État — Impôts retenus à la
+     * source / IRSA, liability) credited for the total withheld.
+     * Lumping every deduction category (income tax, social security,
+     * pension, etc.) into the single 4471 line rather than splitting
+     * across 4311/4331/4471 individually is a documented simplification,
+     * matching the same HT-only/no-VAT-split precedent already
+     * established for Chantier 15's TreasuryImportService and Chantier
+     * 18's FinancialSimulationService — a real per-category split is a
+     * future enhancement, not invented here.
      */
     public function postPayslipsToAccounting(array $payslipIds): array
     {
@@ -579,11 +585,25 @@ class PayrollIntegrationService
             ->where('status', 'approved')
             ->get();
 
-        $salaryExpenseAccountId = ChartOfAccount::where('code', '641')->value('id');
-        $salaryPayableAccountId = ChartOfAccount::where('code', '421')->value('id');
-        $withholdingsAccountId  = ChartOfAccount::where('code', '447')->value('id');
-
         $posted = [];
+
+        if ($records->isEmpty()) {
+            return ['posted_count' => 0, 'payslip_ids' => $posted];
+        }
+
+        // Chantier 37 : comptes résolus via AccountRoleService (Modules\Settings),
+        // configurables par tenant — mêmes valeurs par défaut que le remap
+        // Chantier 36 (661/422/4471). resolveAccount() lève une exception si
+        // le rôle n'est pas résolvable plutôt que de laisser $xxxAccountId à
+        // null (l'ancien comportement silencieux) — mais seulement une fois
+        // qu'on sait qu'il y a réellement quelque chose à poster : résoudre
+        // ces 3 comptes inconditionnellement, même quand $records est vide,
+        // ferait échouer PayrollController::processPayment() sur chaque
+        // appel réel où aucun bulletin n'est encore approuvé pour la
+        // période — un vrai appelant légitime, pas un cas d'erreur.
+        $salaryExpenseAccountId = $this->accountRoles->resolveAccount('personnel_remuneration_expense')->id;
+        $salaryPayableAccountId = $this->accountRoles->resolveAccount('salary_payable_liability')->id;
+        $withholdingsAccountId  = $this->accountRoles->resolveAccount('irsa_withholding_liability')->id;
 
         foreach ($records as $record) {
             $name = $record->employee_name;

@@ -51,6 +51,7 @@ use Modules\Accounting\Http\Controllers\Api\ScenarioPlanningController;
 use Modules\Accounting\Http\Controllers\Api\TreasuryImportController;
 use Modules\Accounting\Http\Controllers\Api\OperationTemplateController;
 use Modules\Accounting\Http\Controllers\Api\FinancialSimulationController;
+use Modules\Accounting\Http\Controllers\Api\AccountRoleController;
 
 // Webhooks (no auth required, signature validation only, rate limited)
 Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\Modules\Accounting\Http\Requests\HandleOpenBankingWebhookRequest $request) {
@@ -61,6 +62,9 @@ Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\M
 // Simple GET endpoints (1000 req/min)
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:simple_get'])->group(function () {
     Route::get('operation-templates', [OperationTemplateController::class, 'index']);
+    Route::get('treasury-accounts', [TreasuryImportController::class, 'treasuryAccounts']);
+    // Chantier 37 — rôles de compte comptable configurables
+    Route::get('account-roles', [AccountRoleController::class, 'index']);
     // Chantier 18 — financial simulation (upmetrics-style forecast)
     Route::get('financial-simulations', [FinancialSimulationController::class, 'index']);
     Route::get('financial-simulations/{financialSimulation}', [FinancialSimulationController::class, 'show']);
@@ -213,6 +217,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     // Treasury import — cash/bank operations with operation-template suggestions (Chantier 15)
     Route::post('treasury-imports/preview', [TreasuryImportController::class, 'preview']);
     Route::post('treasury-imports/commit', [TreasuryImportController::class, 'commit']);
+
+    // Chantier 37 — rôles de compte comptable configurables
+    Route::put('account-roles/{role}', [AccountRoleController::class, 'update']);
 
     // Chantier 18 — financial simulation
     Route::post('financial-simulations', [FinancialSimulationController::class, 'store']);

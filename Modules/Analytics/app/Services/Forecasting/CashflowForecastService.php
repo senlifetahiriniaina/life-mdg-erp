@@ -168,9 +168,10 @@ class CashflowForecastService
     {
         // Real per-account Classe 5 balance: LEFT JOIN so an account with
         // zero movements so far still appears (at 0), matching the module's
-        // seeded chart (512 Banques, 514 CCP, 530 Caisse, 531 Mvola,
-        // 532 Airtel Money, 540 Régies) rather than only accounts already
-        // touched by a journal entry. acc_journal_entries has no
+        // seeded chart (Chantier 36 — 52 Banques, 55 Instruments de monnaie
+        // électronique/Mvola/Orange Money/Airtel Money, 57 Caisse, 58 Régies
+        // d'avances) rather than only accounts already touched by a
+        // journal entry. acc_journal_entries has no
         // tenant/company column (single shared ledger, same established
         // precedent as OhadaReportService/JournalEntryApiController), so
         // $tenantId is kept for signature compatibility but unused to filter.

@@ -51,8 +51,8 @@ function chantier26User(): \App\Models\User
 
 function postTreasuryEntry(int $daysAgo, float $debit512, float $credit512, string $ref): JournalEntry
 {
-    $bank    = ChartOfAccount::where('code', '512')->firstOrFail();
-    $sales   = ChartOfAccount::where('code', '707')->firstOrFail();
+    $bank    = ChartOfAccount::where('code', '5211')->firstOrFail();
+    $sales   = ChartOfAccount::where('code', '701')->firstOrFail();
     $journal = Journal::where('code', 'BNQ')->first() ?? Journal::firstOrFail();
 
     $entry = JournalEntry::create([
@@ -110,7 +110,7 @@ describe('CashflowForecastService — real ledger data', function () {
         $result = $svc->getOhadaProjection($this->user->company_id);
 
         expect($result)->toHaveKey('classe5')
-            ->and(collect($result['classe5'])->pluck('account_code'))->toContain('512', '530');
+            ->and(collect($result['classe5'])->pluck('account_code'))->toContain('5211', '5711');
     });
 });
 

@@ -13,11 +13,19 @@
             Manage your accounting structure
           </p>
         </div>
-        <Button
-          icon="pi pi-plus"
-          label="New Account"
-          @click="openCreateModal"
-        />
+        <div class="flex gap-2">
+          <Button
+            icon="pi pi-cog"
+            label="Comptes de rôle"
+            outlined
+            @click="() => router.visit('/accounting/account-roles')"
+          />
+          <Button
+            icon="pi pi-plus"
+            label="New Account"
+            @click="openCreateModal"
+          />
+        </div>
       </div>
 
       <!-- Filters -->
@@ -249,7 +257,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'

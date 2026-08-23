@@ -100,7 +100,7 @@ class SmartDefaultsService
             'currency'         => 'MGA',
             'tax_rate'         => 20.0,
             'tax_label'        => 'TVA',
-            'payment_methods'  => ['mvola', 'airtel_money', 'cash', 'bank_transfer'],
+            'payment_methods'  => ['mvola', 'orange_money', 'airtel_money', 'cash', 'bank_transfer'],
             'fiscal_year_start'=> 1,
             'accounting_std'   => 'PCG',
             'mobile_country_code' => '+261',

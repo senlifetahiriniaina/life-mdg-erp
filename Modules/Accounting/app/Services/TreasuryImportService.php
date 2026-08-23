@@ -24,28 +24,56 @@ use Modules\Accounting\Models\OperationTemplate;
  * money) journal depending on which treasury account is being imported for.
  *
  * The exact same flow serves both cash and bank imports — only the
- * `treasuryAccountCode` differs (530 Caisse vs. 512 Banque / 531 Mvola /
- * 532 Airtel Money) — matching the user's own framing ("de la même
+ * `treasuryAccountCode` differs (any real class-5 "Caisse" account, e.g.
+ * 5711/5721/5722, vs. any real class-5 "Banque"/mobile-money account, e.g.
+ * 5211/5521/5522/5523) — matching the user's own framing ("de la même
  * manière"). For a bank-like treasury account, commit() also creates a
  * BankStatement + pre-matched BankTransaction via the existing
  * BankReconciliationService, so the new entries show up in the app's real
  * bank-reconciliation screens instead of only living in the journal.
+ *
+ * Chantier 36 — the treasury-account set is resolved dynamically from the
+ * real chart of accounts instead of a hardcoded 4-code list, so this
+ * genuinely supports multiple named caisses (any active class-5 account,
+ * not just one) as the real CAISSE data the app was adapted for actually
+ * has. The journal is derived from the code prefix: "57*" (Caisse) posts
+ * to CAI, everything else in class 5 (Banques/Instruments de monnaie
+ * électronique) posts to BNQ.
  */
 class TreasuryImportService
 {
-    /** Treasury account codes this feature accepts, and which journal each posts to. */
-    private const TREASURY_JOURNALS = [
-        '530' => 'CAI',
-        '512' => 'BNQ',
-        '531' => 'BNQ',
-        '532' => 'BNQ',
-    ];
-
     public function __construct(private BankReconciliationService $bankReconciliationService) {}
+
+    /** @return \Illuminate\Support\Collection<int, array{code: string, name: string, journal: string}> Active class-5 (Trésorerie) accounts, excluding the bare class root and the 59 "Dépréciations et provisions" family (a valuation/contra account, not a real place to post cash against). */
+    public function listTreasuryAccounts(): \Illuminate\Support\Collection
+    {
+        return $this->treasuryAccountsQuery()
+            ->orderBy('code')
+            ->get()
+            ->map(fn (ChartOfAccount $account) => [
+                'code' => $account->code,
+                'name' => $account->name,
+                'journal' => $this->journalCodeFor($account->code),
+            ]);
+    }
 
     public function isSupportedTreasuryAccount(string $code): bool
     {
-        return isset(self::TREASURY_JOURNALS[$code]);
+        return $this->treasuryAccountsQuery()->where('code', $code)->exists();
+    }
+
+    private function treasuryAccountsQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return ChartOfAccount::query()
+            ->where('is_active', true)
+            ->where('code', 'like', '5%')
+            ->where('code', '!=', '5')
+            ->where('code', 'not like', '59%');
+    }
+
+    private function journalCodeFor(string $treasuryAccountCode): string
+    {
+        return str_starts_with($treasuryAccountCode, '57') ? 'CAI' : 'BNQ';
     }
 
     /** @return \Illuminate\Support\Collection<int, OperationTemplate> */
@@ -97,7 +125,11 @@ class TreasuryImportService
     /**
      * Suggests a template per row (best match + up to 2 alternatives),
      * never leaving a row without a suggestion — falls back to the generic
-     * "autre_produit"/"autre_charge" template for the row's inferred nature.
+     * "recette_diverse"/"frais_divers" template for the row's inferred
+     * nature (Chantier 36 — the real seeded catalogue's generic
+     * catch-alls; the old "autre_produit"/"autre_charge" codes no longer
+     * exist once the catalogue was rebuilt from the real CAISSE
+     * categories).
      *
      * @param  list<array{date: string, description: string, amount: float}>  $rows
      * @return list<array{date: string, description: string, amount: float, nature: string, suggested_template_code: string, confidence: float, alternatives: list<string>}>
@@ -124,7 +156,7 @@ class TreasuryImportService
                 ->values();
 
             if ($scored->isEmpty()) {
-                $fallbackCode = $nature === 'encaissement' ? 'autre_produit' : 'autre_charge';
+                $fallbackCode = $nature === 'encaissement' ? 'recette_diverse' : 'frais_divers';
 
                 return [
                     ...$row,
@@ -159,14 +191,14 @@ class TreasuryImportService
         }
 
         $treasuryAccount = ChartOfAccount::where('code', $treasuryAccountCode)->firstOrFail();
-        $journal = Journal::where('code', self::TREASURY_JOURNALS[$treasuryAccountCode])->firstOrFail();
+        $journal = Journal::where('code', $this->journalCodeFor($treasuryAccountCode))->firstOrFail();
 
         $templatesByCode = $this->listTemplates()->keyBy('code');
         $accountsByCode = ChartOfAccount::whereIn('code', $templatesByCode->pluck('counterpart_account_code')->unique())
             ->get()->keyBy('code');
 
         $bankAccount = null;
-        if ($treasuryAccountCode !== '530' && $bankAccountId !== null) {
+        if (! str_starts_with($treasuryAccountCode, '57') && $bankAccountId !== null) {
             $bankAccount = BankAccount::findOrFail($bankAccountId);
         }
 

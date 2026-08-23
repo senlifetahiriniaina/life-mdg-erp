@@ -48,9 +48,11 @@ test('default seed provides raw-material and finished-good products, and compens
     expect(Product::where('sku', 'MD-DEFAUT')->exists())->toBeTrue();
     expect(Product::where('sku', 'SV-DEFAUT')->exists())->toBeTrue();
 
+    // Chantier 36: remapped onto the real chart — 6032 (matières
+    // premières/accessoires), 6031 (marchandises), 736 (produits finis).
+    expect(DB::table('acc_chart_of_accounts')->where('code', '6032')->exists())->toBeTrue();
     expect(DB::table('acc_chart_of_accounts')->where('code', '6031')->exists())->toBeTrue();
-    expect(DB::table('acc_chart_of_accounts')->where('code', '6037')->exists())->toBeTrue();
-    expect(DB::table('acc_chart_of_accounts')->where('code', '7135')->exists())->toBeTrue();
+    expect(DB::table('acc_chart_of_accounts')->where('code', '736')->exists())->toBeTrue();
 });
 
 test('default company profile is configured as a VAT-exempt SARL', function () {

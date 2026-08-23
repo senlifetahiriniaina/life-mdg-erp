@@ -179,7 +179,7 @@ class StatutorySchemes
                         'employer_rate'  => 0.13,
                         'ceiling'        => 2_000_000, // 8 × salaire minimum
                         'period'         => 'quarterly',
-                        'ohada_accounts' => ['expense' => '664', 'liability' => '4313'],
+                        'ohada_accounts' => ['expense' => '664', 'liability' => '4311'],
                     ],
                     'ostie' => [
                         'label'          => 'OSTIE — Organisation Sanitaire Inter-Entreprises',
@@ -189,7 +189,7 @@ class StatutorySchemes
                         'employer_rate'  => 0.05,
                         'ceiling'        => 2_000_000,
                         'period'         => 'monthly',
-                        'ohada_accounts' => ['expense' => '664', 'liability' => '4312'],
+                        'ohada_accounts' => ['expense' => '664', 'liability' => '4331'],
                     ],
                 ],
                 'income_tax' => [
@@ -207,7 +207,7 @@ class StatutorySchemes
                         [500_000, 600_000, 0.15],
                         [600_000, null,    0.20],
                     ],
-                    'ohada_accounts' => ['liability' => '447'],
+                    'ohada_accounts' => ['liability' => '4471'],
                 ],
             ],
 

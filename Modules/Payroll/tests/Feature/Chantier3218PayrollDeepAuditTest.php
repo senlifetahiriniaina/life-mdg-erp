@@ -68,6 +68,16 @@ function payroll3218User(Company $company, string $role): User
     if (\Spatie\Permission\Models\Permission::count() === 0) {
         test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
     }
+    // Chantier 37: postPayslipsToAccounting() (called by process-payment)
+    // resolves real chart-of-accounts codes via AccountRoleService, which
+    // now throws rather than silently posting a null account_id — the
+    // chart of accounts is only seeded by AccountingDatabaseSeeder, not by
+    // RolesAndPermissionsSeeder, same established gap already documented
+    // for Chantier22DepositBalanceTest/CostingSheetTest/
+    // Chantier19PayrollReauditTest.
+    if (\Modules\Accounting\Models\ChartOfAccount::count() === 0) {
+        test()->seed(\Modules\Accounting\Database\Seeders\AccountingDatabaseSeeder::class);
+    }
     \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
     $user = User::factory()->create(['company_id' => $company->id]);
     $user->assignRole($role);

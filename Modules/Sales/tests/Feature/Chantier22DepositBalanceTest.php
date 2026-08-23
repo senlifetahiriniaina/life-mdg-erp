@@ -126,7 +126,7 @@ test('paying the deposit then requesting and paying the balance completes the cy
         ->and($deposit->lines->firstWhere('credit', 300000)->account->code)->toBe('419');
 
     expect((float) $balance->lines->sum('debit'))->toBe(700000.0)
-        ->and($balance->lines->firstWhere('credit', 700000)->account->code)->toBe('411');
+        ->and($balance->lines->firstWhere('credit', 700000)->account->code)->toBe('41');
 });
 
 test('a second deposit request on an already-requested order is rejected', function () {
@@ -173,6 +173,52 @@ test('a company cannot request a deposit on another company\'s order', function 
     test()->actingAs($userB, 'sanctum')
         ->postJson("/api/v1/sales/orders/{$orderA->id}/deposit/request", ['percent' => 30])
         ->assertNotFound();
+});
+
+test('Chantier 37: with no override, the default_treasury_account/default_clients_account/avances_recues_clients roles produce the same journal accounts as before', function () {
+    // Regression: AccountRoleService::DEFAULT_ROLES mirrors exactly what this
+    // service hardcoded before Chantier 37 — 512/419/411 (via the account
+    // roles' current default codes 52/419/41) unless a tenant customizes.
+    $user = depositBalanceUser('G');
+    $order = depositBalanceOrder($user);
+
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/sales/orders/{$order->id}/deposit/request", ['percent' => 30])
+        ->assertOk();
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/sales/orders/{$order->id}/deposit/pay", ['amount' => 300000])
+        ->assertOk();
+
+    $order->refresh();
+    $entry = JournalEntry::where('reference_type', SalesOrder::class)->where('reference_id', $order->id)
+        ->with('lines.account')->first();
+
+    expect($entry->lines->firstWhere('debit', 300000)->account->code)->toBe('52');
+    expect($entry->lines->firstWhere('credit', 300000)->account->code)->toBe('419');
+});
+
+test('Chantier 37: overriding default_treasury_account/avances_recues_clients changes which accounts the deposit is posted to', function () {
+    $user = depositBalanceUser('H');
+    test()->actingAs($user, 'sanctum');
+
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('default_treasury_account', '57');
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('avances_recues_clients', '47');
+
+    $order = depositBalanceOrder($user);
+
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/sales/orders/{$order->id}/deposit/request", ['percent' => 30])
+        ->assertOk();
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/sales/orders/{$order->id}/deposit/pay", ['amount' => 300000])
+        ->assertOk();
+
+    $order->refresh();
+    $entry = JournalEntry::where('reference_type', SalesOrder::class)->where('reference_id', $order->id)
+        ->with('lines.account')->first();
+
+    expect($entry->lines->firstWhere('debit', 300000)->account->code)->toBe('57');
+    expect($entry->lines->firstWhere('credit', 300000)->account->code)->toBe('47');
 });
 
 test('the order detail web page (deposit/balance panel) is reachable', function () {

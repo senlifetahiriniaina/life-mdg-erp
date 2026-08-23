@@ -6,6 +6,7 @@ namespace Modules\Payroll\Providers;
 
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Accounting\Services\AccountRoleService;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Observers\PayslipObserver;
 use Modules\Payroll\Policies\PayrollPolicy;
@@ -18,7 +19,7 @@ class PayrollServiceProvider extends ServiceProvider
         $this->app->register(RouteServiceProvider::class);
 
         $this->app->singleton(PayrollIntegrationService::class, function ($app) {
-            return new PayrollIntegrationService();
+            return new PayrollIntegrationService($app->make(AccountRoleService::class));
         });
     }
 

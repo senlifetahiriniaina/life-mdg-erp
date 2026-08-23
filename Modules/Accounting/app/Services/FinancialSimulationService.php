@@ -40,6 +40,7 @@ class FinancialSimulationService
         protected FinancialReportService $reportService,
         protected SalesService $salesService,
         protected PurchaseOrderService $purchaseOrderService,
+        protected AccountRoleService $accountRoles,
     ) {
     }
 
@@ -191,10 +192,12 @@ class FinancialSimulationService
                 $realizedType = SalesOrder::class;
                 $realizedId = $order->id;
 
-                $accountCode411 = ChartOfAccount::where('code', '411')->first();
+                // Chantier 37 : compte résolu via AccountRoleService, configurable
+                // par tenant (même valeur par défaut que le remap Chantier 36, '41').
+                $clientsAccount = $this->accountRoles->resolveAccount('default_clients_account');
                 $entry = $this->postJournalEntry(
                     description: "Vente réalisée depuis simulation — {$order->reference}",
-                    debitAccountId: $accountCode411?->id,
+                    debitAccountId: $clientsAccount->id,
                     creditAccountId: $counterpartAccount->id,
                     amount: $amount,
                     referenceType: SalesOrder::class,
@@ -220,11 +223,13 @@ class FinancialSimulationService
                 $realizedType = PurchaseOrder::class;
                 $realizedId = $order->id;
 
-                $accountCode401 = ChartOfAccount::where('code', '401')->first();
+                // Chantier 37 : compte résolu via AccountRoleService, configurable
+                // par tenant (même valeur par défaut que le remap Chantier 36, '40').
+                $suppliersAccount = $this->accountRoles->resolveAccount('default_suppliers_account');
                 $entry = $this->postJournalEntry(
                     description: "Achat réalisé depuis simulation — {$order->po_number}",
                     debitAccountId: $counterpartAccount->id,
-                    creditAccountId: $accountCode401?->id,
+                    creditAccountId: $suppliersAccount->id,
                     amount: $amount,
                     referenceType: PurchaseOrder::class,
                     referenceId: $order->id,
@@ -257,7 +262,10 @@ class FinancialSimulationService
         int $userId,
     ): JournalEntry {
         if (! $debitAccountId || ! $creditAccountId) {
-            throw new \RuntimeException('Missing a required chart-of-account (411 Clients / 401 Fournisseurs) — check the seeded chart of accounts.');
+            // In practice always caught earlier by AccountRoleService::resolveAccount()
+            // (Chantier 37) for the two callers above — kept as defense-in-depth
+            // for postJournalEntry()'s own contract.
+            throw new \RuntimeException('Missing a required chart-of-account — check the accounting role settings (Comptabilité > Comptes de rôle).');
         }
 
         $entry = JournalEntry::create([

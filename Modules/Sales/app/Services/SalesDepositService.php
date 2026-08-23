@@ -6,13 +6,13 @@ namespace Modules\Sales\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Models\Invoice;
 use Modules\Accounting\Models\Journal;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\Accounting\Models\Payment;
 use Modules\CRM\Models\Account;
 use Modules\CRM\Models\Contact;
+use Modules\Accounting\Services\AccountRoleService;
 use Modules\Core\Services\ParticipantNotificationService;
 use Modules\Sales\Models\SalesOrder;
 
@@ -31,14 +31,17 @@ use Modules\Sales\Models\SalesOrder;
  *
  * Traitement comptable volontairement simplifié pour ce volet (documenté,
  * pas un bug) : le solde encaissé est comptabilisé comme une créance client
- * ordinaire (Crédit 411) sans lettrage automatique de l'avance 419 déjà
+ * ordinaire (Crédit 41) sans lettrage automatique de l'avance 419 déjà
  * reçue — un rapprochement manuel en fin de période reste nécessaire.
  * Construire ce lettrage automatique est un chantier comptable à part
  * entière, hors du périmètre de "activer le cycle acompte/solde".
  */
 class SalesDepositService
 {
-    public function __construct(private readonly ParticipantNotificationService $notifications) {}
+    public function __construct(
+        private readonly ParticipantNotificationService $notifications,
+        private readonly AccountRoleService $accountRoles,
+    ) {}
 
     public function requestDeposit(SalesOrder $order, float $percent, ?int $userId): SalesOrder
     {
@@ -198,12 +201,19 @@ class SalesDepositService
     }
 
     /**
-     * Débit trésorerie (512 Banque par défaut) / Crédit 419 pour un
-     * acompte encaissé, ou Crédit 411 pour un solde — voir le docblock de
-     * classe pour la simplification assumée (pas de lettrage 419→411).
+     * Débit trésorerie (rôle default_treasury_account) / Crédit avances
+     * reçues clients pour un acompte encaissé, ou Crédit clients pour un
+     * solde — voir le docblock de classe pour la simplification assumée
+     * (pas de lettrage avances→clients).
+     *
+     * Chantier 37 : les comptes ne sont plus des codes en dur mais résolus
+     * via AccountRoleService (Modules\Settings, module 'accounting') —
+     * configurable par tenant, avec les mêmes valeurs par défaut que le
+     * remap Chantier 36 (52/419/41), donc zéro changement de comportement
+     * tant qu'aucun override n'est configuré.
      *
      * Échoue fort (RuntimeException) plutôt que silencieusement si le
-     * journal VTE ou les comptes 512/419/411 ne sont pas seedés — un
+     * journal VTE ou un compte de rôle n'est pas résolvable — un
      * paiement "réussi" sans écriture comptable serait pire qu'un échec
      * explicite (voir le commentaire dans recordDepositPayment()/
      * recordBalancePayment() ci-dessus, corrigé après un vrai test Pest
@@ -214,13 +224,14 @@ class SalesDepositService
     private function postJournalEntry(SalesOrder $order, float $amount, string $kind, ?int $userId): void
     {
         $journal = Journal::where('code', 'VTE')->first();
-        $treasuryAccount = ChartOfAccount::where('code', '512')->first();
-        $counterpartCode = $kind === 'sale_deposit' ? '419' : '411';
-        $counterpartAccount = ChartOfAccount::where('code', $counterpartCode)->first();
-
-        if ($journal === null || $treasuryAccount === null || $counterpartAccount === null) {
-            throw new \RuntimeException('Plan comptable incomplet : journal VTE ou compte 512/419/411 introuvable.');
+        if ($journal === null) {
+            throw new \RuntimeException('Plan comptable incomplet : journal VTE introuvable.');
         }
+
+        $treasuryAccount = $this->accountRoles->resolveAccount('default_treasury_account');
+        $counterpartAccount = $this->accountRoles->resolveAccount(
+            $kind === 'sale_deposit' ? 'avances_recues_clients' : 'default_clients_account'
+        );
 
         $label = $kind === 'sale_deposit'
             ? "Acompte reçu — commande {$order->reference}"

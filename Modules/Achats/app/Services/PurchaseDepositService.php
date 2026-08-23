@@ -6,11 +6,11 @@ namespace Modules\Achats\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Models\Invoice;
 use Modules\Accounting\Models\Journal;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\Accounting\Models\Payment;
+use Modules\Accounting\Services\AccountRoleService;
 use Modules\Achats\Models\PurchaseOrder;
 use Modules\Achats\Models\Supplier;
 use Modules\Core\Services\ParticipantNotificationService;
@@ -28,7 +28,10 @@ use Modules\Core\Services\ParticipantNotificationService;
  */
 class PurchaseDepositService
 {
-    public function __construct(private readonly ParticipantNotificationService $notifications) {}
+    public function __construct(
+        private readonly ParticipantNotificationService $notifications,
+        private readonly AccountRoleService $accountRoles,
+    ) {}
 
     public function requestDeposit(PurchaseOrder $po, float $percent, ?int $userId): PurchaseOrder
     {
@@ -182,23 +185,29 @@ class PurchaseDepositService
     }
 
     /**
-     * Débit 4091 (acompte) ou 401 (solde) / Crédit trésorerie (512) — sens
-     * inversé par rapport à SalesDepositService puisqu'il s'agit d'un
-     * décaissement, pas d'un encaissement. Échoue fort si le plan comptable
-     * n'est pas seedé — voir le commentaire équivalent dans
-     * SalesDepositService::postJournalEntry(). Appelée à l'intérieur du
-     * DB::transaction() du site d'appel.
+     * Débit avances versées fournisseurs (acompte) ou compte fournisseurs
+     * (solde) / Crédit trésorerie — sens inversé par rapport à
+     * SalesDepositService puisqu'il s'agit d'un décaissement, pas d'un
+     * encaissement.
+     *
+     * Chantier 37 : comptes résolus via AccountRoleService (configurable
+     * par tenant), mêmes valeurs par défaut que le remap Chantier 36
+     * (52/4091/40) — voir le commentaire équivalent dans
+     * SalesDepositService::postJournalEntry(). Échoue fort si un rôle n'est
+     * pas résolvable. Appelée à l'intérieur du DB::transaction() du site
+     * d'appel.
      */
     private function postJournalEntry(PurchaseOrder $po, float $amount, string $kind, ?int $userId): void
     {
         $journal = Journal::where('code', 'ACH')->first();
-        $treasuryAccount = ChartOfAccount::where('code', '512')->first();
-        $counterpartCode = $kind === 'purchase_deposit' ? '4091' : '401';
-        $counterpartAccount = ChartOfAccount::where('code', $counterpartCode)->first();
-
-        if ($journal === null || $treasuryAccount === null || $counterpartAccount === null) {
-            throw new \RuntimeException('Plan comptable incomplet : journal ACH ou compte 512/4091/401 introuvable.');
+        if ($journal === null) {
+            throw new \RuntimeException('Plan comptable incomplet : journal ACH introuvable.');
         }
+
+        $treasuryAccount = $this->accountRoles->resolveAccount('default_treasury_account');
+        $counterpartAccount = $this->accountRoles->resolveAccount(
+            $kind === 'purchase_deposit' ? 'avances_versees_fournisseurs' : 'default_suppliers_account'
+        );
 
         $label = $kind === 'purchase_deposit'
             ? "Acompte versé — commande {$po->po_number}"
