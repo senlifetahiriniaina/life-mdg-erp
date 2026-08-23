@@ -20,6 +20,8 @@ La stack utilisée est **Docker Compose + Caddy** (`docker-compose.prod.yml` + `
 
 Ces deux étapes doivent être faites avant de lancer le script — rien ne peut les automatiser depuis ce dépôt.
 
+> **Vous provisionnez sur AWS Lightsail et n'avez pas encore de serveur ?** `scripts/lightsail-deploy.sh` automatise la création de l'instance, l'IP statique, et le pointage DNS via la zone DNS Lightsail — voir [docs/07-DEPLOIEMENT/AWS-LIGHTSAIL.md](AWS-LIGHTSAIL.md). Une fois ce script exécuté, revenez ici à la section [Déploiement](#déploiement) ci-dessous.
+
 ### 1. Un serveur (VPS) avec Docker installé
 
 N'importe quel VPS Linux avec au moins 2 Go de RAM convient. Installez Docker (avec le plugin Compose v2) en suivant [la documentation officielle](https://docs.docker.com/engine/install/) — la commande d'installation exacte dépend de la distribution de votre serveur.
