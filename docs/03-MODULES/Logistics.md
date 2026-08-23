@@ -99,3 +99,16 @@ Le middleware `module:Logistics` appliqué aux routes suppose l'existence d'un m
 ## Chantier 10 (re-vérification)
 
 Module le plus propre des trois de ce chantier : re-audit complet route → contrôleur → modèle → API → vue → RBAC, aucun contrôleur stub trouvé (aucune occurrence de « Implementation to follow » nulle part dans `app/Http/Controllers`), aucune route morte (chaque méthode routée existe réellement), et les 3 fichiers de `app/Policies/` correspondent exactement aux 3 `Gate::policy()` déjà enregistrées depuis le Chantier 8.3 (pas de policy orpheline). Seule trouvaille : les deux groupes de routes `ai/assist`/visibilité (voir Endpoints principaux, corrigé). `$fillable` de `CarrierRate`, `LogisticsRoute`, `FreightInvoice`, `CustomsDeclaration`, `Location` confirmés alignés avec les colonnes réellement migrées ; `PutawayRule::$fillable` reste divergent du schéma réel mais c'est un fait déjà documenté et sans impact — le contrôleur contourne le modèle Eloquent entièrement via `DB::table()` brut (voir Services ci-dessus).
+
+## Chantier 32.23 — audit approfondi en 14 couches
+
+Voir l'entrée `CLAUDE.md` correspondante pour le détail complet. Résumé :
+
+- **Perte de données silencieuse sur les arrêts de tournée corrigée** : `DeliveryRoundController::addStop()` (et le tableau `stops` inline de `store()`) ne persistait que `shipment_id`/`stop_order` — `location_id`, `delivery_window`, `address`, `contact_name`, `notes` (tous envoyés par la vraie page) étaient silencieusement `NULL` sur chaque création réelle, `DeliveryStop::$fillable` ne les déclarant pas. Corrigé (modèle + contrôleur).
+- **Filtres confirmés no-op corrigés** : `Carriers/Index.vue` envoie `is_active`/`search`, `Shipments/Index.vue` envoie `search` — aucun des trois n'était jamais lu par les contrôleurs. Corrigés pour filtrer réellement.
+- **IDOR cross-tenant fermé sur `CustomsRouteController`** (`GET/PUT logistics/customs/{id}`/`submit`/`clear`) — réutilise le scoping `tenant_id` déjà établi au Chantier 19 Lot 4 sur le frère `CustomsDeclarationController`. Le cloisonnement par société à l'échelle du module (~12 modèles sans colonne de société) reste un gap de la taille d'un chantier, documenté dans `CLAUDE.md`, non corrigé ici.
+- **Code mort supprimé** : `CustomsService::getPendingDeclarations()` (zéro appelant + 2 bugs indépendants — mauvaise colonne, relation inexistante) et `RouteController::optimize()` (stub supplanté par le vrai solveur VRP `RouteOptimizationController`/`RouteOptimizerService`).
+- **Déduplication des webhooks de suivi activée** : `TrackingEventController` accepte désormais `idempotency_key`/`provider_event_id` et refuse les doublons de rejeu (colonnes réelles déjà migrées, jamais lues).
+- **`FreightInvoiceController::approve()`/`dispute()` resserrés** hors du rôle large `warehouse-operator` (action financière) ; `logistics-manager` conserve l'accès.
+- **`CarrierIntegrationService::bookDhl()`** lisait `total_weight_kg`, colonne inexistante (la vraie : `weight_kg`) — corrigé.
+- **IA** : bug de colonne fantôme `users.role` corrigé sur `LogisticsAiAssistController` + 6 nouvelles actions de guidance (`view_dashboard`, `plan_delivery_round`, `manage_freight_invoices`, `manage_customs`, `view_analytics`, `optimize_routes`) avec repli réel fr+en, câblées sur les vraies pages.

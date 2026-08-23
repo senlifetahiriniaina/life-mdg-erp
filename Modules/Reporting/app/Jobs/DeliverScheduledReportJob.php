@@ -77,9 +77,13 @@ class DeliverScheduledReportJob implements ShouldQueue
         }
 
         $format = match ($definition->output_format) {
-            'excel' => 'xlsx',
-            'pdf'   => 'pdf',
-            default => 'pdf',
+            // Chantier 32.26 fix: the seeded templates' real vocabulary is
+            // 'xlsx' (not 'excel') — without this arm every xlsx-format
+            // template silently fell through to the default and was
+            // delivered as PDF.
+            'excel', 'xlsx' => 'xlsx',
+            'pdf'           => 'pdf',
+            default         => 'pdf',
         };
 
         $execution = ReportExecution::create([

@@ -197,17 +197,28 @@ test('masse-salariale-mensuelle now runs real SQL against payslips + hr_employee
 // ─── ReportGenerationService::run()'s parallel executor also fixed ─────────────
 
 test('ReportGenerationService::run() also correctly dispatches an OHADA system report and no longer hardcodes tenant_id/executed_by to 1', function () {
+    User::factory()->create(); // burns users.id = 1 — see the comment below
     $user = chantier3222ReportingUser();
     $this->seed(ReportTemplateSeeder::class);
 
     $report = ReportDefinition::where('slug', 'balance-agee-clients')->firstOrFail();
+
+    // run() derives executed_by from the real auth context (auth()->id() —
+    // null in the queued-job context of its real caller,
+    // DeliverScheduledReportJob, whose own test below covers that path).
+    // Here a user IS authenticated (chantier3222ReportingUser), so the
+    // meaningful assertion is that executed_by equals the *real*
+    // authenticated id rather than the old hardcoded 1 — made
+    // non-vacuous by burning id 1 on a throwaway user first, so the acting
+    // user's id genuinely differs from the old hardcoded value.
+    expect($user->id)->not->toBe(1);
 
     $execution = app(\Modules\Reporting\Services\ReportGenerationService::class)
         ->run($report, [], 'json');
 
     expect($execution->status)->toBe('completed')
         ->and($execution->tenant_id)->not->toBe(1)
-        ->and($execution->executed_by)->toBeNull()
+        ->and($execution->executed_by)->toBe($user->id)
         ->and($execution->result_count)->toBe(1)
         ->and($execution->result_data[0]['report_type'])->toBe('balance_agee_clients');
 });
@@ -287,9 +298,12 @@ test('DeliverScheduledReportJob runs a real system report, emails it, and advanc
     expect($schedule->last_run_at)->not->toBeNull()
         ->and($schedule->next_run_at->isAfter(now()))->toBeTrue();
 
-    Mail::assertSent(function ($mailable) {
-        return true;
-    });
+    // NOT asserted here: the delivery path uses Mail::raw(), and
+    // MailFake::raw() is a literal no-op in the framework itself (confirmed
+    // by reading vendor/.../MailFake.php — the method body is empty), so a
+    // raw send can never be observed via Mail::assertSent(). Mail::fake()
+    // above still prevents any real SMTP attempt; the observable outcomes
+    // (execution completed, schedule advanced) are what this test locks in.
 
     $execution = \Modules\Reporting\Models\ReportExecution::where('report_definition_id', $report->id)
         ->where('tenant_id', $user->company_id)

@@ -167,7 +167,7 @@ class ReportGenerationService
                 $sheet->fromArray([$headers], null, 'A1');
                 $rowIdx = 2;
                 foreach ($data as $row) {
-                    $sheet->fromArray([array_values((array) $row)], null, "A{$rowIdx}");
+                    $sheet->fromArray([array_map([$this, 'scalarize'], array_values((array) $row))], null, "A{$rowIdx}");
                     $rowIdx++;
                 }
             }
@@ -366,6 +366,26 @@ class ReportGenerationService
         );
     }
 
+    /**
+     * Chantier 32.26: OHADA report payloads carry nested arrays (actif/
+     * passif rubriques, aged-balance buckets) — every generic export path
+     * below used a bare `(string) $value` cast, an "Array to string
+     * conversion" error the first time a real OHADA execution was ever
+     * exported (found by actually running DeliverScheduledReportJob end to
+     * end). Non-scalar cells are JSON-encoded rather than dropped, so the
+     * exported file stays faithful to the real data.
+     */
+    private function scalarize(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return is_scalar($value)
+            ? (string) $value
+            : (string) json_encode($value, JSON_UNESCAPED_UNICODE);
+    }
+
     private function buildCsvContent(array $data): string
     {
         if (empty($data)) {
@@ -385,7 +405,7 @@ class ReportGenerationService
 
     private function csvEscape(mixed $value): string
     {
-        $str = (string) ($value ?? '');
+        $str = $this->scalarize($value);
         if (str_contains($str, ',') || str_contains($str, '"') || str_contains($str, "\n")) {
             return '"' . str_replace('"', '""', $str) . '"';
         }
@@ -413,7 +433,7 @@ class ReportGenerationService
             $bodyRows   = '';
             foreach (array_slice($data, 0, 5000) as $i => $row) {
                 $rowClass  = $i % 2 === 0 ? 'even' : 'odd';
-                $cells     = implode('', array_map(fn ($v) => '<td>' . htmlspecialchars((string) ($v ?? '')) . '</td>', (array) $row));
+                $cells     = implode('', array_map(fn ($v) => '<td>' . htmlspecialchars($this->scalarize($v)) . '</td>', (array) $row));
                 $bodyRows .= "<tr class=\"{$rowClass}\">{$cells}</tr>";
             }
             $tableHtml = "<table><thead><tr>{$headerHtml}</tr></thead><tbody>{$bodyRows}</tbody></table>";

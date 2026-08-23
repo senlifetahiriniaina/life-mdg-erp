@@ -33,6 +33,17 @@ class ReportTemplateSeeder extends Seeder
         $templates = $this->getTemplates();
 
         foreach ($templates as $template) {
+            // Chantier 32.26 fix: 'config'/'schedule' are documentation-only
+            // metadata in the template arrays below — neither column has ever
+            // existed on report_definitions ('config' is a ReportWidget
+            // concept, recurring delivery lives on report_schedules). This
+            // was invisible until the seeder was first actually wired into
+            // DatabaseSeeder, because Laravel's db:seed command runs every
+            // seeder inside Model::unguarded() — $fillable never filters
+            // during seeding, so the phantom keys reached the real SQL insert
+            // and fataled on the very first real seed run.
+            unset($template['config'], $template['schedule']);
+
             ReportDefinition::updateOrCreate(
                 ['slug' => $template['slug']],
                 $template,
@@ -475,7 +486,16 @@ JOIN hr_employees e         ON e.id = ps.employee_id
 LEFT JOIN hr_departments d  ON d.id = e.department_id
 WHERE ps.tenant_id = {{tenant_id}}
   AND ps.status    = 'approved'
-  AND ps.period    = {{period}}
+  -- Chantier 32.26 fix (found by actually running this template): Payslip
+  -- casts `period` as `date`, so the stored value is '2026-08-01 00:00:00'
+  -- and an equality against a bare 'Y-m' period param can never match. A
+  -- portable month-range on the auto-injected month_start/month_end
+  -- placeholders matches the real stored shape on sqlite and MySQL alike
+  -- (same pattern as the synthese-ventes template above). NB: no {{...}}
+  -- tokens may appear in SQL comments — the placeholder regex substitutes
+  -- them even inside comments, desyncing bindings from real placeholders.
+  AND ps.period   >= {{month_start}}
+  AND ps.period   <  {{month_end}}
 GROUP BY d.name
 ORDER BY masse_brute DESC
 SQL,

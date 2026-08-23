@@ -307,8 +307,12 @@ class Chantier3225DeepAuditTest extends TestCase
         // Zero current headcount + a real confirmed sales order => a guaranteed
         // positive hiring gap, forcing the suggestRoles() branch that used to
         // query the never-migrated job_postings table.
+        // Fixture correction (main-thread consolidation): sales_orders.created_by
+        // is NOT NULL — the raw insert needs a real user id.
+        $creator = User::factory()->create();
         \Illuminate\Support\Facades\DB::table('sales_orders')->insert([
             'tenant_id' => $company->id, 'reference' => 'SO-TEST-1', 'status' => 'confirmed', 'total' => 1_000_000,
+            'created_by' => $creator->id,
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
