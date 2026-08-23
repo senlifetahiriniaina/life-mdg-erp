@@ -1,0 +1,63 @@
+# ─── GOOGLE CLOUD PLATFORM — paramètres de provisionnement ────────────────────
+# Copiez ce fichier vers deploy/gcp.config (gitignoré) et éditez les valeurs
+# avant de lancer scripts/gcp-deploy.sh. Ce fichier ne contient aucune clé
+# GCP — l'authentification passe par `gcloud auth login` ou un compte de
+# service déjà configuré localement (`gcloud auth activate-service-account`),
+# jamais par un secret stocké ici.
+#
+# Voir docs/07-DEPLOIEMENT/GCP.md pour la marche à suivre complète.
+
+# ─── Projet ────────────────────────────────────────────────────────────────
+# ID du projet GCP dans lequel provisionner l'instance (obligatoire — GCP
+# n'a pas de notion de compte "plat" comme AWS Lightsail, tout appartient à
+# un projet). Liste vos projets avec `gcloud projects list`.
+GCP_PROJECT_ID=
+
+# ─── Instance ──────────────────────────────────────────────────────────────
+# Zone où provisionner l'instance et l'IP statique (ex. europe-west1-b pour
+# Belgique, europe-west9-a pour Paris). La région est dérivée automatiquement
+# de cette zone. Liste complète : `gcloud compute zones list`.
+GCP_ZONE=europe-west1-b
+
+# Nom de l'instance Compute Engine (identifiant unique dans le projet).
+GCP_INSTANCE_NAME=life-mdg-erp
+
+# Type de machine (taille/plan). Cette stack fait tourner php-fpm + mysql +
+# redis + un worker de file d'attente + un scheduler + reverb + caddy sur
+# une seule machine — un type avec au moins 4 Go de RAM est recommandé.
+# Liste des types disponibles dans votre zone :
+# `gcloud compute machine-types list --zones=$GCP_ZONE`.
+GCP_MACHINE_TYPE=e2-medium
+
+# Image de base de l'instance (famille + projet propriétaire de l'image).
+# Liste : `gcloud compute images list --project=$GCP_IMAGE_PROJECT`.
+GCP_IMAGE_FAMILY=ubuntu-2204-lts
+GCP_IMAGE_PROJECT=ubuntu-os-cloud
+
+# ─── Accès SSH ─────────────────────────────────────────────────────────────
+# Nom d'utilisateur Linux à créer sur l'instance pour l'accès SSH.
+GCP_SSH_USERNAME=erp
+
+# Chemin local vers une clé publique SSH existante à injecter dans les
+# métadonnées de l'instance (ex. ~/.ssh/id_ed25519.pub). Laissez vide pour
+# laisser `gcloud compute ssh` gérer sa propre paire de clés éphémère au
+# premier usage — contrairement à AWS Lightsail, aucune clé privée n'est
+# téléchargée ni gitignorée dans ce dépôt côté GCP.
+GCP_SSH_PUBLIC_KEY_FILE=
+
+# ─── Domaine / sous-domaine ────────────────────────────────────────────────
+# Nom de domaine racine, déjà enregistré chez un bureau d'enregistrement
+# quelconque (ce script ne l'achète pas). Une zone Cloud DNS sera créée
+# pour ce domaine — après le premier lancement, vous devrez déléguer les
+# serveurs de noms (NS) affichés vers Cloud DNS chez votre bureau
+# d'enregistrement (étape manuelle, non scriptable — voir la documentation).
+GCP_DOMAIN=example.com
+
+# Sous-domaine sur lequel l'application sera exposée (ex. "erp" pour
+# erp.example.com). Laissez vide pour utiliser directement le domaine racine.
+GCP_SUBDOMAIN=erp
+
+# ─── Renseigné automatiquement par scripts/gcp-deploy.sh ──────────────────
+# Adresse IP statique réellement allouée — purement informatif, jamais lu
+# comme entrée par le script (toujours résolu depuis l'API Compute Engine).
+GCP_SERVER_IP=
