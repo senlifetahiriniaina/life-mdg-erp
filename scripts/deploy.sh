@@ -13,7 +13,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 COMPOSE_FILE="docker-compose.prod.yml"
-REQUIRED_VARS=(APP_DOMAIN DB_DATABASE DB_USERNAME DB_PASSWORD DB_ROOT_PASSWORD APP_KEY)
+REQUIRED_VARS=(APP_DOMAIN DB_DATABASE DB_USERNAME DB_PASSWORD DB_ROOT_PASSWORD MEILISEARCH_KEY APP_KEY)
 
 log()  { printf '\033[1;32m[deploy]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[deploy]\033[0m %s\n' "$1"; }
@@ -31,6 +31,7 @@ if [ ! -f .env ]; then
     warn "  APP_DOMAIN       — le nom de domaine de l'application (ex. erp.example.com)"
     warn "  DB_DATABASE / DB_USERNAME / DB_PASSWORD — identifiants de la base applicative"
     warn "  DB_ROOT_PASSWORD — mot de passe root MySQL (nouvelle variable, à ajouter dans .env)"
+    warn "  MEILISEARCH_KEY  — clé partagée avec le conteneur meilisearch (ex. openssl rand -hex 32)"
     warn "  APP_KEY          — laissez vide, ce script le génère automatiquement au premier lancement"
     exit 1
 fi

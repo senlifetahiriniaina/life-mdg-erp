@@ -14,6 +14,7 @@ La stack utilisée est **Docker Compose + Caddy** (`docker-compose.prod.yml` + `
 | `reverb` | Serveur WebSocket (`php artisan reverb:start`) — notifications temps réel et messagerie interne (voir `CLAUDE.md` § Chantier 20), relayé par Caddy sur `/app/*` |
 | `mysql` | Base de données (MySQL 8.4, volume persistant, non exposée sur Internet) |
 | `redis` | Cache/session/queue (volume persistant, non exposée sur Internet) |
+| `meilisearch` | Moteur de recherche indexé par Laravel Scout (recherche CRM — voir `CLAUDE.md` § Chantier 34), volume persistant, non exposée sur Internet |
 | `caddy` | Reverse-proxy + certificat SSL automatique (seul service exposé sur 80/443) |
 
 ## Prérequis (étapes manuelles, non scriptables)
@@ -67,6 +68,7 @@ DB_DATABASE=life_mdg_erp
 DB_USERNAME=life_mdg
 DB_PASSWORD=<mot-de-passe-fort>
 DB_ROOT_PASSWORD=<mot-de-passe-fort-différent>
+MEILISEARCH_KEY=<clé-forte-ex-openssl-rand--hex-32>
 APP_ENV=production
 APP_DEBUG=false
 ```
@@ -92,7 +94,7 @@ Ce script (idempotent — peut être relancé sans risque, y compris après un `
 
 - Ouvrez `https://votre-domaine` dans un navigateur — le cadenas SSL doit apparaître (certificat émis par Let's Encrypt, visible en cliquant sur le cadenas).
 - `curl https://votre-domaine/api/health` doit répondre `200`.
-- `docker compose -f docker-compose.prod.yml ps` doit lister 7 services (`app`, `queue`, `scheduler`, `reverb`, `mysql`, `redis`, `caddy` — `app-publish` s'arrête normalement une fois `public/` copié, ne pas s'attendre à le voir `Up`), tous `Up` (et `app` en `healthy`).
+- `docker compose -f docker-compose.prod.yml ps` doit lister 8 services (`app`, `queue`, `scheduler`, `reverb`, `mysql`, `redis`, `meilisearch`, `caddy` — `app-publish` s'arrête normalement une fois `public/` copié, ne pas s'attendre à le voir `Up`), tous `Up` (et `app` en `healthy`).
 
 ## Mettre à jour l'application
 

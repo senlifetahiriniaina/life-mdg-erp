@@ -6,7 +6,7 @@
 - [ ] Toutes les variables de `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md` "à changer impérativement" sont configurées
 - [ ] Les 6 secrets GitHub requis par `deploy.yml` sont configurés (`DEPLOY_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SLACK_WEBHOOK_URL`, `SMOKE_TEST_TOKEN`)
 - [x] `scripts/smoke-tests.js` est écrit (Chantier 11 — voir `docs/07-DEPLOIEMENT/README.md`)
-- [ ] `APP_DOMAIN`/`DB_ROOT_PASSWORD` configurés dans `.env` sur le serveur cible, DNS de `APP_DOMAIN` vérifié propagé (`dig +short $APP_DOMAIN`) — voir `docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md`
+- [ ] `APP_DOMAIN`/`DB_ROOT_PASSWORD`/`MEILISEARCH_KEY` configurés dans `.env` sur le serveur cible, DNS de `APP_DOMAIN` vérifié propagé (`dig +short $APP_DOMAIN`) — voir `docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md`
 - [ ] `scripts/deploy.sh` exécuté avec succès une première fois sur le serveur cible (initialise `DEPLOY_PATH` pour `deploy.yml`)
 - [ ] `php artisan migrate:fresh --seed` s'exécute sans erreur sur une base de données de type production (MySQL, pas SQLite)
 - [ ] `vendor/bin/pest` passe (les échecs pré-existants documentés dans `CLAUDE.md` sous "Known gaps" sont acceptés comme backlog, pas comme bloquants — mais aucun échec *nouveau* ne doit apparaître)
@@ -16,6 +16,7 @@
 - [ ] Health check (`GET /api/health`) répond correctement depuis l'infrastructure de monitoring cible
 - [ ] `ANTHROPIC_API_KEY` configurée si les guidances IA dynamiques sont souhaitées dès le lancement (sinon repli statique automatique, non bloquant)
 - [ ] Temps réel (notifications, Messaging — voir `CLAUDE.md` § Chantier 20) fonctionnel après déploiement : ouvrir la console développeur du navigateur sur l'app déployée, confirmer une connexion WebSocket établie vers `wss://$APP_DOMAIN/app/...` (pas d'erreur de connexion refusée) — `docker compose -f docker-compose.prod.yml ps reverb` doit être `Up`
+- [ ] Recherche CRM (Meilisearch — voir `CLAUDE.md` § Chantier 34) fonctionnelle : créer un contact CRM de test via l'API/l'UI ne renvoie pas d'erreur 500 — `docker compose -f docker-compose.prod.yml ps meilisearch` doit être `Up`
 
 ## Après le premier déploiement
 
