@@ -12,9 +12,14 @@
       </div>
     </div>
 
-    <TabView v-model:activeIndex="activeTab">
+    <Tabs v-model:value="activeTab">
+      <TabList>
+        <Tab value="0">Expéditions</Tab>
+        <Tab value="1">Transporteurs</Tab>
+      </TabList>
+      <TabPanels>
       <!-- Onglet Expéditions -->
-      <TabPanel value="0" header="Expéditions">
+      <TabPanel value="0">
         <!-- KPIs -->
         <div class="wh-kpi-grid" style="margin-bottom: 24px">
           <div class="wh-kpi-card">
@@ -148,7 +153,7 @@
       </TabPanel>
 
       <!-- Onglet Transporteurs -->
-      <TabPanel value="1" header="Transporteurs">
+      <TabPanel value="1">
         <div style="display: flex; justify-content: flex-end; margin-bottom: 16px">
           <Button label="Ajouter un transporteur" icon="pi pi-plus" @click="showCarrierDialog = true" />
         </div>
@@ -174,7 +179,8 @@
           Aucun transporteur configuré
         </div>
       </TabPanel>
-    </TabView>
+      </TabPanels>
+    </Tabs>
 
     <!-- Dialog: Nouvelle expédition -->
     <Dialog v-model:visible="showNewShipmentDialog" header="Nouvelle expédition" :style="{ width: '640px' }" modal>
@@ -319,8 +325,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown } from 'primevue'
-import TabView from 'primevue/tabview'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Select as Dropdown } from 'primevue'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 
 interface Carrier {
@@ -361,7 +370,7 @@ interface TrackingEvent {
   occurred_at: string
 }
 
-const activeTab = ref(0)
+const activeTab = ref('0')
 const shipments = ref<Shipment[]>([])
 const carriers = ref<Carrier[]>([])
 const loading = ref(false)

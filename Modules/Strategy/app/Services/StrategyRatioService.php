@@ -22,13 +22,13 @@ class StrategyRatioService
      * is the current KPI value pulled from the registry for $module:$key.
      * Guards against division by zero (returns 0.0 rather than INF/NAN).
      */
-    public function calculate(string $module, string $key, float $denominator): float
+    public function calculate(string $module, string $key, float $denominator, ?string $tenantId = null): float
     {
         if ($denominator === 0.0) {
             return 0.0;
         }
 
-        $numerator = $this->registry->getValue($module, $key);
+        $numerator = $this->registry->getValue($module, $key, $tenantId);
 
         return (float) ($numerator / $denominator);
     }
@@ -585,10 +585,19 @@ class StrategyRatioService
     private function enrichRatio(array $ratio, string $tenantId): array
     {
         [$module, $key] = explode(':', $ratio['kpi_key'] . ':');
-        $currentValue   = $this->registry->getValue($module, $key);
+        // Chantier 32.27: $tenantId was received here but never forwarded to
+        // the registry — see KPIRegistryService's own class docblock for the
+        // full rationale (every ratio silently aggregated every company's
+        // data together until this fix).
+        $currentValue   = $this->registry->getValue($module, $key, $tenantId);
         $benchmarkData  = $this->benchmark->getForRatio($ratio['key'], $tenantId);
         $status         = $this->computeStatus($ratio, $currentValue, $benchmarkData['median'] ?? null);
-        $trend          = $this->generateMockTrend($currentValue, $ratio['direction']);
+        // Chantier 32.27: prefer real historical snapshots (now actually
+        // populated by strategy:snapshot-ratios, see that command's
+        // docblock) over the synthetic mock trend — fallback-first, since a
+        // fresh install/company has no snapshot history yet.
+        $trend = $this->realTrend($tenantId, $module, $ratio['key'])
+            ?? $this->generateMockTrend($currentValue, $ratio['direction']);
 
         return array_merge($ratio, [
             'current_value'   => $currentValue,
@@ -636,6 +645,26 @@ class StrategyRatioService
         // Linear interpolation between P25 and P75
         $pct = ($value - $p25) / ($p75 - $p25) * 50 + 25;
         return (int) round($pct);
+    }
+
+    /**
+     * @return array<int, float>|null null when fewer than 2 real snapshots
+     *                                 exist yet for this tenant/ratio.
+     */
+    private function realTrend(string $tenantId, string $module, string $ratioKey): ?array
+    {
+        $history = $this->getHistory($tenantId, $module, $ratioKey, limit: 6);
+
+        if (count($history) < 2) {
+            return null;
+        }
+
+        // getHistory() orders newest-first — reverse to chronological order
+        // for a left-to-right sparkline.
+        return array_values(array_map(
+            static fn (array $row) => (float) $row['value'],
+            array_reverse($history)
+        ));
     }
 
     private function generateMockTrend(float $currentValue, string $direction): array

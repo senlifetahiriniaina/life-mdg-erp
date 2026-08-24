@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="Shift Schedule" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="space-y-6">
       <!-- Page header -->
       <div class="flex items-center justify-between">
@@ -191,7 +195,7 @@ import axios from 'axios'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
-import Calendar from 'primevue/calendar'
+import Calendar from 'primevue/datepicker'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import InputMask from 'primevue/inputmask'
@@ -202,6 +206,8 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 // Chantier 8.3: this page originally modeled a per-date monthly calendar
 // (a Shift with a single `date` field), but the only real backend —
@@ -235,6 +241,11 @@ interface Employee {
 const DAY_LABELS: Record<number, string> = {
   1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun',
 }
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'manage_shifts')
 
 const shifts = ref<ShiftScheduleRow[]>([])
 const employees = ref<Employee[]>([])

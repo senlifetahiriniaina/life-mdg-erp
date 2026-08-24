@@ -46,6 +46,39 @@ class Chantier10PurchaseReceiptsTest extends TestCase
 
     public function test_can_create_a_purchase_receipt_with_lines()
     {
+        // Chantier 32.13: createReceipt() now requires an 'approved' PO —
+        // $this->po (used by the line-creation test below) must stay
+        // 'draft' since addLineItem() itself requires draft, so this test
+        // uses its own dedicated approved PO instead.
+        $po = PurchaseOrder::factory()->create(['supplier_id' => $this->supplier->id, 'status' => 'approved']);
+        $poLine = PurchaseOrderLine::factory()->create(['purchase_order_id' => $po->id, 'quantity' => 10]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/v1/achats/purchase-receipts', [
+                'purchase_order_id' => $po->id,
+                'receipt_date' => now()->toDateString(),
+                'lines' => [
+                    ['po_line_id' => $poLine->id, 'quantity_received' => 8, 'quality_status' => 'good'],
+                ],
+            ]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('purchase_order.id', $po->id);
+        $response->assertJsonCount(1, 'lines');
+
+        $receipt = PurchaseReceipt::where('purchase_order_id', $po->id)->firstOrFail();
+        $this->assertEquals(1, $receipt->lines()->count());
+        $this->assertEquals('good', $receipt->lines()->first()->quality_status);
+    }
+
+    /**
+     * Chantier 32.13 (layer 8, business validation): confirmed empirically
+     * before this fix that a receipt could be created against a PO that had
+     * never been submitted/approved — a real gap, not hypothetical.
+     */
+    public function test_cannot_create_a_purchase_receipt_against_a_non_approved_purchase_order()
+    {
+        // $this->po is 'draft' (setUp()).
         $response = $this->actingAs($this->user, 'sanctum')
             ->postJson('/api/v1/achats/purchase-receipts', [
                 'purchase_order_id' => $this->po->id,
@@ -55,13 +88,8 @@ class Chantier10PurchaseReceiptsTest extends TestCase
                 ],
             ]);
 
-        $response->assertStatus(201);
-        $response->assertJsonPath('purchase_order.id', $this->po->id);
-        $response->assertJsonCount(1, 'lines');
-
-        $receipt = PurchaseReceipt::where('purchase_order_id', $this->po->id)->firstOrFail();
-        $this->assertEquals(1, $receipt->lines()->count());
-        $this->assertEquals('good', $receipt->lines()->first()->quality_status);
+        $response->assertStatus(422);
+        $this->assertDatabaseMissing('achats_purchase_receipts', ['purchase_order_id' => $this->po->id]);
     }
 
     public function test_can_list_purchase_receipts_with_pagination_meta()

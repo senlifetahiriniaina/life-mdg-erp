@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="BI · KPIs" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Header -->
     <div class="page-head">
       <div>
@@ -227,7 +229,11 @@ import { Dialog, InputText, InputNumber, Select } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import KpiCard from '@/Components/BI/KpiCard.vue'
 import ChartWidget from '@/Components/BI/ChartWidget.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('BI', 'view_kpis')
 
 const props = defineProps({
   kpis:   { type: Array, default: () => [] },

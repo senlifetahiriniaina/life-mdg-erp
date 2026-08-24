@@ -23,11 +23,24 @@ use Spatie\Activitylog\Models\Activity;
  * notify the user (e.g. via e-mail).
  *
  * Note: User is a system-wide entity. We use company_id = 0 as a system job indicator.
+ *
+ * Chantier 32.1: had no handle() method — same missing-handle() defect
+ * documented on ExtractAndMapImportJob/ExecuteImportJob/AnonymizeUserJob,
+ * confirmed empirically (tinker) to fatal on every real dispatch with
+ * "Call to undefined method SarExportJob::__invoke()". Undetected by the
+ * pre-existing tests/Feature/Api/SarExportTest.php because that test uses
+ * Queue::fake() and only ever asserts the job was pushed, never actually
+ * runs it — see CLAUDE.md's Chantier 32.1 entry.
  */
 class SarExportJob extends BaseAsyncJob
 {
     public function __construct(public readonly User $user)
     {
+    }
+
+    public function handle(): void
+    {
+        $this->execute();
     }
 
     protected function execute(): void

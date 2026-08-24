@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Core\Traits\RecordsActivity;
 use Modules\HR\Database\Factories\EmployeeFactory;
 use Modules\HR\Services\BankDetailsMaskingService;
 use Modules\Helpdesk\Traits\HelpdeskLinkable;
@@ -14,7 +15,29 @@ use Modules\Timesheets\Models\TimesheetEntry;
 
 class Employee extends Model
 {
-    use HasFactory, HelpdeskLinkable, SoftDeletes;
+    use HasFactory, HelpdeskLinkable, SoftDeletes, RecordsActivity;
+
+    /**
+     * Chantier 32.17 (HR deep 14-layer audit): Employee had no real audit
+     * trail at all (Layer 11 — zero HR model used RecordsActivity/
+     * AuditableActions, the app's real, DB-backed audit trail, despite this
+     * being the module with the most PII/compliance sensitivity in the
+     * whole app). RecordsActivity's own default (no $auditableFields set)
+     * serializes the model's *entire* toArray() into core_audit_logs —
+     * which for Employee would decrypt and permanently persist
+     * bank_details/national_id/passport_number in plaintext into a table
+     * readable by anyone holding auditlog.logs.view* (includes plain
+     * 'admin' via wildcard, per this app's own AuditLog documentation) —
+     * exactly the class of PII leak already fixed twice elsewhere in this
+     * same module (SelfServiceEmployeeResource, and this chantier's own
+     * EmployeeWebController::show() fix). Explicitly allowlisted to
+     * non-PII organizational fields only.
+     */
+    protected static array $auditableFields = [
+        'employee_number', 'department_id', 'job_position_id', 'manager_id',
+        'hire_date', 'probation_end_date', 'termination_date',
+        'employment_type', 'status', 'job_title', 'company_id',
+    ];
 
     protected static function booted(): void
     {
@@ -31,6 +54,7 @@ class Employee extends Model
     protected $table = 'hr_employees';
 
     protected $fillable = [
+        'company_id',
         'employee_number',
         'user_id',
         'full_name',
@@ -65,6 +89,16 @@ class Employee extends Model
         'sick_leave_balance',
         'annual_leave_balance',
         'job_title',
+        // Chantier 32.17 (HR deep 14-layer audit): closes the cross-tenant
+        // data leak already flagged twice in this session and never fixed
+        // (Chantier 19 Lot 2: "HR has zero company-based tenant isolation
+        // anywhere ... confirmed empirically that a Company A hr-manager
+        // sees every company's employees"). Nullable/indexed (see the
+        // migration), matching the already-proven-safe pattern from
+        // Projects (Chantier 10) and CRM (Chantier 19 Lot 1) — a no-op for
+        // pre-chantier data or a not-yet-provisioned user, real scoping
+        // once both sides carry a real value.
+        'company_id',
     ];
 
     protected $casts = [

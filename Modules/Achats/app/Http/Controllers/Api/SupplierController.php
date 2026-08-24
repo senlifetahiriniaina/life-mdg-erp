@@ -35,10 +35,20 @@ class SupplierController extends Controller
         }
 
         if ($request->has('search')) {
+            // Chantier 32.13 (layer 6, security deep — a real cross-tenant
+            // leak, confirmed empirically): the un-grouped ->orWhere() calls
+            // broke out of the company_id constraint entirely — Laravel
+            // built `WHERE company_id = ? AND name LIKE ? OR code LIKE ?
+            // OR email LIKE ?`, so searching from company A's own context
+            // for a code/email substring unique to company B's supplier
+            // returned company B's real row. Grouped in a closure so the
+            // OR only ever applies within the already-scoped result set.
             $search = $request->search;
-            $query->where('name', 'like', "%{$search}%")
-                ->orWhere('code', 'like', "%{$search}%")
-                ->orWhere('email', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
         }
 
         $suppliers = $query->paginate($request->get('per_page', 15));

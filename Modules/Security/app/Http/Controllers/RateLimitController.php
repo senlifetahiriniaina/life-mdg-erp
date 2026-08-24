@@ -17,6 +17,9 @@ use Modules\Security\Services\RateLimitService;
  */
 class RateLimitController extends Controller
 {
+    // Chantier 32.3: see blockedIps()'s docblock.
+    private const BLOCKED_IP_INDEX_KEY = 'security.blocked_ip_index';
+
     public function __construct(private RateLimitService $rateLimitService) {}
 
     /**
@@ -81,6 +84,13 @@ class RateLimitController extends Controller
             'expires_at' => $ttl ? now()->addSeconds($ttl)->toIso8601String() : null,
         ], $ttl);
 
+        // Chantier 32.3: ThreatDetectionService::isKnownThreatIp() (called by
+        // the real root request-inspection WAF middleware) now genuinely
+        // reads this cache key — see that service's own docblock. This
+        // controller's "IP has been blocked" response used to be a false
+        // claim: the write happened, nothing ever read it.
+        $this->addToBlockedIpIndex($validated['ip']);
+
         return response()->json([
             'message'    => "IP {$validated['ip']} has been blocked",
             'expires_at' => $ttl ? now()->addSeconds($ttl)->toIso8601String() : 'permanent',
@@ -97,19 +107,57 @@ class RateLimitController extends Controller
         $validated = $request->validate(['ip' => 'required|ip']);
 
         Cache::forget("security.blocked_ip.{$validated['ip']}");
+        $this->removeFromBlockedIpIndex($validated['ip']);
 
         return response()->json(['message' => "IP {$validated['ip']} has been unblocked"]);
     }
 
     /**
-     * List currently blocked IPs (stored in cache).
+     * List currently blocked IPs.
+     *
+     * Chantier 32.3: used to unconditionally return an empty array with a
+     * "go SCAN Redis yourself" message — this app's real cache driver is
+     * `file` (per config/cache.php), which doesn't support key-pattern
+     * scanning at all, so that message was actionable for nobody. A small
+     * companion index (a single cache key holding the IP list, maintained
+     * by blockIp()/unblockIp() above) works identically on every cache
+     * driver this app actually uses; stale entries (a duration-limited
+     * block whose per-IP key already expired) are pruned on read here
+     * rather than left to accumulate forever.
      */
     public function blockedIps(): JsonResponse
     {
-        // In a real system this would query a persistent store; we return the pattern info
+        $index = Cache::get(self::BLOCKED_IP_INDEX_KEY, []);
+        $stillBlocked = [];
+
+        foreach ($index as $ip) {
+            $entry = Cache::get("security.blocked_ip.{$ip}");
+            if ($entry !== null) {
+                $stillBlocked[$ip] = $entry;
+            }
+        }
+
+        if (count($stillBlocked) !== count($index)) {
+            Cache::forever(self::BLOCKED_IP_INDEX_KEY, array_keys($stillBlocked));
+        }
+
         return response()->json([
-            'data'    => [],
-            'message' => 'Blocked IPs are stored in cache — query your Redis SCAN security.blocked_ip.* for full list',
+            'data' => collect($stillBlocked)->map(fn ($entry, $ip) => ['ip' => $ip, ...$entry])->values(),
         ]);
+    }
+
+    private function addToBlockedIpIndex(string $ip): void
+    {
+        $index = Cache::get(self::BLOCKED_IP_INDEX_KEY, []);
+        if (! in_array($ip, $index, true)) {
+            $index[] = $ip;
+        }
+        Cache::forever(self::BLOCKED_IP_INDEX_KEY, $index);
+    }
+
+    private function removeFromBlockedIpIndex(string $ip): void
+    {
+        $index = array_values(array_diff(Cache::get(self::BLOCKED_IP_INDEX_KEY, []), [$ip]));
+        Cache::forever(self::BLOCKED_IP_INDEX_KEY, $index);
     }
 }

@@ -138,7 +138,7 @@
 import { ref, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown, InputNumber } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Select as Dropdown, InputNumber } from 'primevue'
 import axios from 'axios'
 
 const props = defineProps({ id: [String, Number] })

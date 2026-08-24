@@ -5,64 +5,28 @@ declare(strict_types=1);
 namespace Modules\Core\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * @group Controllers - Realtime
  *
- * Manage Realtime resources.
+ * Chantier 32.1: this used to also expose subscribe() — a Server-Sent-
+ * Events endpoint whose own code comments admitted it was a "Simulate
+ * real-time updates for demo" ("In production, this would listen to actual
+ * Redis pub/sub or queue events") — an infinite while(true) loop that only
+ * ever sent heartbeats, never a single real event. Confirmed dead (zero
+ * frontend caller anywhere, zero test) AND, independently, broken even if
+ * called: its own authorization check compared the phantom, never-
+ * populated users.tenant_id column against a client-supplied tenant_id
+ * (null !== (int) anything is always true in PHP), so it unconditionally
+ * returned "Unauthorized" to every real caller regardless of input. Real,
+ * working real-time delivery in this app already goes through Laravel
+ * Reverb + Echo (see CLAUDE.md's Chantier 20/27 entries — NotificationBell,
+ * Messaging, private-channel broadcasting) — this SSE endpoint was a dead,
+ * non-functional parallel mechanism, deleted rather than fixed. health()
+ * is real, harmless, and kept as-is.
  */
 class RealtimeController
 {
-    public function subscribe(Request $request): StreamedResponse
-    {
-        $user = Auth::user();
-        $tenantId = $request->integer('tenant_id');
-        $userId = $request->integer('user_id');
-
-        if ($user->id !== $userId || $user->tenant_id !== $tenantId) {
-            return response()->stream(function () {
-                echo "event: error\n";
-                echo 'data: '.json_encode(['message' => 'Unauthorized'])."\n\n";
-            }, 200, [
-                'Content-Type' => 'text/event-stream',
-                'Cache-Control' => 'no-cache',
-                'Connection' => 'keep-alive',
-                'X-Accel-Buffering' => 'no',
-            ]);
-        }
-
-        return response()->stream(function () {
-            // Send a comment to keep the connection alive
-            echo ": heartbeat\n\n";
-
-            $lastActivity = now();
-
-            // Simulate real-time updates for demo
-            // In production, this would listen to actual Redis pub/sub or queue events
-            while (true) {
-                if (connection_aborted()) {
-                    break;
-                }
-
-                // Heartbeat every 30 seconds
-                if (now()->diffInSeconds($lastActivity) >= 30) {
-                    echo ": heartbeat\n\n";
-                    flush();
-                    $lastActivity = now();
-                }
-
-                usleep(100000); // Sleep 100ms
-            }
-        }, 200, [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
-            'X-Accel-Buffering' => 'no',
-        ]);
-    }
-
     public function health(Request $request): array
     {
         return [

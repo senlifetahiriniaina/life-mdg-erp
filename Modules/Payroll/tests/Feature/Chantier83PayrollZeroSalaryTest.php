@@ -51,11 +51,21 @@ test('payslip generation uses the real EmployeeCompensation base salary, not the
     expect((int) $payslip->tenant_id)->toBe($company->id);
 });
 
-test('generatePayslips finds active employees regardless of the phantom Employee.tenant_id column', function () {
+// Chantier 32: at the time this test was written, Employee had no real
+// company_id column at all — generatePayslips() had to skip tenant
+// filtering entirely (hence the original title, "...regardless of the
+// phantom Employee.tenant_id column"). Employee now has a real, populated
+// company_id column (see Modules\HR\Policies\EmployeePolicy's docblock) and
+// generatePayslips() filters by it for real — the fixture below now sets it
+// to match the tenant id passed in, and Chantier32HRTenantIsolationTest.php
+// (Modules/HR) separately locks in that a DIFFERENT company's employee is
+// correctly excluded.
+test('generatePayslips finds active employees with a matching company_id', function () {
     $company = \App\Models\Company::factory()->create();
     $user = User::factory()->create(['company_id' => $company->id]);
     $employee = Employee::factory()->create([
         'user_id'          => $user->id,
+        'company_id'       => $company->id,
         'status'           => 'active',
         'termination_date' => null,
     ]);

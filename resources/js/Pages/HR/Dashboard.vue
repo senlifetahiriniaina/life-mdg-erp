@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="HR Dashboard" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <!-- Page header -->
     <div class="page-head">
       <div style="display:flex;align-items:center;gap:12px">
@@ -138,6 +142,13 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { DataTable, Column, Tag } from 'primevue'
 import axios from 'axios'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'view_dashboard')
 
 // Lazy load ApexCharts
 const VueApexCharts = defineAsyncComponent(() => import('vue-apexcharts'))
@@ -246,9 +257,22 @@ async function loadRealtime() {
   }
 }
 
+// Chantier 32.17 (HR deep 14-layer audit): 'reject' always POSTed with no
+// body — LeaveController::reject() requires a non-empty 'rejection_reason'
+// (matching Leaves/Index.vue's own admin dialog, which does collect one),
+// so clicking "Reject" here was a guaranteed 422 on every real click,
+// silently swallowed by the catch block (the button visibly did nothing).
+// Collects a reason before posting, matching the reject requirement every
+// other real reject flow in this module already enforces.
 async function handleLeave(id, action) {
   try {
-    await axios.post(`/api/v1/hr/leaves/${id}/${action}`)
+    if (action === 'reject') {
+      const reason = window.prompt('Motif du refus :')
+      if (!reason) return
+      await axios.post(`/api/v1/hr/leaves/${id}/reject`, { rejection_reason: reason })
+    } else {
+      await axios.post(`/api/v1/hr/leaves/${id}/${action}`)
+    }
     await loadPendingLeaves()
     await loadRealtime()
   } catch (e) {

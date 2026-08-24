@@ -26,7 +26,12 @@ class DocumentAlertController extends Controller
     {
         $this->authorize('hr.documents.view');
 
+        // Chantier 32: EmployeeDocument has no company_id column of its own
+        // — resolved via the employee it belongs to. Unconditional scoping,
+        // matching the confirmed empirical finding documented throughout
+        // this module's other listing endpoints.
         $docs = EmployeeDocument::with('employee')
+            ->whereHas('employee', fn ($q) => $q->where('company_id', $request->user()->company_id))
             ->when($request->employee_id, fn ($q, $v) => $q->where('employee_id', $v))
             ->when($request->document_type, fn ($q, $v) => $q->where('document_type', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
@@ -55,6 +60,15 @@ class DocumentAlertController extends Controller
             'notes'             => 'nullable|string',
         ]);
 
+        // Chantier 32: the given employee_id must belong to the caller's own
+        // company (404, not 403 — matching this app's established
+        // not-your-tenant-data-doesn't-exist-to-you convention).
+        $docEmployee = \Modules\HR\Models\Employee::findOrFail($validated['employee_id']);
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($docEmployee->company_id ?? 0)),
+            404
+        );
+
         $doc = EmployeeDocument::create(array_merge(
             ['status' => 'valid', 'alert_days_before' => 60],
             $validated,
@@ -69,9 +83,10 @@ class DocumentAlertController extends Controller
     /**
      * GET /api/v1/hr/documents/{document}
      */
-    public function show(EmployeeDocument $document): JsonResponse
+    public function show(Request $request, EmployeeDocument $document): JsonResponse
     {
         $this->authorize('hr.documents.view');
+        $this->assertSameCompany($request, $document);
 
         return response()->json($document->load('employee'));
     }
@@ -82,6 +97,7 @@ class DocumentAlertController extends Controller
     public function update(Request $request, EmployeeDocument $document): JsonResponse
     {
         $this->authorize('hr.documents.edit');
+        $this->assertSameCompany($request, $document);
 
         $validated = $request->validate([
             'title'             => 'sometimes|string|max:255',
@@ -107,9 +123,10 @@ class DocumentAlertController extends Controller
     /**
      * DELETE /api/v1/hr/documents/{document}
      */
-    public function destroy(EmployeeDocument $document): JsonResponse
+    public function destroy(Request $request, EmployeeDocument $document): JsonResponse
     {
         $this->authorize('hr.documents.delete');
+        $this->assertSameCompany($request, $document);
 
         $document->delete();
 
@@ -129,7 +146,7 @@ class DocumentAlertController extends Controller
         $days = (int) $request->input('days', 30);
         $days = max(1, min($days, 365));
 
-        $docs = $this->service->getExpiringDocuments($days);
+        $docs = $this->service->getExpiringDocuments($days, $request->user()->company_id);
 
         return response()->json([
             'days'      => $days,
@@ -142,9 +159,10 @@ class DocumentAlertController extends Controller
      * POST /api/v1/hr/documents/{document}/remind
      * Manually trigger an expiry reminder for a specific document.
      */
-    public function remind(EmployeeDocument $document): JsonResponse
+    public function remind(Request $request, EmployeeDocument $document): JsonResponse
     {
         $this->authorize('hr.documents.remind');
+        $this->assertSameCompany($request, $document);
 
         $daysLeft = $document->days_until_expiry ?? 0;
 
@@ -165,12 +183,26 @@ class DocumentAlertController extends Controller
      * GET /api/v1/hr/documents/compliance-report
      * Aggregate compliance report grouped by type and department.
      */
-    public function complianceReport(): JsonResponse
+    public function complianceReport(Request $request): JsonResponse
     {
         $this->authorize('hr.documents.view');
 
-        $report = $this->service->complianceReport();
+        $report = $this->service->complianceReport($request->user()->company_id);
 
         return response()->json($report);
+    }
+
+    /**
+     * Chantier 32: EmployeeDocument has no company_id column of its own —
+     * ownership is resolved through the employee it belongs to. 404 (not
+     * 403) matches this app's established not-your-tenant-data-doesn't-
+     * exist-to-you convention (see Modules\Achats's ScopesToCompany trait).
+     */
+    private function assertSameCompany(Request $request, EmployeeDocument $document): void
+    {
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($document->employee?->company_id ?? 0)),
+            404
+        );
     }
 }

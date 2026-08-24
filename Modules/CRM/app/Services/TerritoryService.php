@@ -14,12 +14,24 @@ class TerritoryService
     /**
      * Auto-assign a contact to a territory based on rules JSON.
      * Rules format: [{"field": "region", "value": "West"}, ...]
+     *
+     * Chantier 32.15: scoped to the caller's own company — previously matched against every
+     * company's territories regardless of the acting user, letting a contact be auto-assigned
+     * into another company's territory.
      */
-    public function autoAssign(Contact $contact): ?TerritoryAssignment
+    public function autoAssign(Contact $contact, ?int $companyId = null): ?TerritoryAssignment
     {
+        // Chantier 32.15: deliberately an unconditional where(), not when($companyId !==
+        // null, ...) — a null $companyId (a not-yet-provisioned caller with no real
+        // company_id) must match territories whose own company_id is also null, exactly
+        // matching how Laravel's where($col, null) already auto-translates to whereNull()
+        // for the sibling ContactController/AccountController/LeadController filters
+        // elsewhere in this module. Skipping the filter entirely on null would instead
+        // return every company's territories to an unprovisioned caller.
         $territories = Territory::query()
             ->whereNotNull('rules')
             ->where('is_active', true)
+            ->where('company_id', $companyId)
             ->get();
 
         foreach ($territories as $territory) {
@@ -41,11 +53,12 @@ class TerritoryService
      *
      * @return array<int,array<string,mixed>>
      */
-    public function getTeamQuotas(): array
+    public function getTeamQuotas(?int $companyId = null): array
     {
         $territories = Territory::query()
             ->with(['assignedTo', 'opportunities'])
             ->where('is_active', true)
+            ->where('company_id', $companyId)
             ->get();
 
         return $territories->map(function (Territory $territory): array {
@@ -67,10 +80,14 @@ class TerritoryService
      *
      * @return array<string,mixed>
      */
-    public function rebalance(): array
+    public function rebalance(?int $companyId = null): array
     {
-        $territories = Territory::where('is_active', true)->get();
-        $assignments = TerritoryAssignment::whereNotNull('contact_id')->get();
+        $territories = Territory::where('is_active', true)
+            ->where('company_id', $companyId)
+            ->get();
+        $assignments = TerritoryAssignment::whereIn('territory_id', $territories->pluck('id'))
+            ->whereNotNull('contact_id')
+            ->get();
 
         if ($territories->isEmpty()) {
             return ['rebalanced' => 0, 'territories' => []];
@@ -94,7 +111,7 @@ class TerritoryService
 
         return [
             'rebalanced' => $rebalanced,
-            'territories' => $this->getTeamQuotas(),
+            'territories' => $this->getTeamQuotas($companyId),
         ];
     }
 
@@ -104,9 +121,11 @@ class TerritoryService
      *
      * @return array<string,mixed>
      */
-    public function coverage(): array
+    public function coverage(?int $companyId = null): array
     {
-        $territories = Territory::where('is_active', true)->get();
+        $territories = Territory::where('is_active', true)
+            ->where('company_id', $companyId)
+            ->get();
         $total = $territories->count();
 
         $assignedIds = TerritoryAssignment::whereIn('territory_id', $territories->pluck('id'))

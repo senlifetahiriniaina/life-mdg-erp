@@ -14,11 +14,15 @@ class TerritoryForecastService
      * Einstein-style pipeline forecast by territory.
      *
      * Groups opportunities by territory → by stage → computes weighted revenue forecast.
+     *
+     * Chantier 32.15: scoped to the caller's own company — previously aggregated every
+     * company's territories into one shared forecast.
      */
-    public function territoryForecast(): array
+    public function territoryForecast(?int $companyId = null): array
     {
         $territories = Territory::query()
             ->where('is_active', true)
+            ->where('company_id', $companyId)
             ->with(['opportunities.score', 'assignedTo'])
             ->get();
 

@@ -104,11 +104,20 @@ class ContactEmailController extends Controller
     {
         $data = $request->validate([
             'contact_ids' => ['required', 'array'],
+            'contact_ids.*' => ['integer'],
             'template_code' => ['required', 'string'],
         ]);
 
+        // Chantier 32.15: contact_ids was never scoped to the caller's own company — a user
+        // could pass another company's contact ids and have real emails sent to them. Filtered
+        // down to only the ids that are genuinely this caller's own contacts.
+        $ownContactIds = Contact::whereIn('id', $data['contact_ids'])
+            ->where('company_id', $request->user()->company_id)
+            ->pluck('id')
+            ->all();
+
         $sent = $this->emailService->sendBulkEmails(
-            $data['contact_ids'],
+            $ownContactIds,
             $data['template_code']
         );
 

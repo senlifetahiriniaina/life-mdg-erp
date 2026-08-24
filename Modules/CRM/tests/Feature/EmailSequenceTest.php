@@ -8,6 +8,22 @@ use Modules\CRM\Models\EmailSequence;
 use Modules\CRM\Models\SequenceEnrollment;
 use Modules\CRM\Models\SequenceStep;
 use Modules\CRM\Services\EmailSequenceService;
+use Spatie\Permission\Models\Role;
+
+// Chantier 32.15: EmailSequencePolicy was written from the start with its own real
+// create()/update()/delete() role and ownership requirements, but was never registered with
+// the Gate (see CRMServiceProvider) and EmailSequenceController never called authorize() at
+// all — so every one of these already-written rules has never actually been enforced until
+// this chantier. The bare `User::factory()->create()` (no role) fixtures throughout this file
+// now correctly 403 against EmailSequencePolicy's real create()-ability role check — fixed by
+// giving the test user the `admin` role it needs to act as an authorized actor, the same
+// lightweight Role::firstOrCreate()+assignRole() pattern already used by
+// Chantier19CrmReauditTest.php/CrmTenantIsolationFollowupTest.php elsewhere in this module.
+function grantAdminRole(User $user): void
+{
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $user->assignRole('admin');
+}
 
 
 // ── Unauthenticated tests (outside describe blocks with beforeEach) ────────────
@@ -406,6 +422,7 @@ describe('EmailSequenceService', function () {
 describe('GET /api/v1/crm/email-sequences', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -429,6 +446,7 @@ describe('GET /api/v1/crm/email-sequences', function () {
 describe('POST /api/v1/crm/email-sequences', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -468,6 +486,7 @@ describe('POST /api/v1/crm/email-sequences', function () {
 describe('GET /api/v1/crm/email-sequences/{sequence}', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -491,6 +510,7 @@ describe('GET /api/v1/crm/email-sequences/{sequence}', function () {
 describe('PUT /api/v1/crm/email-sequences/{sequence}', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -508,6 +528,7 @@ describe('PUT /api/v1/crm/email-sequences/{sequence}', function () {
 describe('DELETE /api/v1/crm/email-sequences/{sequence}', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -523,6 +544,7 @@ describe('DELETE /api/v1/crm/email-sequences/{sequence}', function () {
 describe('POST /api/v1/crm/email-sequences/{sequence}/activate', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -538,6 +560,7 @@ describe('POST /api/v1/crm/email-sequences/{sequence}/activate', function () {
 describe('POST /api/v1/crm/email-sequences/{sequence}/pause', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -553,6 +576,7 @@ describe('POST /api/v1/crm/email-sequences/{sequence}/pause', function () {
 describe('GET /api/v1/crm/email-sequences/{sequence}/steps', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -569,6 +593,7 @@ describe('GET /api/v1/crm/email-sequences/{sequence}/steps', function () {
 describe('POST /api/v1/crm/email-sequences/{sequence}/steps', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -611,6 +636,7 @@ describe('POST /api/v1/crm/email-sequences/{sequence}/steps', function () {
 describe('PUT /api/v1/crm/email-sequences/{sequence}/steps/{step}', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -632,6 +658,7 @@ describe('PUT /api/v1/crm/email-sequences/{sequence}/steps/{step}', function () 
 describe('DELETE /api/v1/crm/email-sequences/{sequence}/steps/{step}', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -648,6 +675,7 @@ describe('DELETE /api/v1/crm/email-sequences/{sequence}/steps/{step}', function 
 describe('POST /api/v1/crm/email-sequences/{sequence}/enroll', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -683,6 +711,7 @@ describe('POST /api/v1/crm/email-sequences/{sequence}/enroll', function () {
 describe('GET /api/v1/crm/email-sequences/{sequence}/enrollments', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -705,6 +734,7 @@ describe('GET /api/v1/crm/email-sequences/{sequence}/enrollments', function () {
 describe('POST /api/v1/crm/email-sequences/{sequence}/stats', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -741,6 +771,7 @@ describe('POST /api/v1/crm/email-sequences/{sequence}/stats', function () {
 describe('POST /api/v1/crm/email-sequences/process-due', function () {
     beforeEach(function () {
         $this->user = User::factory()->create();
+        grantAdminRole($this->user);
         $this->token = $this->user->createToken('test')->plainTextToken;
     });
 
@@ -764,5 +795,58 @@ describe('POST /api/v1/crm/email-sequences/process-due', function () {
             ->postJson('/api/v1/crm/email-sequences/process-due')
             ->assertOk()
             ->assertJsonPath('processed', 0);
+    });
+
+    /**
+     * Chantier 38.3: processDue() never scoped by tenant at all — any authenticated CRM user
+     * of any company could trigger a real, immediate send sweep across every OTHER company's
+     * due email enrollments, confirmed empirically before this fix (a real cross-tenant
+     * write/side-effect vector, not just a read leak).
+     */
+    it('only processes the caller own company due enrollments, never another company', function () {
+        $companyA = \App\Models\Company::create(['name' => 'Co A', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+        $companyB = \App\Models\Company::create(['name' => 'Co B', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+
+        $userA = User::factory()->create(['company_id' => $companyA->id]);
+        grantAdminRole($userA);
+        $tokenA = $userA->createToken('t')->plainTextToken;
+
+        $sequenceA = EmailSequence::factory()->create(['tenant_id' => $companyA->id]);
+        SequenceEnrollment::factory()->create([
+            'sequence_id' => $sequenceA->id,
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'active',
+            'next_send_at' => now()->subMinute(),
+        ]);
+
+        $sequenceB = EmailSequence::factory()->create(['tenant_id' => $companyB->id]);
+        $enrollmentB = SequenceEnrollment::factory()->create([
+            'sequence_id' => $sequenceB->id,
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'active',
+            'next_send_at' => now()->subMinute(),
+        ]);
+
+        $this->withToken($tokenA)
+            ->postJson('/api/v1/crm/email-sequences/process-due')
+            ->assertOk()
+            ->assertJsonPath('processed', 1);
+
+        // Company B's enrollment must be untouched — its next_send_at never advanced.
+        expect($enrollmentB->fresh()->next_send_at->timestamp)
+            ->toBe($enrollmentB->next_send_at->timestamp);
+    });
+
+    it('the new scheduled command processes every company in one sweep, unlike the per-tenant HTTP endpoint', function () {
+        $company = \App\Models\Company::create(['name' => 'Co C', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+        $sequence = EmailSequence::factory()->create(['tenant_id' => $company->id]);
+        SequenceEnrollment::factory()->create([
+            'sequence_id' => $sequence->id,
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'active',
+            'next_send_at' => now()->subMinute(),
+        ]);
+
+        $this->artisan('crm:process-due-email-sequences')->assertExitCode(0);
     });
 });

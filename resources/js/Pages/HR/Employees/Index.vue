@@ -2,14 +2,18 @@
   <AppLayout>
     <Head title="Collaborateurs" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">RH · Collaborateurs</h1>
         <p class="wh-page-subtitle">{{ employees.total }} collaborateur{{ employees.total !== 1 ? 's' : '' }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-secondary"><i class="pi pi-download" style="font-size:13px" /> Exporter</button>
-        <button class="btn btn-primary"><i class="pi pi-plus" style="font-size:13px" /> Ajouter</button>
+        <a class="btn btn-secondary" :href="'/api/v1/hr/employees/export'"><i class="pi pi-download" style="font-size:13px" /> Exporter</a>
+        <button class="btn btn-primary" @click="router.visit(route('hr.employees.create'))"><i class="pi pi-plus" style="font-size:13px" /> Ajouter</button>
       </div>
     </div>
 
@@ -34,7 +38,12 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="emp in employees.data" :key="emp.id" class="wh-dt-row">
+          <tr
+            v-for="emp in employees.data"
+            :key="emp.id"
+            class="wh-dt-row"
+            @click="router.visit(route('hr.employees.show', emp.id))"
+          >
             <td>
               <div style="display:flex;align-items:center;gap:10px">
                 <div class="emp-avatar">{{ initials(emp.full_name) }}</div>
@@ -60,19 +69,40 @@
       </table>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border-subtle)">
         <span style="font-size:13px;color:var(--fg-3)">{{ employees.total }} résultat{{ employees.total !== 1 ? 's' : '' }}</span>
-        <Paginator :rows="employees.per_page" :total-records="employees.total" :first="(employees.current_page - 1) * employees.per_page" />
+        <Paginator
+          :rows="employees.per_page"
+          :total-records="employees.total"
+          :first="(employees.current_page - 1) * employees.per_page"
+          @page="onPage"
+        />
       </div>
     </div>
   </AppLayout>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+// Chantier 32.17 (HR deep 14-layer audit): this entire page had ZERO click
+// handlers anywhere — confirmed by grep before this fix — despite real
+// routes/controller methods existing for every one of these actions:
+// "Exporter" and "Ajouter" were dead buttons, each table row (styled with
+// cursor:pointer, implying it should be clickable) had no navigation to the
+// employee's own real detail page, and the Paginator had no @page handler
+// at all so clicking a page number did nothing. All four wired to the real,
+// already-existing routes/endpoints (employees.create/employees.show web
+// routes, the newly-routed employees/export API endpoint — see routes/api.php).
+import { computed, ref } from 'vue'
+import { Head, router } from '@inertiajs/vue3'
 import Paginator from 'primevue/paginator'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const props = defineProps({ employees: { type: Object, required: true } })
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'view_employees_list')
 
 const stats = computed(() => [
   { label: 'Total',            value: props.employees.total },
@@ -83,6 +113,14 @@ const stats = computed(() => [
 
 const initials   = (name) => name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
+
+const onPage = (event) => {
+  router.get(
+    route('hr.employees.index'),
+    { page: event.page + 1 },
+    { preserveState: true, replace: true },
+  )
+}
 </script>
 
 <style scoped>

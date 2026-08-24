@@ -95,21 +95,14 @@ class RouteController extends Controller
         return response()->json(null, 204);
     }
 
-    public function optimize(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
-    {
-        $data = $request->validate([
-            'shipment_ids' => 'required|array',
-            'vehicle_capacity' => 'nullable|numeric',
-            'time_window' => 'nullable|string',
-        ]);
-
-        // Simple stub: return optimized order as-is
-        return response()->json([
-            'data' => [
-                'optimized_order' => $data['shipment_ids'],
-                'estimated_distance_km' => 0,
-                'estimated_duration_minutes' => 0,
-            ],
-        ]);
-    }
+    // Chantier 32.23 (deep 14-layer audit, layer 9 — fake/dead): optimize()
+    // used to live here as a hollow stub (echoed `shipment_ids` back
+    // unchanged, hardcoded 0km/0min) with zero route ever pointing at it —
+    // confirmed via a repo-wide grep of routes/api.php, mort confirmé, à
+    // supprimer. The real, live VRP solver already exists and is properly
+    // routed at POST logistics/routes/optimize via
+    // RouteOptimizationController::optimize()/RouteOptimizerService (2-opt
+    // improvement, time windows, vehicle capacity) — this was a dead,
+    // redundant duplicate of a feature that already works for real, not a
+    // gap needing activation.
 }

@@ -114,6 +114,16 @@ class RolesAndPermissionsSeeder extends Seeder
         'accounting.consolidation.generate-report',
         'accounting.consolidation.record-transaction',
         'accounting.consolidation.eliminate-intercompany',
+        // Chantier 32.14: BudgetManagementController had ZERO authorize() calls on
+        // 23 of its 24 methods (only generateFromHistory() was gated, at Chantier
+        // 26C) — approveBudget()/rejectBudget() in particular had no check
+        // whatsoever, confirmed empirically reachable by any accountant/
+        // finance-manager/manager/admin regardless of the budget's real company.
+        // 'approve'/'reject' aren't in the generic CRUD-action list the
+        // MODULES/ACTIONS loop produces for 'budget' (already seeded there:
+        // view-any/view/create/update/delete).
+        'accounting.budget.approve',
+        'accounting.budget.reject',
     ];
 
     // Modules\CRM\Policies\{CampaignPolicy,WorkflowPolicy} check crm.{campaigns,workflows}.
@@ -142,9 +152,12 @@ class RolesAndPermissionsSeeder extends Seeder
     ];
 
     // Modules\Settings\Policies\SettingPolicy checks flat settings.{view,create,update,
-    // delete} (no resource segment), not the settings.setting.*/settings.group.* the
-    // generic MODULES/ACTIONS loop produces for the 'settings' entry below -- same
-    // reasoning as the other _PERMISSIONS constants above.
+    // delete} (no resource segment), not the settings.setting.* the generic
+    // MODULES/ACTIONS loop produces for the 'settings' entry below -- same
+    // reasoning as the other _PERMISSIONS constants above. (Chantier 32.9:
+    // 'group' was removed from that entry's resource list along with the now-
+    // deleted SettingGroup model, so it only ever generates settings.setting.*
+    // today, not settings.group.* too.)
     private const SETTINGS_PERMISSIONS = [
         'settings.view', 'settings.create', 'settings.update', 'settings.delete',
     ];
@@ -286,11 +299,16 @@ class RolesAndPermissionsSeeder extends Seeder
         'auditlog.logs.export',
     ];
 
-    // Chantier 8.3 (Core): ApprovalWorkflowPolicy/CustomFieldPolicy check
-    // core.{approvalworkflow,customfield}.{view-any,view,create,update,delete,
-    // approve,export,archive} -- 'core' isn't in MODULES at all (unlike
-    // security/payroll/auditlog above, which only needed one or two extra
-    // non-standard verbs), so every verb needs to be listed here explicitly.
+    // Chantier 8.3 (Core): CustomFieldPolicy checks
+    // core.customfield.{view-any,view,create,update,delete,approve,export,
+    // archive} -- 'core' isn't in MODULES at all (unlike security/payroll/
+    // auditlog above, which only needed one or two extra non-standard
+    // verbs), so every verb needs to be listed here explicitly.
+    // (The sibling core.approvalworkflow.* block that used to live here was
+    // removed at Chantier 32.1 along with the confirmed-dead Core Approval
+    // engine it gated — ApprovalWorkflowPolicy/ApprovalController/
+    // ApprovalService/ApprovalWorkflow/ApprovalInstance/ApprovalDecision —
+    // see CLAUDE.md's Chantier 32.1 entry.)
     // Chantier 8.3 (Logistics): DeliveryRoundPolicy checks
     // logistics.deliveryround.{view-any,view,create,update,delete,approve,
     // export,archive} -- 'deliveryround' isn't in MODULES['logistics'] at all
@@ -318,9 +336,6 @@ class RolesAndPermissionsSeeder extends Seeder
     ];
 
     private const CORE_EXTRA_PERMISSIONS = [
-        'core.approvalworkflow.view-any', 'core.approvalworkflow.view', 'core.approvalworkflow.create',
-        'core.approvalworkflow.update', 'core.approvalworkflow.delete', 'core.approvalworkflow.approve',
-        'core.approvalworkflow.export', 'core.approvalworkflow.archive',
         'core.customfield.view-any', 'core.customfield.view', 'core.customfield.create',
         'core.customfield.update', 'core.customfield.delete', 'core.customfield.approve',
         'core.customfield.export', 'core.customfield.archive',
@@ -382,8 +397,24 @@ class RolesAndPermissionsSeeder extends Seeder
         'strategy'         => ['ratio', 'objective', 'plan'],
         'auditlog'         => ['logs'],
         'setup'            => ['import', 'mapping', 'wizard'],
-        'integration'      => ['connector', 'webhook', 'sync-log'],
-        'settings'         => ['setting', 'group'],
+        // Chantier 32.6: 'external-integration' (IntegrationManager's
+        // mobile-money/e-commerce/business-tools registry — Orange Money,
+        // Wave, MTN MoMo, M-Pesa, Shopify, WooCommerce, Jumia, Google
+        // Workspace, Zapier) added — a real, fully-written subsystem that
+        // had zero controller/route/permission of any kind before this
+        // chantier gave it its first-ever producer.
+        'integration'      => ['connector', 'webhook', 'sync-log', 'external-integration'],
+        // Chantier 32.9: 'group' removed — Modules\Settings\Models\SettingGroup
+        // (and its `setting_groups` table) was deleted this chantier as
+        // confirmed dead code (zero real consumers anywhere, and
+        // independently broken as designed — see that migration's own
+        // docblock). The `settings.group.*` strings this entry used to
+        // generate were already dead weight even before the deletion —
+        // SettingPolicy has only ever checked the flat settings.{view,
+        // create,update,delete} strings from SETTINGS_PERMISSIONS below,
+        // never settings.setting.*/settings.group.* (see that const's own
+        // comment) — so this is pure hygiene, not a behavior change.
+        'settings'         => ['setting'],
         'validation'       => ['workflow', 'rule', 'hierarchy', 'request'],
         // Chantier 20: internal team messaging — every seeded role picks this
         // up automatically via the generic loop below (employee gets it minus
@@ -495,20 +526,43 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin->syncPermissions($allPermissions);
 
         // manager: all actions except delete on sensitive resources
-        $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        //
+        // Chantier 32.3 (Security deep audit): 'security' is in MODULES like
+        // every other module, so this generic loop was silently handing
+        // manager (and employee, below) full security.* — including
+        // security.encryption.rotate, security.identity.rotate (mint/rotate
+        // service-to-service credentials), security.incident.*,
+        // security.compliance.* — every day-to-day manager in the app, not
+        // just security-admin/admin. The module's own routes/api.php already
+        // scopes 2 of its 8 sub-resources (auth-events, rate-limits) to
+        // role:security-admin,admin,super-admin, confirming the intended
+        // audience — manager/employee were never meant to reach any of this,
+        // it was purely a side effect of the generic $allPermissions loop.
+        // Excluded here (defense-in-depth alongside the route-level role
+        // gate added in the same chantier) rather than pulling 'security' out
+        // of MODULES entirely, so admin/security-admin keep getting it via
+        // their own existing wildcard/full-set grants below, unaffected.
         $managerPerms = array_filter($allPermissions, function (Permission $p) {
             // No delete on invoices/employees from managers
             if (str_ends_with($p->name, '.delete') &&
                 (str_starts_with($p->name, 'accounting.') || str_starts_with($p->name, 'hr.'))) {
                 return false;
             }
+            if (str_starts_with($p->name, 'security.')) {
+                return false;
+            }
             return true;
         });
+        $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->syncPermissions(array_values($managerPerms));
 
         // employee: view-any + view + create + update own (no delete)
+        // Chantier 32.3: same security.* exclusion as manager above.
+        $employeePerms = array_filter(
+            $allPermissions,
+            fn(Permission $p) => ! str_ends_with($p->name, '.delete') && ! str_starts_with($p->name, 'security.')
+        );
         $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
-        $employeePerms = array_filter($allPermissions, fn(Permission $p) => ! str_ends_with($p->name, '.delete'));
         $employee->syncPermissions(array_values($employeePerms));
 
         // accountant: full access to accounting only

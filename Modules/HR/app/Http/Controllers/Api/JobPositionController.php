@@ -21,8 +21,14 @@ class JobPositionController extends Controller
     {
         $this->authorize('viewAny', JobPosition::class);
 
+        // Chantier 32: unconditional company_id scoping — see
+        // EmployeeController::index()'s comment for the confirmed empirical
+        // finding this closes.
         $query = JobPosition::withCount('employees')
             ->with('department')
+            // Chantier 32: same cross-tenant leak already documented (and
+            // fixed) on Employee/Department's index() endpoints.
+            ->where('company_id', $request->user()->company_id)
             ->when(
                 $request->has('is_active'),
                 fn ($q) => $q->where('is_active', filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN))
@@ -48,7 +54,10 @@ class JobPositionController extends Controller
             'is_active' => ['boolean'],
         ]);
 
-        $position = JobPosition::create($validated);
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $position = JobPosition::create(array_merge($validated, [
+            'company_id' => $request->user()->company_id,
+        ]));
 
         return response()->json(
             new JobPositionResource($position->load('department')),

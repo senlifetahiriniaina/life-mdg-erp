@@ -4,6 +4,8 @@
       <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Employee Hours Report</h1>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="space-y-6">
       <!-- Filters -->
       <div class="bg-white dark:bg-surface-800 rounded-lg shadow-sm p-4 flex gap-4 items-end">
@@ -157,6 +159,10 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'view_reports')
 
 const filters = reactive({
   from_date: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],

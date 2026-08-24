@@ -4,13 +4,26 @@ use Illuminate\Support\Facades\Route;
 use Modules\Security\Http\Controllers\ComplianceController;
 use Modules\Security\Http\Controllers\EncryptionController;
 use Modules\Security\Http\Controllers\IncidentController;
+use Modules\Security\Http\Controllers\SecurityDashboardController;
 use Modules\Security\Http\Controllers\ThreatIndicatorController;
 use Modules\Security\Http\Controllers\AuthenticationEventController;
 use Modules\Security\Http\Controllers\TrustZoneController;
 use Modules\Security\Http\Controllers\ServiceIdentityController;
 use Modules\Security\Http\Controllers\RateLimitController;
 
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/security')->group(function () {
+// Chantier 32.3 (14-layer deep audit): this whole module's route group never
+// had a module:/role: gate at all — only 2 of its 8 sub-resources
+// (auth-events, rate-limits) were ever restricted to
+// role:security-admin,admin,super-admin, and even those permission strings
+// were (until the same chantier's RolesAndPermissionsSeeder fix) silently
+// also handed to every plain manager/employee via the generic MODULES loop.
+// Added here as a route-level gate too (defense-in-depth alongside the
+// seeder fix) — every real caller in this app (Index.vue's dashboard,
+// existing tests) already only ever uses security-admin, confirmed via grep
+// before this change.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Security', 'role:security-admin,admin,super-admin'])
+    ->prefix('v1/security')
+    ->group(function () {
     // Compliance Controls
     Route::get('compliance/controls', [ComplianceController::class, 'indexControls']);
     Route::post('compliance/controls', [ComplianceController::class, 'storeControl']);
@@ -55,26 +68,37 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
     Route::get('incidents/{incident}/responses', [IncidentController::class, 'indexResponses']);
     Route::post('incidents/{incident}/responses', [IncidentController::class, 'storeResponse']);
 
-    // Threat Indicators
-    Route::get('threats', [IncidentController::class, 'indexThreats']);
-    Route::post('threats', [IncidentController::class, 'storeThreat']);
-    Route::post('threats/{threat}/whitelist', [IncidentController::class, 'whitelistThreat']);
-    Route::post('threats/{threat}/unwhitelist', [IncidentController::class, 'unwhitelistThreat']);
+    // Chantier 32.3: dashboard aggregate — replaces Index.vue's client-side
+    // recomputation of the same numbers from 3 separate list calls, and
+    // fixes SecurityAuditService::getSecuritySummary()'s hardcoded
+    // 'critical_threats' => 0 stub along the way (see the service itself).
+    Route::get('summary', [SecurityDashboardController::class, 'summary']);
 
-    // ─── New: Threat Indicators (full CRUD) ───────────────────────────────────
+    // ─── Threat Indicators (full CRUD + whitelist toggle) ─────────────────────
+    // Chantier 32.3: the legacy IncidentController::indexThreats/storeThreat
+    // routes that used to live here (GET/POST threats) were a confirmed-dead
+    // duplicate of this same controller's index()/store() — zero real caller
+    // anywhere outside their own test file, a different indicator_type enum
+    // than this controller validates, and Index.vue already only ever calls
+    // this one. Deleted; whitelist/unwhitelist (a real, distinct capability
+    // the legacy routes had that this controller didn't) were ported over
+    // instead of being lost.
     Route::prefix('threat-indicators')->group(function () {
         Route::get('/',                         [ThreatIndicatorController::class, 'index']);
         Route::post('/',                        [ThreatIndicatorController::class, 'store']);
         Route::get('/severity-summary',         [ThreatIndicatorController::class, 'severitySummary']);
         Route::get('/{threat}',                 [ThreatIndicatorController::class, 'show']);
         Route::put('/{threat}',                 [ThreatIndicatorController::class, 'update']);
+        Route::post('/{threat}/whitelist',      [ThreatIndicatorController::class, 'whitelist']);
+        Route::post('/{threat}/unwhitelist',    [ThreatIndicatorController::class, 'unwhitelist']);
         Route::delete('/{threat}',              [ThreatIndicatorController::class, 'destroy']);
     });
 
     // ─── Authentication Events ────────────────────────────────────────────────
     // AuthenticationEvent has no company_id column at all (cross-tenant by
-    // design — it's a security audit trail), so this is gated by role instead
-    // of a Policy, same reasoning as the rate-limits group below.
+    // design — it's a security audit trail). Its own role: middleware is
+    // now redundant with the outer group's (added in the same chantier) but
+    // left in place as explicit, self-documenting defense-in-depth.
     Route::prefix('auth-events')->middleware('role:security-admin,admin,super-admin')->group(function () {
         Route::get('/',                   [AuthenticationEventController::class, 'index']);
         Route::get('/summary',            [AuthenticationEventController::class, 'summary']);
@@ -105,8 +129,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 
     // ─── Rate Limits ──────────────────────────────────────────────────────────
     // No Eloquent model backs rate-limit state (it lives in Cache), so there's
-    // nothing for a Policy to attach to — gated by role instead, same pattern
-    // as Territory in Chantier 8.2 (CRM).
+    // nothing for a Policy to attach to — role: middleware here is now
+    // redundant with the outer group's but left in place as explicit,
+    // self-documenting defense-in-depth, same pattern as auth-events above.
     Route::prefix('rate-limits')->middleware('role:security-admin,admin,super-admin')->group(function () {
         Route::get('/status',      [RateLimitController::class, 'status']);
         Route::post('/reset',      [RateLimitController::class, 'reset']);
@@ -117,7 +142,11 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix(
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/security')->group(function () {
+// Deliberately left outside the security-admin-only gate above, matching the
+// established convention elsewhere in this app that an ai/assist endpoint is
+// gated by module access, not by the module's own operational role — the
+// panel is meant to guide whoever is looking at the page, not just admins.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Security'])->prefix('v1/security')->group(function () {
     Route::post('ai/assist', [\Modules\Security\Http\Controllers\Api\SecurityAiAssistController::class, 'assist'])
         ->name('security.ai.assist');
 });

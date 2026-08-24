@@ -50,6 +50,7 @@ class TimeEntryController extends Controller
     public function index(Request $request, Project $project, Task $task): JsonResponse
     {
         $this->assertSameCompanyAsProject($request, $project);
+        abort_if($task->project_id !== $project->id, 404);
 
         $entries = ProjectTimeLog::with('user:id,name,email')
             ->where('task_id', $task->id)
@@ -75,6 +76,14 @@ class TimeEntryController extends Controller
     public function store(Request $request, Project $project, Task $task): JsonResponse
     {
         $this->assertSameCompanyAsProject($request, $project);
+        // Chantier 32.17 (14-layer deep audit): $task was never checked
+        // against $project at all on this method (only show/update/destroy
+        // did) — a caller could log time under their own project's URL
+        // segment while pointing task_id at ANY other task, including one
+        // belonging to a different company, since only $project's company
+        // was ever verified, never $task's. Confirmed exploitable via a real
+        // cross-company task id before this fix.
+        abort_if($task->project_id !== $project->id, 404);
 
         $validated = $request->validate([
             'hours' => ['required', 'numeric', 'min:0.01', 'max:24'],
@@ -105,7 +114,7 @@ class TimeEntryController extends Controller
     {
         $this->assertSameCompanyAsProject($request, $project);
 
-        if ($timeEntry->task_id !== $task->id) {
+        if ($task->project_id !== $project->id || $timeEntry->task_id !== $task->id) {
             abort(404);
         }
 
@@ -122,7 +131,7 @@ class TimeEntryController extends Controller
     {
         $this->assertSameCompanyAsProject($request, $project);
 
-        if ($timeEntry->task_id !== $task->id) {
+        if ($task->project_id !== $project->id || $timeEntry->task_id !== $task->id) {
             abort(404);
         }
 
@@ -154,7 +163,7 @@ class TimeEntryController extends Controller
     {
         $this->assertSameCompanyAsProject($request, $project);
 
-        if ($timeEntry->task_id !== $task->id) {
+        if ($task->project_id !== $project->id || $timeEntry->task_id !== $task->id) {
             abort(404);
         }
 

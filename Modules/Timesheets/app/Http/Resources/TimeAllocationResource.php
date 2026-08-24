@@ -22,11 +22,14 @@ class TimeAllocationResource extends JsonResource
                 'name' => $this->project->name,
                 'code' => $this->project->code,
             ]),
+            // Chantier 32.19: TimeAllocation::costCenter() (a placeholder
+            // relation pointing cost_center_id at App\Models\User — no
+            // CostCenter model/table exists anywhere in this app) has been
+            // removed for silently exposing an unrelated user's real name
+            // whenever cost_center_id happened to collide with a real
+            // users.id (see that relation's own removal docblock) —
+            // cost_center_id now stays a plain, unresolved id.
             'cost_center_id' => $this->cost_center_id,
-            'cost_center' => $this->whenLoaded('costCenter', fn () => [
-                'id' => $this->costCenter->id,
-                'name' => $this->costCenter->name,
-            ]),
             'task_id' => $this->task_id,
             'task' => $this->whenLoaded('task', fn () => [
                 'id' => $this->task->id,

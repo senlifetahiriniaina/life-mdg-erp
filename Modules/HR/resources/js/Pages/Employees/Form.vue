@@ -2,6 +2,12 @@
   <AppLayout>
     <Head :title="isEdit ? $t('common.edit') + ' ' + $t('hr.employee') : $t('common.new') + ' ' + $t('hr.employee')" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. Reuses the
+         already-registered 'create_employee' action for both create and
+         edit — same form, same real guidance. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="max-w-4xl mx-auto space-y-6">
       <!-- Page header -->
       <div class="flex items-center gap-4">
@@ -175,6 +181,8 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const props = defineProps({
   employee: { type: Object, default: null },
@@ -183,6 +191,11 @@ const props = defineProps({
 const { t } = useI18n()
 
 const isEdit = computed(() => !!props.employee)
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'create_employee')
 
 const form = reactive({
   first_name: props.employee?.first_name ?? '',

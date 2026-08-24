@@ -46,6 +46,7 @@ class Rma extends Model
         'approved_at',
         'received_at',
         'refunded_at',
+        'company_id',
     ];
 
     /** @var array<string, string> */

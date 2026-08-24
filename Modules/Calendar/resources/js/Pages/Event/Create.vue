@@ -50,9 +50,32 @@ async function submit() {
   errors.value  = {}
   try {
     const payload = { ...form.value }
+    // Chantier 32.12: `attendees` was sent as a bare array of email
+    // strings (['a@x.com', 'b@x.com']) — the real endpoint validates
+    // `attendees.*.email`, an array of OBJECTS, so this 422'd
+    // ("attendees.0.email is required") on every real submission with a
+    // participant filled in, confirmed empirically. Fixed to send the
+    // shape the backend actually validates.
     if (payload.attendees) {
       payload.attendees = payload.attendees.split(',').map(e => e.trim()).filter(Boolean)
+        .map(email => ({ email }))
+    } else {
+      delete payload.attendees
     }
+    // Chantier 32.12: `reminder_minutes` (the dropdown's own v-model) was
+    // never translated into the `reminders` array the backend actually
+    // reads (`reminders.*.minutes_before`/`.method`) — the field existed
+    // on the form and was sent as a flat scalar the backend simply
+    // ignores (unknown key), so picking a reminder delay has silently
+    // never created a real reminder since this page was built.
+    if (payload.reminder_minutes && Number(payload.reminder_minutes) > 0) {
+      payload.reminders = [{ minutes_before: Number(payload.reminder_minutes), method: 'popup' }]
+    }
+    delete payload.reminder_minutes
+    // `recurrence` has no matching backend field (the real column is
+    // `recurrence_rule`, a raw RRULE string) and this page never exposes a
+    // control to set it — dropped rather than sent as an ignored key.
+    delete payload.recurrence
     const res = await fetch('/api/v1/calendar/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },

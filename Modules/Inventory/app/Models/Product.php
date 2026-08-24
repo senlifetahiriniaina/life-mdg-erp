@@ -6,16 +6,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Core\Models\Concerns\BelongsToTenant;
+use Modules\Core\Traits\RecordsActivity;
 use Modules\Helpdesk\Traits\HelpdeskLinkable;
 use Modules\Inventory\Database\Factories\ProductFactory;
 
 class Product extends Model
 {
-    use BelongsToTenant, HasFactory, HelpdeskLinkable, SoftDeletes;
+    use BelongsToTenant, HasFactory, HelpdeskLinkable, RecordsActivity, SoftDeletes;
+
+    protected static string $auditModule = 'Inventory';
 
     protected $table = 'inventory_products';
 
     protected $fillable = [
+        'company_id',
         'category_id',
         'unit_id',
         'sku',
@@ -42,6 +46,7 @@ class Product extends Model
         'attributes',
         'ecommerce_synced_at',
         'ecommerce_sync_pending',
+        'company_id',
     ];
 
     protected $casts = [

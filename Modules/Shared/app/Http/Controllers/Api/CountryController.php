@@ -4,10 +4,23 @@ namespace Modules\Shared\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class CountryController extends Controller
 {
+    // Chantier 32.8 (14-layer deep audit, layer 14f perf): shared_countries
+    // is genuinely static reference data — populated once by
+    // DefaultDataSeeder, never written to by any real request path in this
+    // app — but index()/show() re-queried it from scratch on every single
+    // call with zero caching, real avoidable overhead for reference data
+    // any number of modules could legitimately call per page load. A 1h
+    // TTL matches the precedent already set in this very module by
+    // PersonalizationFramework::CACHE_TTL. Uses the plain (non-tagged)
+    // Cache facade — this app's real CACHE_STORE=file driver does not
+    // support Cache::tags(), already documented as a landmine elsewhere in
+    // this codebase.
+    private const CACHE_TTL = 3600;
     /**
      * Chantier 19 Lot 3: index()/show() queried columns that have never
      * existed on `shared_countries` (`active`, `code`, `ohada_member` — the
@@ -27,20 +40,33 @@ class CountryController extends Controller
      */
     public function index(Request $request)
     {
-        $query = DB::table('shared_countries');
-        if ($request->region) {
-            $query->where('region', $request->region);
-        }
-        if ($request->boolean('ohada')) {
-            $query->where('is_ohada', true);
-        }
-        return response()->json(['data' => $query->orderBy('name')->get()]);
+        $region = $request->region;
+        $ohada = $request->boolean('ohada');
+        $cacheKey = "shared:countries:index:region={$region}:ohada={$ohada}";
+
+        $data = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($region, $ohada) {
+            $query = DB::table('shared_countries');
+            if ($region) {
+                $query->where('region', $region);
+            }
+            if ($ohada) {
+                $query->where('is_ohada', true);
+            }
+            return $query->orderBy('name')->get();
+        });
+
+        return response()->json(['data' => $data]);
     }
 
     public function show($code)
     {
         $column = strlen($code) === 2 ? 'iso_alpha2' : 'iso_alpha3';
-        $country = DB::table('shared_countries')->where($column, strtoupper($code))->first();
+        $cacheKey = "shared:countries:show:{$column}:" . strtoupper($code);
+
+        $country = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($column, $code) {
+            return DB::table('shared_countries')->where($column, strtoupper($code))->first();
+        });
+
         abort_if(!$country, 404);
         return response()->json(['data' => $country]);
     }

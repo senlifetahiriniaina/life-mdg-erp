@@ -167,6 +167,20 @@ const onFileSelect = (event: { files: File[] }) => {
   selectedFile.value = event.files[0] ?? null
 }
 
+// Chantier 32.10 (deep 14-layer audit, security layer): this app runs
+// Sanctum's statefulApi(), which activates real CSRF verification on every
+// same-origin browser request to /api/v1/* — a raw fetch() never attaches
+// a CSRF header, unlike axios, which does so automatically. This is the
+// exact same bug class already found and fixed for 9 Inventory/Logistics
+// pages at Chantier 19 (invisible to any Pest test, since
+// VerifyCsrfToken::runningUnitTests() unconditionally bypasses the check
+// whenever APP_ENV=testing — only a real browser-shaped request can
+// surface it) — this component is this module's own real, live import UI
+// (mounted from both SetupIndex.vue and SetupWizard.vue), so every one of
+// its mutating requests below (POST/PUT) was silently 419'ing in real use.
+const getCsrf = (): string =>
+  (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+
 const inferSourceType = (file: File): string => {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
   if (ext === 'csv') return 'csv'
@@ -200,17 +214,17 @@ const createAndAnalyze = async () => {
     form.append('target_entity', selectedTarget.value.entity)
     form.append('file', selectedFile.value)
 
-    const createRes = await fetch('/api/v1/setup/import-jobs', { method: 'POST', headers: { Accept: 'application/json' }, body: form })
+    const createRes = await fetch('/api/v1/setup/import-jobs', { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() }, body: form })
     const createJson = await createRes.json()
     if (!createRes.ok) throw new Error(createJson.message ?? 'Création du job d\'import impossible.')
     jobId.value = createJson.data.id
 
-    const analyzeRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/analyze`, { method: 'POST', headers: { Accept: 'application/json' } })
+    const analyzeRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/analyze`, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
     const analyzeJson = await analyzeRes.json()
     if (!analyzeRes.ok) throw new Error(analyzeJson.message ?? 'Analyse du fichier impossible.')
     sourceSchema.value = analyzeJson.data
 
-    const suggestRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/suggest-mappings`, { method: 'POST', headers: { Accept: 'application/json' } })
+    const suggestRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/suggest-mappings`, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
     const suggestJson = await suggestRes.json()
     const suggestions: Array<{ source_field: string; target_field: string; confidence: number }> = suggestJson.data ?? []
 
@@ -280,7 +294,7 @@ const saveMappingsAndExecute = async () => {
 
     const saveRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/mappings`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(payload),
     })
     if (!saveRes.ok) {
@@ -288,7 +302,7 @@ const saveMappingsAndExecute = async () => {
       throw new Error(saveJson.message ?? 'Enregistrement des correspondances impossible.')
     }
 
-    const execRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/execute`, { method: 'POST', headers: { Accept: 'application/json' } })
+    const execRes = await fetch(`/api/v1/setup/import-jobs/${jobId.value}/execute`, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
     const execJson = await execRes.json()
     if (!execRes.ok) throw new Error(execJson.message ?? 'Lancement de l\'import impossible.')
 

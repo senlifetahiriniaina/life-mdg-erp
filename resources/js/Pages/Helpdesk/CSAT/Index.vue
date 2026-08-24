@@ -14,6 +14,8 @@
         </div>
       </div>
 
+      <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <!-- Tabs -->
       <div class="flex border-b border-gray-200 dark:border-surface-700 mb-6 gap-1">
         <button
@@ -198,8 +200,12 @@
 <script setup>
 import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown, InputNumber } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Select as Dropdown, InputNumber } from 'primevue'
 import axios from 'axios'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'csat_surveys')
 
 // Lazy load ApexCharts
 const VueApexCharts = defineAsyncComponent(() => import('vue-apexcharts'))

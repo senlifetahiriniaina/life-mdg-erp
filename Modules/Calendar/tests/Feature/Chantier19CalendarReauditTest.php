@@ -113,8 +113,18 @@ it('aggregates real events from multiple modules with the corrected table/column
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
+    // Chantier 32.12: strategy_objectives has no tenant/company column of
+    // its own — tenancy is inherited via plan_id -> strategy_plans.tenant_id
+    // (the same real boundary ModuleEventAggregatorService now scopes
+    // through, having found and fixed a real cross-tenant leak here — see
+    // that service's own docblock). A real plan is now required for the
+    // objective to be synced at all, matching the corrected behavior.
+    $planId = DB::table('strategy_plans')->insertGetId([
+        'tenant_id' => (string) $user->company_id, 'name' => 'Plan test',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
     DB::table('strategy_objectives')->insert([
-        'title' => 'Real objective', 'status' => 'in_progress',
+        'plan_id' => $planId, 'title' => 'Real objective', 'status' => 'in_progress',
         'end_date' => now()->addDays(20), 'level' => 1,
         'created_at' => now(), 'updated_at' => now(),
     ]);

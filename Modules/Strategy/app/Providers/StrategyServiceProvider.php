@@ -87,18 +87,27 @@ class StrategyServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            \Modules\Strategy\Console\Commands\SnapshotRatiosCommand::class,
+        ]);
     }
 
     /**
      * Register command Schedules.
+     *
+     * Chantier 32.27: was an empty stub (this module had zero scheduled
+     * commands at all) — now schedules the real ratio-snapshot producer
+     * daily, via the same callAfterResolving(Schedule::class, ...) pattern
+     * already proven working elsewhere in this app (Analytics, Helpdesk,
+     * Sales, Setup — confirmed via `php artisan schedule:list`, independent
+     * of the root Kernel binding, per this session's own scheduler fix).
      */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('inspire')->hourly();
-        // });
+        $this->app->booted(function () {
+            $schedule = $this->app->make(\Illuminate\Console\Scheduling\Schedule::class);
+            $schedule->command('strategy:snapshot-ratios')->dailyAt('02:00');
+        });
     }
 
     /**

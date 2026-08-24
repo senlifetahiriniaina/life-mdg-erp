@@ -84,12 +84,18 @@ class InventoryService
                 ->first();
 
             if (! $stock) {
-                // Create with initial values if not found
+                // Create with initial values if not found — company_id (Chantier
+                // 32) is carried over from the movement's own $data, when the
+                // caller supplied one (StockMovementController/BarcodeController/
+                // StockImportService all set it from the acting user), so a
+                // stock row is never left in a different company's bucket than
+                // the movement that created it.
                 $stock = Stock::create([
                     'product_id' => $productId,
                     'warehouse_id' => $warehouseId,
                     'quantity' => 0,
                     'avg_cost' => 0,
+                    'company_id' => $data['company_id'] ?? null,
                 ]);
 
                 // Re-acquire lock on newly created record

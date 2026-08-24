@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\CrossdockOperation;
 use Modules\Inventory\Models\CycleCount;
 use Modules\Inventory\Models\PickingOrder;
@@ -20,14 +21,20 @@ use Modules\Inventory\Models\Warehouse;
 
 class InventoryWebController extends Controller
 {
+    use ScopesToCompany;
+
     public function suppliers(Request $request): Response
     {
-        $suppliers = Supplier::query()
+        // Chantier 32: server-rendering another company's supplier list
+        // into Inertia props is a real leak independent of the API fix.
+        $suppliers = $this->scopeToCompany(Supplier::query(), $request)
             ->withCount('purchaseOrders')
             ->when(
                 $request->filled('search'),
-                fn ($q) => $q->where('name', 'like', "%{$request->search}%")
-                    ->orWhere('code', 'like', "%{$request->search}%")
+                fn ($q) => $q->where(function ($sub) use ($request) {
+                    $sub->where('name', 'like', "%{$request->search}%")
+                        ->orWhere('code', 'like', "%{$request->search}%");
+                })
             )
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->status === 'active'))
             ->latest()
@@ -42,7 +49,7 @@ class InventoryWebController extends Controller
 
     public function purchaseOrders(Request $request): Response
     {
-        $orders = PurchaseOrder::with(['supplier:id,name', 'warehouse:id,name'])
+        $orders = $this->scopeToCompany(PurchaseOrder::with(['supplier:id,name', 'warehouse:id,name']), $request)
             ->withCount('items')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('supplier_id'), fn ($q) => $q->where('supplier_id', $request->supplier_id))
@@ -50,8 +57,8 @@ class InventoryWebController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        $suppliers = Supplier::select('id', 'name')->where('is_active', true)->get();
-        $warehouses = Warehouse::select('id', 'name')->where('is_active', true)->get();
+        $suppliers = $this->scopeToCompany(Supplier::query(), $request)->select('id', 'name')->where('is_active', true)->get();
+        $warehouses = $this->scopeToCompany(Warehouse::query(), $request)->select('id', 'name')->where('is_active', true)->get();
 
         return Inertia::render('Inventory/PurchaseOrders/Index', [
             'orders' => $orders,

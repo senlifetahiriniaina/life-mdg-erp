@@ -404,7 +404,22 @@ describe('Forecasting Hub API', function () {
     });
 
     test('POST /api/v1/forecasting/scenarios creates a what-if scenario', function () {
-        $model = ForecastModel::factory()->create(['tenant_id' => 1, 'module' => 'demand']);
+        // Chantier 32.25 (audit 14 couches, Analytics — couche 6, IDOR) :
+        // createScenario() ne prenait auparavant aucun tenant_id — confirmé
+        // empiriquement qu'un utilisateur pouvait créer un scénario contre
+        // le ForecastModel de n'importe quelle autre société. Le
+        // tenant_id=1 codé en dur ici ne correspondait à aucune vraie
+        // société avant ce correctif (le check inexistant laissait passer
+        // n'importe quoi) — désormais aligné sur le vrai company_id de
+        // l'utilisateur agissant, pour tester le chemin légitime plutôt que
+        // l'ancien trou.
+        $model = ForecastModel::factory()->create([
+            // Same `?? 0` fallback the controller's own tenantId() helper
+            // applies — actingAsUser() doesn't set a real company_id, so
+            // this matches the real resolved value rather than a raw null.
+            'tenant_id' => (int) ($this->user->company_id ?? 0),
+            'module'    => 'demand',
+        ]);
 
         $response = $this->postJson('/api/v1/forecasting/scenarios', [
             'model_id'    => $model->id,
@@ -412,6 +427,21 @@ describe('Forecasting Hub API', function () {
             'assumptions' => ['demand_multiplier' => 1.2],
         ]);
         $response->assertStatus(201);
+    });
+
+    test('POST /api/v1/forecasting/scenarios rejects another company\'s model (IDOR fix)', function () {
+        $otherCompany = \App\Models\Company::factory()->create();
+        $model = ForecastModel::factory()->create([
+            'tenant_id' => $otherCompany->id,
+            'module'    => 'demand',
+        ]);
+
+        $response = $this->postJson('/api/v1/forecasting/scenarios', [
+            'model_id'    => $model->id,
+            'name'        => 'Cross-tenant attempt',
+            'assumptions' => ['demand_multiplier' => 1.2],
+        ]);
+        $response->assertStatus(404);
     });
 
     test('POST /api/v1/forecasting/ai/narrative generates AI narrative', function () {

@@ -7,12 +7,15 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\SourcingBenchmark;
 use Modules\Inventory\Services\SourcingBenchmarkService;
 
 class SourcingBenchmarkController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private SourcingBenchmarkService $service) {}
 
     public function index(Request $request): JsonResponse
@@ -22,6 +25,7 @@ class SourcingBenchmarkController extends Controller
         $history = $this->service->history(
             $request->integer('product_id') ?: null,
             $request->integer('product_template_id') ?: null,
+            $request->user()?->company_id,
         );
 
         return response()->json([
@@ -50,7 +54,7 @@ class SourcingBenchmarkController extends Controller
         ]);
 
         try {
-            $benchmark = $this->service->record($validated, $request->user()?->id);
+            $benchmark = $this->service->record($validated, $request->user()?->id, $request->user()?->company_id);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -58,18 +62,20 @@ class SourcingBenchmarkController extends Controller
         return response()->json(['data' => $benchmark], 201);
     }
 
-    public function destroy(SourcingBenchmark $sourcingBenchmark): JsonResponse
+    public function destroy(Request $request, SourcingBenchmark $sourcingBenchmark): JsonResponse
     {
         $this->authorize('delete', $sourcingBenchmark);
+        $this->assertSameCompany($request, $sourcingBenchmark);
 
         $this->service->delete($sourcingBenchmark);
 
         return response()->json(null, 204);
     }
 
-    public function compare(Product $product): JsonResponse
+    public function compare(Request $request, Product $product): JsonResponse
     {
         $this->authorize('viewAny', SourcingBenchmark::class);
+        $this->assertSameCompany($request, $product);
 
         return response()->json(['data' => $this->service->compare($product)]);
     }

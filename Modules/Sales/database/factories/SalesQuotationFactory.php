@@ -1,48 +1,47 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Sales\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Modules\Sales\Models\SalesQuotation;
 
+/**
+ * Chantier 32.16 (Sales deep 14-layer audit): same scaffold-boilerplate
+ * pattern as SalesOrderFactory — fake()->word() on tenant_id/contact_id/
+ * total/valid_until/created_by, and a status enum ('draft'/'published'/
+ * 'archived') that doesn't match any real SalesQuotation status
+ * ('draft'/'sent'/'accepted' — see SalesQuotation::isConvertible()).
+ * Rewritten to match the model's real $fillable/$casts and status
+ * vocabulary.
+ */
 class SalesQuotationFactory extends Factory
 {
     protected $model = SalesQuotation::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
-            'reference' => fake()->bothify('??-##'),
-            'contact_id' => fake()->word(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'currency' => fake()->word(),
-            'total' => fake()->word(),
-            'valid_until' => fake()->word(),
-            'notes' => fake()->text(),
-            'converted_to_order_id' => fake()->word(),
-            'created_by' => fake()->word(),
+            'tenant_id'             => 1,
+            // uniqid() rather than fake()->unique() — see SalesOrderFactory's
+            // equivalent comment (parallel-worker collision risk against the
+            // real DB unique() constraint on this column).
+            'reference'             => 'QT-' . now()->format('Y') . '-' . strtoupper(uniqid('', true)),
+            'contact_id'            => null,
+            'account_id'            => null,
+            'status'                => 'draft',
+            'currency'              => 'MGA',
+            'total'                 => fake()->randomFloat(2, 1000, 500000),
+            'valid_until'           => now()->addDays(30)->toDateString(),
+            'notes'                 => fake()->boolean(30) ? fake()->sentence() : null,
+            'converted_to_order_id' => null,
+            'created_by'            => 1,
         ];
     }
 
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
+    public function sent(): static
     {
-        return $this->state(fn (array $attributes) => [
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-        ]);
+        return $this->state(fn (array $attributes) => ['status' => 'sent']);
     }
 }

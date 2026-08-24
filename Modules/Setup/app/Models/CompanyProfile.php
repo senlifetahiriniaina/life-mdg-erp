@@ -38,6 +38,14 @@ use Illuminate\Database\Eloquent\Model;
  */
 class CompanyProfile extends Model
 {
+    // Chantier 32.10 (deep 14-layer audit, CORE layer): this model — which
+    // holds the tenant's real legal name, VAT number/exempt status,
+    // currency, and country config — had no audit trail at all, unlike
+    // every sibling model in this module (ImportJob/FieldMapping/
+    // OnboardingSession/etc. all use this same trait). Added for real
+    // Compliance-First coverage of admin/wizard edits to company config.
+    use \Modules\AuditLog\Traits\HasAuditLog;
+
     protected $table = 'setup_company_profiles';
 
     protected $fillable = [

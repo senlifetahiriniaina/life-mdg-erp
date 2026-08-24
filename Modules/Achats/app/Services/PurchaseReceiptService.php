@@ -17,10 +17,27 @@ class PurchaseReceiptService
         $this->poService = $poService;
     }
 
+    /**
+     * Chantier 32.13: this method had no status guard on the source PO at
+     * all — a real business-validation gap, not hypothetical, confirmed
+     * empirically via a real POST purchase-receipts request against a
+     * 'draft' PO before this fix (a receipt was silently accepted against a
+     * PO that had never been submitted, approved, or sent to a supplier).
+     * A purchase receipt records goods actually delivered against a
+     * confirmed commitment — only an 'approved' PO represents that. Uses
+     * \RuntimeException (not the previous bare \Exception) so the
+     * controller can catch it and return a real 422 instead of an uncaught
+     * 500, matching the pattern already established by
+     * PurchaseOrderController's deposit/balance endpoints.
+     */
     public function createReceipt(PurchaseOrder $po, array $data): PurchaseReceipt
     {
+        if (! $po->isApproved()) {
+            throw new \RuntimeException('Cannot record a receipt against a purchase order that is not approved (current status: '.$po->status.').');
+        }
+
         if ($po->receipt()->exists()) {
-            throw new \Exception('Purchase order already has a receipt');
+            throw new \RuntimeException('Purchase order already has a receipt');
         }
 
         return $this->poService->markAsReceived($po, $data);

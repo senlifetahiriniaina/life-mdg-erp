@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Reporting\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\Reporting\Console\Commands\DeliverScheduledReportsCommand;
 use Modules\Reporting\Models\ReportDefinition;
 use Modules\Reporting\Policies\ReportPolicy;
 use Modules\Reporting\Services\ReportingService;
@@ -47,15 +49,31 @@ class ReportingServiceProvider extends ServiceProvider
 
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            DeliverScheduledReportsCommand::class,
+        ]);
     }
 
+    /**
+     * Chantier 32.22: same proven mechanism already used by
+     * Modules\Sales ('sales:generate-recurring-orders'), Modules\Analytics
+     * ('forecasting:nightly') and Modules\Helpdesk
+     * ('helpdesk:check-sla-breaches') — hooks Schedule::class directly via
+     * callAfterResolving() inside this module's own ServiceProvider,
+     * independent of the root Kernel binding (confirmed working for those
+     * 3 precedents via `php artisan schedule:list`). Hourly rather than
+     * daily, since a schedule's own `frequency` (daily/weekly/monthly) is
+     * what actually paces delivery — this command just needs to run often
+     * enough that "due" is checked promptly, not once a day.
+     */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('reporting:run-due')->everyMinute();
-        // });
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('reporting:deliver-scheduled')
+                ->name('reporting:deliver-scheduled')
+                ->hourly()
+                ->withoutOverlapping();
+        });
     }
 
     public function registerTranslations(): void

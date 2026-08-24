@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Conversation extends Model
 {
@@ -33,9 +34,18 @@ class Conversation extends Model
         return $this->hasMany(Message::class)->orderBy('created_at');
     }
 
-    public function lastMessage(): HasMany
+    /**
+     * Chantier 32.28: was `hasMany(...)->latest()`, eager-loaded via
+     * `->with(['lastMessage'])` and reduced to a single row with `->first()`
+     * in ConversationController::index() — this loaded EVERY message of
+     * EVERY one of the caller's conversations into memory just to discard
+     * all but the newest per thread, confirmed empirically (no LIMIT clause
+     * at all in the generated SQL). `latestOfMany()` produces a real
+     * single-row-per-parent query instead.
+     */
+    public function lastMessage(): HasOne
     {
-        return $this->hasMany(Message::class)->latest();
+        return $this->hasOne(Message::class)->latestOfMany();
     }
 
     public function creator(): BelongsTo

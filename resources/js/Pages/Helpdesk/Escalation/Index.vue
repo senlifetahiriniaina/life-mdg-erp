@@ -9,6 +9,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab" :class="{ 'tab-active': activeTab === 'sla' }" @click="activeTab = 'sla'">
@@ -208,8 +210,18 @@ import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
+const { guidance } = useAiAssistant('Helpdesk', 'escalation_config')
+
+// Chantier 32.21: this admin config page's 4 mutating fetch() calls
+// (save/delete SLA policy, save/delete escalation rule) sent no CSRF token
+// at all — every real save/delete on this page 419'd in a real browser.
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
 
 const props = defineProps({
   slaPolicies:     { type: Array, default: () => [] },
@@ -280,7 +292,7 @@ async function saveSla() {
     const url = editingSla.value ? `/api/v1/helpdesk/sla-policies/${editingSla.value.id}` : '/api/v1/helpdesk/sla-policies'
     const res = await fetch(url, {
       method,
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(slaForm.value),
     })
     if (res.ok) {
@@ -300,7 +312,7 @@ async function saveSla() {
 
 async function deleteSla(id) {
   if (!confirm(t('common.confirm_delete'))) return
-  const res = await fetch(`/api/v1/helpdesk/sla-policies/${id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+  const res = await fetch(`/api/v1/helpdesk/sla-policies/${id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
   if (res.status === 204) {
     slaPolicies.value = slaPolicies.value.filter(p => p.id !== id)
   }
@@ -331,7 +343,7 @@ async function saveRule() {
     const url = editingRule.value ? `/api/v1/helpdesk/escalation-rules/${editingRule.value.id}` : '/api/v1/helpdesk/escalation-rules'
     const res = await fetch(url, {
       method,
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(payload),
     })
     if (res.ok) {
@@ -351,7 +363,7 @@ async function saveRule() {
 
 async function deleteRule(id) {
   if (!confirm(t('common.confirm_delete'))) return
-  const res = await fetch(`/api/v1/helpdesk/escalation-rules/${id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+  const res = await fetch(`/api/v1/helpdesk/escalation-rules/${id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
   if (res.status === 204) {
     escalationRules.value = escalationRules.value.filter(r => r.id !== id)
   }

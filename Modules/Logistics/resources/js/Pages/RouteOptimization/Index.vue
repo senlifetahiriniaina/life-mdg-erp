@@ -1,5 +1,7 @@
 <template>
   <div class="space-y-6">
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Optimisation des Tournées de Livraison</h1>
@@ -311,10 +313,22 @@ import ProgressBar from 'primevue/progressbar'
 import Drawer from 'primevue/drawer'
 import ToggleSwitch from 'primevue/toggleswitch'
 import Textarea from 'primevue/textarea'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
+// Chantier 32.23 (deep 14-layer audit): `useRoleAccess()` was called with
+// zero import anywhere in this file and no auto-import plugin configured
+// (confirmed via vite.config.js) — a guaranteed ReferenceError at component
+// setup, meaning this real, routed page (the one page in the whole app that
+// hosts the real VRP 2-opt optimizer below) has never actually rendered for
+// any user. Fixed. Also wired the real, live, zero-caller AI-assist backend
+// (POST /api/v1/logistics/ai/assist) for the first time on this page.
 const { isElevated, hasAnyRole } = useRoleAccess()
 const canManage = computed(() => isElevated.value || hasAnyRole(['logistics-manager']))
+const { guidance } = useAiAssistant('Logistics', 'optimize_routes')
+const showAiPanel = ref(true)
 
 const optimizing = ref(false)
 const showRouteDrawer = ref(false)

@@ -39,6 +39,7 @@ class Quote extends Model
     protected $table = 'crm_quotes';
 
     protected $fillable = [
+        'tenant_id',
         'opportunity_id',
         'contact_id',
         'reference',

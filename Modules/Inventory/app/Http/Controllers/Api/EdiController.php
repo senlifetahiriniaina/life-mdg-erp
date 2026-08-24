@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\EdiTransaction;
 use Modules\Inventory\Services\EdiService;
 
@@ -15,6 +16,8 @@ use Modules\Inventory\Services\EdiService;
  */
 class EdiController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly EdiService $edi) {}
 
     /**
@@ -52,6 +55,7 @@ class EdiController extends Controller
             'status'      => $status,
             'partner_id'  => $partnerId,
             'occurred_at' => now(),
+            'company_id'  => $this->companyId($request),
         ]);
 
         return response()->json([
@@ -100,6 +104,7 @@ class EdiController extends Controller
             'status'      => 'processed',
             'partner_id'  => null,
             'occurred_at' => now(),
+            'company_id'  => $this->companyId($request),
         ]);
 
         return response()->json([
@@ -114,6 +119,7 @@ class EdiController extends Controller
     public function transactions(Request $request): JsonResponse
     {
         $txs = EdiTransaction::query()
+            ->where('company_id', $this->companyId($request))
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
             ->when($request->input('direction'), fn ($q, $v) => $q->where('direction', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))

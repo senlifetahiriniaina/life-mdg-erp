@@ -83,10 +83,14 @@ class Contact extends Model
         return $this->belongsTo(Account::class);
     }
 
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
-    }
+    // Chantier 32.15: the company() relation (Modules\CRM\Models\Company, table
+    // crm_companies) was removed here — the dead-code audit confirmed it was never called
+    // anywhere, and it was actively wrong: in every real write path (ContactController::
+    // store()) company_id actually holds the app's tenant-boundary App\Models\Company id
+    // (populated from $request->user()->company_id), never a crm_companies id, so this
+    // relation would have silently resolved wrong-tenant data had it ever been activated.
+    // company_id itself stays — it is the real tenant boundary column, filtered by
+    // ContactController/ContactPolicy.
 
     public function scopeActive($query)
     {

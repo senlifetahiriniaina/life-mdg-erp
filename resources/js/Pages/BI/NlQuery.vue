@@ -1,6 +1,8 @@
 <template>
   <AppLayout title="Question &amp; Réponse IA">
     <div class="max-w-3xl mx-auto space-y-6 py-6 px-4">
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <div>
         <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-50">Ask your data ✨</h1>
         <p class="text-surface-500 dark:text-surface-400">Posez une question en langage naturel, obtenez un graphique</p>
@@ -70,7 +72,11 @@
 import { ref, computed, defineAsyncComponent } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { Button, InputText } from 'primevue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('BI', 'natural_language_query')
 
 // Lazy load heavy chart library - loaded only when component renders
 const VueApexCharts = defineAsyncComponent(() => import('vue-apexcharts'))

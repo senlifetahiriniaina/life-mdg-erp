@@ -7,7 +7,19 @@ use Tests\TestCase;
 use Modules\Workflow\Services\WorkflowEngineService;
 use App\Models\User;
 
-
+/*
+ * Chantier 32.11: it_evaluates_trigger_condition/it_dispatches_action/
+ * it_processes_workflow_chain/it_supports_parallel_actions/
+ * it_retries_failed_action/it_handles_action_timeout/
+ * it_logs_workflow_execution below tested WorkflowEngineService's deleted
+ * legacy Cache-based methods (evaluateTrigger/dispatchAction/processChain/
+ * dispatchParallelActions/dispatchWithRetry/dispatchWithTimeout/
+ * logExecution) — confirmed zero real callers anywhere, deleted this
+ * chantier alongside ApprovalWorkflowService/TaskManagementService/
+ * WorkflowBuilderService. Removed. The 3 evaluateCondition() tests kept
+ * below exercise a still-real, still-live method — unchanged by this
+ * chantier.
+ */
 class WorkflowEngineServiceTest extends TestCase
 {
     private WorkflowEngineService $service;
@@ -18,24 +30,6 @@ class WorkflowEngineServiceTest extends TestCase
         parent::setUp();
         $this->service = app(WorkflowEngineService::class);
         $this->user = User::factory()->create();
-    }
-
-    /** @test */
-    public function it_evaluates_trigger_condition()
-    {
-        $trigger = [
-            'type' => 'event',
-            'event_key' => 'crm.opportunity.won',
-        ];
-
-        $context = [
-            'event_key' => 'crm.opportunity.won',
-            'opportunity_id' => 123,
-        ];
-
-        $matches = $this->service->evaluateTrigger($trigger, $context);
-
-        $this->assertTrue($matches);
     }
 
     /** @test */
@@ -54,6 +48,18 @@ class WorkflowEngineServiceTest extends TestCase
         $this->assertTrue($result);
     }
 
+    /**
+     * Chantier 32.11: this and the sibling _or test below pass a nested
+     * {logic: AND/OR, conditions: [...]} shape — the real
+     * evaluateCondition() only ever reads a single flat {operator, field,
+     * value} object and has no AND/OR combinator logic at all, so both
+     * "pass" only because the missing top-level `operator` key falls to
+     * the method's own `'always' => true` default, not because any
+     * combinator logic actually runs. Confirmed unrelated to this
+     * chantier's changes (evaluateCondition() itself was not touched) —
+     * left as-is rather than expanding this chantier's scope into fixing a
+     * pre-existing misleading-but-passing test.
+     */
     /** @test */
     public function it_evaluates_complex_condition_with_and()
     {
@@ -88,87 +94,5 @@ class WorkflowEngineServiceTest extends TestCase
         $result = $this->service->evaluateCondition($rule, $context);
 
         $this->assertTrue($result);
-    }
-
-    /** @test */
-    public function it_dispatches_action()
-    {
-        $action = [
-            'type' => 'action',
-            'action_key' => 'notification.send',
-            'params' => [
-                'user_id' => $this->user->id,
-                'message' => 'Test notification',
-            ],
-        ];
-
-        $result = $this->service->dispatchAction($action);
-
-        $this->assertTrue($result);
-    }
-
-    /** @test */
-    public function it_processes_workflow_chain()
-    {
-        $chain = [
-            ['type' => 'trigger', 'event_key' => 'crm.opportunity.won'],
-            ['type' => 'condition', 'field' => 'amount', 'operator' => '>', 'value' => 100000],
-            ['type' => 'action', 'action_key' => 'approval.request'],
-        ];
-
-        $context = ['amount' => 150000];
-
-        $result = $this->service->processChain($chain, $context);
-
-        $this->assertIsArray($result);
-    }
-
-    /** @test */
-    public function it_supports_parallel_actions()
-    {
-        $parallelActions = [
-            ['type' => 'action', 'action_key' => 'notification.send', 'params' => []],
-            ['type' => 'action', 'action_key' => 'log.record', 'params' => []],
-        ];
-
-        $results = $this->service->dispatchParallelActions($parallelActions);
-
-        $this->assertIsArray($results);
-        $this->assertCount(2, $results);
-    }
-
-    /** @test */
-    public function it_retries_failed_action()
-    {
-        $action = ['type' => 'action', 'action_key' => 'http.request'];
-        $maxRetries = 3;
-
-        $result = $this->service->dispatchWithRetry($action, maxRetries: $maxRetries);
-
-        $this->assertNotNull($result);
-    }
-
-    /** @test */
-    public function it_handles_action_timeout()
-    {
-        $action = ['type' => 'action', 'action_key' => 'long_running.task'];
-        $timeout = 5;
-
-        $result = $this->service->dispatchWithTimeout($action, timeout: $timeout);
-
-        $this->assertNotNull($result);
-    }
-
-    /** @test */
-    public function it_logs_workflow_execution()
-    {
-        $chain = [
-            ['type' => 'trigger', 'event_key' => 'test.event'],
-            ['type' => 'action', 'action_key' => 'test.action'],
-        ];
-
-        $executionId = $this->service->logExecution($chain, ['test' => true]);
-
-        $this->assertNotNull($executionId);
     }
 }

@@ -121,17 +121,25 @@ class PurchaseReceiptController extends Controller
         // another company's purchase order by id.
         $this->assertSameCompany($request, $po);
 
-        $receipt = $this->service->createReceipt($po, [
-            'receipt_date' => $validated['receipt_date'] ?? now()->toDateString(),
-            'received_by' => auth()->id(),
-            'warehouse_location' => $validated['warehouse_location'] ?? null,
-            'notes' => $validated['notes'] ?? null,
-            // addReceiptLine()/completeReceipt() gate on this specific
-            // string — the migrated column's own DB default ('pending')
-            // doesn't match, so it must be set explicitly here.
-            'status' => 'draft',
-            'company_id' => $this->companyId($request),
-        ]);
+        // Chantier 32.13: createReceipt() now rejects a non-'approved' PO —
+        // caught here (rather than left to bubble into an uncaught 500)
+        // matching the try/catch pattern already established by this
+        // module's deposit/balance endpoints.
+        try {
+            $receipt = $this->service->createReceipt($po, [
+                'receipt_date' => $validated['receipt_date'] ?? now()->toDateString(),
+                'received_by' => auth()->id(),
+                'warehouse_location' => $validated['warehouse_location'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                // addReceiptLine()/completeReceipt() gate on this specific
+                // string — the migrated column's own DB default ('pending')
+                // doesn't match, so it must be set explicitly here.
+                'status' => 'draft',
+                'company_id' => $this->companyId($request),
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $this->applyLines($receipt, $validated['lines'] ?? [], $validated['quality_issues'] ?? []);
 

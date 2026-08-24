@@ -44,6 +44,8 @@
       </div>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="grid grid-cols-3 gap-6">
       <!-- Main Content -->
       <div class="col-span-2 space-y-6">
@@ -186,6 +188,10 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Tag from 'primevue/tag'
 import Badge from 'primevue/badge'
 import { useRoleAccess } from '@/composables/useRoleAccess'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'manage_sheets')
 
 const props = defineProps({
   sheet: Object,

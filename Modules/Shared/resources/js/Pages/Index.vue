@@ -10,10 +10,10 @@ const { guidance } = useAiAssistant('Shared', 'view_dashboard')
     <div class="bg-white rounded-lg shadow p-6 text-gray-500 text-sm">
       <p>Ce module fournit des services et helpers partagés entre tous les modules WideHalo ERP.</p>
       <ul class="mt-4 list-disc list-inside space-y-1">
-        <li>BaseService — contrat de service de base</li>
-        <li>PersonalizationFramework — préférences utilisateur/tenant</li>
-        <li>SentimentAnalysisService — analyse sentiment multilingue</li>
-        <li>UnifiedForecastingService — agrégation des prévisions cross-modules</li>
+        <li>BaseService — contrat de service de base multi-tenant (déjà étendu par des services réels d'Accounting, CRM, Helpdesk, BI)</li>
+        <li>PersonalizationFramework — segmentation/recommandation utilisateur</li>
+        <li>MultiTenantScope — trait de cloisonnement par société pour un futur modèle</li>
+        <li>Pays/Devises — référentiel réel (SmartDefaultsService) exposé en API</li>
       </ul>
     </div>
   </div>

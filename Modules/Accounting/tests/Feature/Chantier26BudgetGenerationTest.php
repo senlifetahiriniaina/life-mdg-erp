@@ -46,7 +46,7 @@ function budgetGenUser(): User
 function postLedgerEntry(int $daysAgo, string $accountCode, float $debit, float $credit, string $ref): JournalEntry
 {
     $account   = ChartOfAccount::where('code', $accountCode)->firstOrFail();
-    $bank      = ChartOfAccount::where('code', '512')->firstOrFail();
+    $bank      = ChartOfAccount::where('code', '5211')->firstOrFail();
     $journal   = Journal::where('code', 'BNQ')->first() ?? Journal::firstOrFail();
 
     $entry = JournalEntry::create([
@@ -70,7 +70,7 @@ describe('BudgetGenerationService — real historical ledger data', function () 
         // debit-increases) inside the 6-month lookback window before next
         // year's Jan 1.
         foreach ([150, 120, 90, 60, 30] as $daysAgo) {
-            postLedgerEntry($daysAgo, '707', 0, 200000, 'REV-'.$daysAgo);
+            postLedgerEntry($daysAgo, '701', 0, 200000, 'REV-'.$daysAgo);
             postLedgerEntry($daysAgo, '601', 80000, 0, 'EXP-'.$daysAgo);
         }
 
@@ -84,7 +84,7 @@ describe('BudgetGenerationService — real historical ledger data', function () 
 
         // No revenue inflation without a validated objective — expenses and
         // revenue both derive purely from history (no invented growth).
-        $revenueLine = $budget->lines()->where('category', '707')->first();
+        $revenueLine = $budget->lines()->where('category', '701')->first();
         $expenseLine = $budget->lines()->where('category', '601')->first();
         expect($revenueLine)->not->toBeNull()
             ->and($expenseLine)->not->toBeNull()
@@ -96,7 +96,7 @@ describe('BudgetGenerationService — real historical ledger data', function () 
         $user = budgetGenUser();
 
         foreach ([150, 120, 90, 60, 30] as $daysAgo) {
-            postLedgerEntry($daysAgo, '707', 0, 200000, 'REV-'.$daysAgo);
+            postLedgerEntry($daysAgo, '701', 0, 200000, 'REV-'.$daysAgo);
             postLedgerEntry($daysAgo, '601', 80000, 0, 'EXP-'.$daysAgo);
         }
 
@@ -133,7 +133,7 @@ describe('BudgetGenerationService — real historical ledger data', function () 
         $otherUser = budgetGenUser();
 
         foreach ([90, 60, 30] as $daysAgo) {
-            postLedgerEntry($daysAgo, '707', 0, 100000, 'REV-'.$daysAgo);
+            postLedgerEntry($daysAgo, '701', 0, 100000, 'REV-'.$daysAgo);
         }
 
         $fiscalYear  = (int) now()->addYear()->year;
@@ -155,7 +155,7 @@ describe('BudgetGenerationService — real historical ledger data', function () 
 describe('API — POST /api/v1/accounting/budgets/generate-from-history', function () {
     test('creates a real budget end to end for an authorized role', function () {
         $user = budgetGenUser();
-        postLedgerEntry(30, '707', 0, 150000, 'REV-1');
+        postLedgerEntry(30, '701', 0, 150000, 'REV-1');
         postLedgerEntry(30, '601', 60000, 0, 'EXP-1');
 
         $response = $this->postJson('/api/v1/accounting/budgets/generate-from-history', [

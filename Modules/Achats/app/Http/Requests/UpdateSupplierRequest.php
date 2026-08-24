@@ -3,6 +3,7 @@
 namespace Modules\Achats\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateSupplierRequest extends FormRequest
 {
@@ -16,7 +17,12 @@ class UpdateSupplierRequest extends FormRequest
         $supplierId = $this->route('supplier')->id;
 
         return [
-            'code' => "nullable|unique:achats_suppliers,code,{$supplierId}",
+            // Chantier 32.13: same cross-tenant false-collision fix as
+            // StoreSupplierRequest — see its own docblock.
+            'code' => [
+                'nullable',
+                Rule::unique('achats_suppliers', 'code')->where('company_id', $this->user()?->company_id)->ignore($supplierId),
+            ],
             'name' => 'string|max:255',
             'contact_person' => 'nullable|string|max:255',
             'email' => 'nullable|email',

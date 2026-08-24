@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Helpdesk\Models\Ticket;
 use Modules\Helpdesk\Models\SlaPolicy;
-use Modules\Helpdesk\Services\AlertService;
 use Modules\Helpdesk\Services\TicketAssignmentService;
 use Spatie\Permission\Models\Role;
 
@@ -79,77 +78,19 @@ describe('SLA Management', function () {
     });
 });
 
-describe('SLA Alerts', function () {
-    beforeEach(function () {
-        $this->alertService = new AlertService();
-        $this->assignee = User::factory()->create();
-        $this->assignee->assignRole('support-agent');
-    });
-
-    test('SLA breach warning detects tickets due within 24 hours', function () {
-        $ticket = Ticket::factory()->create([
-            'assignee_id' => $this->assignee->id,
-            'sla_breached' => false,
-            'sla_due_at' => now()->addHours(12),
-        ]);
-
-        $count = $this->alertService->checkSlaBreachWarnings();
-
-        expect($count)->toBeGreaterThan(0);
-    });
-
-    test('SLA breach alert marks overdue tickets', function () {
-        $ticket = Ticket::factory()->create([
-            'assignee_id' => $this->assignee->id,
-            'sla_breached' => false,
-            'sla_due_at' => now()->subHours(1),
-        ]);
-
-        $count = $this->alertService->checkSlaBreaches();
-
-        expect($count)->toBeGreaterThan(0);
-
-        $ticket->refresh();
-        expect($ticket->sla_breached)->toBeTrue();
-    });
-
-    test('resolved tickets are not alerted', function () {
-        Ticket::factory()->create([
-            'assignee_id' => $this->assignee->id,
-            'status' => 'resolved',
-            'sla_due_at' => now()->subHours(1),
-        ]);
-
-        $count = $this->alertService->checkSlaBreaches();
-
-        expect($count)->toBe(0);
-    });
-
-    test('response reminder detects unresponded tickets', function () {
-        $ticket = Ticket::factory()->create([
-            'assignee_id' => $this->assignee->id,
-            'first_response_at' => null,
-            'created_at' => now()->subHours(25),
-        ]);
-
-        $count = $this->alertService->checkResponseReminders(24);
-
-        expect($count)->toBeGreaterThan(0);
-    });
-
-    test('get pending alerts for user', function () {
-        Ticket::factory()->create([
-            'assignee_id' => $this->assignee->id,
-            'sla_breached' => false,
-            'sla_due_at' => now()->addHours(12),
-        ]);
-
-        $alerts = $this->alertService->getPendingAlerts($this->assignee->id);
-
-        expect($alerts)->toHaveKeys(['sla_warnings', 'sla_breaches', 'unresponded_tickets', 'assigned_tickets']);
-        expect($alerts['sla_warnings'])->not->toBeEmpty();
-    });
-});
+// Chantier 32.21: the "SLA Alerts" describe block that used to live here
+// exercised Modules\Helpdesk\Services\AlertService directly — confirmed via
+// exhaustive grep to be a fully dead duplicate of the real, live, scheduled
+// SlaAutomationService/SlaService breach-checking engine (checkSlaBreaches()
+// duplicated the same "mark overdue tickets sla_breached=true" concept, and
+// notifyTicketAssignment()/checkSlaBreachWarnings()/checkResponseReminders()/
+// getPendingAlerts() were all log-only or otherwise never called from any
+// real controller/route/job/command anywhere in the app — only from this
+// isolated test file, the exact "isolated unit test masking dead code"
+// pattern already documented repeatedly elsewhere in this session). Deleted
+// alongside the service; the real SLA-breach coverage lives in
+// SlaAutomationTest.php/TicketServiceSlaTest.php against the actually-live
+// SlaController/SlaAutomationService path.
 
 describe('Ticket Assignment', function () {
     beforeEach(function () {

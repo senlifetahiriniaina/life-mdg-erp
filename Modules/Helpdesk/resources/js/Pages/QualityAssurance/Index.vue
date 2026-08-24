@@ -8,6 +8,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Agent metrics -->
     <div class="wh-panel" style="padding:18px;margin-bottom:20px">
       <h3 class="section-title">Métriques agent</h3>
@@ -109,6 +111,10 @@ import { ref, reactive, computed } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import axios from 'axios'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'quality_assurance')
 
 const pct = (v) => `${Math.round(v * 100)}%`
 const trendBadge = (d) => ({ improving: 'badge-green', declining: 'badge-red', stable: 'badge-gray', up: 'badge-green', down: 'badge-red' }[d] ?? 'badge-gray')

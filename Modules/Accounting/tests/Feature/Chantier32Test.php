@@ -132,7 +132,7 @@ describe('A1 — fiscal years, real CRUD + auto-link to journal entries', functi
             'date'        => '2026-05-10',
             'description' => 'Chantier32 test',
             'lines'       => [
-                ['account_code' => '512', 'debit' => 1000, 'credit' => 0],
+                ['account_code' => '5211', 'debit' => 1000, 'credit' => 0],
                 ['account_code' => '707', 'debit' => 0, 'credit' => 1000],
             ],
         ]);
@@ -184,14 +184,14 @@ describe('A2 — startup data import commands, real Artisan execution', function
         file_put_contents($path, "date,libelle,montant\n2026-04-01,Vente comptant test,25000\n");
 
         $preview = \Illuminate\Support\Facades\Artisan::call('accounting:import-treasury-history', [
-            'file' => $path, '--treasury-account' => '530',
+            'file' => $path, '--treasury-account' => '5711',
         ]);
         expect($preview)->toBe(0);
         expect(\Illuminate\Support\Facades\Artisan::output())->toContain('Aperçu seul');
 
         $before = \Modules\Accounting\Models\JournalEntry::count();
         $commit = \Illuminate\Support\Facades\Artisan::call('accounting:import-treasury-history', [
-            'file' => $path, '--treasury-account' => '530', '--commit' => true,
+            'file' => $path, '--treasury-account' => '5711', '--commit' => true,
         ]);
         expect($commit)->toBe(0);
         $after = \Modules\Accounting\Models\JournalEntry::count();

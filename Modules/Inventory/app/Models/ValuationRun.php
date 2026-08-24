@@ -44,6 +44,7 @@ class ValuationRun extends Model
         'product_count',
         'results',
         'created_by',
+        'company_id',
     ];
 
     protected $casts = [

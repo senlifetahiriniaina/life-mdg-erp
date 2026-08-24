@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\ValuationRun;
 use Modules\Inventory\Services\ValuationService;
 
@@ -17,14 +18,18 @@ use Modules\Inventory\Services\ValuationService;
  */
 class ValuationController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly ValuationService $service) {}
 
     /**
      * GET /api/v1/inventory/valuation/runs
      */
-    public function indexRuns(): JsonResponse
+    public function indexRuns(Request $request): JsonResponse
     {
-        $runs = ValuationRun::orderBy('created_at', 'desc')->paginate(20);
+        $runs = ValuationRun::where('company_id', $this->companyId($request))
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
 
         return response()->json($runs);
     }
@@ -44,14 +49,20 @@ class ValuationController extends Controller
             $validated['method'] ?? 'fifo'
         );
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation.
+        $run->update(['company_id' => $this->companyId($request)]);
+
         return response()->json($run, 201);
     }
 
     /**
      * GET /api/v1/inventory/valuation/runs/{run}
      */
-    public function showRun(ValuationRun $run): JsonResponse
+    public function showRun(Request $request, ValuationRun $run): JsonResponse
     {
+        $this->assertSameCompany($request, $run);
+
         return response()->json($run);
     }
 

@@ -49,6 +49,7 @@ class ProductionOrder extends Model
         'delivered_at',
         'notes',
         'created_by',
+        'company_id',
     ];
 
     protected $casts = [

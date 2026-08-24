@@ -4,6 +4,8 @@
       <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Time Entries</h1>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="bg-white dark:bg-surface-800 shadow-sm rounded-lg p-6">
       <!-- Stats -->
       <div class="grid grid-cols-4 gap-4 mb-6">
@@ -158,6 +160,10 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Badge from 'primevue/badge'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'view_entries')
 
 const entries = ref([])
 const loading = ref(false)

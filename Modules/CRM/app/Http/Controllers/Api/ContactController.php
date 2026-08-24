@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Modules\CRM\Models\Contact;
+use Modules\CRM\Services\AI\DuplicateDetectionService;
 
 /**
  * @group CRM - Contacts
@@ -200,6 +201,30 @@ class ContactController extends Controller
         $this->bustCache();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Find likely duplicate contacts for this contact via AI semantic similarity.
+     *
+     * Chantier 32.15: `DuplicateDetectionService::detectDuplicates()` (Chantier 10 — real,
+     * tested, embeddings-based) had zero real callers anywhere in the app and a real tenant
+     * bug (see the service's own docblock) — the "small, real, cheap consumer" endpoint this
+     * module's own history (CLAUDE.md's Chantier 10 CRM entry) already described as the next
+     * step, now actually wired up. Deliberately scoped to a single contact (an O(n)
+     * embedding-call scan against the caller's own company), not the page-level "list every
+     * duplicate pair across the database" concept `Duplicates/Index.vue` still mocks — that
+     * remains a documented, deliberately deferred gap (needs a persisted pairs-to-review table
+     * and a batch scan job that don't exist anywhere in this app).
+     *
+     * @urlParam contact int required The contact ID. Example: 1
+     *
+     * @response 200 scenario="Success" [{"contact_id": 2, "name": "Jane Doe", "similarity": 91.2, "reason": "Same email"}]
+     */
+    public function duplicates(Contact $contact, DuplicateDetectionService $service): JsonResponse
+    {
+        $this->authorize('view', $contact);
+
+        return response()->json($service->detectDuplicates($contact));
     }
 
     /** @return Builder<Contact> */

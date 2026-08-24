@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Logistics\Models\Shipment;
 use Modules\Logistics\Models\TrackingEvent;
+use Modules\Logistics\Services\EventDeduplicationService;
 
 /**
  * @group Controllers - Tracking Event
@@ -17,6 +18,8 @@ use Modules\Logistics\Models\TrackingEvent;
  */
 class TrackingEventController extends Controller
 {
+    public function __construct(private readonly EventDeduplicationService $dedup) {}
+
     public function store(Request $request, Shipment $shipment): JsonResponse
     {
         $data = $request->validate([
@@ -30,12 +33,33 @@ class TrackingEventController extends Controller
             'is_exception' => 'nullable|boolean',
             'exception_reason' => 'nullable|string|max:255',
             'recorded_at' => 'nullable|date',
+            // Chantier 32.23: EventDeduplicationService was fully written and
+            // tested (webhook-retry-safe dedup via provider_event_id/
+            // idempotency_key, both real, migrated columns on
+            // logistics_tracking_events) but had zero real producer anywhere
+            // — this, the one real endpoint that creates a tracking event,
+            // never accepted either field, so a carrier webhook retry would
+            // have always inserted a second duplicate row (and redundantly
+            // re-applied the shipment status transition). Activated here.
+            'provider_event_id' => 'nullable|string|max:255',
+            'idempotency_key' => 'nullable|string|max:255',
         ]);
+
+        $data['recorded_at'] = $data['recorded_at'] ?? now();
+
+        if ($this->dedup->isDuplicate(
+            $shipment->id,
+            $data['event_type'],
+            $data['recorded_at'],
+            $data['provider_event_id'] ?? null,
+            $data['idempotency_key'] ?? null,
+        )) {
+            return response()->json(['message' => 'Event already recorded (duplicate).'], 200);
+        }
 
         $event = TrackingEvent::create(array_merge($data, [
             'shipment_id' => $shipment->id,
             'recorded_by' => $request->user()->id,
-            'recorded_at' => $data['recorded_at'] ?? now(),
         ]));
 
         // Update shipment status based on event

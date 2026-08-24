@@ -6,6 +6,8 @@ import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 interface DeliveryRound {
   id: number
@@ -172,11 +174,17 @@ async function viewRound(round: DeliveryRound) {
 }
 
 load()
+
+// Chantier 32.23 (deep 14-layer audit, layer 13 — IA): real, routed backend
+// (POST /api/v1/logistics/ai/assist), never called from this page before.
+const { guidance } = useAiAssistant('Logistics', 'plan_delivery_round')
+const showAiPanel = ref(true)
 </script>
 
 <template>
   <AppLayout>
     <Head title="Tournées de livraison" />
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
 
     <div class="page-head">
       <div>

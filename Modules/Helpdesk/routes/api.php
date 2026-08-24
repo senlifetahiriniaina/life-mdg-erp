@@ -70,6 +70,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:H
         Route::put('helpdesk/tickets/{ticket}', [TicketController::class, 'update'])->name('helpdesk.tickets.update');
         Route::delete('helpdesk/tickets/{ticket}', [TicketController::class, 'destroy'])->name('helpdesk.tickets.destroy');
         Route::post('helpdesk/tickets/{ticket}/assign', [TicketController::class, 'assign'])->name('helpdesk.tickets.assign');
+        Route::post('helpdesk/tickets/{ticket}/auto-assign', [TicketController::class, 'autoAssign'])->name('helpdesk.tickets.auto-assign');
         Route::post('helpdesk/tickets/{ticket}/resolve', [TicketController::class, 'resolve'])->name('helpdesk.tickets.resolve');
         Route::post('helpdesk/tickets/{ticket}/close', [TicketController::class, 'close'])->name('helpdesk.tickets.close');
         Route::post('helpdesk/tickets/{ticket}/escalate', [TicketController::class, 'escalate'])->name('helpdesk.tickets.escalate');

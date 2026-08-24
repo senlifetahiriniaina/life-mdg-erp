@@ -107,14 +107,28 @@ class WorkflowNodeController extends Controller
             return response()->json(['message' => 'Node type not found'], 404);
         }
 
-        // Return a simulated dry-run output
+        // Chantier 32.11: $actionRegistry was injected but never actually
+        // read anywhere in this method — the "dry-run" response was a
+        // fixed, hardcoded success message regardless of whether the node
+        // key had any real handler behind it at all. Deliberately still not
+        // invoking the real handler here (that would give this "test"
+        // endpoint real side effects — sending a real email, creating a
+        // real record — which is exactly what a dry-run must not do) but
+        // now honestly reports whether WorkflowActionRegistry can actually
+        // resolve this key to a real callable, instead of always claiming
+        // success.
+        $resolvable = $this->actionRegistry->has($validated['key']);
+
         return response()->json([
             'data' => [
-                'node'     => $node,
-                'config'   => $validated['config'] ?? [],
-                'context'  => $validated['context'] ?? [],
-                'dry_run'  => true,
-                'output'   => ['status' => 'ok', 'message' => 'Node would execute successfully'],
+                'node'       => $node,
+                'config'     => $validated['config'] ?? [],
+                'context'    => $validated['context'] ?? [],
+                'dry_run'    => true,
+                'resolvable' => $resolvable,
+                'output'     => $resolvable
+                    ? ['status' => 'ok', 'message' => 'Node would execute successfully']
+                    : ['status' => 'warning', 'message' => 'No real handler is registered for this node key — it would be skipped at execution time.'],
             ],
         ]);
     }

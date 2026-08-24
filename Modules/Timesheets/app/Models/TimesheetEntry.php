@@ -105,9 +105,18 @@ class TimesheetEntry extends Model
         return $query->whereDate('entry_date', $date);
     }
 
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit): was whereBetween()
+     * on the raw column — entry_date's `date` cast does not truncate the
+     * time component on write in this app (confirmed via tinker), so an
+     * entry dated exactly on $endDate sorted past a bare Y-m-d upper bound
+     * and was silently excluded. Aligned with the sibling scopeByDate()
+     * above, which already correctly used whereDate().
+     */
     public function scopeByDateRange($query, $startDate, $endDate)
     {
-        return $query->whereBetween('entry_date', [$startDate, $endDate]);
+        return $query->whereDate('entry_date', '>=', $startDate)
+            ->whereDate('entry_date', '<=', $endDate);
     }
 
     public function scopePending($query)

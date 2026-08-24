@@ -32,6 +32,7 @@ class EmailSequence extends Model
     protected $table = 'crm_email_sequences';
 
     protected $fillable = [
+        'tenant_id',
         'name',
         'description',
         'status',

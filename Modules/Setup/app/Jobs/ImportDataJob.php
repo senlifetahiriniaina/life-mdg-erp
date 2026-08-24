@@ -171,6 +171,19 @@ class ImportDataJob implements ShouldQueue
                 continue;
             }
 
+            // Chantier 32.10: `inventory_products` carries both `sale_price`
+            // and `selling_price` as the real, kept-in-sync price columns
+            // (see Modules\Inventory\Http\Controllers\Api\ProductController
+            // ::store()'s own sync logic) — mirror that here so a product
+            // imported via this pipeline displays correctly everywhere the
+            // rest of the app reads either column, not just one of them.
+            if ($target === 'selling_price') {
+                $normalised = $this->normaliseValue($target, $value);
+                $result['selling_price'] = $normalised;
+                $result['sale_price']    = $normalised;
+                continue;
+            }
+
             $result[$target] = $this->normaliseValue($target, $value);
         }
 
@@ -193,12 +206,16 @@ class ImportDataJob implements ShouldQueue
         $value = is_string($value) ? trim($value) : $value;
 
         return match (true) {
-            // Numeric fields — strip spaces and currency symbols
-            in_array($target, ['price', 'cost', 'amount', 'salary', 'unit_cost', 'quantity'], true) =>
+            // Numeric fields — strip spaces and currency symbols.
+            // Chantier 32.10: kept in sync with ENTITY_SCHEMAS' real target
+            // field names ('price'/'cost'/'amount' were never real columns
+            // on any destination table — see AiDataImportService's own
+            // docblock).
+            in_array($target, ['selling_price', 'cost_price', 'total', 'subtotal', 'tax_amount'], true) =>
                 $this->normaliseNumeric((string) $value),
 
-            // Date fields
-            in_array($target, ['date', 'hire_date'], true) =>
+            // Date fields — 'invoice_date' replaces the old, never-real 'date'.
+            in_array($target, ['invoice_date', 'due_date', 'hire_date'], true) =>
                 $this->normaliseDate((string) $value),
 
             // Phone — strip spaces but keep +
@@ -281,16 +298,29 @@ class ImportDataJob implements ShouldQueue
         }
 
         // Not every target table has the same columns as ENTITY_SCHEMAS assumes
-        // (e.g. acc_invoices/crm_contacts/inventory_stock_movements have no
-        // tenant_id column at all) — filter each row down to columns that
-        // actually exist rather than let one unknown column fail the whole
-        // insert.
-        $columns = DB::getSchemaBuilder()->getColumnListing($table);
-        $rows    = array_map(function (array $row) use ($columns): array {
+        // (e.g. acc_invoices has no tenant_id column at all) — filter each
+        // row down to columns that actually exist rather than let one
+        // unknown column fail the whole insert.
+        //
+        // Chantier 32.10: the tenant column itself used to be a blanket
+        // "write tenant_id whenever that column exists" — but confirmed
+        // empirically that `crm_contacts`/`achats_suppliers` are NOT
+        // actually scoped by `tenant_id` by their own real controllers
+        // (`ContactController`/`SupplierController` both filter by
+        // `company_id`, per this class's own `entityTenantColumn()`
+        // docblock) — every contact/supplier imported through this
+        // pipeline landed with `tenant_id` set and `company_id` left NULL,
+        // making them permanently invisible to the real CRM/Achats list
+        // endpoints (confirmed via a real HTTP round trip: import a
+        // contact, then `GET crm/contacts` as the same company → 0
+        // results, before this fix).
+        $columns      = DB::getSchemaBuilder()->getColumnListing($table);
+        $tenantColumn = $this->entityTenantColumn($entity);
+        $rows         = array_map(function (array $row) use ($columns, $tenantColumn): array {
             $filtered = array_intersect_key($row, array_flip($columns));
 
-            if (in_array('tenant_id', $columns, true)) {
-                $filtered['tenant_id'] = $this->tenantId;
+            if ($tenantColumn !== null && in_array($tenantColumn, $columns, true)) {
+                $filtered[$tenantColumn] = $this->tenantId;
             }
             if (in_array('created_at', $columns, true)) {
                 $filtered['created_at'] = now();
@@ -328,13 +358,18 @@ class ImportDataJob implements ShouldQueue
     private function detectEntityFromMapping(): string
     {
         $targets = array_column($this->mapping, 'target');
+        // Chantier 32.10: field lists kept in sync with
+        // AiDataImportService::ENTITY_SCHEMAS' real target field names —
+        // 'company'/'price'/'department'/'salary'/'client_name'/'amount'
+        // were never real columns on any destination table (see that
+        // class's own docblock); 'stock' removed entirely (superseded by
+        // the real Chantier 16 StockImportService feature).
         $entityFields = [
-            'contacts'  => ['full_name', 'email', 'company'],
-            'products'  => ['name', 'sku', 'price'],
+            'contacts'  => ['full_name', 'email'],
+            'products'  => ['name', 'sku', 'selling_price'],
             'suppliers' => ['payment_terms', 'currency'],
-            'employees' => ['department', 'hire_date', 'salary'],
-            'invoices'  => ['number', 'client_name', 'amount'],
-            'stock'     => ['product_sku', 'quantity', 'warehouse'],
+            'employees' => ['job_title', 'hire_date'],
+            'invoices'  => ['number', 'partner_name', 'total'],
         ];
 
         $best       = 'contacts';
@@ -359,8 +394,23 @@ class ImportDataJob implements ShouldQueue
             'suppliers' => 'achats_suppliers',
             'employees' => 'hr_employees',
             'invoices'  => 'acc_invoices',
-            'stock'     => 'inventory_stock_movements',
             default     => null,
+        };
+    }
+
+    /**
+     * Real tenant/company-scoping column per entity, matching each real
+     * table's own real controller (see this method's mention in
+     * `bulkInsert()`'s docblock for the full investigation). `null` means
+     * the entity's destination table has no tenant/company column at all
+     * (acc_invoices — this app's shared-ledger design).
+     */
+    private function entityTenantColumn(string $entity): ?string
+    {
+        return match ($entity) {
+            'contacts', 'suppliers' => 'company_id',
+            'products', 'employees' => 'tenant_id',
+            default                 => null,
         };
     }
 
@@ -430,7 +480,7 @@ class ImportDataJob implements ShouldQueue
         $headers = null;
         $index   = 0;
 
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter, '"', '\\')) !== false) {
             if ($headers === null) {
                 $headers = array_map('trim', $row);
                 continue;

@@ -1,0 +1,55 @@
+# ─── AWS LIGHTSAIL — paramètres de provisionnement ────────────────────────────
+# Copiez ce fichier vers deploy/lightsail.config (gitignoré) et éditez les
+# valeurs avant de lancer scripts/lightsail-deploy.sh. Ce fichier ne contient
+# aucune clé AWS — l'authentification passe par la config/les variables
+# d'environnement standard de l'AWS CLI (`aws configure` ou AWS_ACCESS_KEY_ID/
+# AWS_SECRET_ACCESS_KEY), jamais par un secret stocké ici.
+#
+# Voir docs/07-DEPLOIEMENT/AWS-LIGHTSAIL.md pour la marche à suivre complète.
+
+# ─── Instance ──────────────────────────────────────────────────────────────
+# Nom de l'instance Lightsail (identifiant unique dans votre compte AWS).
+LIGHTSAIL_INSTANCE_NAME=life-mdg-erp
+
+# Région AWS où provisionner l'instance et l'IP statique (ex. eu-west-3 pour
+# Paris, eu-west-1 pour Irlande). Liste complète : `aws lightsail get-regions`.
+LIGHTSAIL_REGION=eu-west-3
+
+# Zone de disponibilité dans la région ci-dessus (ex. eu-west-3a).
+LIGHTSAIL_AVAILABILITY_ZONE=eu-west-3a
+
+# Gabarit (taille/plan) de l'instance. Cette stack fait tourner php-fpm +
+# mysql + redis + un worker de file d'attente + un scheduler + reverb +
+# caddy sur une seule machine — un plan avec au moins 4 Go de RAM est
+# recommandé. Liste des gabarits disponibles dans votre région :
+# `aws lightsail get-bundles --region $LIGHTSAIL_REGION`.
+LIGHTSAIL_BUNDLE_ID=medium_3_0
+
+# Image de base (blueprint) de l'instance. Liste : `aws lightsail get-blueprints`.
+LIGHTSAIL_BLUEPRINT_ID=ubuntu_22_04
+
+# ─── Accès SSH ─────────────────────────────────────────────────────────────
+# Nom de la paire de clés Lightsail à utiliser/créer.
+LIGHTSAIL_KEY_PAIR_NAME=life-mdg-erp-key
+
+# Chemin local vers une clé publique SSH existante à importer dans Lightsail
+# (ex. ~/.ssh/id_ed25519.pub). Laissez vide pour utiliser/télécharger la
+# paire de clés par défaut de la région Lightsail à la place.
+LIGHTSAIL_SSH_PUBLIC_KEY_FILE=
+
+# ─── Domaine / sous-domaine ────────────────────────────────────────────────
+# Nom de domaine racine, déjà enregistré chez un bureau d'enregistrement
+# quelconque (ce script ne l'achète pas). Une zone DNS Lightsail sera créée
+# pour ce domaine — après le premier lancement, vous devrez déléguer les
+# serveurs de noms (NS) affichés vers Lightsail chez votre bureau
+# d'enregistrement (étape manuelle, non scriptable — voir la documentation).
+LIGHTSAIL_DOMAIN=example.com
+
+# Sous-domaine sur lequel l'application sera exposée (ex. "erp" pour
+# erp.example.com). Laissez vide pour utiliser directement le domaine racine.
+LIGHTSAIL_SUBDOMAIN=erp
+
+# ─── Renseigné automatiquement par scripts/lightsail-deploy.sh ────────────
+# Adresse IP statique réellement allouée — purement informatif, jamais lu
+# comme entrée par le script (toujours résolu depuis l'API Lightsail).
+LIGHTSAIL_SERVER_IP=

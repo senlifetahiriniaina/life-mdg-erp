@@ -158,10 +158,16 @@ describe('CRM AI Agents', function () {
                 'created_by' => $this->user->id,
             ]);
 
-            $this->service->runAgent($agent, 'Contact', 42);
+            // Chantier 38.3: runAgent() now only writes subject_type/subject_id when the
+            // entity_type is a real, lowercase, allowlisted alias (contact/account/lead/
+            // opportunity) — matching the same convention ActivityController's own
+            // subject_type validation already uses. The old capitalized 'Contact' is exactly
+            // the kind of un-mapped string the fix stops writing.
+            $this->service->runAgent($agent, 'contact', 42);
 
             $this->assertDatabaseHas('crm_activities', [
                 'type' => 'note',
+                'subject_type' => 'contact',
                 'subject_id' => 42,
             ]);
         });
@@ -173,12 +179,34 @@ describe('CRM AI Agents', function () {
                 'created_by' => $this->user->id,
             ]);
 
-            $this->service->runAgent($agent, 'Lead', 99);
+            $this->service->runAgent($agent, 'lead', 99);
 
             $this->assertDatabaseHas('crm_activities', [
                 'type' => 'task',
+                'subject_type' => 'lead',
                 'subject_id' => 99,
             ]);
+        });
+
+        test('runAgent silently drops an un-allowlisted entity_type rather than writing it raw', function () {
+            // Chantier 38.3: locks in the fix for the confirmed information-disclosure IDOR —
+            // an arbitrary FQCN passed as entity_type must never reach crm_activities.subject_type,
+            // since ActivityController::show()'s load('subject') would resolve it via Eloquent's
+            // MorphTo and disclose the full attributes of whatever that class happens to be.
+            $agent = AiAgent::factory()->create([
+                'action_type' => 'add_note',
+                'trigger_type' => 'manual',
+                'created_by' => $this->user->id,
+            ]);
+
+            $this->service->runAgent($agent, 'App\\Models\\User', 1);
+
+            $this->assertDatabaseHas('crm_activities', [
+                'type' => 'note',
+                'subject_type' => null,
+                'subject_id' => null,
+            ]);
+            $this->assertDatabaseMissing('crm_activities', ['subject_type' => 'App\\Models\\User']);
         });
 
         test('runAgent increments agent run_count', function () {
@@ -363,17 +391,25 @@ describe('CRM AI Agents', function () {
             $agent = AiAgent::factory()->create([
                 'action_type' => 'add_note',
                 'created_by' => $this->user->id,
+                'tenant_id' => $this->user->company_id,
             ]);
+            // Chantier 38.3: run()'s entity_type/entity_id are now validated against a real
+            // contact/account/lead/opportunity allowlist + same-company ownership (closes a
+            // real cross-model information-disclosure IDOR — see AiAgentController::run()'s
+            // own docblock) — the old 'Contact'/id=1-with-no-backing-record payload would now
+            // correctly 404. company_id is left unset on both sides (null === null) to match
+            // this test file's existing single-tenant convention.
+            $contact = \Modules\CRM\Models\Contact::factory()->create();
 
             $response = $this->actingAs($this->user, 'sanctum')
                 ->postJson("/api/v1/crm/ai-agents/{$agent->id}/run", [
-                    'entity_type' => 'Contact',
-                    'entity_id' => 1,
+                    'entity_type' => 'contact',
+                    'entity_id' => $contact->id,
                 ]);
 
             expect($response->status())->toBe(200);
             expect($response->json('status'))->toBe('success');
-            expect($response->json('entity_type'))->toBe('Contact');
+            expect($response->json('entity_type'))->toBe('contact');
         });
 
         test('GET /api/v1/crm/ai-agents/{id}/history returns run history', function () {

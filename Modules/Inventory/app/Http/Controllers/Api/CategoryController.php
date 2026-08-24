@@ -4,6 +4,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Http\Requests\StoreCategoryRequest;
 use Modules\Inventory\Http\Requests\UpdateCategoryRequest;
 use Modules\Inventory\Http\Resources\CategoryResource;
@@ -14,9 +15,17 @@ use Modules\Inventory\Services\InventoryService;
  * @group Controllers - Category
  *
  * Manage Category resources.
+ *
+ * Chantier 32: had zero company/tenant scoping of any kind and no Policy
+ * class — fixed via ScopesToCompany, matching this controller's own
+ * proportionality (no authorize() call existed here before this either;
+ * a new Policy class would have been out of proportion with the rest of
+ * this controller, matching Achats' own precedent for the same fix).
  */
 class CategoryController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected InventoryService $service) {}
 
     public function index(Request $request)
@@ -24,10 +33,14 @@ class CategoryController extends Controller
         $search = $request->query('search');
         $perPage = $request->query('per_page', 15);
 
-        $query = Category::withCount('products');
+        $query = $this->scopeToCompany(Category::withCount('products'), $request);
 
         if ($search) {
-            $query->where('name', 'ilike', "%$search%");
+            // Chantier 32.22: was 'ilike' — a Postgres-only operator this app
+            // never uses (MySQL/SQLite only) — a guaranteed 500 on every
+            // real search request, never caught because no test exercised
+            // the `search` query param at all.
+            $query->where('name', 'LIKE', "%$search%");
         }
 
         $categories = $query->paginate($perPage);
@@ -37,13 +50,18 @@ class CategoryController extends Controller
 
     public function store(StoreCategoryRequest $request)
     {
-        $category = $this->service->createCategory($request->validated());
+        $data = $request->validated();
+        $data['company_id'] = $this->companyId($request);
+
+        $category = $this->service->createCategory($data);
 
         return (new CategoryResource($category))->response()->setStatusCode(201);
     }
 
-    public function show(Category $category)
+    public function show(Request $request, Category $category)
     {
+        $this->assertSameCompany($request, $category);
+
         $category->loadCount('products');
 
         return new CategoryResource($category);
@@ -51,13 +69,17 @@ class CategoryController extends Controller
 
     public function update(UpdateCategoryRequest $request, Category $category)
     {
+        $this->assertSameCompany($request, $category);
+
         $updated = $this->service->updateCategory($category, $request->validated());
 
         return new CategoryResource($updated);
     }
 
-    public function destroy(Category $category)
+    public function destroy(Request $request, Category $category)
     {
+        $this->assertSameCompany($request, $category);
+
         $category->delete();
 
         return response()->noContent();

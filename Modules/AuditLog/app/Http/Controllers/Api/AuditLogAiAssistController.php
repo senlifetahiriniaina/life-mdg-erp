@@ -25,7 +25,18 @@ class AuditLogAiAssistController extends Controller
      *
      * Returns contextual AI guidance for audit log actions.
      *
-     * @bodyParam action string required Action key (e.g. view_logs, export_audit, anomaly_detection, compliance_report). Example: view_logs
+     * Chantier 32.4: the example action keys below previously listed
+     * `view_logs`/`anomaly_detection`/`compliance_report`, none of which
+     * are registered in AiContextualAssistantService::supportedModules()
+     * (the real, registered `AuditLog` actions are `view_audit_log`,
+     * `export_audit`, `filter_events`) — any of those 3 fictional names
+     * silently fell through to an empty guidance shell (enabled:false,
+     * every field blank) rather than a real fallback, invisible to
+     * AuditLogRoutesTest.php's own coverage since that test mocks
+     * AiContextualAssistantService entirely. Corrected to the real,
+     * registered actions.
+     *
+     * @bodyParam action string required Action key (view_audit_log, export_audit, or filter_events). Example: view_audit_log
      * @bodyParam context array Optional current context data. Example: {"module": "Accounting", "event_type": "deleted"}
      * @bodyParam locale string Locale for the response. Example: fr
      */

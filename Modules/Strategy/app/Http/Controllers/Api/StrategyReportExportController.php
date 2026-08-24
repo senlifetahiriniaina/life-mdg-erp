@@ -107,17 +107,19 @@ class StrategyReportExportController extends Controller
         $okrTree = $this->okrService->getOkrTree($tenantId);
 
         // Sector KPI cockpit (Chantier 26 volet E) — same calls as
-        // StrategyPageController::sectorKpi(). Note: CostingSheet/ProductionOrder
-        // have no tenant/company column at all (documented gap, Chantier 19) —
-        // this section inherits the same unscoped-by-tenant scope the rest of
-        // Inventory/the live sector-kpi page already has, not a regression
-        // introduced here.
+        // StrategyPageController::sectorKpi(). Chantier 32: CostingSheet/
+        // ProductionOrder now carry a real company_id column (Inventory
+        // "core" tenant-isolation fix) — threaded through here via the
+        // same $tenantId already resolved above for the rest of this
+        // report, cast to int (CostingSheet/ProductionOrder.company_id is
+        // unsignedBigInteger, unlike Strategy's own string company_id
+        // columns, hence the cast).
         $sector = [
-            'margin'            => $this->sectorKpiService->marginByFamily(),
-            'cost_structure'    => $this->sectorKpiService->costStructure(),
-            'lead_time'         => $this->sectorKpiService->subcontractingLeadTime(),
-            'production_mix'    => $this->sectorKpiService->productionMixByFamily(),
-            'material_variance' => $this->sectorKpiService->materialPriceVariance(),
+            'margin'            => $this->sectorKpiService->marginByFamily((int) $tenantId ?: null),
+            'cost_structure'    => $this->sectorKpiService->costStructure((int) $tenantId ?: null),
+            'lead_time'         => $this->sectorKpiService->subcontractingLeadTime((int) $tenantId ?: null),
+            'production_mix'    => $this->sectorKpiService->productionMixByFamily((int) $tenantId ?: null),
+            'material_variance' => $this->sectorKpiService->materialPriceVariance((int) $tenantId ?: null),
         ];
 
         return [

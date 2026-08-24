@@ -59,6 +59,10 @@ class Lead extends Model
     protected $fillable = [
         'owner_id', 'contact_id', 'title', 'status', 'source',
         'company_id', 'converted_to_contact_id',
+        // Chantier 32.15: phone/company are real columns on crm_leads (confirmed via
+        // Schema::getColumnListing()) but were missing from $fillable — every real lead
+        // created via WebFormController::submit() silently dropped both on mass-assignment.
+        'phone', 'company', 'email',
         'score', 'estimated_value', 'currency', 'description',
         'converted_at', 'custom_fields',
     ];

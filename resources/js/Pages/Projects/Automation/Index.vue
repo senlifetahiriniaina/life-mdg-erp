@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="Automatisations" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Automatisations</h1>
@@ -186,7 +188,9 @@
 import { ref, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown } from 'primevue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Select as Dropdown } from 'primevue'
 import axios from 'axios'
 
 interface Condition {
@@ -210,6 +214,7 @@ interface RuleItem {
 }
 
 const props = defineProps<{ projectId?: number | string }>()
+const { guidance } = useAiAssistant('Projects', 'view_automation')
 
 const loading      = ref(true)
 const saving       = ref(false)

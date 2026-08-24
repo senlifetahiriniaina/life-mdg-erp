@@ -16,6 +16,15 @@
       </div>
     </div>
 
+    <!-- Chantier 32.4 (14-layer audit): this screen is the real, live page
+         AuditLogWebController::index() renders, but it never called the
+         AI-assist composable despite Modules\AuditLog\Http\Controllers\Api\
+         AuditLogAiAssistController being real, correctly authorized, and
+         already having real fr+en fallback text registered for exactly
+         this action ('view_audit_log') in AiContextualAssistantService —
+         wired for real rather than left orphaned. -->
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Stats row -->
     <div class="stats-row">
       <div class="stat-card">
@@ -208,6 +217,10 @@ import { ref, reactive, computed } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import Paginator from 'primevue/paginator'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('AuditLog', 'view_audit_log')
 
 const props = defineProps<{
   logs: {

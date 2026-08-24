@@ -5,10 +5,21 @@
         <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Purchase Receipts</h1>
         <p class="mt-2 text-surface-600 dark:text-surface-400">Track and manage received goods</p>
       </div>
-      <Link href="/purchase-receipts/create" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-        + New Receipt
-      </Link>
+      <div class="flex gap-2">
+        <button
+          @click="showAiPanel = !showAiPanel"
+          class="px-4 py-2 border border-gray-300 dark:border-surface-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300"
+          title="Assistant IA"
+        >
+          <i class="pi pi-sparkles" />
+        </button>
+        <Link href="/purchase-receipts/create" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          + New Receipt
+        </Link>
+      </div>
     </div>
+
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
 
     <div class="bg-white dark:bg-surface-800 dark:bg-surface-800 rounded-lg shadow">
       <div class="p-6 border-b border-gray-200 dark:border-surface-700">
@@ -138,6 +149,14 @@
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
+// Chantier 32.13 (layer 13 — AI): 'receive_goods' — an exact fit, real
+// grounded fr/en guidance already existed in AiContextualAssistantService
+// but was never surfaced on this page.
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Achats', 'receive_goods')
+const showAiPanel = ref(false)
 
 const receipts = ref([])
 const loading = ref(false)

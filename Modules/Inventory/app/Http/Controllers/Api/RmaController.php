@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Rma;
 use Modules\Inventory\Services\RmaService;
 
@@ -17,11 +18,15 @@ use Modules\Inventory\Services\RmaService;
  */
 class RmaController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly RmaService $service) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $rmas = Rma::latest()->paginate(20);
+        $rmas = Rma::where('company_id', $this->companyId($request))
+            ->latest()
+            ->paginate(20);
 
         return response()->json($rmas);
     }
@@ -41,16 +46,24 @@ class RmaController extends Controller
 
         $rma = $this->service->create($data);
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation.
+        $rma->update(['company_id' => $this->companyId($request)]);
+
         return response()->json($rma, 201);
     }
 
-    public function show(Rma $rma): JsonResponse
+    public function show(Request $request, Rma $rma): JsonResponse
     {
+        $this->assertSameCompany($request, $rma);
+
         return response()->json($rma);
     }
 
     public function update(Request $request, Rma $rma): JsonResponse
     {
+        $this->assertSameCompany($request, $rma);
+
         $data = $request->validate([
             'customer_name' => 'nullable|string|max:255',
             'reason' => 'nullable|string',
@@ -62,8 +75,10 @@ class RmaController extends Controller
         return response()->json($rma);
     }
 
-    public function destroy(Rma $rma): JsonResponse
+    public function destroy(Request $request, Rma $rma): JsonResponse
     {
+        $this->assertSameCompany($request, $rma);
+
         if (! in_array($rma->status, ['requested', 'closed'], true)) {
             return response()->json(['message' => 'Cannot delete an active RMA.'], 422);
         }
@@ -73,24 +88,27 @@ class RmaController extends Controller
         return response()->json(null, 204);
     }
 
-    public function approve(Rma $rma): JsonResponse
+    public function approve(Request $request, Rma $rma): JsonResponse
     {
+        $this->assertSameCompany($request, $rma);
         $this->service->approve($rma);
         $rma->refresh();
 
         return response()->json($rma);
     }
 
-    public function receive(Rma $rma): JsonResponse
+    public function receive(Request $request, Rma $rma): JsonResponse
     {
+        $this->assertSameCompany($request, $rma);
         $this->service->receive($rma);
         $rma->refresh();
 
         return response()->json($rma);
     }
 
-    public function refund(Rma $rma): JsonResponse
+    public function refund(Request $request, Rma $rma): JsonResponse
     {
+        $this->assertSameCompany($request, $rma);
         $this->service->processRefund($rma);
         $rma->refresh();
 

@@ -3,6 +3,7 @@
 namespace Modules\Analytics\Services\Forecasting;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\Analytics\Services\ForecastingEngineService;
 
 /**
@@ -18,12 +19,54 @@ class ProductionForecastService
     public function __construct(private readonly ForecastingEngineService $engine) {}
 
     /**
+     * Chantier 32.25 (audit 14 couches, Analytics — couche 6/9) : confirmé
+     * empiriquement (`SQLSTATE... no such table: work_centers`) que
+     * `GET forecasting/production` — un vrai endpoint routé, atteignable par
+     * n'importe quel utilisateur réel — plantait fatalement sur chaque
+     * appel, dans tout environnement, puisque le module Manufacturing
+     * (`work_centers`/`manufacturing_orders`/`bom_components`/
+     * `stock_movements`/`stock_levels`) est explicitement hors périmètre de
+     * cette extraction Life MDG (voir CLAUDE.md § « Known gaps » — déjà
+     * confirmé exact au Chantier 9, et le propre commentaire du fichier de
+     * test de ce module l'affirmait déjà). Ce n'était pas juste une donnée
+     * clairsemée dégradant proprement — c'était une erreur SQL brute
+     * remontée telle quelle à l'appelant, en contradiction avec le principe
+     * fallback-first déjà établi partout ailleurs dans cette app (ex. les
+     * ratios `training_roi`/`time_to_fill` de Strategy). Manufacturing ne
+     * reviendra jamais dans ce périmètre — donc, plutôt que de conserver un
+     * crash garanti, ce service dégrade désormais proprement vers une
+     * structure vide/zéro dès que le schéma Manufacturing est absent,
+     * cohérent avec la conception fallback-first du reste de l'app.
+     */
+    private function manufacturingSchemaAvailable(): bool
+    {
+        return Schema::hasTable('work_centers') && Schema::hasTable('manufacturing_orders');
+    }
+
+    /**
      * Prévision des ordres de fabrication nécessaires pour répondre à la demande.
      *
      * @return array{predictions: array, summary: array, bottlenecks: array}
      */
     public function forecastProductionNeeds(int $tenantId, int $days = 90): array
     {
+        if (! $this->manufacturingSchemaAvailable()) {
+            return [
+                'tenant_id'    => $tenantId,
+                'horizon_days' => $days,
+                'predictions'  => [],
+                'summary'      => [
+                    'total_orders'    => 0,
+                    'avg_utilization' => 0.0,
+                    'overloaded_days' => 0,
+                    'daily_capacity'  => 0,
+                ],
+                'bottlenecks'  => [],
+                'available'    => false,
+                'reason'       => 'Le module Manufacturing est hors périmètre de cette installation — aucune prévision de production disponible.',
+            ];
+        }
+
         $demandForecast = $this->getDemandForecast($tenantId, $days);
         $capacity       = $this->getDailyCapacity($tenantId);
         $bottlenecks    = $this->detectBottlenecks($tenantId);
@@ -69,6 +112,10 @@ class ProductionForecastService
      */
     public function forecastCapacityUtilization(int $tenantId): array
     {
+        if (! $this->manufacturingSchemaAvailable()) {
+            return [];
+        }
+
         $needs        = $this->forecastProductionNeeds($tenantId, 90);
         $weeklyGroups = [];
 
@@ -104,12 +151,18 @@ class ProductionForecastService
      */
     public function forecastMaterialConsumption(int $tenantId, array $productIds): array
     {
+        if (! Schema::hasTable('stock_movements') || ! Schema::hasTable('stock_levels')) {
+            return [];
+        }
+
         if (empty($productIds)) {
-            $productIds = DB::table('bom_components')
-                ->where('tenant_id', $tenantId)
-                ->distinct()
-                ->pluck('component_id')
-                ->toArray();
+            $productIds = Schema::hasTable('bom_components')
+                ? DB::table('bom_components')
+                    ->where('tenant_id', $tenantId)
+                    ->distinct()
+                    ->pluck('component_id')
+                    ->toArray()
+                : [];
         }
 
         $result = [];
@@ -143,11 +196,13 @@ class ProductionForecastService
         $bottlenecks = [];
 
         // Vérifier la capacité machine
-        $machines = DB::table('work_centers')
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->select('id', 'name', 'capacity_per_day')
-            ->get();
+        $machines = Schema::hasTable('work_centers')
+            ? DB::table('work_centers')
+                ->where('tenant_id', $tenantId)
+                ->where('is_active', true)
+                ->select('id', 'name', 'capacity_per_day')
+                ->get()
+            : collect();
 
         $avgOrders = $this->getAverageDailyOrders($tenantId);
 
@@ -219,6 +274,10 @@ class ProductionForecastService
 
     private function getAverageDailyOrders(int $tenantId): float
     {
+        if (! Schema::hasTable('manufacturing_orders')) {
+            return 0.0;
+        }
+
         return (float) DB::table('manufacturing_orders')
             ->where('tenant_id', $tenantId)
             ->where('created_at', '>=', now()->subMonths(3))
@@ -228,6 +287,10 @@ class ProductionForecastService
 
     private function identifyBottleneckResource(int $tenantId): ?string
     {
+        if (! Schema::hasTable('work_centers')) {
+            return null;
+        }
+
         return DB::table('work_centers')
             ->where('tenant_id', $tenantId)
             ->where('is_active', true)

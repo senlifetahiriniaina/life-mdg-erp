@@ -2,59 +2,37 @@
 
 namespace Modules\Core\Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Core\Models\Tenant;
 use Modules\Core\Models\TenantInvitation;
 
+/**
+ * Chantier 32.1: this was scaffold boilerplate — expires_at/accepted_at set
+ * via fake()->word() on datetime-cast columns, tenant_id/invited_by set via
+ * fake()->word() on FK columns, plus a long tail of fields (name/title/
+ * slug/…) that don't exist on this model at all. Rewritten to match
+ * TenantInvitation's real $fillable/$casts.
+ */
 class TenantInvitationFactory extends Factory
 {
     protected $model = TenantInvitation::class;
 
-    /**
-     * Define the model's default state.
-     */
     public function definition(): array
     {
         return [
-                        'tenant_id' => fake()->word(),
+            'tenant_id' => Tenant::factory(),
             'email' => fake()->unique()->safeEmail(),
-            'role' => fake()->word(),
-            'token' => fake()->word(),
-            'invited_by' => fake()->word(),
-            'expires_at' => fake()->word(),
-            'accepted_at' => fake()->word(),
-            'name' => fake()->word(),
-            'title' => fake()->word(),
-            'description' => fake()->text(),
-            'slug' => fake()->slug(),
-            'status' => fake()->randomElement(['draft', 'published', 'archived']),
-            'code' => fake()->bothify('??-##'),
-            'phone' => fake()->phoneNumber(),
-            'amount' => fake()->randomFloat(2, 0, 1000),
-            'quantity' => fake()->numberBetween(1, 100),
-            'price' => fake()->randomFloat(2, 0, 1000),
-            'cost' => fake()->randomFloat(2, 0, 1000),
-            'is_active' => true,
-            'notes' => fake()->text(),
+            'role' => fake()->randomElement(['admin', 'user']),
+            'token' => fake()->uuid(),
+            'invited_by' => User::factory(),
+            'expires_at' => now()->addDays(7),
+            'accepted_at' => null,
         ];
     }
 
-    /**
-     * Indicate model is inactive
-     */
-    public function inactive(): static
+    public function accepted(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Indicate model is archived
-     */
-    public function archived(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'archived_at' => now(),
-        ]);
+        return $this->state(fn (array $attributes) => ['accepted_at' => now()]);
     }
 }

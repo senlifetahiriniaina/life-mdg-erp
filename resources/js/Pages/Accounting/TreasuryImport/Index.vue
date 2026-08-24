@@ -18,12 +18,13 @@
     <div v-if="rows.length === 0" class="wh-panel" style="padding: 24px; max-width: 640px">
       <h3 style="margin-top: 0">1. Compte de trésorerie</h3>
       <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px">
-        <label style="font-size: 13px; color: var(--fg-3)">Type de compte</label>
+        <label style="font-size: 13px; color: var(--fg-3)">Compte de trésorerie (caisse, banque, mobile money...)</label>
         <Dropdown
           v-model="treasuryAccountCode"
-          :options="treasuryOptions"
-          optionLabel="label"
+          :options="treasuryAccounts"
+          optionLabel="displayLabel"
           optionValue="code"
+          :loading="loadingTreasuryAccounts"
           placeholder="Sélectionner..."
           @change="onTreasuryAccountChange"
         />
@@ -120,11 +121,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, Dropdown, DataTable, Column, Tag, Checkbox } from 'primevue'
+import { Button, Select as Dropdown, DataTable, Column, Tag, Checkbox } from 'primevue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 
@@ -148,13 +149,15 @@ interface PreviewRow {
   included: boolean
 }
 
-const treasuryOptions = [
-  { code: '530', label: 'Caisse' },
-  { code: '512', label: 'Banque' },
-  { code: '531', label: 'Mvola (Telma)' },
-  { code: '532', label: 'Airtel Money' },
-]
+interface TreasuryAccount {
+  code: string
+  name: string
+  journal: 'CAI' | 'BNQ'
+  displayLabel?: string
+}
 
+const treasuryAccounts = ref<TreasuryAccount[]>([])
+const loadingTreasuryAccounts = ref(false)
 const treasuryAccountCode = ref<string | null>(null)
 const bankAccountId = ref<number | null>(null)
 const bankAccounts = ref<{ id: number; name: string }[]>([])
@@ -167,8 +170,31 @@ const committing = ref(false)
 const commitError = ref('')
 const commitResult = ref<{ count: number; total_debit: number } | null>(null)
 
-const isBankLike = computed(() => treasuryAccountCode.value !== null && treasuryAccountCode.value !== '530')
+// A "banque-like" account is any real treasury account that doesn't post
+// to the CAI (caisse) journal — Chantier 36: derived from the real
+// account's journal instead of a hardcoded '530' comparison, so this
+// correctly covers every named caisse/banque/mobile-money account the
+// company's own chart of accounts defines, not just the 4 old codes.
+const isBankLike = computed(() => {
+  const account = treasuryAccounts.value.find((a) => a.code === treasuryAccountCode.value)
+  return account !== undefined && account.journal !== 'CAI'
+})
 const includedCount = computed(() => rows.value.filter((r) => r.included).length)
+
+async function loadTreasuryAccounts() {
+  loadingTreasuryAccounts.value = true
+  try {
+    const { data } = await axios.get('/api/v1/accounting/treasury-accounts')
+    treasuryAccounts.value = (data.data ?? []).map((a: TreasuryAccount) => ({
+      ...a,
+      displayLabel: `${a.code} — ${a.name}`,
+    }))
+  } catch {
+    treasuryAccounts.value = []
+  } finally {
+    loadingTreasuryAccounts.value = false
+  }
+}
 
 async function onTreasuryAccountChange() {
   bankAccountId.value = null
@@ -180,6 +206,8 @@ async function onTreasuryAccountChange() {
     bankAccounts.value = []
   }
 }
+
+onMounted(loadTreasuryAccounts)
 
 function onFileSelected(event: Event) {
   const input = event.target as HTMLInputElement

@@ -17,6 +17,11 @@ const hours     = Array.from({ length: 24 }, (_, i) => i)
 
 onMounted(async () => {
   try {
+    // Chantier 32.12: same fix as Index.vue's onMounted — GET calendar/events
+    // used to require `start`/`end` (always 422'd here, since neither is
+    // sent) and always returned a bare array (so `.data ?? []` always fell
+    // back to empty regardless). Both fixed backend-side; this call needed
+    // no change.
     const [members, evRes] = await Promise.all([
       fetch('/api/v1/hr/employees?per_page=50').then(r => r.json()).catch(() => ({ data: [] })),
       fetch('/api/v1/calendar/events?per_page=500').then(r => r.json()).catch(() => ({ data: [] })),

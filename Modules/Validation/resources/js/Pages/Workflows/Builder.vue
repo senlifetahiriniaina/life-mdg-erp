@@ -11,6 +11,8 @@
       </Link>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
       <!-- Sidebar -->
       <div class="lg:col-span-1">
@@ -185,8 +187,11 @@ import { ref, onMounted } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useRouteId } from '@/composables/useRouteId'
 
+const { guidance } = useAiAssistant('Validation', 'build_workflow')
 const routeId = useRouteId()
 const isEditing = ref(!!routeId.value)
 const saving = ref(false)
@@ -218,6 +223,52 @@ const emptyRuleForm = () => ({
 const ruleForm = ref(emptyRuleForm())
 
 const hierarchyName = (id) => hierarchies.value.find(h => h.id === id)?.name ?? `#${id}`
+
+// Chantier 32.7: Workflows/Index.vue's 3 "Quick Start Templates" buttons
+// have always navigated to `/workflows/builder?template=${template}`, but
+// nothing here ever read that query param — every "quick start" click
+// silently opened a blank workflow builder, confirmed empirically. These 3
+// presets are a pure frontend convenience (name/module/rule prefill only —
+// no hierarchy_id is guessed, since hierarchy creation has no UI anywhere
+// in this app and picking the wrong one would be worse than leaving it for
+// the admin to choose from the real dropdown below).
+const WORKFLOW_TEMPLATES = {
+  po_standard: {
+    name: 'Standard PO Approval',
+    module_name: 'Achats',
+    rules: [
+      { condition_type: 'amount', condition_field: null, condition_operator: '>', condition_value: '0', approval_mode: 'sequential', required_approvers_count: 1, hierarchy_id: null },
+    ],
+  },
+  po_tiered: {
+    name: 'Tiered by Amount',
+    module_name: 'Achats',
+    rules: [
+      { condition_type: 'amount', condition_field: null, condition_operator: '<=', condition_value: '100000', approval_mode: 'sequential', required_approvers_count: 1, hierarchy_id: null },
+      { condition_type: 'amount', condition_field: null, condition_operator: '<=', condition_value: '500000', approval_mode: 'sequential', required_approvers_count: 1, hierarchy_id: null },
+      { condition_type: 'amount', condition_field: null, condition_operator: '>', condition_value: '500000', approval_mode: 'sequential', required_approvers_count: 1, hierarchy_id: null },
+    ],
+  },
+  po_parallel: {
+    name: 'Parallel Approval',
+    module_name: 'Achats',
+    rules: [
+      { condition_type: 'amount', condition_field: null, condition_operator: '>', condition_value: '0', approval_mode: 'parallel', required_approvers_count: 2, hierarchy_id: null },
+    ],
+  },
+}
+
+const applyTemplate = () => {
+  if (isEditing.value) return // template prefill only makes sense for a brand-new workflow
+
+  const key = new URLSearchParams(window.location.search).get('template')
+  const preset = WORKFLOW_TEMPLATES[key]
+  if (!preset) return
+
+  workflow.value.name = preset.name
+  workflow.value.module_name = preset.module_name
+  workflow.value.rules = preset.rules.map(r => ({ ...r }))
+}
 
 const openRuleBuilder = (idx = null) => {
   editingRuleIndex.value = idx
@@ -326,5 +377,6 @@ const saveWorkflow = async () => {
 onMounted(() => {
   loadHierarchies()
   loadWorkflow()
+  applyTemplate()
 })
 </script>

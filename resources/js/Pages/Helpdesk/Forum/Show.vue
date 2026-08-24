@@ -14,6 +14,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Post content -->
     <div v-if="post" class="wh-panel p-6 mb-6">
       <div class="flex gap-4">
@@ -77,6 +79,10 @@ import { ref, onMounted } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { Button, Tag, Textarea } from 'primevue'
 import axios from 'axios'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Helpdesk', 'community_forum')
 
 const props = defineProps<{ id: number }>()
 

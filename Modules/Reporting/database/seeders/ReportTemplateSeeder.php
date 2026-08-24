@@ -33,6 +33,17 @@ class ReportTemplateSeeder extends Seeder
         $templates = $this->getTemplates();
 
         foreach ($templates as $template) {
+            // Chantier 32.26 fix: 'config'/'schedule' are documentation-only
+            // metadata in the template arrays below — neither column has ever
+            // existed on report_definitions ('config' is a ReportWidget
+            // concept, recurring delivery lives on report_schedules). This
+            // was invisible until the seeder was first actually wired into
+            // DatabaseSeeder, because Laravel's db:seed command runs every
+            // seeder inside Model::unguarded() — $fillable never filters
+            // during seeding, so the phantom keys reached the real SQL insert
+            // and fataled on the very first real seed run.
+            unset($template['config'], $template['schedule']);
+
             ReportDefinition::updateOrCreate(
                 ['slug' => $template['slug']],
                 $template,
@@ -302,21 +313,39 @@ class ReportTemplateSeeder extends Seeder
                 'category'          => 'sales',
                 'report_type'       => 'sales_performance',
                 'output_format'     => 'xlsx',
+                // Chantier 32.22: the previous template queried
+                // `sales_order_lines.order_id`/`.total_price`,
+                // `sales_orders.customer_id`/`.order_date`, and a bare
+                // `products` table — none of these are real columns/tables
+                // (confirmed via Schema::getColumnListing()): the real FK
+                // is `sales_order_lines.sales_order_id`, the real revenue
+                // column is `.line_total`, `sales_orders` has no
+                // `customer_id` (real: `contact_id`) nor `order_date` (real:
+                // `confirmed_at`), and the module's real product catalogue
+                // is `inventory_products` — same bug class already fixed
+                // for DashboardService::resolveSalesData() at Chantier 19
+                // Lot 5, just never applied here. Also dropped the
+                // MySQL-only DATE_FORMAT()/CURDATE()/DATE_ADD() calls (would
+                // fatally error on this app's real sqlite dev/test/CI
+                // driver even with the column names fixed) in favour of the
+                // portable `{{month_start}}`/`{{month_end}}` placeholders
+                // ReportingService::autoParams()/ReportGenerationService::
+                // executeQuery() now auto-inject on every run.
                 'query_template'    => <<<'SQL'
 SELECT
     p.name                           AS produit,
     p.category                       AS categorie,
     SUM(sol.quantity)                AS quantite_vendue,
-    SUM(sol.total_price)             AS chiffre_affaires,
+    SUM(sol.line_total)              AS chiffre_affaires,
     AVG(sol.unit_price)              AS prix_moyen,
-    COUNT(DISTINCT so.customer_id)   AS nb_clients
+    COUNT(DISTINCT so.contact_id)    AS nb_clients
 FROM sales_order_lines sol
-JOIN sales_orders so  ON so.id  = sol.order_id
-JOIN products p       ON p.id   = sol.product_id
-WHERE so.tenant_id  = {{tenant_id}}
-  AND so.status     IN ('confirmed', 'delivered')
-  AND so.order_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-  AND so.order_date <  DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+JOIN sales_orders so       ON so.id  = sol.sales_order_id
+JOIN inventory_products p  ON p.id   = sol.product_id
+WHERE so.tenant_id     = {{tenant_id}}
+  AND so.status        IN ('confirmed', 'delivered')
+  AND so.confirmed_at >= {{month_start}}
+  AND so.confirmed_at <  {{month_end}}
 GROUP BY p.id, p.name, p.category
 ORDER BY chiffre_affaires DESC
 LIMIT 500
@@ -357,23 +386,39 @@ SQL,
                 'category'          => 'inventory',
                 'report_type'       => 'stock_valuation',
                 'output_format'     => 'xlsx',
+                // Chantier 32.22: queried a bare `products` table with
+                // `stock_qty`/`reorder_point`/`cost_price` columns — the
+                // real `products` table (from the catch-all scaffold
+                // migration, kept only for CostEngineService/
+                // ProductionForecastService's raw queries) has just
+                // `id/tenant_id/name/sku/status`, none of those 3 columns;
+                // this module's real product catalogue is
+                // `inventory_products` + per-warehouse `inventory_stock`
+                // (stock is not a column on the product row at all) — same
+                // bug class already fixed for DashboardService::
+                // resolveInventoryData() at Chantier 19 Lot 5, never
+                // applied here. Repointed onto the real tables (LEFT JOIN
+                // so a product with zero stock rows still lists at 0
+                // rather than being silently dropped).
                 'query_template'    => <<<'SQL'
 SELECT
     p.sku,
-    p.name                                      AS produit,
+    p.name                                                  AS produit,
     p.category,
-    p.stock_qty                                 AS quantite_stock,
-    p.reorder_point                             AS seuil_reappro,
-    p.cost_price                                AS cout_unitaire_cmp,
-    ROUND(p.stock_qty * p.cost_price, 2)        AS valeur_stock,
+    COALESCE(SUM(s.quantity), 0)                            AS quantite_stock,
+    p.reorder_point                                         AS seuil_reappro,
+    p.cost_price                                            AS cout_unitaire_cmp,
+    ROUND(COALESCE(SUM(s.quantity), 0) * p.cost_price, 2)   AS valeur_stock,
     CASE
-        WHEN p.stock_qty <= 0            THEN 'RUPTURE'
-        WHEN p.stock_qty <= p.reorder_point THEN 'ALERTE'
+        WHEN COALESCE(SUM(s.quantity), 0) <= 0              THEN 'RUPTURE'
+        WHEN COALESCE(SUM(s.quantity), 0) <= p.reorder_point THEN 'ALERTE'
         ELSE 'OK'
-    END                                         AS statut_stock
-FROM products p
+    END                                                      AS statut_stock
+FROM inventory_products p
+LEFT JOIN inventory_stock s ON s.product_id = p.id
 WHERE p.tenant_id = {{tenant_id}}
   AND p.is_active = 1
+GROUP BY p.id, p.sku, p.name, p.category, p.reorder_point, p.cost_price
 ORDER BY valeur_stock DESC
 LIMIT 5000
 SQL,
@@ -413,21 +458,45 @@ SQL,
                 'category'          => 'hr',
                 'report_type'       => 'payroll_summary',
                 'output_format'     => 'pdf',
+                // Chantier 32.22: queried a bare `employees` table (real:
+                // `hr_employees`, no `department` string column at all —
+                // department is a real FK relation via `department_id` →
+                // `hr_departments`) and `payslips.employer_contributions`/
+                // `.employee_contributions` (real columns:
+                // `total_deductions` only — no employer/employee split
+                // exists anywhere on this table). `ps.status = 'validated'`
+                // also never matched anything — Payroll's real status
+                // vocabulary is draft/approved/paid (confirmed via
+                // Modules\Payroll\Services\PayrollIntegrationService's own
+                // `->where('status', 'approved')` call sites), 'validated'
+                // was never a real value. The `payslips` table itself is
+                // real (unlike the other bugs in this file, this one wasn't
+                // even querying a nonexistent table) — only the joined
+                // table/columns/status literal were wrong.
                 'query_template'    => <<<'SQL'
 SELECT
-    e.department,
+    COALESCE(d.name, 'Non affecté')  AS department,
     COUNT(DISTINCT e.id)             AS effectif,
     SUM(ps.gross_salary)             AS masse_brute,
-    SUM(ps.employer_contributions)   AS cotisations_patronales,
-    SUM(ps.employee_contributions)   AS cotisations_salariales,
+    SUM(ps.total_deductions)         AS cotisations_totales,
     SUM(ps.net_salary)               AS masse_nette,
     AVG(ps.gross_salary)             AS salaire_moyen_brut
 FROM payslips ps
-JOIN employees e ON e.id = ps.employee_id
+JOIN hr_employees e         ON e.id = ps.employee_id
+LEFT JOIN hr_departments d  ON d.id = e.department_id
 WHERE ps.tenant_id = {{tenant_id}}
-  AND ps.status    = 'validated'
-  AND ps.period    = {{period}}
-GROUP BY e.department
+  AND ps.status    = 'approved'
+  -- Chantier 32.26 fix (found by actually running this template): Payslip
+  -- casts `period` as `date`, so the stored value is '2026-08-01 00:00:00'
+  -- and an equality against a bare 'Y-m' period param can never match. A
+  -- portable month-range on the auto-injected month_start/month_end
+  -- placeholders matches the real stored shape on sqlite and MySQL alike
+  -- (same pattern as the synthese-ventes template above). NB: no {{...}}
+  -- tokens may appear in SQL comments — the placeholder regex substitutes
+  -- them even inside comments, desyncing bindings from real placeholders.
+  AND ps.period   >= {{month_start}}
+  AND ps.period   <  {{month_end}}
+GROUP BY d.name
 ORDER BY masse_brute DESC
 SQL,
                 'parameters_schema' => [

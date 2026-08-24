@@ -64,13 +64,49 @@ class RecurringOrderService
      * Parcourt tous les modèles actifs de tous les tenants dont l'échéance
      * est atteinte ou dépassée.
      *
+     * Chantier 32.16 (Sales deep 14-layer audit, layer 8 — business
+     * validation): sequential re-invocation is safe by construction
+     * (calculateNextRun() always anchors on Carbon::today() when the
+     * previous next_run_at was in the past, so next_run_at is guaranteed
+     * strictly after today once a template is processed — locked in by the
+     * pre-existing "a second call must not regenerate" test in
+     * Chantier25RecurringOrderTest.php). What was NOT guarded before this
+     * fix was true concurrency — two overlapping invocations of this method
+     * (a manual `php artisan sales:generate-recurring-orders` racing the
+     * scheduled one, which withoutOverlapping() only protects at the
+     * scheduler level, not at this method's own level) could both fetch the
+     * same due template before either wrote its next_run_at, both generate
+     * a real order for the same due cycle. Fixed with a per-template row
+     * lock + a re-check of the due condition after acquiring it — a
+     * template already advanced past due by a concurrent run is silently
+     * skipped rather than double-processed.
+     *
      * @return SalesOrder[]
      */
     public function generateDueOrders(): array
     {
-        $templates = RecurringOrderTemplate::due()->with('lines')->get();
+        $ids = RecurringOrderTemplate::due()->pluck('id');
 
-        return $templates->map(fn (RecurringOrderTemplate $template) => $this->generateOrderFromTemplate($template))->all();
+        $orders = [];
+        foreach ($ids as $id) {
+            $order = DB::transaction(function () use ($id) {
+                $template = RecurringOrderTemplate::whereKey($id)->lockForUpdate()->first();
+
+                if ($template === null || ! $template->is_active || $template->next_run_at->gt(Carbon::today())) {
+                    return null;
+                }
+
+                $template->load('lines');
+
+                return $this->generateOrderFromTemplate($template);
+            });
+
+            if ($order !== null) {
+                $orders[] = $order;
+            }
+        }
+
+        return $orders;
     }
 
     /**

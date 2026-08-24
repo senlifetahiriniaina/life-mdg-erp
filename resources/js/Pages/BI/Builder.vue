@@ -2,6 +2,8 @@
   <AppLayout>
     <Head :title="dashboardId ? `Builder · ${formName}` : 'Nouveau Dashboard'" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Top bar -->
     <div class="builder-topbar">
       <div style="display:flex;align-items:center;gap:10px">
@@ -310,7 +312,11 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import KpiCard from '@/Components/BI/KpiCard.vue'
 import ChartWidget from '@/Components/BI/ChartWidget.vue'
 import DataTableWidget from '@/Components/BI/DataTableWidget.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('BI', 'use_builder')
 
 // ── Inline WidgetPreview component ────────────────────────────────────────────
 const WidgetPreview = defineComponent({

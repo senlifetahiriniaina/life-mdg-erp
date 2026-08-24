@@ -41,6 +41,7 @@ class CycleCount extends Model
         'count_date',
         'assigned_to',
         'notes',
+        'company_id',
     ];
 
     protected $casts = [

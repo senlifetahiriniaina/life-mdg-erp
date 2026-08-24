@@ -13,11 +13,19 @@
             Manage your accounting structure
           </p>
         </div>
-        <Button
-          icon="pi pi-plus"
-          label="New Account"
-          @click="openCreateModal"
-        />
+        <div class="flex gap-2">
+          <Button
+            icon="pi pi-cog"
+            label="Comptes de rôle"
+            outlined
+            @click="() => router.visit('/accounting/account-roles')"
+          />
+          <Button
+            icon="pi pi-plus"
+            label="New Account"
+            @click="openCreateModal"
+          />
+        </div>
       </div>
 
       <!-- Filters -->
@@ -249,7 +257,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -365,9 +373,19 @@ const fetchAccounts = async (page = 1) => {
     })
     const data = await response.json()
     accounts.value = data.data
-    pagination.current_page = data.current_page
-    pagination.total = data.total
-    pagination.last_page = data.last_page
+    // Chantier 38.2: ChartOfAccountController::index() returns Laravel's
+    // standard paginated-resource shape ({data, links, meta}) — real
+    // current_page/total/last_page live under `data.meta.*`, never at the
+    // top level. Reading the top-level keys always produced `undefined`
+    // (confirmed empirically), so `pagination.total` was overwritten to
+    // `undefined` on every real fetch — the `v-if="pagination.total >
+    // pagination.per_page"` guard below then never rendered the pager at
+    // all, silently capping this page at the first `per_page` (default 25)
+    // accounts. Consequential the moment Chantier 36 grew the real chart
+    // from ~76 to ~209 accounts.
+    pagination.current_page = data.meta?.current_page ?? 1
+    pagination.total = data.meta?.total ?? 0
+    pagination.last_page = data.meta?.last_page ?? 1
   } finally {
     loading.value = false
   }
@@ -419,6 +437,20 @@ const editAccount = (account: Account) => {
   showModal.value = true
 }
 
+// Chantier 38.2: this page's DELETE/PUT/POST fetch() calls sent no CSRF
+// token at all — this app runs Sanctum's statefulApi() (confirmed in
+// bootstrap/app.php), which activates real CSRF verification on every
+// same-origin browser request; unlike axios (used elsewhere in this app),
+// which auto-attaches X-XSRF-TOKEN from the cookie automatically, a raw
+// fetch() does nothing on its own. Every real create/update/delete on this
+// page would 419 "CSRF token mismatch" — a Pest test can never catch this
+// (VerifyCsrfToken::runningUnitTests() unconditionally bypasses the check
+// under app()->runningUnitTests()). Same fix pattern already used across
+// this app (e.g. Inventory/Warehouses/Categories/Channels' own getCsrf()).
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 const confirmDelete = (account: Account) => {
   confirm.require({
     message: `Are you sure you want to delete account "${account.code} – ${account.name}"?`,
@@ -429,7 +461,7 @@ const confirmDelete = (account: Account) => {
     accept: async () => {
       await fetch(`/api/v1/accounting/chart-of-accounts/${account.id}`, {
         method: 'DELETE',
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       })
       fetchAccounts(pagination.current_page)
     },
@@ -452,6 +484,7 @@ const submitAccount = async () => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'X-CSRF-TOKEN': getCsrf(),
       },
       body: JSON.stringify({ ...accountForm }),
     })

@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="Roadmap produit" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="space-y-4">
       <div class="flex items-center justify-between" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <div>
@@ -142,7 +144,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Dropdown, Tag } from 'primevue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import { Select as Dropdown, Tag } from 'primevue'
 import axios from 'axios'
 
 interface EpicItem {
@@ -170,6 +174,7 @@ interface ProjectOption {
 }
 
 const props = defineProps<{ projects?: ProjectOption[] }>()
+const { guidance } = useAiAssistant('Projects', 'view_roadmap')
 
 const selectedProject = ref<number | null>(null)
 const epics           = ref<EpicItem[]>([])

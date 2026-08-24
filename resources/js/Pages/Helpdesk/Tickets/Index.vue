@@ -15,6 +15,8 @@
       </div>
     </div>
 
+    <AiAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- KPI row -->
     <div class="wh-kpi-grid" style="margin-bottom:16px">
       <div class="wh-kpi" v-for="s in stats" :key="s.label">
@@ -171,12 +173,25 @@ import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'
+import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useHelpStore } from '@/stores/help'
 import { useHelpdeskChannel } from '@/composables/useEcho'
 import { useI18n } from 'vue-i18n'
 
 const help = useHelpStore()
 const { t } = useI18n()
+const { guidance } = useAiAssistant('Helpdesk', 'index')
+
+// Chantier 32.21: this page's mutating fetch() calls sent no CSRF token at
+// all — this app runs Sanctum's statefulApi() with real CSRF verification
+// on every same-origin browser request, confirmed empirically (a real 419
+// via curl simulating this exact fetch()) — same bug class already fixed
+// on 9+ other pages this session (Inventory/Logistics Chantier 19,
+// CRM Chantier 32.13, ...).
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
 
 const helpdeskTourSteps = [
   { tag: 'Helpdesk', icon: 'pi pi-ticket',     title: 'Ticket Queue',       description: 'All support requests arrive here from email, WhatsApp and web forms. Tickets are sorted by priority and SLA deadline by default.' },
@@ -323,7 +338,7 @@ const onCreateSubmit = handleCreateSubmit(async (values) => {
     if (!payload.channel) delete payload.channel
     const response = await fetch('/api/v1/helpdesk/tickets', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify(payload),
     })
     if (response.ok) {

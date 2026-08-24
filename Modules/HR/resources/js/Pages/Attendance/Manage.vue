@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="Attendance Tracking" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="space-y-6">
       <!-- Page header -->
       <div class="flex items-center justify-between">
@@ -190,9 +194,10 @@
     <!-- Mark Attendance Dialog -->
     <Dialog
       v-model:visible="showMarkDialog"
-      header="Mark Attendance"
+      :header="editingId ? 'Edit Attendance' : 'Mark Attendance'"
       modal
       class="w-full max-w-2xl"
+      @hide="resetForm"
     >
       <form @submit.prevent="saveAttendance" class="space-y-4">
         <div>
@@ -268,7 +273,7 @@
             @click="showMarkDialog = false"
           />
           <Button
-            label="Save"
+            :label="editingId ? 'Update' : 'Save'"
             icon="pi pi-check"
             :loading="saving"
           />
@@ -281,8 +286,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
+import axios from 'axios'
 import Button from 'primevue/button'
-import Calendar from 'primevue/calendar'
+import Calendar from 'primevue/datepicker'
 import InputMask from 'primevue/inputmask'
 import Select from 'primevue/select'
 import DataTable from 'primevue/datatable'
@@ -291,6 +297,8 @@ import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 interface Department {
   id: number
@@ -304,6 +312,7 @@ interface Employee {
 
 interface AttendanceRecord {
   id: number
+  employee_id: number
   employee_name: string
   department: string | null
   status: string
@@ -311,6 +320,7 @@ interface AttendanceRecord {
   check_out: string | null
   duration: number | null
   date: string
+  notes: string | null
 }
 
 const selectedDate = ref(new Date())
@@ -366,27 +376,53 @@ const formatTime = (time: string): string => {
   return `${hours}:${minutes}`
 }
 
+// Chantier 32.17 (HR deep 14-layer audit): every mutating call on this page
+// used raw fetch() with no CSRF header — this app runs Sanctum's
+// statefulApi(), which activates real CSRF verification on same-origin
+// browser requests; axios auto-attaches the X-XSRF-TOKEN header by default,
+// raw fetch() does not. Confirmed the same bug class already found and
+// fixed for 9 Inventory/Logistics pages at Chantier 19 Lots 4-5 — invisible
+// to Pest (VerifyCsrfToken bypasses in APP_ENV=testing regardless of
+// headers sent), only surfaces against a real browser-shaped request.
+// Switched every call on this page to axios.
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'manage_attendance')
+
+const editingId = ref<number | null>(null)
+
 const loadAttendance = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams()
-    params.set('date', selectedDate.value.toISOString().split('T')[0])
+    const params: Record<string, string> = {
+      date: selectedDate.value.toISOString().split('T')[0],
+    }
     if (selectedDepartment.value) {
-      params.set('department_id', String(selectedDepartment.value))
+      params.department_id = String(selectedDepartment.value)
     }
     if (statusFilter.value) {
-      params.set('status', statusFilter.value)
+      params.status = statusFilter.value
     }
 
-    const response = await fetch(`/api/v1/hr/attendance?${params}`, {
-      headers: { Accept: 'application/json' },
-    })
-    const data = await response.json()
+    const { data } = await axios.get('/api/v1/hr/attendance', { params })
     attendanceRecords.value = data.data || []
   } catch (error) {
     console.error('Failed to load attendance:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const resetForm = () => {
+  editingId.value = null
+  newAttendance.value = {
+    employee_id: null,
+    date: new Date(),
+    status: 'present',
+    check_in: '',
+    check_out: '',
+    notes: '',
   }
 }
 
@@ -406,24 +442,15 @@ const saveAttendance = async () => {
       notes: newAttendance.value.notes,
     }
 
-    const response = await fetch('/api/v1/hr/attendance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-
-    if (response.ok) {
-      showMarkDialog.value = false
-      newAttendance.value = {
-        employee_id: null,
-        date: new Date(),
-        status: 'present',
-        check_in: '',
-        check_out: '',
-        notes: '',
-      }
-      await loadAttendance()
+    if (editingId.value) {
+      await axios.put(`/api/v1/hr/attendance/${editingId.value}`, payload)
+    } else {
+      await axios.post('/api/v1/hr/attendance', payload)
     }
+
+    showMarkDialog.value = false
+    resetForm()
+    await loadAttendance()
   } catch (error) {
     console.error('Error saving attendance:', error)
   } finally {
@@ -431,21 +458,29 @@ const saveAttendance = async () => {
   }
 }
 
+// Chantier 32.17: this was a bare console.log() — the real "Edit" button on
+// every row did literally nothing visible to the user. Now opens the same
+// dialog used for creation, pre-filled, and saveAttendance() branches to a
+// PUT against the real (now-routed) update endpoint.
 const editAttendance = (record: AttendanceRecord) => {
-  console.log('Edit attendance:', record)
+  editingId.value = record.id
+  newAttendance.value = {
+    employee_id: record.employee_id ?? null,
+    date: record.date ? new Date(record.date) : new Date(),
+    status: record.status,
+    check_in: record.check_in ?? '',
+    check_out: record.check_out ?? '',
+    notes: record.notes ?? '',
+  }
+  showMarkDialog.value = true
 }
 
 const deleteAttendance = async (record: AttendanceRecord) => {
   if (!confirm('Delete this attendance record?')) return
 
   try {
-    const response = await fetch(`/api/v1/hr/attendance/${record.id}`, {
-      method: 'DELETE',
-    })
-
-    if (response.ok) {
-      await loadAttendance()
-    }
+    await axios.delete(`/api/v1/hr/attendance/${record.id}`)
+    await loadAttendance()
   } catch (error) {
     console.error('Error deleting attendance:', error)
   }
@@ -453,15 +488,11 @@ const deleteAttendance = async (record: AttendanceRecord) => {
 
 onMounted(() => {
   Promise.all([
-    fetch('/api/v1/hr/departments', {
-      headers: { Accept: 'application/json' },
-    }).then(r => r.json()).then(d => {
-      departments.value = d.data || []
+    axios.get('/api/v1/hr/departments').then(({ data }) => {
+      departments.value = data.data || []
     }),
-    fetch('/api/v1/hr/employees', {
-      headers: { Accept: 'application/json' },
-    }).then(r => r.json()).then(d => {
-      employees.value = d.data || []
+    axios.get('/api/v1/hr/employees').then(({ data }) => {
+      employees.value = data.data || []
     }),
     loadAttendance(),
   ]).catch(error => {

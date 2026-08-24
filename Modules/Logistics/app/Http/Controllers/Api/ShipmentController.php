@@ -21,10 +21,18 @@ class ShipmentController extends Controller
     {
         $this->authorize('viewAny', Shipment::class);
 
+        // Chantier 32.23: the real Shipments/Index.vue page's search box
+        // (placeholder "Référence, n° suivi, destinataire…") has always sent
+        // a `search` param that this method never once read — confirmed
+        // empirically that it silently returned every shipment regardless
+        // of the search term. Added, matching the placeholder's own promise.
         $q = Shipment::query()
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->input('type'), fn ($q, $v) => $q->where('type', $v))
             ->when($request->input('carrier_id'), fn ($q, $v) => $q->where('carrier_id', $v))
+            ->when($request->input('search'), fn ($q, $v) => $q->where(fn ($sq) => $sq->where('reference', 'like', "%{$v}%")
+                ->orWhere('tracking_number', 'like', "%{$v}%")
+                ->orWhere('consignee_name', 'like', "%{$v}%")))
             ->latest()
             ->paginate(20);
 

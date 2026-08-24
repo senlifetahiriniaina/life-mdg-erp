@@ -303,6 +303,11 @@ const removeStep = (idx) => {
   form.steps.forEach((s, i) => { s.step_order = i + 1 })
 }
 
+// Chantier 32.15: missing-CSRF-token fetch() bug — see Contacts/Form.vue's comment.
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+}
+
 const saveSequence = async () => {
   if (!form.name) return
   saving.value = true
@@ -312,7 +317,7 @@ const saveSequence = async () => {
     const body = editingSeq.value
       ? { name: form.name, description: form.description, status: form.status, trigger_event: form.trigger_event }
       : { ...form }
-    await fetch(url, { method, headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    await fetch(url, { method, headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() }, body: JSON.stringify(body) })
     showModal.value = false
     fetchSequences(pagination.current_page)
   } finally { saving.value = false }
@@ -322,7 +327,7 @@ const toggleStatus = async (seq) => {
   const newStatus = seq.status === 'active' ? 'paused' : 'active'
   await fetch(`/api/v1/crm/email-sequences/${seq.id}`, {
     method: 'PUT',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
     body: JSON.stringify({ status: newStatus }),
   })
   fetchSequences(pagination.current_page)
@@ -340,7 +345,7 @@ const enrollContact = async () => {
   try {
     await fetch(`/api/v1/crm/email-sequences/${enrollingSeq.value.id}/enroll`, {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
       body: JSON.stringify({ contact_id: Number(enrollContactId.value) }),
     })
     showEnrollModal.value = false
@@ -356,7 +361,7 @@ const confirmDelete = (seq) => {
     rejectClass: 'p-button-text',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await fetch(`/api/v1/crm/email-sequences/${seq.id}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+      await fetch(`/api/v1/crm/email-sequences/${seq.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrf() } })
       fetchSequences(pagination.current_page)
     },
   })

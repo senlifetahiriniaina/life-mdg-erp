@@ -33,6 +33,7 @@ class SeasonalFactor extends Model
 
     protected $fillable = [
         'product_id', 'category_id', 'period_type', 'period_index', 'factor', 'notes',
+        'company_id',
     ];
 
     protected function casts(): array

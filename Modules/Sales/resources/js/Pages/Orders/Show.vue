@@ -90,6 +90,8 @@
 
         <p v-if="error" class="text-sm text-red-600 mt-4">{{ error }}</p>
       </div>
+
+      <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
     </div>
 
     <div v-else class="text-center py-16 text-surface-400">Chargement…</div>
@@ -103,8 +105,21 @@ import axios from 'axios'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 
 const props = defineProps<{ orderId: number }>()
+
+// Chantier 32.16 (Sales deep 14-layer audit): this page never called
+// useAiAssistant() at all — confirmed via grep that only SalesIndex.vue did
+// among the module's 4 real Vue pages, the same "N of M pages never wired"
+// pattern already found and fixed for Strategy (Chantier 30) and
+// Validation (Chantier 32.7). showAiPanel starts true here (unlike
+// SalesIndex.vue's toggle-only button) since this deposit/balance workflow
+// is exactly the kind of multi-step process AI Assisted First is meant to
+// support.
+const { guidance } = useAiAssistant('Sales', 'manage_deposit_balance')
+const showAiPanel = ref(true)
 
 const order = ref<any>(null)
 const error = ref('')

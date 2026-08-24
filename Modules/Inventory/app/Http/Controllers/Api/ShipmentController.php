@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Http\Resources\CarrierResource;
 use Modules\Inventory\Http\Resources\ShipmentResource;
 use Modules\Inventory\Models\Carrier;
@@ -21,6 +22,8 @@ use Modules\Inventory\Services\ShippingService;
  */
 class ShipmentController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(
         private readonly ShippingService $service,
     ) {}
@@ -30,7 +33,9 @@ class ShipmentController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Shipment::with('carrier')->orderByDesc('created_at');
+        $query = Shipment::with('carrier')
+            ->where('company_id', $this->companyId($request))
+            ->orderByDesc('created_at');
 
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
@@ -79,14 +84,20 @@ class ShipmentController extends Controller
 
         $shipment = $this->service->createShipment($validated);
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation.
+        $shipment->update(['company_id' => $this->companyId($request)]);
+
         return (new ShipmentResource($shipment))->response()->setStatusCode(200);
     }
 
     /**
      * GET /api/v1/inventory/shipments/{shipment}
      */
-    public function show(Shipment $shipment): ShipmentResource
+    public function show(Request $request, Shipment $shipment): ShipmentResource
     {
+        $this->assertSameCompany($request, $shipment);
+
         return new ShipmentResource($shipment->load(['carrier', 'events']));
     }
 
@@ -95,6 +106,8 @@ class ShipmentController extends Controller
      */
     public function update(Request $request, Shipment $shipment): ShipmentResource
     {
+        $this->assertSameCompany($request, $shipment);
+
         $validated = $request->validate([
             'status' => ['sometimes', 'in:draft,booked,picked_up,in_transit,delivered,returned,failed'],
             'tracking_number' => ['sometimes', 'nullable', 'string'],
@@ -119,8 +132,9 @@ class ShipmentController extends Controller
     /**
      * DELETE /api/v1/inventory/shipments/{shipment}
      */
-    public function destroy(Shipment $shipment): JsonResponse
+    public function destroy(Request $request, Shipment $shipment): JsonResponse
     {
+        $this->assertSameCompany($request, $shipment);
         $shipment->delete();
 
         return response()->json(null, 204);
@@ -157,8 +171,9 @@ class ShipmentController extends Controller
     /**
      * GET /api/v1/inventory/shipments/{shipment}/track
      */
-    public function track(Shipment $shipment): JsonResponse
+    public function track(Request $request, Shipment $shipment): JsonResponse
     {
+        $this->assertSameCompany($request, $shipment);
         $events = $this->service->track($shipment);
 
         return response()->json([

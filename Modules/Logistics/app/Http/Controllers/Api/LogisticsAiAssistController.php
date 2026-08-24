@@ -37,12 +37,18 @@ class LogisticsAiAssistController extends Controller
             'locale'  => ['sometimes', 'string', 'max:8'],
         ]);
 
+        // Chantier 32.23: `users.role` is the well-documented phantom column
+        // (real, migrated, never populated by any real registration path) —
+        // this read always resolved to the literal string 'user' regardless
+        // of the real actor's role, the same bug class already fixed for
+        // ~15 other modules' *AiAssistController this session but missed
+        // here. Fixed to the established Spatie-role pattern.
         $guidance = $this->assistant->getGuidance(
             module:   'Logistics',
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

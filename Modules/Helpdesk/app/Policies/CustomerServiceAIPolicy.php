@@ -82,11 +82,6 @@ class CustomerServiceAIPolicy
         return $user->can('helpdesk.urgency.view');
     }
 
-    public function manageEscalationWorkflows(User $user): bool
-    {
-        return $user->can('helpdesk.escalation.manage-workflows');
-    }
-
     public function executeEscalation(User $user): bool
     {
         return $user->can('helpdesk.escalation.execute');
@@ -152,11 +147,6 @@ class CustomerServiceAIPolicy
     public function viewNPSPredictions(User $user): bool
     {
         return $user->can('helpdesk.nps.view');
-    }
-
-    public function manageSatisfactionFactors(User $user): bool
-    {
-        return $user->can('helpdesk.satisfaction.manage-factors');
     }
 
     // AGENT PERFORMANCE PERMISSIONS

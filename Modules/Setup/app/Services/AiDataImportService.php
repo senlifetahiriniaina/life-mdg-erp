@@ -37,15 +37,54 @@ class AiDataImportService
 
     private const API_URL = 'https://api.anthropic.com/v1/messages';
 
-    /** Supported target entity schemas with their required / optional fields */
+    /**
+     * Supported target entity schemas with their required / optional fields.
+     *
+     * Chantier 32.10 (deep 14-layer audit): confirmed empirically (a real
+     * CSV run through this exact pipeline, inspected via `tinker`, not just
+     * read) that 4 of the original 6 entities had target field names that
+     * did not match any real column on their destination table — silently
+     * dropped by `ImportDataJob::bulkInsert()`'s column-intersection filter,
+     * meaning "required" fields like an invoice's date/client/amount were
+     * never actually written despite the import reporting success. Field
+     * names below are the real destination column names (confirmed via
+     * `Schema::getColumnListing()` against every table this class targets);
+     * anything with no real column at all was removed rather than offered
+     * and silently discarded — see this class's and ImportDataJob's own
+     * inline comments for the per-entity reasoning, and CLAUDE.md's
+     * Chantier 32.10 entry for the full investigation.
+     *
+     * `stock` was removed entirely: `inventory_stock_movements` has a
+     * NOT NULL `type` column this generic pipeline has no way to populate
+     * (in/out/adjustment — not a data-mapping decision, a business one) and
+     * no `product_sku`/`warehouse`/`unit_cost` columns at all (real FKs:
+     * `product_id`/`warehouse_id`, requiring a SKU/name→id lookup this
+     * generic bulk importer was never built to do) — confirmed empirically
+     * that 100% of stock rows fatally failed the insert, 0% success rate,
+     * not a partial/edge-case gap. Chantier 16 already built a real,
+     * working, purpose-specific stock-import feature for this exact need
+     * (`Modules\Inventory\Services\StockImportService` /
+     * `Stock/Import.vue` — auto-creates unknown products, resolves the
+     * warehouse from a real picker, records a real `StockMovement`) —
+     * duplicating that logic here, badly, would be the same
+     * dead-parallel-subsystem anti-pattern this session has repeatedly
+     * found and removed elsewhere (see CLAUDE.md). Users importing stock
+     * movements should use that real feature instead.
+     */
     private const ENTITY_SCHEMAS = [
         'contacts' => [
             'required' => ['full_name'],
-            'optional' => ['email', 'phone', 'company', 'country', 'address'],
+            'optional' => ['email', 'phone'],
         ],
+        // 'sku' moved to required: confirmed via Schema::getColumnListing()
+        // that `inventory_products.sku` is NOT NULL with no default (the
+        // real ProductController::store() also requires it explicitly, no
+        // auto-generation) — every products row missing it was a
+        // guaranteed per-row insert failure, previously mislabelled
+        // "optional" here.
         'products' => [
-            'required' => ['name'],
-            'optional' => ['sku', 'category', 'price', 'cost', 'unit', 'description'],
+            'required' => ['name', 'sku'],
+            'optional' => ['category', 'selling_price', 'cost_price', 'unit', 'description'],
         ],
         'suppliers' => [
             'required' => ['name'],
@@ -53,19 +92,28 @@ class AiDataImportService
         ],
         'employees' => [
             'required' => ['full_name'],
-            'optional' => ['email', 'department', 'position', 'hire_date', 'salary'],
+            'optional' => ['email', 'job_title', 'hire_date'],
         ],
         'invoices' => [
-            'required' => ['number', 'date', 'client_name', 'amount'],
+            'required' => ['number', 'invoice_date', 'partner_name', 'total'],
             'optional' => ['currency', 'status'],
-        ],
-        'stock' => [
-            'required' => ['product_sku', 'quantity'],
-            'optional' => ['warehouse', 'unit_cost'],
         ],
     ];
 
-    /** Heuristic keyword → target field mapping (fallback) */
+    /**
+     * Heuristic keyword → target field mapping (fallback).
+     *
+     * Chantier 32.10: kept in sync with ENTITY_SCHEMAS above — every target
+     * value here must be a real column name on the entity's destination
+     * table (see ImportDataJob::entityToTable()), never a target field the
+     * write path would silently drop. 'company'/'country'/'address' (no
+     * real column on crm_contacts), 'price'/'cost' (real columns are
+     * `selling_price`/`cost_price`), 'department'/'position'/'salary' (no
+     * real column on hr_employees except 'job_title' for position — 'poste'/
+     * 'titre' now map there), and the whole 'stock' section (see
+     * ENTITY_SCHEMAS' docblock — removed, superseded by the real
+     * StockImportService feature) were all fixed/removed accordingly.
+     */
     private const HEURISTIC_MAP = [
         'contacts' => [
             'nom'         => 'full_name',
@@ -78,35 +126,29 @@ class AiDataImportService
             'tel'         => 'phone',
             'phone'       => 'phone',
             'mobile'      => 'phone',
-            'société'     => 'company',
-            'societe'     => 'company',
-            'company'     => 'company',
-            'entreprise'  => 'company',
-            'pays'        => 'country',
-            'country'     => 'country',
-            'adresse'     => 'address',
-            'address'     => 'address',
         ],
         'products' => [
-            'nom'         => 'name',
-            'name'        => 'name',
-            'produit'     => 'name',
-            'product'     => 'name',
-            'sku'         => 'sku',
-            'référence'   => 'sku',
-            'reference'   => 'sku',
-            'ref'         => 'sku',
-            'categorie'   => 'category',
-            'category'    => 'category',
-            'prix'        => 'price',
-            'price'       => 'price',
-            'coût'        => 'cost',
-            'cout'        => 'cost',
-            'cost'        => 'cost',
-            'unité'       => 'unit',
-            'unite'       => 'unit',
-            'unit'        => 'unit',
-            'description' => 'description',
+            'nom'          => 'name',
+            'name'         => 'name',
+            'produit'      => 'name',
+            'product'      => 'name',
+            'sku'          => 'sku',
+            'référence'    => 'sku',
+            'reference'    => 'sku',
+            'ref'          => 'sku',
+            'categorie'    => 'category',
+            'category'     => 'category',
+            'prix'         => 'selling_price',
+            'price'        => 'selling_price',
+            'prix vente'   => 'selling_price',
+            'coût'         => 'cost_price',
+            'cout'         => 'cost_price',
+            'cost'         => 'cost_price',
+            'prix achat'   => 'cost_price',
+            'unité'        => 'unit',
+            'unite'        => 'unit',
+            'unit'         => 'unit',
+            'description'  => 'description',
         ],
         'suppliers' => [
             'nom'            => 'name',
@@ -131,49 +173,33 @@ class AiDataImportService
             'employé'        => 'full_name',
             'employee'       => 'full_name',
             'email'          => 'email',
-            'département'    => 'department',
-            'departement'    => 'department',
-            'department'     => 'department',
-            'poste'          => 'position',
-            'position'       => 'position',
-            'titre'          => 'position',
+            'poste'          => 'job_title',
+            'position'       => 'job_title',
+            'titre'          => 'job_title',
+            'job_title'      => 'job_title',
             'date'           => 'hire_date',
             'embauche'       => 'hire_date',
             'hire_date'      => 'hire_date',
-            'salaire'        => 'salary',
-            'salary'         => 'salary',
         ],
         'invoices' => [
             'numéro'         => 'number',
             'numero'         => 'number',
             'number'         => 'number',
             'facture'        => 'number',
-            'date'           => 'date',
-            'client'         => 'client_name',
-            'client_name'    => 'client_name',
-            'montant'        => 'amount',
-            'amount'         => 'amount',
+            'date'           => 'invoice_date',
+            'date facture'   => 'invoice_date',
+            'invoice_date'   => 'invoice_date',
+            'client'         => 'partner_name',
+            'client_name'    => 'partner_name',
+            'partner_name'   => 'partner_name',
+            'montant'        => 'total',
+            'amount'         => 'total',
+            'total'          => 'total',
             'devise'         => 'currency',
             'currency'       => 'currency',
             'statut'         => 'status',
             'status'         => 'status',
             'état'           => 'status',
-        ],
-        'stock' => [
-            'sku'            => 'product_sku',
-            'product_sku'    => 'product_sku',
-            'référence'      => 'product_sku',
-            'reference'      => 'product_sku',
-            'quantité'       => 'quantity',
-            'quantite'       => 'quantity',
-            'quantity'       => 'quantity',
-            'qty'            => 'quantity',
-            'entrepôt'       => 'warehouse',
-            'entrepot'       => 'warehouse',
-            'warehouse'      => 'warehouse',
-            'coût'           => 'unit_cost',
-            'cout'           => 'unit_cost',
-            'unit_cost'      => 'unit_cost',
         ],
     ];
 
@@ -433,7 +459,7 @@ class AiDataImportService
         $rowCount   = 0;
         $lineNum    = 0;
 
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter, '"', '\\')) !== false) {
             if ($lineNum === 0) {
                 $headers = array_map('trim', $row);
             } elseif ($lineNum <= $maxRows) {
@@ -755,7 +781,6 @@ PROMPT;
             'suppliers' => 'Fournisseurs',
             'employees' => 'Employés',
             'invoices'  => 'Factures',
-            'stock'     => 'Stock',
             default     => ucfirst($entity),
         };
     }

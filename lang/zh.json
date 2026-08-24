@@ -6,6 +6,7 @@
   "nav": {
     "dashboard": "控制台",
     "crm": "客户关系管理",
+    "sales": "销售",
     "hr": "人力资源",
     "inventory": "库存管理",
     "accounting": "财务管理",

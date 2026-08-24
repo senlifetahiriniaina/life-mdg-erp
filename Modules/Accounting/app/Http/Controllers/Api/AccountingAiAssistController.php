@@ -42,7 +42,11 @@ class AccountingAiAssistController extends Controller
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            // Chantier 32.14: $user->role is the well-documented phantom column (real DB column,
+            // never in User::$fillable, never populated) — this exact bug class was already
+            // fixed for ~15 other modules' *AiAssistController this session but somehow missed
+            // for Accounting itself. hasAnyRole()/getRoleNames() is the real Spatie role source.
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

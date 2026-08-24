@@ -73,6 +73,19 @@ class SupplierQuoteController extends Controller
 
         $supplierId = (int) $request->route('supplier');
 
+        // Chantier 32.13 (layer 8, business validation): the route param
+        // was never checked against a real supplier of the RFQ's own
+        // company at all — a caller could reference any numeric id,
+        // including a nonexistent one or another company's real supplier,
+        // and a SupplierQuote row would still be created (referencing a
+        // foreign supplier_id, though correctly company_id-scoped to this
+        // RFQ's own company — not a cross-tenant data leak, but a real
+        // data-integrity gap on this module's own supplier/quote linkage).
+        \Illuminate\Support\Facades\Validator::make(
+            ['supplier' => $supplierId],
+            ['supplier' => \Illuminate\Validation\Rule::exists('achats_suppliers', 'id')->where('company_id', $rfq->company_id)]
+        )->validate();
+
         $data = $request->validate([
             'unit_price' => 'required|numeric|min:0',
             'total_price' => 'required|numeric|min:0',

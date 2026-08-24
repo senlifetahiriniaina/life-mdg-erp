@@ -1,5 +1,10 @@
 <template>
   <div class="space-y-6">
+    <!-- Chantier 32.23: this page's real, routed AI-assist backend
+         (POST /api/v1/logistics/ai/assist) had zero real caller anywhere in
+         this module before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <!-- En-tête -->
     <div class="flex items-center justify-between">
       <div>
@@ -20,10 +25,6 @@
             <div>
               <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ kpi.label }}</p>
               <p class="mt-1 text-2xl font-bold" :class="kpi.color">{{ kpi.value }}</p>
-              <p class="mt-1 text-xs" :class="kpi.trend >= 0 ? 'text-green-600' : 'text-red-600'">
-                <i :class="kpi.trend >= 0 ? 'pi pi-arrow-up' : 'pi pi-arrow-down'" class="mr-1 text-xs"></i>
-                {{ Math.abs(kpi.trend) }}% vs mois dernier
-              </p>
             </div>
             <span class="flex h-12 w-12 items-center justify-center rounded-xl" :class="kpi.bg">
               <i :class="kpi.icon" class="text-xl" :style="{ color: kpi.iconColor }"></i>
@@ -190,12 +191,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { usePage } from '@inertiajs/vue3'
+import axios from 'axios'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import ProgressBar from 'primevue/progressbar'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import { useRoleAccess } from '@/composables/useRoleAccess'
 
 const page = usePage()
 const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
@@ -204,6 +209,42 @@ const canCreate = computed(() => canManage.value)
 const canEdit = computed(() => canManage.value)
 const canDelete = computed(() => isAdmin.value)
 
+// Chantier 32.23 (deep 14-layer audit, layer 3/4/12): this whole page was
+// found 100% hardcoded mock data (kpis/alerts/deliveryRounds/
+// shipmentStatuses/costBreakdown were all local `ref([...])` fake arrays,
+// no defineProps at all) despite LogisticsWebController::index() already
+// server-passing real `kpis` from LogisticsAnalyticsService::kpis() — the
+// controller's real query was silently discarded on every load. Worse:
+// `useRoleAccess()` was called with zero import anywhere in this file and
+// no auto-import plugin configured (confirmed via vite.config.js) — a
+// guaranteed `ReferenceError: useRoleAccess is not defined` at component
+// setup, meaning this real, routed `/logistics` dashboard has never
+// actually rendered for any user. Both fixed: the import, and the 4 KPI
+// cards now reflect the real server-computed props rather than fabricated
+// numbers (no fake month-over-month trend is shown, since the backend
+// computes none — showing one would be inventing data). shipmentStatuses
+// is now a real self-fetch against the already-routed, already-real
+// LogisticsAnalyticsController::shipmentStats(). alerts/deliveryRounds/
+// costBreakdown/mapLegend are left as illustrative placeholders — this
+// module has no real "active alert"/"cost by mode in XOF" aggregate
+// computed anywhere, and building one would mean inventing new business
+// logic, not wiring an existing one.
+const props = defineProps<{
+  kpis?: {
+    total_shipments?: number
+    today?: number
+    delivered?: number
+    in_transit?: number
+    exceptions?: number
+    on_time_rate_pct?: number
+    exception_rate_pct?: number
+    avg_cost?: number | null
+    total_co2_kg?: number
+  }
+}>()
+
+const { guidance } = useAiAssistant('Logistics', 'view_dashboard')
+const showAiPanel = ref(true)
 
 const user = computed(() => page.props.auth?.user)
 
@@ -214,13 +255,28 @@ function refresh() {
   window.location.reload()
 }
 
-const kpis = ref([
-  { label: 'Expéditions en cours', value: '147', trend: 12, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900', icon: 'pi pi-send', iconColor: '#2563eb' },
-  { label: 'Livraisons du jour', value: '38', trend: 5, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900', icon: 'pi pi-check-circle', iconColor: '#16a34a' },
-  { label: 'Retards actifs', value: '9', trend: -3, color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900', icon: 'pi pi-clock', iconColor: '#dc2626' },
-  { label: 'Coût transport (mois)', value: '14,82 M XOF', trend: -8, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900', icon: 'pi pi-wallet', iconColor: '#ca8a04' },
-])
+const kpis = computed(() => {
+  const k = props.kpis ?? {}
+  return [
+    { label: 'Expéditions en cours', value: String(k.in_transit ?? 0), color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900', icon: 'pi pi-send', iconColor: '#2563eb' },
+    { label: 'Livraisons du jour', value: String(k.today ?? 0), color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900', icon: 'pi pi-check-circle', iconColor: '#16a34a' },
+    { label: 'Exceptions', value: String(k.exceptions ?? 0), color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900', icon: 'pi pi-clock', iconColor: '#dc2626' },
+    { label: 'Coût moyen / expédition', value: k.avg_cost != null ? `${k.avg_cost.toLocaleString('fr-FR')} XOF` : '—', color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900', icon: 'pi pi-wallet', iconColor: '#ca8a04' },
+  ]
+})
 
+// Chantier 32.23: mapLegend/alerts/deliveryRounds/costBreakdown below are
+// left as illustrative static content, not wired to a real endpoint — this
+// module has no real "active alert" or "cost by transport mode in XOF"
+// aggregate computed anywhere in the backend (LogisticsAnalyticsService
+// only exposes kpis/carrierPerformance/shipmentStats/co2Emissions), and a
+// live GPS map has no data source of any kind. Building any of these for
+// real would mean designing new business logic/aggregates that were never
+// specified, not wiring an existing one — a documented gap, not silently
+// fixed. deliveryRounds *could* reasonably self-fetch DeliveryRoundController
+// ::index() filtered to today, but doing so is left for a future pass to
+// keep this fix scoped to the confirmed crash + the two real, already-
+// computed backend aggregates (kpis, shipmentStats).
 const mapLegend = ref([
   { label: 'En transit', color: '#2563eb' },
   { label: 'Livraison en cours', color: '#16a34a' },
@@ -244,16 +300,39 @@ const deliveryRounds = ref([
   { id: 'T04', driver: 'Aminata Traoré', vehicle: 'Renault Master CI-9983-AB', stops: 10, km: 74, done: 0, statusLabel: 'Planifiée', statusSeverity: 'secondary' },
 ])
 
-const shipmentStatuses = ref([
-  { label: 'En préparation', count: 24, severity: 'secondary' },
-  { label: 'Collecté', count: 18, severity: 'info' },
-  { label: 'En transit', count: 67, severity: 'info' },
-  { label: 'En douane', count: 11, severity: 'warn' },
-  { label: 'Livré', count: 205, severity: 'success' },
-  { label: 'Retourné', count: 7, severity: 'danger' },
-])
+// Chantier 32.23: replaced the fabricated status counts above with a real
+// self-fetch against the already-real, already-routed
+// LogisticsAnalyticsController::shipmentStats() endpoint.
+const STATUS_LABELS: Record<string, { label: string; severity: string }> = {
+  draft: { label: 'En préparation', severity: 'secondary' },
+  booked: { label: 'Réservé', severity: 'secondary' },
+  picked_up: { label: 'Collecté', severity: 'info' },
+  in_transit: { label: 'En transit', severity: 'info' },
+  out_for_delivery: { label: 'En livraison', severity: 'info' },
+  customs_clearance: { label: 'En douane', severity: 'warn' },
+  delivered: { label: 'Livré', severity: 'success' },
+  returned: { label: 'Retourné', severity: 'danger' },
+  cancelled: { label: 'Annulé', severity: 'danger' },
+}
+const shipmentStatuses = ref<Array<{ label: string; count: number; severity: string }>>([])
 
-const totalShipments = computed(() => shipmentStatuses.value.reduce((s, x) => s + x.count, 0))
+async function loadShipmentStats() {
+  try {
+    const { data } = await axios.get('/api/v1/logistics/analytics/shipment-stats')
+    const byStatus = data?.by_status ?? {}
+    shipmentStatuses.value = Object.entries(byStatus).map(([status, count]) => ({
+      label: STATUS_LABELS[status]?.label ?? status,
+      count: Number(count),
+      severity: STATUS_LABELS[status]?.severity ?? 'secondary',
+    }))
+  } catch {
+    shipmentStatuses.value = []
+  }
+}
+
+onMounted(loadShipmentStats)
+
+const totalShipments = computed(() => shipmentStatuses.value.reduce((s, x) => s + x.count, 0) || 1)
 
 const costBreakdown = ref([
   { type: 'Routier', icon: 'pi pi-truck', pct: 54, amount: '7 980 000 XOF' },

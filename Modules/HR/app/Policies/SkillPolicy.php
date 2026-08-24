@@ -7,6 +7,10 @@ namespace Modules\HR\Policies;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Chantier 32: same-company gating on top of the existing permission
+ * check — see EmployeePolicy's docblock for the full rationale.
+ */
 class SkillPolicy
 {
     public function viewAny(User $user): bool
@@ -16,7 +20,7 @@ class SkillPolicy
 
     public function view(User $user, Model $model): bool
     {
-        return $user->can('hr.skill.view');
+        return $user->can('hr.skill.view') && $this->sameCompany($user, $model);
     }
 
     public function create(User $user): bool
@@ -26,11 +30,16 @@ class SkillPolicy
 
     public function update(User $user, Model $model): bool
     {
-        return $user->can('hr.skill.update');
+        return $user->can('hr.skill.update') && $this->sameCompany($user, $model);
     }
 
     public function delete(User $user, Model $model): bool
     {
-        return $user->can('hr.skill.delete');
+        return $user->can('hr.skill.delete') && $this->sameCompany($user, $model);
+    }
+
+    private function sameCompany(User $user, Model $model): bool
+    {
+        return ((int) ($user->company_id ?? 0)) === ((int) ($model->company_id ?? 0));
     }
 }

@@ -15,10 +15,12 @@
           {{ syncing ? 'Syncing...' : 'Sync to Ecommerce' }}
         </button>
         <span v-if="lastSyncAt" style="font-size:11px;color:var(--fg-3);align-self:center">Last sync: {{ formatDate(lastSyncAt) }}</span>
-        <button class="btn btn-secondary"><i class="pi pi-upload" style="font-size:13px" /> {{ $t('common.import_csv') }}</button>
-        <button class="btn btn-primary"><i class="pi pi-plus" style="font-size:13px" /> {{ $t('inventory.products.new') }}</button>
+        <button class="btn btn-secondary" @click="router.visit('/inventory/stock/import')"><i class="pi pi-upload" style="font-size:13px" /> {{ $t('common.import_csv') }}</button>
+        <button class="btn btn-primary" @click="router.visit('/products/create')"><i class="pi pi-plus" style="font-size:13px" /> {{ $t('inventory.products.new') }}</button>
       </div>
     </div>
+
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
 
     <div style="display:flex;gap:16px;margin-bottom:16px;font-size:12px">
       <Link href="/inventory/stock/movements" class="wh-link">Mouvements de stock</Link>
@@ -95,9 +97,13 @@ import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuidedTour from '@/Components/UI/GuidedTour.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { useHelpStore } from '@/stores/help'
 import { useI18n } from 'vue-i18n'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('Inventory', 'view_catalog')
 
 const help = useHelpStore()
 const { t } = useI18n()

@@ -7,14 +7,22 @@ use Modules\Validation\Http\Controllers\Api\ApprovalRuleController;
 use Modules\Validation\Http\Controllers\Api\ApprovalWorkflowController;
 use Modules\Validation\Http\Controllers\Api\ValidationRuleController;
 
+// Chantier 32.7: this module had no `module:Validation` gate anywhere,
+// unlike every sibling module (the middleware that lets a tenant's module
+// be toggled off, per-tenant, via ModuleManager::isEnabled()) — added
+// throughout this file. tests/Pest.php's actingAsUser() already enables
+// 'Validation' for every test user (it was added there for exactly this
+// gate, ahead of it actually existing), so this is a zero-regression
+// addition against the real test suite.
+
 // Generic data-validation rule engine's "validate this payload" endpoint --
 // distinct from the /validation-rules CRUD, which lives at api/v1/validation-rules
 // (see Modules/Validation/routes/validation-rules.php).
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Validation', 'throttle:simple_get'])
     ->post('validate', [ValidationRuleController::class, 'validateData']);
 
 // Alias routes (short form) for backwards compatibility with tests
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Validation', 'throttle:simple_get'])->group(function () {
     Route::get('workflows', [ApprovalWorkflowController::class, 'index']);
     // Chantier 19 Lot 3: was {workflow} — ApprovalWorkflowController::show()
     // type-hints $approval_workflow, not $workflow (unlike the sibling
@@ -60,7 +68,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
 });
 
 // Default: Simple GET throttle (1000 req/min)
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Validation', 'throttle:simple_get'])->group(function () {
     // Approval Workflows - reads
     //
     // Chantier 19 Lot 3: was {workflow} — see the identical fix + full
@@ -145,7 +153,7 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/validation')->group(function () {
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Validation'])->prefix('v1/validation')->group(function () {
     Route::post('ai/assist', [\Modules\Validation\Http\Controllers\Api\ValidationAiAssistController::class, 'assist'])
         ->name('validation.ai.assist');
 });

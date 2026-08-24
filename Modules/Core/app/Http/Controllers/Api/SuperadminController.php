@@ -391,22 +391,25 @@ class SuperadminController extends Controller
     }
 
     /**
-     * Resolve the current user's active tenant.
-     * Checks:  1. ?tenant_id= query param
-     *          2. X-Tenant-Id header
-     *          3. Owner relationship on user
+     * Resolve the current user's active tenant via the real TenantUser
+     * pivot — never a client-supplied value.
+     *
+     * Chantier 32.1: this used to accept a client-controlled ?tenant_id=
+     * query param or X-Tenant-Id header FIRST, before ever consulting the
+     * real TenantUser pivot — the exact cross-tenant IDOR pattern already
+     * documented and fixed repeatedly elsewhere in this app this session
+     * (Setup/AI/Achats/Integration/Workflow/Payroll/etc): any authenticated
+     * user could read (onboarding/status), and — more severely — WRITE
+     * another tenant's onboarding progress (onboarding/step/{n},
+     * onboarding/skip) just by setting that header, since neither of these
+     * 3 routes has a role: gate beyond auth:sanctum. Fixed by dropping the
+     * header/query-param fallback entirely, matching the established
+     * fix pattern — the TenantUser pivot lookup is the only real, non-
+     * spoofable source for "which tenant does this authenticated user
+     * belong to".
      */
     private function resolveTenant(Request $request): Tenant
     {
-        $tenantId = $request->header('X-Tenant-Id')
-            ?? $request->string('tenant_id')->toString()
-            ?: null;
-
-        if ($tenantId) {
-            return Tenant::findOrFail($tenantId);
-        }
-
-        // Try to find via TenantUser pivot
         $userId = $request->user()?->id;
 
         if ($userId) {

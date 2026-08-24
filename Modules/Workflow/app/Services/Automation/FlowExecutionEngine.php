@@ -1206,7 +1206,22 @@ PYTHON;
             2 => ['pipe', 'w'],   // stderr
         ];
 
-        $cmd = "timeout {$timeoutSeconds}s python3 -c " . escapeshellarg($wrapper);
+        // Chantier 32.11: this docblock claimed "ulimit -v (64MB memory),
+        // -t (CPU time 5s)" as an already-applied security guarantee, but
+        // the command actually built here never called ulimit at all — the
+        // real ulimit call added below is what makes that guarantee true;
+        // see CodeNodeService::runPythonSafe() (the standalone REST-API
+        // counterpart to this method, same gap, same fix, same residual
+        // risk documented there) for the full rationale, including the
+        // honest caveat that a regex denylist is not a real sandbox
+        // boundary on its own.
+        // Chantier 32.11: `sh` on this app's target containers is dash, not
+        // bash — dash's builtin `ulimit` fatals with "too many arguments"
+        // on combined `-v X -t Y` (bash-only syntax), confirmed empirically
+        // — two separate `ulimit` calls are the portable form both shells
+        // accept.
+        $innerCmd = 'ulimit -v 65536; ulimit -t ' . $timeoutSeconds . '; exec python3 -c ' . escapeshellarg($wrapper);
+        $cmd      = 'timeout ' . $timeoutSeconds . 's sh -c ' . escapeshellarg($innerCmd);
 
         $process = proc_open($cmd, $descriptors, $pipes, '/tmp', []);
 

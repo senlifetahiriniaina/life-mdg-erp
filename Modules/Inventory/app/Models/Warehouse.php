@@ -6,15 +6,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Modules\Core\Traits\RecordsActivity;
 use Modules\Inventory\Database\Factories\WarehouseFactory;
 
 class Warehouse extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, RecordsActivity, SoftDeletes;
+
+    protected static string $auditModule = 'Inventory';
 
     protected $table = 'inventory_warehouses';
 
     protected $fillable = [
+        'company_id',
         'name',
         'code',
         'type',
@@ -22,6 +26,7 @@ class Warehouse extends Model
         'city',
         'country',
         'is_active',
+        'company_id',
     ];
 
     protected $casts = [

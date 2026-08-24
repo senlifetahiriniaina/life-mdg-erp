@@ -4,6 +4,8 @@
       <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">My Timesheets</h1>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="bg-white dark:bg-surface-800 shadow-sm rounded-lg p-6">
       <!-- Stats -->
       <div class="grid grid-cols-4 gap-4 mb-6">
@@ -108,6 +110,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Tag from 'primevue/tag'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'manage_sheets')
 
 const sheets = ref([])
 const loading = ref(false)

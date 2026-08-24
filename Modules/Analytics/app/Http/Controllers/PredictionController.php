@@ -86,6 +86,15 @@ class PredictionController extends Controller
 
     public function train(Request $request, PredictionModel $predictionModel): JsonResponse
     {
+        // Chantier 32.25 (audit 14 couches, Analytics — couche 7, RBAC) :
+        // déjà documenté au Chantier 8.5ars comme un trou différé
+        // ("has the same missing-authorize() gap as the 3 fixed
+        // methods — flagged for a future pass") — confirmé toujours réel
+        // et fermé ici : sans ce garde, n'importe quel utilisateur
+        // authentifié, de n'importe quelle société, pouvait déclencher
+        // l'entraînement de n'importe quel modèle de prédiction.
+        $this->authorize('train', $predictionModel);
+
         $validated = $request->validate([
             'training_samples' => 'required|integer|min:100',
             'validation_split' => 'required|numeric|between:0.1,0.5',

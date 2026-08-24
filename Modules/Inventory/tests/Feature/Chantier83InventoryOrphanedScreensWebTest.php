@@ -18,12 +18,32 @@ use Tests\TestCase;
  * queries against them. ChannelController (marketplace channel connections)
  * was real and routed at the API layer with no page at all — new
  * self-contained page.
+ *
+ * Chantier 32: Modules/Inventory/routes/web.php's outer group gained a
+ * role: gate (matching routes/api.php's own, previously missing entirely
+ * from the web layer) — a bare, unroled User::factory()->create() no
+ * longer passes it, so every test here now seeds real roles and assigns
+ * 'employee' (this app's established broad-by-design role), the same
+ * seed-guard + assignRole() pattern already used repeatedly elsewhere in
+ * this session for the identical class of fix.
  */
 class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 {
+    private function inventoryWebUser(): User
+    {
+        if (\Spatie\Permission\Models\Permission::count() === 0) {
+            $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        }
+
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+
+        return $user;
+    }
+
     public function test_suppliers_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/suppliers');
 
@@ -35,7 +55,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_purchase_orders_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/purchase-orders');
 
@@ -49,7 +69,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_wms_picking_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/wms/picking');
 
@@ -62,7 +82,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_cycle_counts_page_renders()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/cycle-counts');
 
@@ -75,7 +95,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_shipments_page_renders_with_no_server_props()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/shipments');
 
@@ -85,7 +105,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_returns_page_renders_with_no_server_props()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/returns');
 
@@ -95,7 +115,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_wms_crossdock_page_renders_with_no_server_props()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/wms/crossdock');
 
@@ -105,7 +125,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_wms_waves_page_renders_with_no_server_props()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/wms/waves');
 
@@ -115,7 +135,7 @@ class Chantier83InventoryOrphanedScreensWebTest extends TestCase
 
     public function test_channels_page_renders_with_no_server_props()
     {
-        $user = User::factory()->create();
+        $user = $this->inventoryWebUser();
 
         $response = $this->actingAs($user)->get('/inventory/channels');
 

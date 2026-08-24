@@ -32,6 +32,21 @@ class TicketService
         $attributes['status'] = $attributes['status'] ?? 'open';
         $attributes['priority'] = $attributes['priority'] ?? 'medium';
 
+        // Chantier 32.21: hd_tickets had no tenant-boundary column at all —
+        // any employee of any company could list/act on every other
+        // company's tickets (confirmed empirically). Default company_id
+        // from the acting user when the caller hasn't already supplied one
+        // (a console/job caller with no request context — e.g. Workflow's
+        // HelpdeskActionHandler — can still pass company_id explicitly in
+        // $data; when neither is available it stays null, the same
+        // graceful degrade this session's other tenant-column fixes use).
+        if (! array_key_exists('company_id', $attributes)) {
+            $companyId = auth()->user()?->company_id;
+            if ($companyId !== null) {
+                $attributes['company_id'] = $companyId;
+            }
+        }
+
         if ($source) {
             // Use the model's morph class (the short alias registered in
             // HelpdeskServiceProvider::registerTicketSourceMorphMap(), e.g.

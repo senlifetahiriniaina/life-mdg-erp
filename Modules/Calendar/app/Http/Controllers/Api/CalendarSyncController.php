@@ -203,6 +203,12 @@ class CalendarSyncController extends Controller
     /**
      * GET /api/v1/calendar/sync/status
      * Return sync connection status for all providers.
+     *
+     * Chantier 32.12: wrapped in `{data: {...}}` — the real consumer,
+     * Integrations.vue, reads `data.data ?? {}`, and this endpoint returned
+     * a bare keyed object, confirmed empirically to mean the page has
+     * always shown "Non connecté" for all 3 providers regardless of real
+     * connection state.
      */
     public function status(Request $request): JsonResponse
     {
@@ -225,7 +231,7 @@ class CalendarSyncController extends Controller
             ];
         }
 
-        return response()->json($result);
+        return response()->json(['data' => $result]);
     }
 
     // -----------------------------------------------------------------------
@@ -235,12 +241,35 @@ class CalendarSyncController extends Controller
     /**
      * POST /api/v1/calendar/webhooks/google
      * Receive Google push notification and re-queue a sync.
+     *
+     * Chantier 32.12 (layer 6 — security): this endpoint deliberately sits
+     * outside `auth:sanctum` (a real provider callback can't carry a
+     * session token) — but it previously trusted the client-supplied
+     * `X-Goog-Channel-ID` header alone to pick which user's sync job to
+     * dispatch, with zero correlation to whether that user ever actually
+     * connected Google Calendar at all. `GoogleCalendarService::
+     * watchCalendar()` (the method that would register a real channel with
+     * Google and hand back a verifiable channel token) has zero callers
+     * anywhere in this app — confirmed via grep — so no legitimate webhook
+     * call has ever reached this route either; the endpoint was reachable
+     * by anyone, for any numeric id, with no real subscription to verify
+     * against. Not activating `watchCalendar()` in this chantier (it needs
+     * a real Google app registration to test end-to-end, which this
+     * sandbox doesn't have, plus a renewal cron since Google channels
+     * expire after 7 days — a product/design decision beyond this audit's
+     * scope, documented here rather than guessed at). The pragmatic fix:
+     * only ever dispatch a sync for a user who genuinely has a stored
+     * Google `CalendarSyncToken` — the resolved user id can still be
+     * spoofed, but the job then correctly no-ops rather than being
+     * dispatchable for literally any id an attacker chooses, and the
+     * shared `webhook` rate limiter (already used by Core's CSP-report
+     * endpoint) caps the abuse surface.
      */
     public function webhookGoogle(Request $request): Response
     {
         $userId = $this->resolveUserFromGoogleWebhook($request);
 
-        if ($userId) {
+        if ($userId && CalendarSyncToken::where('user_id', $userId)->where('provider', 'google')->exists()) {
             SyncCalendarJob::dispatch($userId, 'google');
         }
 
@@ -250,6 +279,12 @@ class CalendarSyncController extends Controller
     /**
      * POST /api/v1/calendar/webhooks/outlook
      * Receive Outlook change notification.
+     *
+     * Chantier 32.12: same finding/fix as webhookGoogle() above —
+     * `OutlookCalendarService::subscribeToDelta()` (the real subscription
+     * mechanism this webhook was built to receive) also has zero callers
+     * anywhere, so `clientState` was a purely client-supplied value with
+     * nothing to verify it against.
      */
     public function webhookOutlook(Request $request): JsonResponse
     {
@@ -270,7 +305,7 @@ class CalendarSyncController extends Controller
             if (str_starts_with($clientState, 'wh-calendar-')) {
                 $userId = (int) str_replace('wh-calendar-', '', $clientState);
 
-                if ($userId > 0) {
+                if ($userId > 0 && CalendarSyncToken::where('user_id', $userId)->where('provider', 'outlook')->exists()) {
                     SyncCalendarJob::dispatch($userId, 'outlook');
                 }
             }

@@ -54,6 +54,7 @@ use Modules\Accounting\Http\Controllers\Api\ScenarioPlanningController;
 use Modules\Accounting\Http\Controllers\Api\TreasuryImportController;
 use Modules\Accounting\Http\Controllers\Api\OperationTemplateController;
 use Modules\Accounting\Http\Controllers\Api\FinancialSimulationController;
+use Modules\Accounting\Http\Controllers\Api\AccountRoleController;
 
 // Webhooks (no auth required, signature validation only, rate limited)
 Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\Modules\Accounting\Http\Requests\HandleOpenBankingWebhookRequest $request) {
@@ -64,6 +65,9 @@ Route::middleware('throttle:webhook')->post('open-banking/webhook', function (\M
 // Simple GET endpoints (1000 req/min)
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:accountant,finance-manager,manager,admin', 'throttle:simple_get'])->group(function () {
     Route::get('operation-templates', [OperationTemplateController::class, 'index']);
+    Route::get('treasury-accounts', [TreasuryImportController::class, 'treasuryAccounts']);
+    // Chantier 37 — rôles de compte comptable configurables
+    Route::get('account-roles', [AccountRoleController::class, 'index']);
     // Chantier 18 — financial simulation (upmetrics-style forecast)
     Route::get('financial-simulations', [FinancialSimulationController::class, 'index']);
     Route::get('financial-simulations/{financialSimulation}', [FinancialSimulationController::class, 'show']);
@@ -224,6 +228,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     Route::post('treasury-imports/preview', [TreasuryImportController::class, 'preview']);
     Route::post('treasury-imports/commit', [TreasuryImportController::class, 'commit']);
 
+    // Chantier 37 — rôles de compte comptable configurables
+    Route::put('account-roles/{role}', [AccountRoleController::class, 'update']);
+
     // Chantier 18 — financial simulation
     Route::post('financial-simulations', [FinancialSimulationController::class, 'store']);
     Route::match(['put', 'patch'], 'financial-simulations/{financialSimulation}', [FinancialSimulationController::class, 'update']);
@@ -302,6 +309,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     // Tax Compliance Reports (formal filing register — TaxComplianceReportController)
     Route::get('tax-compliance-reports', [TaxComplianceReportController::class, 'index']);
     Route::post('tax-compliance-reports', [TaxComplianceReportController::class, 'store']);
+    // Chantier 32.14: live tax calculation (VAT/income-tax/transfer-price/deferred-tax) via the
+    // previously-orphaned AdvancedTaxComplianceService — deliberately before {report} so the
+    // literal 'calculate' segment is never mistaken for a report id.
+    Route::post('tax-compliance-reports/calculate', [TaxComplianceReportController::class, 'calculate']);
     Route::get('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'show']);
     Route::put('tax-compliance-reports/{report}', [TaxComplianceReportController::class, 'update']);
     Route::post('tax-compliance-reports/{report}/file', [TaxComplianceReportController::class, 'file']);

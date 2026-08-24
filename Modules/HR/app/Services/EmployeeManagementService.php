@@ -24,7 +24,12 @@ class EmployeeManagementService
      */
     public function onboardEmployee(array $data): array
     {
+        // Chantier 32: company_id (real tenant boundary column, see
+        // EmployeePolicy's docblock) is passed through here from
+        // EmployeeManagementController::onboard(), which always derives it
+        // server-side — never trust a client-supplied value.
         $employee = Employee::create([
+            'company_id' => $data['company_id'] ?? null,
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
             'email' => $data['email'],
@@ -36,6 +41,8 @@ class EmployeeManagementService
             'employment_type' => $data['employment_type'] ?? 'full_time',
             'manager_id' => $data['manager_id'] ?? null,
             'status' => 'onboarding',
+            // Chantier 32.17 (HR deep 14-layer audit).
+            'company_id' => $data['company_id'] ?? null,
         ]);
 
         // Create onboarding checklist

@@ -16,6 +16,20 @@ class BulkPurchaseOrderService
         $this->poService = $poService;
     }
 
+    /**
+     * Chantier 32.13 (layer 9 — fake/dead audit): confirmed zero callers
+     * anywhere in the app (no controller, route, or test) — a real,
+     * self-contained gap in the RFQ workflow, not a broken/duplicate
+     * subsystem: SupplierQuoteController::accept()->RFQService::
+     * selectWinningQuote() marks a quote 'accepted' and stops there —
+     * nothing in the whole app has ever turned an accepted quote into a
+     * real PurchaseOrder. Activated: the method itself had 2 real bugs
+     * that would have made a wired-up call produce a broken PO — never
+     * setting company_id at all (the created PO would be invisible to the
+     * very company that created it, failing every assertSameCompany()
+     * check in this module) and hardcoding 'USD'/'pcs' instead of the real
+     * RFQ's currency and each line's real unit.
+     */
     public function createPOsFromRFQ(RFQ $rfq, User $createdBy): Collection
     {
         $rfq->load(['lines', 'quotes']);
@@ -33,9 +47,10 @@ class BulkPurchaseOrderService
             $poData = [
                 'supplier_id' => $supplierId,
                 'order_date' => now()->toDateString(),
-                'delivery_date' => now()->addDays($quote->delivery_days)->toDateString(),
-                'currency' => 'USD',
+                'delivery_date' => now()->addDays($quote->delivery_days ?? 0)->toDateString(),
+                'currency' => $rfq->currency ?? config('achats.default_currency', 'USD'),
                 'created_by' => $createdBy->id,
+                'company_id' => $rfq->company_id,
             ];
 
             $po = $this->poService->createPurchaseOrder($poData);
@@ -46,9 +61,9 @@ class BulkPurchaseOrderService
                     'product_id' => $rfqLine->product_id,
                     'description' => $rfqLine->description,
                     'quantity' => $rfqLine->quantity,
-                    'unit' => 'pcs', // Default unit
+                    'unit' => $rfqLine->unit ?? 'pcs',
                     'unit_price' => $quote->unit_price,
-                    'tax_rate' => 10, // Default tax rate
+                    'tax_rate' => 0,
                 ];
 
                 $this->poService->addLineItem($po, $lineData);

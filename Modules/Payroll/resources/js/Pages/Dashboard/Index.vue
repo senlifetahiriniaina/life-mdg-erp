@@ -236,6 +236,39 @@ const processPayment = async () => {
   }
 }
 
+// Chantier 32.18 (Payroll deep audit, layer 3/14c): "View Payslip"/
+// "Download" had ZERO click handlers at all — dead buttons on every payslip
+// row since this page was built. Wired to the real, newly-added
+// GET payslips/{id}/export/pdf bulletin-de-paie export, matching the
+// established fetch()-to-blob download pattern already used by Accounting's
+// Invoices/Index.vue (a real GET request never needs a CSRF token, so
+// plain fetch() is safe here unlike this app's mutating-request pages).
+const downloadingPayslip = ref<number | null>(null)
+
+const downloadPayslip = async (payslip: PayslipSummary, openInNewTab = false) => {
+  downloadingPayslip.value = payslip.id
+  try {
+    const res = await fetch(`/api/v1/payroll/payslips/${payslip.id}/export/pdf`, {
+      headers: { Accept: 'application/pdf' },
+    })
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    if (openInNewTab) {
+      window.open(url, '_blank')
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `bulletin-paie-${payslip.id}.pdf`
+      a.click()
+    }
+  } catch (error) {
+    console.error('Failed to download payslip:', error)
+  } finally {
+    downloadingPayslip.value = null
+  }
+}
+
 onMounted(() => {
   loadAllData()
 })
@@ -424,10 +457,18 @@ onMounted(() => {
               </div>
 
               <div class="flex gap-2 mt-3">
-                <button class="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                <button
+                  :disabled="downloadingPayslip === payslip.id"
+                  @click="downloadPayslip(payslip, true)"
+                  class="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+                >
                   📄 View Payslip
                 </button>
-                <button class="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                <button
+                  :disabled="downloadingPayslip === payslip.id"
+                  @click="downloadPayslip(payslip, false)"
+                  class="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+                >
                   ⬇ Download
                 </button>
               </div>

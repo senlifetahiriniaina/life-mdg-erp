@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Modules\Inventory\Services\AI;
 
 use Illuminate\Support\Collection;
-use Modules\Inventory\Models\InventoryMovement;
 use Modules\Inventory\Models\Product;
+use Modules\Inventory\Models\StockMovement;
 
 class ABCAnalysisService
 {
@@ -73,7 +73,7 @@ class ABCAnalysisService
      */
     public function analyzeVelocity(?int $warehouseId = null, int $daysBack = 90): array
     {
-        $movements = InventoryMovement::query()
+        $movements = StockMovement::query()
             ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
             ->where('created_at', '>=', now()->subDays($daysBack))
             ->get();
@@ -278,7 +278,7 @@ class ABCAnalysisService
 
     private function getAnnualDemand(int $productId, ?int $warehouseId = null): float
     {
-        $movements = InventoryMovement::query()
+        $movements = StockMovement::query()
             ->where('product_id', $productId)
             ->where('type', 'out')
             ->where('created_at', '>=', now()->subYear())

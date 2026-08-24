@@ -240,6 +240,12 @@ const populateForm = () => {
 
 watch(() => props.contact, populateForm, { immediate: true })
 
+// Chantier 32.15: same missing-CSRF-token fetch() bug as Contacts/Form.vue — see that file's
+// comment for the full explanation.
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
 const submit = async () => {
   submitting.value = true
   Object.keys(errors).forEach(k => delete errors[k])
@@ -259,6 +265,7 @@ const submit = async () => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'X-CSRF-TOKEN': getCsrf(),
       },
       body: JSON.stringify(payload),
     })

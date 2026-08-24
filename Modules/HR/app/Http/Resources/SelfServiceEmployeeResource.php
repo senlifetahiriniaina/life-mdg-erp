@@ -41,7 +41,11 @@ class SelfServiceEmployeeResource extends JsonResource
             // Chantier 8.3: unlike EmployeeResource's 'position' key, the real
             // resources/js/Pages/HR/Portal.vue consumes 'job_position.title' —
             // match what the live frontend actually reads.
-            'job_position' => new PositionResource($this->whenLoaded('jobPosition')),
+            // Chantier 32.17: repointed from PositionResource (shaped for the
+            // confirmed-dead Position model, never the real JobPosition being
+            // passed in — see EmployeeResource's identical fix) to the real
+            // JobPositionResource, which still exposes 'title'.
+            'job_position' => new JobPositionResource($this->whenLoaded('jobPosition')),
             'manager' => $this->whenLoaded('manager', fn () => [
                 'id' => $this->manager?->id,
                 'name' => trim(($this->manager?->first_name ?? '').' '.($this->manager?->last_name ?? '')),

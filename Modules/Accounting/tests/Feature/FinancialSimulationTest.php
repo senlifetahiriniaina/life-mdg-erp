@@ -19,12 +19,15 @@ beforeEach(function () {
     $this->user = actingAsUser('accountant');
 
     // The chart of accounts is seeded via AccountingDatabaseSeeder (called
-    // from DatabaseSeeder since Chantier 12) — reuse the real 411/401 codes.
-    if (! ChartOfAccount::where('code', '411')->exists()) {
-        ChartOfAccount::factory()->create(['code' => '411', 'name' => 'Clients', 'type' => 'asset']);
+    // from DatabaseSeeder since Chantier 12) — reuse the real 41/40 codes
+    // (Chantier 36 remapped 411/401 to their real Life MDG chart-of-accounts
+    // codes 41/40, which are also AccountRoleService's own default_code for
+    // 'default_clients_account'/'default_suppliers_account', Chantier 37).
+    if (! ChartOfAccount::where('code', '41')->exists()) {
+        ChartOfAccount::factory()->create(['code' => '41', 'name' => 'Clients', 'type' => 'asset']);
     }
-    if (! ChartOfAccount::where('code', '401')->exists()) {
-        ChartOfAccount::factory()->create(['code' => '401', 'name' => 'Fournisseurs', 'type' => 'liability']);
+    if (! ChartOfAccount::where('code', '40')->exists()) {
+        ChartOfAccount::factory()->create(['code' => '40', 'name' => 'Fournisseurs', 'type' => 'liability']);
     }
 });
 
@@ -93,7 +96,7 @@ describe('FinancialSimulationService::project() — period-by-period projection'
 
 describe('FinancialSimulationService::realizeLine() — converting a simulated value into a real one', function () {
     test('realizing a sale line creates a confirmed SalesOrder and a balanced journal entry', function () {
-        $category = Category::factory()->create(['default_sale_account_code' => '411']);
+        $category = Category::factory()->create(['default_sale_account_code' => '41']);
         $product = Product::factory()->create(['category_id' => $category->id, 'selling_price' => 8000]);
 
         $sim = FinancialSimulation::factory()->create();
@@ -125,7 +128,7 @@ describe('FinancialSimulationService::realizeLine() — converting a simulated v
     });
 
     test('realizing a purchase line creates a real PurchaseOrder with a line item', function () {
-        $category = Category::factory()->create(['default_purchase_account_code' => '401']);
+        $category = Category::factory()->create(['default_purchase_account_code' => '40']);
         $product = Product::factory()->create(['category_id' => $category->id, 'cost_price' => 3000]);
         $supplier = Supplier::factory()->create();
 
@@ -152,7 +155,7 @@ describe('FinancialSimulationService::realizeLine() — converting a simulated v
     });
 
     test('a realized line cannot be realized twice', function () {
-        $category = Category::factory()->create(['default_sale_account_code' => '411']);
+        $category = Category::factory()->create(['default_sale_account_code' => '41']);
         $product = Product::factory()->create(['category_id' => $category->id, 'selling_price' => 1000]);
         $sim = FinancialSimulation::factory()->create();
         $line = FinancialSimulationLine::factory()->create([
@@ -169,7 +172,7 @@ describe('FinancialSimulationService::realizeLine() — converting a simulated v
     });
 
     test('a realized line is excluded from the next projection (no double-count)', function () {
-        $category = Category::factory()->create(['default_sale_account_code' => '411']);
+        $category = Category::factory()->create(['default_sale_account_code' => '41']);
         $product = Product::factory()->create(['category_id' => $category->id, 'selling_price' => 5000]);
 
         $sim = FinancialSimulation::factory()->create([
@@ -193,6 +196,60 @@ describe('FinancialSimulationService::realizeLine() — converting a simulated v
         $projection = $this->getJson("/api/v1/accounting/financial-simulations/{$sim->id}/project")->json('data');
 
         expect((float) $projection['periods'][0]['compte_de_resultat']['chiffre_affaires'])->toBe(0.0);
+    });
+});
+
+describe('Chantier 37 — AccountRoleService integration', function () {
+    test('with no override, realizing a sale/purchase line posts to the default 41/40 accounts', function () {
+        $category = Category::factory()->create(['default_sale_account_code' => '41']);
+        $product = Product::factory()->create(['category_id' => $category->id, 'selling_price' => 1000]);
+        $sim = FinancialSimulation::factory()->create();
+        $line = FinancialSimulationLine::factory()->create([
+            'financial_simulation_id' => $sim->id,
+            'type' => 'sale',
+            'product_id' => $product->id,
+            'unit_price' => null,
+            'status' => 'simulated',
+        ]);
+
+        $response = $this->postJson("/api/v1/accounting/financial-simulation-lines/{$line->id}/realize");
+        $entryId = $response->json('data.journal_entry_id');
+        $entry = \Modules\Accounting\Models\JournalEntry::with('lines.account')->find($entryId);
+
+        expect($entry->lines->pluck('account.code'))->toContain('41');
+    });
+
+    test('overriding default_clients_account/default_suppliers_account changes which account a realized line posts to', function () {
+        // This file's beforeEach() only ever creates the 41/40 accounts it
+        // needs by default — the override target account must be created
+        // the same way, same convention, rather than assuming the full
+        // AccountingDatabaseSeeder ran (it doesn't in this file).
+        ChartOfAccount::factory()->create(['code' => '47', 'name' => 'Débiteurs et créditeurs divers', 'type' => 'asset']);
+
+        app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('default_clients_account', '47');
+
+        $category = Category::factory()->create(['default_sale_account_code' => '41']);
+        $product = Product::factory()->create(['category_id' => $category->id, 'selling_price' => 1000]);
+        $sim = FinancialSimulation::factory()->create();
+        $line = FinancialSimulationLine::factory()->create([
+            'financial_simulation_id' => $sim->id,
+            'type' => 'sale',
+            'product_id' => $product->id,
+            'unit_price' => null,
+            'status' => 'simulated',
+        ]);
+
+        $response = $this->postJson("/api/v1/accounting/financial-simulation-lines/{$line->id}/realize");
+        $entryId = $response->json('data.journal_entry_id');
+        $entry = \Modules\Accounting\Models\JournalEntry::with('lines.account')->find($entryId);
+
+        // The debit (clients) leg now resolves to the override, 47 — the
+        // credit (counterpart, from Category::default_sale_account_code,
+        // untouched by this override) leg stays 41, matching this file's
+        // existing convention (both sides happen to be 41 in the no-override
+        // test above, since the category itself is seeded with 41).
+        $debitLine = $entry->lines->firstWhere('debit', '!=', 0);
+        expect($debitLine->account->code)->toBe('47');
     });
 });
 

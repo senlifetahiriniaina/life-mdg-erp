@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
+import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
@@ -102,7 +103,20 @@ async function loadMlModels() {
 <template>
   <AppLayout>
     <div class="p-6 space-y-6">
-      <h1 class="text-2xl font-bold text-gray-900">Analytics & Prévisions IA</h1>
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <h1 class="text-2xl font-bold text-gray-900">Analytics & Prévisions IA</h1>
+        <!-- Chantier 32.25 (audit 14 couches, Analytics — couche 3, découvrabilité) :
+             la page Prévisions de trésorerie (Chantier 26A) était réelle et
+             fonctionnelle mais atteignable uniquement par URL directe depuis sa
+             création — aucun lien depuis le hub Analytics, la seule page du
+             module déjà dans la navigation principale de l'app. -->
+        <Link
+          href="/analytics/cashflow-forecast"
+          class="text-sm px-3 py-1.5 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+        >
+          Prévisions de trésorerie →
+        </Link>
+      </div>
       <AIAssistantPanel v-if="guidance" :guidance="guidance" />
 
       <div class="border-b border-gray-200">

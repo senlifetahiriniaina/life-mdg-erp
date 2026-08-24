@@ -49,6 +49,7 @@ class PickingOrder extends Model
         'priority',
         'started_at',
         'completed_at',
+        'company_id',
     ];
 
     protected $casts = [

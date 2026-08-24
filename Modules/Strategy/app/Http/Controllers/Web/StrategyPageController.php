@@ -194,14 +194,22 @@ class StrategyPageController extends Controller
      * jamais de chiffre inventé. Method-injected rather than added to the
      * constructor to avoid touching every other action's dependency list.
      */
-    public function sectorKpi(\Modules\Strategy\Services\TextileSectorKpiService $kpiService): Response
+    public function sectorKpi(Request $request, \Modules\Strategy\Services\TextileSectorKpiService $kpiService): Response
     {
+        // Chantier 32: CostingSheet/ProductionOrder now carry a real
+        // company_id column — threaded through here via the same
+        // company_id-based tenantId() helper this controller already uses
+        // elsewhere (cast to int; CostingSheet/ProductionOrder.company_id
+        // is unsignedBigInteger, unlike this module's own string tenant_id
+        // columns).
+        $companyId = (int) $this->tenantId($request) ?: null;
+
         return Inertia::render('Strategy/SectorKpi/Index', [
-            'margin'              => $kpiService->marginByFamily(),
-            'cost_structure'      => $kpiService->costStructure(),
-            'lead_time'           => $kpiService->subcontractingLeadTime(),
-            'production_mix'      => $kpiService->productionMixByFamily(),
-            'material_variance'   => $kpiService->materialPriceVariance(),
+            'margin'              => $kpiService->marginByFamily($companyId),
+            'cost_structure'      => $kpiService->costStructure($companyId),
+            'lead_time'           => $kpiService->subcontractingLeadTime($companyId),
+            'production_mix'      => $kpiService->productionMixByFamily($companyId),
+            'material_variance'   => $kpiService->materialPriceVariance($companyId),
         ]);
     }
 

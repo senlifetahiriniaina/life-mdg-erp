@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="Compensation Planning" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Compensation Planning</h1>
@@ -151,8 +155,15 @@
 import { ref, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown, InputNumber, Slider } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Select as Dropdown, InputNumber, Slider } from 'primevue'
 import axios from 'axios'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'view_compensation')
 
 const bands           = ref<any[]>([])
 const loading         = ref(false)

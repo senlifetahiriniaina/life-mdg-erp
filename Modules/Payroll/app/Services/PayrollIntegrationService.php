@@ -8,8 +8,8 @@ use Modules\HR\Models\Employee;
 use Modules\HR\Models\EmployeeCompensation;
 use Modules\Payroll\Models\Payslip;
 use Modules\Payroll\Models\PayrollRun;
-use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Models\JournalEntry;
+use Modules\Accounting\Services\AccountRoleService;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Payroll\Data\StatutorySchemes;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +22,8 @@ use Carbon\Carbon;
  */
 class PayrollIntegrationService
 {
+    public function __construct(private readonly AccountRoleService $accountRoles) {}
+
     /**
      * Generate payroll records for all active employees in a period.
      */
@@ -31,16 +33,22 @@ class PayrollIntegrationService
         Carbon $endDate,
         string $payrollCycle = 'monthly'
     ): array {
-        // Chantier 8.3: hr_employees.tenant_id is a real column but not in
-        // Employee's $fillable — never set by any real create()/update() call
-        // in this app (confirmed: EmployeeController::store() and every other
-        // live Employee write path skip it entirely), so filtering by it here
-        // silently returned zero employees for any tenant. Employee has no
-        // real tenant scoping today (EmployeeController::index(), the live
-        // employee-listing endpoint, doesn't filter by tenant either) — drop
-        // the filter to match how Employee is actually queried elsewhere.
+        // Chantier 8.3 (superseded — see Chantier 32 below): hr_employees.tenant_id
+        // is a real column but not in Employee's $fillable — never set by any real
+        // create()/update() call in this app, so filtering by it here silently
+        // returned zero employees for any tenant. The filter was dropped entirely
+        // to match how Employee was queried elsewhere at the time.
+        //
+        // Chantier 32: Employee now has a real, populated company_id column (HR
+        // had zero company/tenant scoping anywhere at all — see
+        // Modules\HR\Policies\EmployeePolicy's docblock for the full
+        // rationale) — EmployeeController::index() and every other real HR
+        // read path now filter by it, so this generator must too, or a
+        // payroll run for one tenant would silently pull in every other
+        // tenant's employees as well.
         $employees = Employee::where('status', 'active')
             ->whereNull('termination_date')
+            ->when($tenantId !== null, fn ($q) => $q->where('company_id', $tenantId))
             ->get();
 
         $records = [];
@@ -106,28 +114,24 @@ class PayrollIntegrationService
         // Idempotent — skip if already exists for this tenant+period.
         // Confirmed empirically (php artisan tinker, 2 real companies) that
         // this check used to match by employee_id+period ALONE, with no
-        // tenant_id filter — Modules\HR\Models\Employee has no company/
-        // tenant-scoping column of its own at all (confirmed via
-        // Schema::hasColumn: no company_id anywhere in hr_employees, nor on
-        // Department/JobPosition), so generatePayslips() already pulls in
-        // every active employee system-wide regardless of which tenant
-        // called it (see that method's own pre-existing comment). Without
-        // this fix, that gap compounded into something worse: once ANY
-        // tenant generated a payslip for a given employee+period, every
-        // OTHER tenant's later call for the same employee+period silently
-        // returned that first tenant's payslip (tagged with the WRONG
-        // tenant_id) instead of ever creating its own correctly-tenant-
-        // tagged one — permanently blocking that tenant from generating a
-        // payslip of its own for that employee/period. Scoping the
-        // idempotency lookup by tenant_id makes payroll generation
-        // independent per tenant, matching PayrollRun's own
-        // ['tenant_id','period'] uniqueness. This does NOT fully close the
-        // underlying gap — Employee still has no real per-company
-        // ownership, so a tenant's "generate payslips" call still pulls in
-        // every active employee in the whole system, including other
-        // companies' — that root cause lives in Modules\HR\Models\Employee
-        // (no company_id column anywhere in that module) and is out of
-        // this module's scope to fix; documented in the chantier report.
+        // tenant_id filter. Without this fix, that gap compounded into
+        // something worse: once ANY tenant generated a payslip for a given
+        // employee+period, every OTHER tenant's later call for the same
+        // employee+period silently returned that first tenant's payslip
+        // (tagged with the WRONG tenant_id) instead of ever creating its own
+        // correctly-tenant-tagged one — permanently blocking that tenant
+        // from generating a payslip of its own for that employee/period.
+        // Scoping the idempotency lookup by tenant_id makes payroll
+        // generation independent per tenant, matching PayrollRun's own
+        // ['tenant_id','period'] uniqueness.
+        //
+        // Chantier 32: the underlying root cause this comment used to flag —
+        // Employee having no real per-company ownership at all, so
+        // generatePayslips() pulled in every active employee system-wide
+        // regardless of which tenant called it — is now closed: Employee has
+        // a real, populated company_id column (see
+        // Modules\HR\Policies\EmployeePolicy's docblock), and
+        // generatePayslips() above now filters by it.
         $existing = Payslip::where('employee_id', $employee->id)
             ->where('tenant_id', $tenantId)
             ->whereDate('period', $startDate->toDateString())
@@ -558,18 +562,22 @@ class PayrollIntegrationService
      * other as a single entry is not a real accounting posting — it never
      * appeared anywhere in the Bilan/Compte de Résultat regardless of
      * this being called. Rewritten onto the real header+lines scheme,
-     * resolving real seeded OHADA-adapted account codes: 641
-     * (Rémunérations du personnel, expense) debited for the full gross
-     * salary, 421 (Personnel — Rémunérations dues, liability) credited
-     * for the net amount owed to the employee, and — only when there are
-     * real deductions to balance — 447 (État — IRSA, liability) credited
-     * for the total withheld. Lumping every deduction category (income
-     * tax, social security, pension, etc.) into the single 447 line
-     * rather than splitting across 431/437/447 individually is a
-     * documented simplification, matching the same HT-only/no-VAT-split
-     * precedent already established for Chantier 15's TreasuryImportService
-     * and Chantier 18's FinancialSimulationService — a real per-category
-     * split is a future enhancement, not invented here.
+     * resolving real seeded OHADA-adapted account codes: 661
+     * (Rémunérations directes versées au personnel national, expense)
+     * debited for the full gross salary, 422 (Personnel — Rémunérations
+     * dues, liability — Chantier 36: a real new account, distinct from
+     * 421 "Personnel — avances et acomptes", which is an asset for
+     * advances made TO staff, not a payable owed to them) credited for
+     * the net amount owed to the employee, and — only when there are
+     * real deductions to balance — 4471 (État — Impôts retenus à la
+     * source / IRSA, liability) credited for the total withheld.
+     * Lumping every deduction category (income tax, social security,
+     * pension, etc.) into the single 4471 line rather than splitting
+     * across 4311/4331/4471 individually is a documented simplification,
+     * matching the same HT-only/no-VAT-split precedent already
+     * established for Chantier 15's TreasuryImportService and Chantier
+     * 18's FinancialSimulationService — a real per-category split is a
+     * future enhancement, not invented here.
      */
     public function postPayslipsToAccounting(array $payslipIds): array
     {
@@ -577,11 +585,25 @@ class PayrollIntegrationService
             ->where('status', 'approved')
             ->get();
 
-        $salaryExpenseAccountId = ChartOfAccount::where('code', '641')->value('id');
-        $salaryPayableAccountId = ChartOfAccount::where('code', '421')->value('id');
-        $withholdingsAccountId  = ChartOfAccount::where('code', '447')->value('id');
-
         $posted = [];
+
+        if ($records->isEmpty()) {
+            return ['posted_count' => 0, 'payslip_ids' => $posted];
+        }
+
+        // Chantier 37 : comptes résolus via AccountRoleService (Modules\Settings),
+        // configurables par tenant — mêmes valeurs par défaut que le remap
+        // Chantier 36 (661/422/4471). resolveAccount() lève une exception si
+        // le rôle n'est pas résolvable plutôt que de laisser $xxxAccountId à
+        // null (l'ancien comportement silencieux) — mais seulement une fois
+        // qu'on sait qu'il y a réellement quelque chose à poster : résoudre
+        // ces 3 comptes inconditionnellement, même quand $records est vide,
+        // ferait échouer PayrollController::processPayment() sur chaque
+        // appel réel où aucun bulletin n'est encore approuvé pour la
+        // période — un vrai appelant légitime, pas un cas d'erreur.
+        $salaryExpenseAccountId = $this->accountRoles->resolveAccount('personnel_remuneration_expense')->id;
+        $salaryPayableAccountId = $this->accountRoles->resolveAccount('salary_payable_liability')->id;
+        $withholdingsAccountId  = $this->accountRoles->resolveAccount('irsa_withholding_liability')->id;
 
         foreach ($records as $record) {
             $name = $record->employee_name;
@@ -633,16 +655,35 @@ class PayrollIntegrationService
 
     /**
      * Payroll summary for a given period and tenant.
+     *
+     * Chantier 32.18 (Payroll deep audit): confirmed empirically via tinker
+     * that PayrollController::statistics() always hardcoded
+     * ['currency' => 'XOF'] on top of this summary regardless of the real
+     * payslips' currency — a real bug for any tenant not on XOF (this app
+     * is MGA-first; a real seeded MGA payslip's "Total Payroll" card
+     * displayed as "XOF 525,000" instead of "Ar 525,000"). Derive the real
+     * currency from the period's own payslips first (they all share one
+     * currency in practice — set once from the PayrollRun's own currency
+     * at generation time), falling back to the tenant's real Company
+     * currency, and only then to 'XOF' as a last resort when neither is
+     * known (e.g. an empty period with no company record at all) — the
+     * same fallback-first degradation pattern used throughout this app.
      */
     public function getPayrollSummary(int|null $tenantId, Carbon $startDate, Carbon $endDate): array
     {
-        $records = Payslip::where('tenant_id', (int) ($tenantId ?? 0))
+        $tenantId = (int) ($tenantId ?? 0);
+
+        $records = Payslip::where('tenant_id', $tenantId)
             ->whereDate('period', $startDate->toDateString())
             ->get();
 
         $totalGross      = $records->sum('gross_salary');
         $totalNet        = $records->sum('net_salary');
         $totalDeductions = $totalGross - $totalNet;
+
+        $currency = $records->first()?->currency
+            ?? \App\Models\Company::find($tenantId)?->currency
+            ?? 'XOF';
 
         return [
             'employee_count'    => $records->count(),
@@ -653,6 +694,7 @@ class PayrollIntegrationService
             'payslips_draft'    => $records->where('status', 'draft')->count(),
             'payslips_approved' => $records->where('status', 'approved')->count(),
             'payslips_paid'     => $records->where('status', 'paid')->count(),
+            'currency'          => $currency,
         ];
     }
 }

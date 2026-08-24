@@ -105,12 +105,19 @@ test('validates unique code', function () {
     expect($response->status())->toBe(422);
 });
 
-test('can filter by status', function () {
-    Carrier::factory(2)->create(['status' => 'active']);
-    Carrier::factory(1)->create(['status' => 'inactive']);
+test('can filter by active flag', function () {
+    // Chantier 32.23 reconciliation: this test used to filter on `?status=`,
+    // the generic non-fillable scaffold column (`logistics_carriers.status`,
+    // from the catch-all migration — only writable here because factories
+    // bypass guarding). The real active flag the page and the model actually
+    // use is `is_active` (fillable, boolean cast, set by the factory), and
+    // CarrierController::index() now filters on it — see that controller's
+    // own Chantier 32.23 comment. Updated to assert the real contract.
+    Carrier::factory(2)->create(['is_active' => true]);
+    Carrier::factory(1)->create(['is_active' => false]);
 
     $response = $this->actingAs($this->user, 'sanctum')
-        ->getJson('/api/v1/logistics/carriers?status=active');
+        ->getJson('/api/v1/logistics/carriers?is_active=1');
 
     expect($response->status())->toBe(200);
     expect($response->json('meta.total'))->toBe(2);

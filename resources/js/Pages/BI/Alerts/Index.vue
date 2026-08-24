@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="BI · Alertes" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">BI · Alertes</h1>
@@ -120,6 +122,10 @@ import { ref, reactive } from 'vue'
 import { Head, router, usePage } from '@inertiajs/vue3'
 import { Paginator, Dialog, InputText, InputNumber, Select } from 'primevue'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('BI', 'view_alerts')
 
 defineProps({
   alerts: { type: Object, required: true },

@@ -34,6 +34,7 @@ class WinLossRecord extends Model
     protected $table = 'crm_win_loss_records';
 
     protected $fillable = [
+        'tenant_id',
         'opportunity_id',
         'outcome',
         'reason',

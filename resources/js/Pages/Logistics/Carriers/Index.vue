@@ -6,6 +6,8 @@ import Select from 'primevue/select'
 import Paginator from 'primevue/paginator'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 interface Carrier {
   id: number
@@ -215,11 +217,17 @@ function reset() {
 const onPageChange = (e: { page: number }) => load(e.page + 1)
 
 load()
+
+// Chantier 32.23 (deep 14-layer audit, layer 13 — IA): real, routed backend
+// (POST /api/v1/logistics/ai/assist), never called from this page before.
+const { guidance } = useAiAssistant('Logistics', 'manage_carrier')
+const showAiPanel = ref(true)
 </script>
 
 <template>
   <AppLayout>
     <Head title="Transporteurs" />
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
 
     <div class="page-head">
       <div>

@@ -463,9 +463,24 @@ it('bulk update invalidates module cache', function () {
     // Bulk update should flush module cache
     $service->setMany('logistics', ['tracking_enabled' => true, 'default_carrier' => 'DHL']);
 
-    // After setMany the module-level cache key should be gone
-    $moduleCacheKey = 'settings:1:logistics';
+    // Chantier 32.9: the module-level cache key gained a ":v2" suffix
+    // (SettingsService::moduleKey()'s own docblock explains why — the
+    // cached shape changed from a flat key=>value map to key=>{value,
+    // is_public} for the new per-record visibility filter). Before this
+    // fix, this assertion checked the OLD literal key format, which the
+    // real code no longer ever writes to at all — the assertion still
+    // "passed" but was vacuously true (Cache::has() on a key nothing
+    // writes is always false, regardless of whether invalidation
+    // actually works), not a real regression test. Fixed to the real key.
+    $moduleCacheKey = 'settings:1:logistics:v2';
     expect(Cache::has($moduleCacheKey))->toBeFalse();
+
+    // And confirm the invalidation is actually observable, not just that
+    // the cache slot is empty: a fresh getModule() call returns the newly
+    // bulk-written values.
+    $fresh = $service->getModule('logistics');
+    expect($fresh['tracking_enabled'])->toBeTrue()
+        ->and($fresh['default_carrier'])->toBe('DHL');
 });
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,8 @@
   <AppLayout>
     <Head :title="`BI · ${dashboard.name}`" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Header -->
     <div class="page-head">
       <div style="display:flex;align-items:center;gap:10px">
@@ -160,7 +162,11 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import KpiCard from '@/Components/BI/KpiCard.vue'
 import ChartWidget from '@/Components/BI/ChartWidget.vue'
 import DataTableWidget from '@/Components/BI/DataTableWidget.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
+
+const { guidance } = useAiAssistant('BI', 'view_dashboard')
 
 const props = defineProps({
   dashboard: { type: Object, required: true },

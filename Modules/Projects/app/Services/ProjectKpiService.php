@@ -194,13 +194,25 @@ class ProjectKpiService
             $weekEnd   = $weekStart->copy()->endOfWeek();
             $weekLabel = $weekStart->format('Y-W');
 
-            // Hours logged from timesheets
+            // Hours logged from timesheets.
+            //
+            // Chantier 32.17 (14-layer deep audit): this queried
+            // `ts_timesheets` with `work_date`/`hours_logged` columns — a
+            // table confirmed (Schema::hasTable()) to have never existed
+            // anywhere in this repo, the exact same phantom-table bug
+            // already fixed for GanttService::getResourceHeatmap() at
+            // Chantier 19 Lot 2, just missed here in the sibling KPI
+            // service. The surrounding try/catch meant this never fataled —
+            // it silently fell back to fabricated demo data on every real
+            // call, forever, since the table it read could never exist.
+            // Repointed at the real Modules\Timesheets\Models\TimesheetEntry
+            // table (`timesheet_entries`, `entry_date`/`hours_worked`).
             $hours = 0.0;
             try {
-                $hours = (float) DB::table('ts_timesheets')
+                $hours = (float) DB::table('timesheet_entries')
                     ->where('project_id', $projectId)
-                    ->whereBetween('work_date', [$weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
-                    ->sum('hours_logged');
+                    ->whereBetween('entry_date', [$weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
+                    ->sum('hours_worked');
             } catch (\Exception) {
                 $hours = $this->demoWeeklyHours($i, $weeks);
             }
@@ -292,10 +304,14 @@ class ProjectKpiService
         $capacityHours = 0.0;
 
         try {
-            $loggedHours = (float) DB::table('ts_timesheets')
+            // Chantier 32.17: same `ts_timesheets`-never-existed bug as
+            // getVelocityTrend() above — repointed at the real
+            // `timesheet_entries` table.
+            $loggedHours = (float) DB::table('timesheet_entries')
                 ->where('project_id', $projectId)
-                ->whereMonth('work_date', now()->month)
-                ->sum('hours_logged');
+                ->whereMonth('entry_date', now()->month)
+                ->whereYear('entry_date', now()->year)
+                ->sum('hours_worked');
 
             $memberCount   = (int) DB::table('prj_team_members')
                 ->where('project_id', $projectId)

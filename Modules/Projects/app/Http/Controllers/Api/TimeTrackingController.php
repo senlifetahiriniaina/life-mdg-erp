@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Projects\Http\Controllers\Api\Concerns\ScopesToProjectCompany;
 use Modules\Projects\Models\Project;
+use Modules\Projects\Models\Task;
 use Modules\Projects\Models\TimeEntry;
 use Modules\Projects\Services\TimeTrackingService;
 
@@ -22,6 +23,26 @@ class TimeTrackingController extends Controller
     use ScopesToProjectCompany;
 
     public function __construct(private readonly TimeTrackingService $service) {}
+
+    /**
+     * Chantier 32.17 (14-layer deep audit): store()/start() validated
+     * task_id as a bare nullable integer (no `exists:` rule at all, and no
+     * project-ownership check) — an arbitrary task_id, including one
+     * belonging to a different company's project, could be attached to a
+     * TimeEntry whose project_id is the caller's own. globalReport() then
+     * eager-loads `task:id,title`, so a foreign task's title could leak
+     * through the cross-project time report. Confirmed empirically before
+     * this fix.
+     */
+    private function assertTaskBelongsToProject(array $validated): void
+    {
+        if (! isset($validated['task_id'])) {
+            return;
+        }
+
+        $taskProjectId = Task::where('id', $validated['task_id'])->value('project_id');
+        abort_if($taskProjectId !== (int) $validated['project_id'], 422, 'task_id must belong to the given project.');
+    }
 
     /**
      * List time entries (optionally filtered by project_id or user_id).
@@ -62,6 +83,7 @@ class TimeTrackingController extends Controller
         ]);
 
         $this->resolveCompanyScopedProject($request, (int) $validated['project_id']);
+        $this->assertTaskBelongsToProject($validated);
 
         $entry = $this->service->logTime(
             $validated['project_id'],
@@ -136,6 +158,7 @@ class TimeTrackingController extends Controller
         ]);
 
         $this->resolveCompanyScopedProject($request, (int) $validated['project_id']);
+        $this->assertTaskBelongsToProject($validated);
 
         $entry = $this->service->startTimer(
             $validated['project_id'],

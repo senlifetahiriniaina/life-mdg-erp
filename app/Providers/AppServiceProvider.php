@@ -251,8 +251,15 @@ class AppServiceProvider extends ServiceProvider
             return 'Database\\Factories\\' . class_basename($modelName) . 'Factory';
         });
 
-        // Audit authentication-security events (login / logout / failed / lockout)
-        \Illuminate\Support\Facades\Event::subscribe(\App\Listeners\AuthEventSubscriber::class);
+        // Chantier 32.4 (14-layer audit of Modules/AuditLog): App\Listeners\
+        // AuthEventSubscriber (and the auth-events subscription that used to
+        // live here) was deleted — it was a confirmed real, live writer, but
+        // to a confirmed-dead duplicate table (Modules\AuditLog\Models\
+        // AuditLog / `audit_logs`, tenant_id hardcoded to 0 on every row,
+        // nothing anywhere ever read it) of the app's real audit trail,
+        // which Modules\Core\Listeners\AuditAuthListener already writes
+        // correctly (real company_id) for the exact same 4 events — see
+        // that migration's own docblock for the full empirical trail.
 
         // Drop "dangling prefix" route names — routes that inherited only a group
         // ->name('prefix.') with no per-route leaf name end up sharing a bogus name

@@ -10,9 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Modules\Reporting\Models\ReportDefinition;
 use Modules\Reporting\Models\ReportExecution;
 use Modules\Reporting\Models\ReportSchedule;
+use Modules\Reporting\Services\OhadaReportService;
 
 class ReportingService
 {
+    public function __construct(
+        private readonly OhadaReportService $ohada,
+    ) {}
+
     /**
      * Get available report definitions visible to the current tenant.
      * Pass a module name to filter by module.
@@ -49,7 +54,7 @@ class ReportingService
         try {
             $execution->update(['status' => 'running', 'started_at' => now()]);
 
-            $resultData = $this->runQuery($report, $params, $user);
+            $resultData = $this->resolveResultData($report, $params, $user);
 
             $execution->update([
                 'status'       => 'completed',
@@ -87,34 +92,85 @@ class ReportingService
     }
 
     /**
-     * Run the parameterized query template safely.
-     *
-     * Supports {{param_name}} placeholders which are substituted as PDO bindings.
+     * Chantier 32.22: resolves what the report definition's execution
+     * actually produces — either the real OHADA financial-report payload
+     * (for the 7 system reports whose query_template is a literal SQL
+     * comment, see OhadaReportService::runTemplate()'s own docblock for the
+     * full story), or the raw query_template SQL (every other report,
+     * system or user-authored). Wraps the OHADA payload as a single-element
+     * array so `execute()`'s existing count()/result_data handling doesn't
+     * need to special-case it.
      *
      * @param  array<string, mixed>  $params
      * @return array<int, mixed>
      */
-    private function runQuery(ReportDefinition $report, array $params, User $user): array
+    private function resolveResultData(ReportDefinition $report, array $params, User $user): array
+    {
+        $tenantId = (int) ($user->company_id ?? 0);
+
+        if ($report->is_system) {
+            $ohadaPayload = $this->ohada->runTemplate($report->slug, $tenantId, $params);
+            if ($ohadaPayload !== null) {
+                return [$ohadaPayload];
+            }
+        }
+
+        return $this->runQuery($report, $params, $tenantId);
+    }
+
+    /**
+     * Run the parameterized query template safely.
+     *
+     * Supports {{param_name}} placeholders which are substituted as PDO
+     * bindings. {{tenant_id}} is always auto-injected; a small set of other
+     * common placeholders ({{today}}, {{as_of_date}}, {{period}}, {{year}},
+     * {{month_start}}, {{month_end}}) auto-default to the current date/
+     * period whenever the caller doesn't supply a value — this is what
+     * every seeded ReportTemplateSeeder template with a `parameters_schema`
+     * default actually needs: the real quick-report-tile callers
+     * (ReportsIndex.vue) always POST an empty `parameters: {}` body, so a
+     * declared schema default was previously pure documentation, never
+     * applied — confirmed empirically that every seeded parameterized
+     * report silently bound NULL for any placeholder the caller didn't
+     * explicitly supply.
+     *
+     * @param  array<string, mixed>  $params
+     * @return array<int, mixed>
+     */
+    private function runQuery(ReportDefinition $report, array $params, int $tenantId): array
     {
         $template = $report->query_template;
+        $auto     = self::autoParams($tenantId);
 
-        // Always inject tenant_id automatically for multi-tenant safety.
-        // Chantier 8 (Reporting): was $user->tenant_id ?? 1 — see
-        // ReportingController::tenantId()'s docblock.
-        $tenantId = $user->company_id ?? 0;
-
-        // Replace {{tenant_id}} placeholder
-        $template = str_replace('{{tenant_id}}', '?', $template, $count);
-        $bindings = $count > 0 ? [$tenantId] : [];
-
-        // Replace remaining {{param_name}} placeholders from provided params
-        $template = preg_replace_callback('/\{\{(\w+)\}\}/', function (array $m) use ($params, &$bindings): string {
+        $bindings = [];
+        $template = preg_replace_callback('/\{\{(\w+)\}\}/', function (array $m) use ($params, $auto, &$bindings): string {
             $key = $m[1];
-            $bindings[] = $params[$key] ?? null;
+            $bindings[] = $params[$key] ?? $auto[$key] ?? null;
             return '?';
         }, $template) ?? $template;
 
         return DB::select($template, $bindings);
+    }
+
+    /**
+     * Auto-computed placeholder defaults, shared (via a plain static call —
+     * no new dependency needed) by ReportGenerationService::executeQuery()
+     * so both of this module's independent query-template executors apply
+     * the exact same defaults rather than drifting apart.
+     *
+     * @return array<string, string>
+     */
+    public static function autoParams(int $tenantId): array
+    {
+        return [
+            'tenant_id'   => (string) $tenantId,
+            'today'       => now()->toDateString(),
+            'as_of_date'  => now()->toDateString(),
+            'period'      => now()->format('Y-m'),
+            'year'        => (string) now()->year,
+            'month_start' => now()->startOfMonth()->toDateString(),
+            'month_end'   => now()->copy()->startOfMonth()->addMonthNoOverflow()->toDateString(),
+        ];
     }
 
     // Chantier 29: generatePdf()/generateExcel()/buildTextReport() were

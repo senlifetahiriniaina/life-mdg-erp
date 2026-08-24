@@ -23,6 +23,12 @@ class TreasuryImportController extends Controller
 {
     public function __construct(private TreasuryImportService $service) {}
 
+    /** GET /accounting/treasury-accounts — every active class-5 (Trésorerie) account, e.g. for the caisse/banque picker on the import screen. */
+    public function treasuryAccounts(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->listTreasuryAccounts()]);
+    }
+
     /** POST /accounting/treasury-imports/preview */
     public function preview(Request $request): JsonResponse
     {
@@ -33,7 +39,7 @@ class TreasuryImportController extends Controller
 
         if (! $this->service->isSupportedTreasuryAccount($validated['treasury_account_code'])) {
             return response()->json([
-                'message' => "Compte de trésorerie non supporté : {$validated['treasury_account_code']}. Attendu : 530 (Caisse), 512 (Banque), 531 (Mvola) ou 532 (Airtel Money).",
+                'message' => "Compte de trésorerie non supporté : {$validated['treasury_account_code']}. Ce code ne correspond à aucun compte de trésorerie (classe 5) actif du plan comptable.",
             ], 422);
         }
 

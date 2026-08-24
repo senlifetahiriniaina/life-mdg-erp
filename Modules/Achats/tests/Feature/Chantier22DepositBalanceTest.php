@@ -113,7 +113,7 @@ test('paying the deposit then requesting and paying the balance completes the cy
     $balance = $entries->first(fn ($e) => str_contains($e->description, 'Solde'));
 
     expect($deposit->lines->firstWhere('debit', 150000)->account->code)->toBe('4091');
-    expect($balance->lines->firstWhere('debit', 350000)->account->code)->toBe('401');
+    expect($balance->lines->firstWhere('debit', 350000)->account->code)->toBe('40');
 });
 
 test('a purchasing-manager from another company cannot record a payment on this order', function () {
@@ -152,6 +152,47 @@ test('a warehouse-operator (no achats.purchase-order.approve) is denied recordin
     test()->actingAs($operator, 'sanctum')
         ->postJson("/api/v1/achats/purchase-orders/{$po->id}/deposit/pay", ['amount' => 150000])
         ->assertForbidden();
+});
+
+test('Chantier 37: with no override, avances_versees_fournisseurs/default_suppliers_account/default_treasury_account produce the same journal accounts as before', function () {
+    $user = depositBalancePoUser('H');
+    $po = depositBalancePo($user);
+
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/achats/purchase-orders/{$po->id}/deposit/request", ['percent' => 30])
+        ->assertOk();
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/achats/purchase-orders/{$po->id}/deposit/pay", ['amount' => 150000])
+        ->assertOk();
+
+    $entry = JournalEntry::where('reference_type', PurchaseOrder::class)->where('reference_id', $po->id)
+        ->with('lines.account')->first();
+
+    expect($entry->lines->firstWhere('debit', 150000)->account->code)->toBe('4091');
+    expect($entry->lines->firstWhere('credit', 150000)->account->code)->toBe('52');
+});
+
+test('Chantier 37: overriding avances_versees_fournisseurs/default_treasury_account changes which accounts the deposit is posted to', function () {
+    $user = depositBalancePoUser('I');
+    test()->actingAs($user, 'sanctum');
+
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('avances_versees_fournisseurs', '58');
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('default_treasury_account', '57');
+
+    $po = depositBalancePo($user);
+
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/achats/purchase-orders/{$po->id}/deposit/request", ['percent' => 30])
+        ->assertOk();
+    test()->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/achats/purchase-orders/{$po->id}/deposit/pay", ['amount' => 150000])
+        ->assertOk();
+
+    $entry = JournalEntry::where('reference_type', PurchaseOrder::class)->where('reference_id', $po->id)
+        ->with('lines.account')->first();
+
+    expect($entry->lines->firstWhere('debit', 150000)->account->code)->toBe('58');
+    expect($entry->lines->firstWhere('credit', 150000)->account->code)->toBe('57');
 });
 
 test('the purchase order detail web page exposes the deposit/balance fields', function () {

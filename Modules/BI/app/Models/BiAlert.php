@@ -70,7 +70,13 @@ class BiAlert extends Model
 
     public function biQuery(): BelongsTo
     {
-        return $this->belongsTo(BiQuery::class);
+        // Chantier 32.24 (BI 14-layer audit, layer 10 — relational): Laravel's
+        // default FK convention for a `biQuery()` relation is `bi_query_id`, but
+        // the real column (per $fillable/migration) is `query_id` — the implicit
+        // default silently resolved to null on every real alert, confirmed
+        // empirically via tinker (AlertService::refreshValue() always got a null
+        // $query even when a real query_id was set). Explicit FK fixes it.
+        return $this->belongsTo(BiQuery::class, 'query_id');
     }
 
     public function events(): HasMany

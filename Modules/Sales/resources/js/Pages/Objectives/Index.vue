@@ -109,6 +109,8 @@
       </div>
 
       <div v-if="!groupedObjectives.length" class="text-center py-8 text-surface-400">Aucun objectif proposé pour l'instant.</div>
+
+      <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
     </div>
   </AppLayout>
 </template>
@@ -118,6 +120,13 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+// Chantier 32.16 (Sales deep 14-layer audit): see Orders/Show.vue's
+// equivalent comment — this page never called useAiAssistant() either.
+const { guidance } = useAiAssistant('Sales', 'manage_sales_objectives')
+const showAiPanel = ref(true)
 
 const objectives = ref([])
 const proposing = ref(false)

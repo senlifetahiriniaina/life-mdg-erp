@@ -87,4 +87,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Chantier 32 (volet C) — scan de facture fournisseur (Claude vision + validation humaine)
     Route::get('supplier-invoice-scan', fn () => \Inertia\Inertia::render('Accounting/SupplierInvoiceScan/Index'))->name('supplier-invoice-scan.index');
+
+    // Chantier 37 — administration des rôles de compte comptable (Modules\Settings)
+    Route::get('account-roles', fn () => \Inertia\Inertia::render('Accounting/AccountRoles/Index'))->name('account-roles.index');
 });

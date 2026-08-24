@@ -7,16 +7,27 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Supplier;
 
 /**
  * @group Inventory - Suppliers
+ *
+ * Chantier 32: this is a real, distinct Inventory-side supplier catalogue
+ * (own table `inventory_suppliers`, own `purchaseOrders()` relation onto
+ * Inventory's own `PurchaseOrder` model — confirmed via grep, NOT an
+ * alias/re-export of Achats' `Modules\Achats\Models\Supplier`, which is a
+ * separate model backing the RFQ/PO workflow instead) — had zero company/
+ * tenant scoping of any kind, fixed via ScopesToCompany, same
+ * proportionality precedent as CategoryController.
  */
 class SupplierController extends Controller
 {
+    use ScopesToCompany;
+
     public function index(Request $request): JsonResponse
     {
-        $suppliers = Supplier::query()
+        $suppliers = $this->scopeToCompany(Supplier::query(), $request)
             ->when($request->input('search'), fn ($q, $v) => $q->where('name', 'like', "%{$v}%"))
             ->when($request->boolean('active_only'), fn ($q) => $q->where('is_active', true))
             ->withCount('purchaseOrders')
@@ -42,19 +53,24 @@ class SupplierController extends Controller
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
         ]);
+        $data['company_id'] = $this->companyId($request);
 
-        $supplier = Supplier::create($data);
+        $supplier = Supplier::create($data + ['company_id' => $this->companyId($request)]);
 
         return response()->json($supplier, 201);
     }
 
-    public function show(Supplier $supplier): JsonResponse
+    public function show(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->assertSameCompany($request, $supplier);
+
         return response()->json($supplier->load('purchaseOrders'));
     }
 
     public function update(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->assertSameCompany($request, $supplier);
+
         $data = $request->validate([
             'name' => 'sometimes|string|max:200',
             'email' => 'nullable|email',
@@ -69,8 +85,10 @@ class SupplierController extends Controller
         return response()->json($supplier);
     }
 
-    public function destroy(Supplier $supplier): JsonResponse
+    public function destroy(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->assertSameCompany($request, $supplier);
+
         $supplier->delete();
 
         return response()->json(null, 204);

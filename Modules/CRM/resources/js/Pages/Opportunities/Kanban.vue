@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="Opportunities – Kanban" />
 
+    <!-- Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+         called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="space-y-4">
       <!-- Page header -->
       <div class="flex items-center justify-between">
@@ -126,6 +130,8 @@ import Select from 'primevue/select'
 import Dialog from 'primevue/dialog'
 import Skeleton from 'primevue/skeleton'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import OpportunityCreateForm from './CreateForm.vue'
 
 interface Account {
@@ -156,6 +162,11 @@ interface Pipeline {
   is_default: boolean
 }
 
+// Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+// called useAiAssistant() at all before this fix.
+const { guidance } = useAiAssistant('CRM', 'manage_opportunities_kanban')
+const showAiPanel = ref(true)
+
 const loading = ref(false)
 const board = ref<KanbanColumn[]>([])
 const pipelines = ref<Pipeline[]>([])
@@ -168,6 +179,12 @@ let draggingFromStage: string | null = null
 
 const formatCurrency = (amount: number, currency = 'USD') => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
+}
+
+// Chantier 32.15: missing-CSRF-token fetch() bug — see resources/js/Pages/CRM/Contacts/
+// Form.vue's comment (same app-wide bug pattern, this instance on the stage drag-and-drop).
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
 }
 
 const fetchPipelines = async () => {
@@ -225,6 +242,7 @@ const onDrop = async (targetStage: string) => {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-CSRF-TOKEN': getCsrf(),
     },
     body: JSON.stringify({ stage: targetStage }),
   })

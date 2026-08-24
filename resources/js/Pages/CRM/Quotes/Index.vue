@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="Devis CPQ" />
 
+    <!-- Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+         called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">Devis — CPQ</h1>
@@ -103,8 +107,15 @@
 import { ref, onMounted } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown } from 'primevue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Select as Dropdown } from 'primevue'
 import axios from 'axios'
+
+// Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+// called useAiAssistant() at all before this fix.
+const { guidance } = useAiAssistant('CRM', 'manage_quotes')
+const showAiPanel = ref(true)
 
 const quotes = ref([])
 const loading = ref(false)

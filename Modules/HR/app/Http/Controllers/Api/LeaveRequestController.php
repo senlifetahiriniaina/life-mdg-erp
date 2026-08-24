@@ -21,6 +21,11 @@ class LeaveRequestController extends Controller
 
     public function index(Request $request)
     {
+        // Chantier 32: index()/show() had zero authorize() call at all —
+        // any authenticated user could list/view every company's leave
+        // requests. Added, alongside unconditional company_id scoping.
+        $this->authorize('viewAny', LeaveRequest::class);
+
         $status = $request->query('status');
         $employee = $request->query('employee_id');
         $type = $request->query('type');
@@ -28,7 +33,8 @@ class LeaveRequestController extends Controller
         $startDateAfter = $request->query('start_date_after');
         $perPage = $request->query('per_page', 15);
 
-        $query = LeaveRequest::with('employee', 'leaveType');
+        $query = LeaveRequest::with('employee', 'leaveType')
+            ->where('company_id', $request->user()->company_id);
 
         if ($status) {
             $query->where('status', $status);
@@ -76,6 +82,9 @@ class LeaveRequestController extends Controller
                     'hire_date' => now()->toDateString(),
                     'employment_type' => 'full_time',
                     'status' => 'active',
+                    // Chantier 32.17 (HR deep 14-layer audit): third real
+                    // Employee::create() path, same company_id gap.
+                    'company_id' => $user->company_id,
                 ]);
                 $data['employee_id'] = $employee->id;
             } else {
@@ -108,6 +117,9 @@ class LeaveRequestController extends Controller
             $data['days_requested'] = $data['days'] ?? 0;
         }
 
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $data['company_id'] = $user->company_id;
+
         $leave = $this->service->requestLeave($data);
         $leave->load('leaveType');
 
@@ -116,6 +128,13 @@ class LeaveRequestController extends Controller
 
     public function show(LeaveRequest $leaveRequest)
     {
+        // Chantier 32: no authorize() call at all before — any authenticated
+        // user could view any other company's leave request by id.
+        // App\Policies\LeaveRequestPolicy::view() now real-checks
+        // sameCompany() too (was an unconditional `true` before this
+        // chantier), so this authorize() call is no longer vacuous.
+        $this->authorize('view', $leaveRequest);
+
         $leaveRequest->load('employee', 'leaveType', 'approver');
 
         return new LeaveRequestResource($leaveRequest);
@@ -197,9 +216,15 @@ class LeaveRequestController extends Controller
         return new LeaveRequestResource($rejected);
     }
 
-    public function pending()
+    public function pending(Request $request)
     {
-        $pending = $this->service->getPendingLeaveRequests();
+        $this->authorize('viewAny', LeaveRequest::class);
+
+        $pending = LeaveRequest::pending()
+            ->where('company_id', $request->user()->company_id)
+            ->with('employee', 'leaveType')
+            ->orderBy('start_date')
+            ->paginate(15);
 
         return LeaveRequestResource::collection($pending);
     }

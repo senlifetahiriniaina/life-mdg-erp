@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\Category;
 use Modules\Inventory\Models\DemandForecast;
 use Modules\Inventory\Models\Product;
@@ -20,6 +21,8 @@ use Modules\Inventory\Services\SeasonalDemandService;
  */
 class SeasonalFactorController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly SeasonalDemandService $seasonalService) {}
 
     public function index(Request $request): JsonResponse
@@ -30,7 +33,7 @@ class SeasonalFactorController extends Controller
             'period_type' => $request->input('period_type'),
         ];
 
-        $query = SeasonalFactor::query();
+        $query = SeasonalFactor::where('company_id', $this->companyId($request));
 
         foreach ($filters as $key => $value) {
             if ($value !== null) {
@@ -54,12 +57,17 @@ class SeasonalFactorController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own. Included in the match key too, so an
+        // updateOrCreate for the same (product/category, period) tuple
+        // never crosses into another company's existing row.
         $factor = SeasonalFactor::updateOrCreate(
             [
                 'product_id' => $validated['product_id'] ?? null,
                 'category_id' => $validated['category_id'] ?? null,
                 'period_type' => $validated['period_type'],
                 'period_index' => $validated['period_index'],
+                'company_id' => $this->companyId($request),
             ],
             ['factor' => $validated['factor'], 'notes' => $validated['notes'] ?? null]
         );
@@ -67,13 +75,17 @@ class SeasonalFactorController extends Controller
         return response()->json($factor, $factor->wasRecentlyCreated ? 201 : 200);
     }
 
-    public function show(SeasonalFactor $seasonalFactor): JsonResponse
+    public function show(Request $request, SeasonalFactor $seasonalFactor): JsonResponse
     {
+        $this->assertSameCompany($request, $seasonalFactor);
+
         return response()->json($seasonalFactor->load(['product', 'category']));
     }
 
     public function update(Request $request, SeasonalFactor $seasonalFactor): JsonResponse
     {
+        $this->assertSameCompany($request, $seasonalFactor);
+
         $validated = $request->validate([
             'factor' => 'required|numeric|min:0.1|max:10',
             'notes' => 'nullable|string|max:500',
@@ -84,8 +96,9 @@ class SeasonalFactorController extends Controller
         return response()->json($seasonalFactor);
     }
 
-    public function destroy(SeasonalFactor $seasonalFactor): JsonResponse
+    public function destroy(Request $request, SeasonalFactor $seasonalFactor): JsonResponse
     {
+        $this->assertSameCompany($request, $seasonalFactor);
         $seasonalFactor->delete();
 
         return response()->json(null, 204);

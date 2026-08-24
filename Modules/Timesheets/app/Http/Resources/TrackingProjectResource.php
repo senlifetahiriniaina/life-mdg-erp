@@ -18,7 +18,14 @@ class TrackingProjectResource extends JsonResource
             'budget_hours' => $this->budget_hours,
             'hours_tracked' => $this->hours_tracked,
             'remaining_hours' => $this->remaining_hours,
-            'percentage_used' => round(($this->hours_tracked / $this->budget_hours) * 100, 2),
+            // Chantier 32.19: guarded against a zero/null budget_hours —
+            // the real (float) division would emit INF, which json_encode()
+            // cannot serialize, breaking the whole response. Mirrors the
+            // model's own getIsOverBudgetAttribute()/getRemainingHoursAttribute()
+            // falsy-budget_hours guard.
+            'percentage_used' => $this->budget_hours
+                ? round(($this->hours_tracked / $this->budget_hours) * 100, 2)
+                : 0.0,
             'is_over_budget' => $this->is_over_budget,
             'department_id' => $this->department_id,
             'department' => $this->whenLoaded('department', fn () => [

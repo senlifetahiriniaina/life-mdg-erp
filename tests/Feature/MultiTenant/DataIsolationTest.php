@@ -199,11 +199,15 @@ test('websocket channel definitions are present', function () {
     $channelsPath = base_path('routes/channels.php');
     expect(file_exists($channelsPath))->toBeTrue();
 
-    // Verify file contains tenant isolation logic
+    // Verify file contains tenant isolation logic. Chantier 20 rewired every private
+    // channel off `user->tenant_id` (the phantom column, real but never populated by
+    // any real registration path, documented throughout CLAUDE.md) onto the real
+    // `company_id` tenant boundary column — this assertion predates that fix and
+    // literally checked for the presence of the bug it fixed. Updated to match.
     $channelsContent = file_get_contents($channelsPath);
     expect($channelsContent)->toContain('Broadcast::channel(');
-    expect($channelsContent)->toContain('tenantId');
-    expect($channelsContent)->toContain('user->tenant_id');
+    expect($channelsContent)->toContain('companyId');
+    expect($channelsContent)->toContain('user->company_id');
 });
 
 test('bulk operations respect tenant isolation', function () {

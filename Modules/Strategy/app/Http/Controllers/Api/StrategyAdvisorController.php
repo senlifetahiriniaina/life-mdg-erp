@@ -5,6 +5,8 @@ namespace Modules\Strategy\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Strategy\Models\StrategyPlan;
+use Modules\Strategy\Models\StrategyRitualSession;
 use Modules\Strategy\Services\AiStrategyAdvisorService;
 
 class StrategyAdvisorController extends Controller
@@ -18,6 +20,14 @@ class StrategyAdvisorController extends Controller
         ]);
 
         $tenantId = $this->tenantId($request);
+        // Chantier 32.27: `exists:strategy_plans,id` alone doesn't check
+        // ownership, and AiStrategyAdvisorService::getInsights() itself does
+        // a bare find($planId) with no tenant filter either — confirmed
+        // empirically that any user could get real AI insights (plan name/
+        // vision/mission/objective progress) built from another company's
+        // real strategic plan just by passing its id.
+        $this->planInTenant($request->integer('plan_id'), $tenantId);
+
         $insights = $this->advisor->getInsights($tenantId, $request->integer('plan_id'));
 
         return response()->json($insights);
@@ -43,6 +53,12 @@ class StrategyAdvisorController extends Controller
             'format'  => 'nullable|string|in:narrative,bullets,executive',
         ]);
 
+        // Chantier 32.27: this endpoint generates a full board-level
+        // narrative (real plan name/vision/mission/objective progress) from
+        // ANY plan_id, with zero ownership check — the most severe of this
+        // controller's cross-tenant leaks, confirmed empirically.
+        $this->planInTenant($request->integer('plan_id'), $this->tenantId($request));
+
         $report = $this->advisor->generateBoardReport(
             $request->integer('plan_id'),
             $request->input('locale', 'fr'),
@@ -58,9 +74,31 @@ class StrategyAdvisorController extends Controller
             'session_id' => 'required|integer|exists:strategy_ritual_sessions,id',
         ]);
 
-        $summary = $this->advisor->generateRitualSummary($request->integer('session_id'));
+        // Chantier 32.27: `exists:strategy_ritual_sessions,id` alone doesn't
+        // check that the session's ritual belongs to the caller's own
+        // company — confirmed empirically that any user could read another
+        // company's real ritual session decisions/action items via the
+        // generated summary.
+        $sessionId = $request->integer('session_id');
+        $tenantId  = $this->tenantId($request);
+        $session   = StrategyRitualSession::with('ritual')->findOrFail($sessionId);
+        abort_if((string) ($session->ritual?->tenant_id ?? '') !== $tenantId, 404);
+
+        $summary = $this->advisor->generateRitualSummary($sessionId);
 
         return response()->json(['summary' => $summary]);
+    }
+
+    /**
+     * 404 unless the plan belongs to the caller's own tenant.
+     */
+    private function planInTenant(int $planId, string $tenantId): StrategyPlan
+    {
+        $plan = StrategyPlan::findOrFail($planId);
+
+        abort_if((string) ($plan->tenant_id ?? '') !== $tenantId, 404);
+
+        return $plan;
     }
 
     public function formulateOkr(Request $request): JsonResponse

@@ -59,6 +59,8 @@
       </div>
 
       <p v-if="feedback" class="text-sm" :class="feedbackIsError ? 'text-red-600' : 'text-green-600'">{{ feedback }}</p>
+
+      <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
     </div>
 
     <!-- Create modal -->
@@ -112,6 +114,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+// Chantier 32.16 (Sales deep 14-layer audit): see Orders/Show.vue's
+// equivalent comment — this page never called useAiAssistant() either.
+const { guidance } = useAiAssistant('Sales', 'manage_recurring_orders')
+const showAiPanel = ref(true)
 
 const templates = ref([])
 const showModal = ref(false)

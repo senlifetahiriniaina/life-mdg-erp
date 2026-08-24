@@ -2,6 +2,8 @@
   <AppLayout>
     <Head :title="`${project.name} — Kanban`" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div>
         <div style="display:flex;align-items:center;gap:10px">
@@ -77,9 +79,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import axios from 'axios'
 
 const props = defineProps({ project: Object })
+const { guidance } = useAiAssistant('Projects', 'view_kanban')
 
 const loading = ref(true)
 const columns = ref([])

@@ -5,11 +5,8 @@ namespace Modules\Core\Providers;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
-use Modules\Core\Models\ApprovalInstance;
-use Modules\Core\Models\ApprovalWorkflow;
 use Modules\Core\Models\CspViolation;
 use Modules\Core\Models\CustomField;
-use Modules\Core\Policies\ApprovalWorkflowPolicy;
 use Modules\Core\Policies\CspViolationPolicy;
 use Modules\Core\Policies\CustomFieldPolicy;
 use Modules\Core\Services\DDoSDetectionService;
@@ -44,17 +41,17 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
     }
 
     /**
-     * Chantier 8.3 found ApprovalWorkflowPolicy/CustomFieldPolicy fully written
-     * and already called via $this->authorize() in ApprovalController/
-     * CustomFieldController, but neither was ever registered with Laravel's
-     * Gate — no auto-discovery for Modules-namespaced policies, and no
-     * Gate::policy() call existed anywhere. Every authorize() call against
-     * these two was silently un-gated until this was added.
+     * Chantier 8.3 found CustomFieldPolicy fully written and already called
+     * via $this->authorize() in CustomFieldController, but never registered
+     * with Laravel's Gate — no auto-discovery for Modules-namespaced
+     * policies, and no Gate::policy() call existed anywhere. Every
+     * authorize() call against it was silently un-gated until this was
+     * added. (The sibling ApprovalWorkflowPolicy registration that used to
+     * live here was removed at Chantier 32.1 along with the confirmed-dead
+     * Core Approval engine it gated — see CLAUDE.md's Chantier 32.1 entry.)
      */
     private function registerPolicies(): void
     {
-        Gate::policy(ApprovalWorkflow::class, ApprovalWorkflowPolicy::class);
-        Gate::policy(ApprovalInstance::class, ApprovalWorkflowPolicy::class);
         Gate::policy(CustomField::class, CustomFieldPolicy::class);
         Gate::policy(CspViolation::class, CspViolationPolicy::class);
     }
@@ -94,20 +91,27 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         // Bind encryption services as singletons
         $this->app->singleton(\Modules\Core\Services\KeyManagementService::class);
         $this->app->singleton(\Modules\Core\Services\EncryptionService::class);
-        $this->app->singleton(\Modules\Core\Services\SearchableEncryption::class);
 
-        // Bind security services as singletons
+        // Bind security services as singletons.
+        // Chantier 32.1: 10 sibling singleton() bindings/aliases used to live
+        // here for classes that have never existed anywhere in this repo
+        // (SearchableEncryption, PasswordlessService, IPWhitelistService,
+        // GeolocationService, SuspiciousActivityService,
+        // IntrusionDetectionService, SecurityAutomationService,
+        // ComplianceFrameworkService, IncidentResponseService,
+        // SecurityTestingService — confirmed via find/grep, referenced only
+        // by this provider itself, zero other file anywhere) — a real
+        // landmine (a fatal ClassNotFoundError the moment anything ever
+        // resolved one, e.g. via app('passwordless') or a constructor type-
+        // hint), inert only because nothing ever did. Removed rather than
+        // built out: no docblock, no caller, no test, no page ever specified
+        // what any of the 10 should actually do, and inventing 10
+        // speculative security services with no driving requirement would
+        // be exactly the "new business logic with no spec" anti-pattern
+        // this session has repeatedly avoided elsewhere (see CLAUDE.md's
+        // "36 of the 42 acc_ tables ... left as-is" precedent).
         $this->app->singleton(\Modules\Core\Services\MFAService::class);
-        $this->app->singleton(\Modules\Core\Services\PasswordlessService::class);
         $this->app->singleton(\Modules\Core\Services\RiskAssessmentService::class);
-        $this->app->singleton(\Modules\Core\Services\IPWhitelistService::class);
-        $this->app->singleton(\Modules\Core\Services\GeolocationService::class);
-        $this->app->singleton(\Modules\Core\Services\SuspiciousActivityService::class);
-        $this->app->singleton(\Modules\Core\Services\IntrusionDetectionService::class);
-        $this->app->singleton(\Modules\Core\Services\SecurityAutomationService::class);
-        $this->app->singleton(\Modules\Core\Services\ComplianceFrameworkService::class);
-        $this->app->singleton(\Modules\Core\Services\IncidentResponseService::class);
-        $this->app->singleton(\Modules\Core\Services\SecurityTestingService::class);
         $this->app->singleton(\Modules\Core\Services\CsrfTokenService::class);
 
         // Alias for easy resolution ('erp.modules' avoids conflict with nwidart's 'modules')
@@ -117,18 +121,8 @@ $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         $this->app->alias(DDoSDetectionService::class, 'ddos');
         $this->app->alias(\Modules\Core\Services\KeyManagementService::class, 'key_management');
         $this->app->alias(\Modules\Core\Services\EncryptionService::class, 'encryption');
-        $this->app->alias(\Modules\Core\Services\SearchableEncryption::class, 'searchable_encryption');
         $this->app->alias(\Modules\Core\Services\MFAService::class, 'mfa');
-        $this->app->alias(\Modules\Core\Services\PasswordlessService::class, 'passwordless');
         $this->app->alias(\Modules\Core\Services\RiskAssessmentService::class, 'risk_assessment');
-        $this->app->alias(\Modules\Core\Services\IPWhitelistService::class, 'ip_whitelist');
-        $this->app->alias(\Modules\Core\Services\GeolocationService::class, 'geolocation');
-        $this->app->alias(\Modules\Core\Services\SuspiciousActivityService::class, 'suspicious_activity');
-        $this->app->alias(\Modules\Core\Services\IntrusionDetectionService::class, 'intrusion_detection');
-        $this->app->alias(\Modules\Core\Services\SecurityAutomationService::class, 'security_automation');
-        $this->app->alias(\Modules\Core\Services\ComplianceFrameworkService::class, 'compliance');
-        $this->app->alias(\Modules\Core\Services\IncidentResponseService::class, 'incident_response');
-        $this->app->alias(\Modules\Core\Services\SecurityTestingService::class, 'security_testing');
         $this->app->alias(\Modules\Core\Services\CsrfTokenService::class, 'csrf');
         $this->app->alias(\Modules\Core\Services\SessionFingerprint::class, 'session_fingerprint');
         $this->app->alias(\Modules\Core\Services\SessionSecurityService::class, 'session_security');

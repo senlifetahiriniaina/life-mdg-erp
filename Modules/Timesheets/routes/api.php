@@ -5,6 +5,7 @@ use Modules\Timesheets\Http\Controllers\Api\MetricsController;
 use Modules\Timesheets\Http\Controllers\Api\TimeAllocationController;
 use Modules\Timesheets\Http\Controllers\Api\TimesheetAdvancedController;
 use Modules\Timesheets\Http\Controllers\Api\TimesheetEntryController;
+use Modules\Timesheets\Http\Controllers\Api\TimesheetReportExportController;
 use Modules\Timesheets\Http\Controllers\Api\TrackingProjectController;
 
 Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Timesheets', 'role:employee,manager,admin', 'throttle:simple_get'])->prefix('timesheets')->group(function () {
@@ -87,6 +88,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:T
     Route::get('sheets/my-sheets', [TimesheetAdvancedController::class, 'mySheets']);
     Route::get('sheets', [TimesheetAdvancedController::class, 'sheetsIndex']);
     Route::get('reports/project-billing', [TimesheetAdvancedController::class, 'projectBillingReport']);
+    // Chantier 32.19 (layer 14c — proposed report, per Chantier 29's own
+    // catalogue): real PDF/Excel export of the same aggregation above.
+    Route::get('reports/project-billing/export/pdf', [TimesheetReportExportController::class, 'pdf']);
+    Route::get('reports/project-billing/export/excel', [TimesheetReportExportController::class, 'excel']);
     Route::get('reports/employee-hours', [TimesheetAdvancedController::class, 'employeeHoursReport']);
     Route::get('reports/utilization', [TimesheetAdvancedController::class, 'utilizationReport']);
     Route::get('weekly/{employeeId}/{weekStart}', [TimesheetAdvancedController::class, 'weeklyView']);

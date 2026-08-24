@@ -6,13 +6,13 @@ namespace Modules\Sales\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Modules\Accounting\Models\ChartOfAccount;
 use Modules\Accounting\Models\Invoice;
 use Modules\Accounting\Models\Journal;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\Accounting\Models\Payment;
 use Modules\CRM\Models\Account;
 use Modules\CRM\Models\Contact;
+use Modules\Accounting\Services\AccountRoleService;
 use Modules\Core\Services\ParticipantNotificationService;
 use Modules\Sales\Models\SalesOrder;
 use Modules\Shared\Models\Currency;
@@ -32,17 +32,21 @@ use Modules\Shared\Models\Currency;
  *
  * Traitement comptable volontairement simplifié pour ce volet (documenté,
  * pas un bug) : le solde encaissé est comptabilisé comme une créance client
- * ordinaire (Crédit 411) sans lettrage automatique de l'avance 419 déjà
+ * ordinaire (Crédit 41) sans lettrage automatique de l'avance 419 déjà
  * reçue — un rapprochement manuel en fin de période reste nécessaire.
  * Construire ce lettrage automatique est un chantier comptable à part
  * entière, hors du périmètre de "activer le cycle acompte/solde".
  */
 class SalesDepositService
 {
-    public function __construct(private readonly ParticipantNotificationService $notifications) {}
+    public function __construct(
+        private readonly ParticipantNotificationService $notifications,
+        private readonly AccountRoleService $accountRoles,
+    ) {}
 
     public function requestDeposit(SalesOrder $order, float $percent, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->deposit_invoice_id !== null) {
             throw new \RuntimeException("Un acompte a déjà été demandé pour la commande {$order->reference}.");
         }
@@ -84,6 +88,7 @@ class SalesDepositService
 
     public function requestBalance(SalesOrder $order, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->balance_invoice_id !== null) {
             throw new \RuntimeException("Le solde a déjà été demandé pour la commande {$order->reference}.");
         }
@@ -123,6 +128,7 @@ class SalesDepositService
 
     public function recordDepositPayment(SalesOrder $order, float $amount, ?string $method, ?string $reference, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->deposit_invoice_id === null) {
             throw new \RuntimeException('Aucun acompte n\'a été demandé pour cette commande.');
         }
@@ -148,6 +154,7 @@ class SalesDepositService
 
     public function recordBalancePayment(SalesOrder $order, float $amount, ?string $method, ?string $reference, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->balance_invoice_id === null) {
             throw new \RuntimeException('Aucun solde n\'a été demandé pour cette commande.');
         }
@@ -199,12 +206,19 @@ class SalesDepositService
     }
 
     /**
-     * Débit trésorerie (512 Banque par défaut) / Crédit 419 pour un
-     * acompte encaissé, ou Crédit 411 pour un solde — voir le docblock de
-     * classe pour la simplification assumée (pas de lettrage 419→411).
+     * Débit trésorerie (rôle default_treasury_account) / Crédit avances
+     * reçues clients pour un acompte encaissé, ou Crédit clients pour un
+     * solde — voir le docblock de classe pour la simplification assumée
+     * (pas de lettrage avances→clients).
+     *
+     * Chantier 37 : les comptes ne sont plus des codes en dur mais résolus
+     * via AccountRoleService (Modules\Settings, module 'accounting') —
+     * configurable par tenant, avec les mêmes valeurs par défaut que le
+     * remap Chantier 36 (52/419/41), donc zéro changement de comportement
+     * tant qu'aucun override n'est configuré.
      *
      * Échoue fort (RuntimeException) plutôt que silencieusement si le
-     * journal VTE ou les comptes 512/419/411 ne sont pas seedés — un
+     * journal VTE ou un compte de rôle n'est pas résolvable — un
      * paiement "réussi" sans écriture comptable serait pire qu'un échec
      * explicite (voir le commentaire dans recordDepositPayment()/
      * recordBalancePayment() ci-dessus, corrigé après un vrai test Pest
@@ -215,13 +229,14 @@ class SalesDepositService
     private function postJournalEntry(SalesOrder $order, float $amount, string $kind, ?int $userId): void
     {
         $journal = Journal::where('code', 'VTE')->first();
-        $treasuryAccount = ChartOfAccount::where('code', '512')->first();
-        $counterpartCode = $kind === 'sale_deposit' ? '419' : '411';
-        $counterpartAccount = ChartOfAccount::where('code', $counterpartCode)->first();
-
-        if ($journal === null || $treasuryAccount === null || $counterpartAccount === null) {
-            throw new \RuntimeException('Plan comptable incomplet : journal VTE ou compte 512/419/411 introuvable.');
+        if ($journal === null) {
+            throw new \RuntimeException('Plan comptable incomplet : journal VTE introuvable.');
         }
+
+        $treasuryAccount = $this->accountRoles->resolveAccount('default_treasury_account');
+        $counterpartAccount = $this->accountRoles->resolveAccount(
+            $kind === 'sale_deposit' ? 'avances_recues_clients' : 'default_clients_account'
+        );
 
         $label = $kind === 'sale_deposit'
             ? "Acompte reçu — commande {$order->reference}"
@@ -298,6 +313,25 @@ class SalesDepositService
     private function generateInvoiceNumber(string $prefix, string $orderReference): string
     {
         return sprintf('%s-%s-%s', $prefix, $orderReference, now()->format('YmdHis'));
+    }
+
+    /**
+     * Chantier 38.4 (Sales second-pass 14-layer audit, layer 8 — business
+     * validation): none of the 4 public methods above ever checked the
+     * order's own status — confirmed empirically via tinker that a real
+     * `cancelled` SalesOrder could still have a deposit invoice requested
+     * AND paid, producing a real Invoice and a real balanced OHADA journal
+     * entry for an order that is, by this app's own already-established
+     * definition (SalesOrder::scopeActive(), excluding exactly 'cancelled'
+     * and 'returned'), dead. Guards against that one already-established
+     * definition rather than inventing a new "must be confirmed first"
+     * business rule nowhere else in this codebase currently asserts.
+     */
+    private function assertOrderIsActive(SalesOrder $order): void
+    {
+        if (in_array($order->status, ['cancelled', 'returned'], true)) {
+            throw new \RuntimeException("La commande {$order->reference} est {$order->status} — impossible de demander ou d'encaisser un acompte/solde.");
+        }
     }
 
     private function resolveCustomerName(SalesOrder $order): string

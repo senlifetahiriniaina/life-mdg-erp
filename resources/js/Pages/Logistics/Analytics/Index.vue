@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 interface KpiData {
   total_shipments: number
@@ -59,11 +61,17 @@ function formatCo2(kg?: number): string {
 }
 
 onMounted(loadAll)
+
+// Chantier 32.23 (deep 14-layer audit, layer 13 — IA): real, routed backend
+// (POST /api/v1/logistics/ai/assist), never called from this page before.
+const { guidance } = useAiAssistant('Logistics', 'view_analytics')
+const showAiPanel = ref(true)
 </script>
 
 <template>
   <AppLayout>
     <Head title="Analytiques Logistique" />
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
 
     <div class="page-head">
       <div>

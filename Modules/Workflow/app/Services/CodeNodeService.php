@@ -306,7 +306,33 @@ print(json.dumps({'output': output, 'logs': _logs.splitlines()}))
 PYTHON;
 
         $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $cmd         = "timeout {$timeout}s python3 -c " . escapeshellarg($wrapper);
+        // Chantier 32.11: this was previously bare `python3 -c ...` under
+        // `timeout` only — no memory or CPU-time ulimit at all, despite
+        // FlowExecutionEngine::executeCodeNode() (the flow-node counterpart
+        // to this method — same regex blocklist, same wrapper shape)
+        // documenting "ulimit -v (64MB memory), -t (CPU time 5s)" as an
+        // already-guaranteed security property that was never actually
+        // implemented in either place, confirmed by reading both command
+        // strings directly. `ulimit -v`/`-t` alone do not make an arbitrary
+        // Python interpreter a real sandbox — a regex denylist against
+        // 250+ known interpreter-escape techniques is a fundamentally
+        // unsound security boundary, not merely an incomplete one — but
+        // this closes the specific gap between what was documented and
+        // what the code actually did, bounding runaway memory/CPU use
+        // rather than leaving both fully unbounded. The residual risk
+        // (denylist bypass leading to real code execution, not just
+        // resource exhaustion) is real and unresolved — flagged explicitly
+        // in this chantier's CLAUDE.md entry for a dedicated future pass
+        // (a real sandbox needs a container/microVM/seccomp boundary, or
+        // dropping python_safe in favour of the provably-safe `expression`
+        // language, which has no interpreter at all).
+        // Chantier 32.11: `sh` on this app's target containers is dash, not
+        // bash — dash's builtin `ulimit` fatals with "too many arguments"
+        // on combined `-v X -t Y` (bash-only syntax), confirmed empirically
+        // — two separate `ulimit` calls are the portable form both shells
+        // accept.
+        $innerCmd = 'ulimit -v 65536; ulimit -t ' . $timeout . '; exec python3 -c ' . escapeshellarg($wrapper);
+        $cmd      = 'timeout ' . $timeout . 's sh -c ' . escapeshellarg($innerCmd);
         $process     = proc_open($cmd, $descriptors, $pipes, '/tmp', []);
 
         if (!is_resource($process)) {

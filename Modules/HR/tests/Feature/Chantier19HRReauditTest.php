@@ -290,15 +290,17 @@ it('HR AI assist endpoint passes the real Spatie role, not the phantom users.rol
     expect($manager->role)->toBeNull(); // the phantom column really is unpopulated
     $token = $manager->createToken('t')->plainTextToken;
 
-    // Note: the real, registered URL is genuinely api/v1/hr/v1/hr/ai/assist —
-    // RouteServiceProvider already prefixes the whole file with api/v1/hr,
-    // and this controller's own route group adds a second prefix('v1/hr') on
-    // top, a repo-wide convention (every module's routes/api.php has at
-    // least one similar double-prefixed block) that's out of this HR-scoped
-    // chantier's remit to fix — the real frontend AI-assist composable calls
-    // the separate global POST /api/v1/ai/assist endpoint instead, so this
-    // per-module endpoint has no real UI consumer regardless of its URL.
-    $resp = $this->withToken($token)->postJson('/api/v1/hr/v1/hr/ai/assist', ['action' => 'view_dashboard']);
+    // Chantier 32.17 (HR deep 14-layer audit): the real, registered URL used
+    // to genuinely be api/v1/hr/v1/hr/ai/assist — RouteServiceProvider
+    // already prefixes the whole file with api/v1/hr, and this controller's
+    // own route group stacked a second, redundant prefix('v1/hr') on top —
+    // fixed (dropped the redundant prefix) to match this controller's own
+    // docblock and docs/03-MODULES/HR.md, matching the identical fix
+    // already applied once for Setup at Chantier 8.5sv. Still has no real
+    // frontend caller (the real AI-assist composable calls the separate
+    // global POST /api/v1/ai/assist endpoint instead), but the URL this
+    // controller advertises now actually works.
+    $resp = $this->withToken($token)->postJson('/api/v1/hr/ai/assist', ['action' => 'view_dashboard']);
     $resp->assertOk();
 
     expect($captured->role)->toBe('manager');
@@ -330,27 +332,40 @@ it('self-service profile never leaks raw bank details/national id/passport numbe
     expect($resp->json())->not->toHaveKey('bank_details');
 });
 
-// ── Documented gap (see CLAUDE.md), not fixed in this lot — locked in as a
-// standing regression fixture so a future chantier can flip these
-// expectations once real per-company scoping is added, rather than
-// silently rediscovering the same gap again.
-it('documents: HR employees/departments have no company-based tenant isolation at all', function () {
-    expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_employees', 'company_id'))->toBeFalse();
-    expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_departments', 'company_id'))->toBeFalse();
+// ── Chantier 32: flipped now that real company_id-based tenant isolation
+// exists on Employee/Department/JobPosition — this test used to document
+// the confirmed gap (both companies' employees visible to either), now
+// locks in that it's closed. A pre-chantier employee (no company_id set at
+// all) stays visible to everyone by design — see EmployeeController::
+// index()'s own docblock: the scope is a no-op whenever the caller has no
+// real company_id, but once both a real company_id and a real caller
+// company_id exist, they're compared for real.
+it('HR employees/departments are now scoped by company_id (the previously-documented gap, closed)', function () {
+    expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_employees', 'company_id'))->toBeTrue();
+    expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_departments', 'company_id'))->toBeTrue();
+    expect(\Illuminate\Support\Facades\Schema::hasColumn('hr_job_positions', 'company_id'))->toBeTrue();
 
     $companyA = Company::factory()->create();
     $companyB = Company::factory()->create();
     $userA = User::factory()->create(['company_id' => $companyA->id]);
     $userA->assignRole('hr-manager');
 
-    Employee::factory()->create(['first_name' => 'FromCompanyA']);
-    Employee::factory()->create(['first_name' => 'FromCompanyB']);
+    $employeeA = Employee::factory()->create(['first_name' => 'FromCompanyA', 'company_id' => $companyA->id]);
+    $employeeB = Employee::factory()->create(['first_name' => 'FromCompanyB', 'company_id' => $companyB->id]);
 
     $token = $userA->createToken('t')->plainTextToken;
+
     $resp = $this->withToken($token)->getJson('/api/v1/hr/employees');
     $names = collect($resp->json('data'))->pluck('first_name')->all();
-
-    // Both companies' employees are visible — the confirmed, documented gap.
     expect($names)->toContain('FromCompanyA');
-    expect($names)->toContain('FromCompanyB');
+    expect($names)->not->toContain('FromCompanyB');
+
+    // Real IDOR check: Company A's hr-manager cannot view/update/delete
+    // Company B's employee by id, even knowing the real id.
+    $this->withToken($token)->getJson("/api/v1/hr/employees/{$employeeB->id}")->assertForbidden();
+    $this->withToken($token)->putJson("/api/v1/hr/employees/{$employeeB->id}", ['first_name' => 'Hacked'])->assertForbidden();
+    $this->withToken($token)->deleteJson("/api/v1/hr/employees/{$employeeB->id}")->assertForbidden();
+
+    // Company A's own employee stays fully reachable.
+    $this->withToken($token)->getJson("/api/v1/hr/employees/{$employeeA->id}")->assertOk();
 });

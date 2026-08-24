@@ -7,14 +7,22 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
+use Modules\Inventory\Models\Warehouse;
 use Modules\Inventory\Services\BarcodeService;
 use Modules\Inventory\Services\InventoryService;
 
 /**
  * @group Inventory - Barcodes
+ *
+ * Chantier 32: lookups were unscoped by company (a barcode from another
+ * company's catalogue could be resolved and its stock detail exposed) —
+ * fixed via ScopesToCompany.
  */
 class BarcodeController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(
         private readonly BarcodeService $barcodeService,
         private readonly InventoryService $inventoryService,
@@ -23,11 +31,11 @@ class BarcodeController extends Controller
     /**
      * Lookup a product by barcode.
      */
-    public function lookupProduct(string $barcode): JsonResponse
+    public function lookupProduct(Request $request, string $barcode): JsonResponse
     {
         $product = $this->barcodeService->lookupByBarcode($barcode);
 
-        if (! $product) {
+        if (! $product || $product->company_id !== $this->companyId($request)) {
             return response()->json(['message' => 'Product not found.'], 404);
         }
 
@@ -39,13 +47,18 @@ class BarcodeController extends Controller
     /**
      * Lookup a location by barcode.
      */
-    public function lookupLocation(string $barcode): JsonResponse
+    public function lookupLocation(Request $request, string $barcode): JsonResponse
     {
         $location = $this->barcodeService->lookupLocation($barcode);
 
         if (! $location) {
             return response()->json(['message' => 'Location not found.'], 404);
         }
+
+        // A Location has no company_id of its own (a bin/emplacement lives
+        // under a Warehouse) — resolve the boundary through its warehouse,
+        // matching this trait's assertSameCompanyViaParent shape.
+        $this->assertSameCompanyViaParent($request, $location, 'warehouse');
 
         return response()->json(['location' => $location]);
     }
@@ -65,9 +78,12 @@ class BarcodeController extends Controller
         ]);
 
         $product = $this->barcodeService->lookupByBarcode($data['product_barcode']);
-        if (! $product) {
+        if (! $product || $product->company_id !== $this->companyId($request)) {
             return response()->json(['message' => 'Product not found.'], 404);
         }
+
+        $warehouse = Warehouse::findOrFail($data['warehouse_id']);
+        $this->assertSameCompany($request, $warehouse);
 
         $locationId = null;
         if (! empty($data['to_location_barcode'])) {
@@ -83,6 +99,7 @@ class BarcodeController extends Controller
             'quantity' => $data['quantity'],
             'reference' => 'SCAN-'.date('YmdHis'),
             'notes' => 'Quick stock movement via barcode scan',
+            'company_id' => $this->companyId($request),
         ]);
 
         return response()->json([

@@ -71,7 +71,7 @@ import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
-import Dropdown from 'primevue/dropdown'
+import Dropdown from 'primevue/select'
 
 const props = defineProps({
   account: Object,

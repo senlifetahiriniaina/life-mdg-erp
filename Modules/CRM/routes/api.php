@@ -8,7 +8,6 @@ use Modules\CRM\Http\Controllers\Api\CampaignController;
 use Modules\CRM\Http\Controllers\Api\ContactController;
 use Modules\CRM\Http\Controllers\Api\ContactEmailController;
 use Modules\CRM\Http\Controllers\Api\CrmAIController;
-use Modules\CRM\Http\Controllers\Api\CrmProspectingController;
 use Modules\CRM\Http\Controllers\Api\EinsteinForecastingController;
 use Modules\CRM\Http\Controllers\Api\EmailSequenceController;
 use Modules\CRM\Http\Controllers\Api\ForecastController;
@@ -24,7 +23,6 @@ use Modules\CRM\Http\Controllers\Api\CallRecordingController;
 use Modules\CRM\Http\Controllers\Api\VoipController;
 use Modules\CRM\Http\Controllers\Api\WebFormController;
 use Modules\CRM\Http\Controllers\Api\RevenueIntelligenceController;
-use Modules\CRM\Http\Controllers\Api\WorkflowBuilderController;
 
 // Public web-form submission — no auth
 Route::post('v1/crm/forms/{slug}/submit', [WebFormController::class, 'submit'])
@@ -35,6 +33,9 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
     // Read-only endpoints with 5-minute cache (GET only)
     Route::middleware('cache.api:5')->group(function () {
         Route::apiResource('crm/contacts', ContactController::class)->only(['index', 'show'])->names('crm.contacts');
+        // Chantier 32.15: real, cheap consumer for DuplicateDetectionService (Chantier 10),
+        // previously written but never routed anywhere.
+        Route::get('crm/contacts/{contact}/duplicates', [ContactController::class, 'duplicates'])->name('crm.contacts.duplicates');
         Route::apiResource('crm/accounts', AccountController::class)->only(['index', 'show'])->names('crm.accounts');
         Route::get('crm/territories/team-quotas', [TerritoryController::class, 'teamQuotas'])->name('crm.territories.team-quotas');
         Route::get('crm/territories/{territory}/forecast', [TerritoryController::class, 'forecast'])->name('crm.territories.forecast');
@@ -170,14 +171,25 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
         Route::delete('crm/forms/{form}', [WebFormController::class, 'destroy'])->name('crm.forms.destroy');
     });
 
+    // Chantier 38.3: detect-duplicates/generate-prospecting-email/draft-prospecting-email/
+    // analyze-sentiment used to route to CrmProspectingController — a thinner duplicate of
+    // CrmAIController that reads $request->contact_id/contact_data/conversation directly with
+    // ZERO validation, unlike CrmAIController's own real generateProspectingEmail()/
+    // analyzeSentiment()/detectDuplicates() methods (which had matching $request->validate()
+    // calls but were dead — never routed at all, shadowed by CrmProspectingController's
+    // registration further down this same file). Confirmed empirically: POSTing without the
+    // exact expected field name threw a fatal TypeError (CrmAIService's methods are
+    // type-hinted array/int, not nullable) instead of a clean 422. Repointed onto the
+    // already-written, already-validated CrmAIController methods and deleted the redundant,
+    // zero-caller, unvalidated CrmProspectingController outright.
     Route::middleware('throttle:ai')->prefix('crm/ai')->group(function () {
         Route::post('score-leads', [CrmAIController::class, 'scoreLeads']);
         Route::post('suggest-next-action', [CrmAIController::class, 'suggestNextAction']);
         Route::post('draft-follow-up', [CrmAIController::class, 'draftFollowUp']);
-        Route::post('detect-duplicates', [CrmProspectingController::class, 'detectDuplicates']);
-        Route::post('generate-prospecting-email', [CrmProspectingController::class, 'generateEmail']);
-        Route::post('draft-prospecting-email', [CrmProspectingController::class, 'generateEmail']);
-        Route::post('analyze-sentiment', [CrmProspectingController::class, 'analyzeSentiment']);
+        Route::post('detect-duplicates', [CrmAIController::class, 'detectDuplicates']);
+        Route::post('generate-prospecting-email', [CrmAIController::class, 'generateProspectingEmail']);
+        Route::post('draft-prospecting-email', [CrmAIController::class, 'generateProspectingEmail']);
+        Route::post('analyze-sentiment', [CrmAIController::class, 'analyzeSentiment']);
         Route::post('transcribe-call', [CrmAIController::class, 'transcribeCall']);
     });
 
@@ -279,6 +291,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
     // VoIP
     Route::get('crm/voip/call-logs', [VoipController::class, 'callLogs'])->name('crm.voip.call-logs');
     Route::get('crm/voip/call-logs/{callLog}', [VoipController::class, 'showCallLog'])->name('crm.voip.call-logs.show');
+    // Chantier 38.3: the real, already-existing ClickToCallButton.vue polls this exact path
+    // for a live call's status — it never existed as a route at all. See
+    // VoipController::status()'s own docblock.
+    Route::get('crm/voip/status', [VoipController::class, 'status'])->name('crm.voip.status');
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('crm/voip/call', [VoipController::class, 'call'])->name('crm.voip.call');
         Route::post('crm/voip/webhook', [VoipController::class, 'webhook'])->name('crm.voip.webhook');
@@ -325,20 +341,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
         ->name('crm.revenue-intelligence.summary');
 });
 
-// ── No-code workflow builder ─────────────────────────────────────────────────
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->prefix('v1/crm/workflows')->group(function () {
-    Route::get('/', [WorkflowBuilderController::class, 'index'])
-        ->name('crm.workflows.index');
-    Route::post('/', [WorkflowBuilderController::class, 'create'])
-        ->name('crm.workflows.create');
-    Route::get('{workflow}', [WorkflowBuilderController::class, 'show'])
-        ->name('crm.workflows.show');
-    Route::put('{workflow}/save', [WorkflowBuilderController::class, 'saveWorkflow'])
-        ->name('crm.workflows.save');
-    Route::post('{workflow}/activate', [WorkflowBuilderController::class, 'activate'])
-        ->name('crm.workflows.activate');
-    Route::post('{workflow}/deactivate', [WorkflowBuilderController::class, 'deactivate'])
-        ->name('crm.workflows.deactivate');
-    Route::get('{workflow}/executions', [WorkflowBuilderController::class, 'getExecutions'])
-        ->name('crm.workflows.executions');
-});
+// Chantier 32.15: the no-code workflow builder (crm/workflows/*, WorkflowBuilderController)
+// was removed here — confirmed dead/fake at the 14-layer audit: real persistence, zero
+// execution engine (activate()/deactivate() only ever flip a status string, nothing anywhere
+// in the app ever creates a real WorkflowExecution row), zero Vue caller, and a confirmed
+// duplicate of the real, live Modules\Workflow n8n-like engine, which already registers
+// crm.contact.created/crm.opportunity.won/crm.lead.qualified triggers for real. See the
+// accompanying migration's docblock for the full removal rationale.

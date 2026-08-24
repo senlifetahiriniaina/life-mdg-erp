@@ -12,6 +12,8 @@ Voir `.env.example` pour la liste complète et les valeurs de démarrage. Points
 | `APP_DOMAIN` | vide | **Obligatoire** pour `scripts/deploy.sh` (Docker Compose + Caddy) — le nom de domaine public de l'application, utilisé par Caddy pour obtenir le certificat SSL Let's Encrypt. Voir `docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md`. |
 | `DB_PASSWORD` | `secret` | Mot de passe fort, géré via secret manager |
 | `DB_ROOT_PASSWORD` | vide | **Obligatoire** pour `scripts/deploy.sh` — mot de passe root MySQL du conteneur `mysql` de `docker-compose.prod.yml` (différent de `DB_PASSWORD`, non lu par Laravel lui-même). |
+| `MEILISEARCH_KEY` | vide | **Obligatoire** pour `scripts/deploy.sh` — partagée entre Laravel (client Scout) et le conteneur `meilisearch` (`MEILI_MASTER_KEY`) de `docker-compose.prod.yml`. Sans elle, la création/modification/suppression d'un contact CRM échoue en production (`Modules\CRM\Models\Contact` utilise `Laravel\Scout\Searchable` — voir `CLAUDE.md` § Chantier 34). Générer une valeur forte, ex. `openssl rand -hex 32`. |
+| `MEILISEARCH_HOST` | `http://localhost:7700` (dev, `npm run dev`/hors-conteneur uniquement) | **Rien à faire** pour un déploiement via `scripts/deploy.sh` — `docker-compose.prod.yml` surcharge automatiquement cette valeur vers `http://meilisearch:7700` pour les conteneurs `app`/`queue`/`scheduler`. |
 | `DB_SSL_CA` / `DB_SSL_VERIFY` | vide / `true` | Configurer un certificat TLS pour la connexion base de données |
 | `METRICS_TOKEN` | vide | Token long aléatoire — l'endpoint `/api/metrics` **fail-closed** si vide en production (aucune valeur par défaut n'est acceptée) |
 | `CORS_ALLOWED_ORIGINS` | vide | Domaines autorisés explicites — jamais `*` (rejeté de toute façon si `credentials` est actif) |

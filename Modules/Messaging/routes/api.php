@@ -13,7 +13,16 @@ use Modules\Messaging\Http\Controllers\Api\MessagingAiAssistController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Messaging', 'role:employee,manager,admin,super-admin'])->prefix('v1/messaging')->group(function () {
+// Chantier 32.28: dropped the `role:employee,manager,admin,super-admin` gate.
+// Confirmed empirically that a user carrying only a specialised role (e.g.
+// sales-rep, hr-manager — this app assigns a single role per real user, see
+// DemoSeeder's syncRoles([$d['role']])) got a flat 403 on every messaging
+// endpoint. Internal team messaging is not a job-role-scoped feature — it is
+// meant for literally any authenticated user of a tenant with the module
+// enabled, the same precedent already used by Core's own universal
+// `notifications/*` routes (auth + tenancy only, no role gate at all).
+// `module:Messaging` alone still lets an admin disable the module per tenant.
+Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:Messaging'])->prefix('v1/messaging')->group(function () {
     Route::get('users', [ConversationController::class, 'users']);
     Route::get('conversations', [ConversationController::class, 'index']);
     Route::post('conversations', [ConversationController::class, 'store'])->middleware('throttle:create_post');

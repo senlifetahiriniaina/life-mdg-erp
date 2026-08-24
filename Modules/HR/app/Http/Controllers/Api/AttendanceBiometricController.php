@@ -76,7 +76,11 @@ class AttendanceBiometricController extends Controller
     {
         $this->authorize('viewAttendance', AttendanceRecord::class);
 
+        // Chantier 32: unconditional company_id scoping — see
+        // EmployeeController::index()'s comment for the confirmed empirical
+        // finding this closes.
         $query = AttendanceRecord::with(['employee:id,first_name,last_name', 'device:id,device_name,location'])
+            ->where('company_id', $request->user()->company_id)
             ->when($request->employee_id, fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->start_date, fn($q) => $q->where('clock_in', '>=', $request->start_date))
             ->when($request->verification_status, fn($q) => $q->where('verification_status', $request->verification_status))
@@ -107,12 +111,25 @@ class AttendanceBiometricController extends Controller
 
         $device = BiometricDevice::findOrFail($validated['device_id']);
 
+        // Chantier 32: the given employee_id must belong to the caller's own
+        // company (404, not 403 — matching this app's established
+        // not-your-tenant-data-doesn't-exist-to-you convention).
+        $clockInEmployee = \Modules\HR\Models\Employee::findOrFail($validated['employee_id']);
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($clockInEmployee->company_id ?? 0)),
+            404
+        );
+
         // Chantier 8.3: validated() keys were 'latitude'/'longitude' but
         // AttendanceRecord's real columns are 'location_lat'/'location_lng' —
         // previously silently dropped on every clock-in (neither key was even
         // in the model's $fillable at all until this chantier added them).
+        //
+        // Chantier 32: company_id always derived server-side from the
+        // employee's own company, never from client input.
         $record = AttendanceRecord::create([
             'employee_id' => $validated['employee_id'],
+            'company_id' => $clockInEmployee->company_id,
             'device_id' => $validated['device_id'],
             'clock_in_method' => $validated['clock_in_method'],
             'location_lat' => $validated['latitude'] ?? null,
@@ -164,7 +181,11 @@ class AttendanceBiometricController extends Controller
     {
         $this->authorize('viewAttendance', AttendanceRecord::class);
 
+        // Chantier 32: AttendanceException has no company_id column of its
+        // own (see the migration's docblock) — resolved via the employee
+        // it belongs to, matching AttendancePolicy's employee-derived checks.
         $query = AttendanceException::with('employee:id,first_name,last_name')
+            ->whereHas('employee', fn ($q) => $q->where('company_id', $request->user()->company_id))
             ->when($request->employee_id, fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->orderByDesc('attendance_date');
@@ -191,7 +212,10 @@ class AttendanceBiometricController extends Controller
      */
     public function listShifts(Request $request): JsonResponse
     {
+        // Chantier 32: ShiftSchedule has no company_id column of its own —
+        // resolved via the employee it belongs to, same as listExceptions().
         $query = ShiftSchedule::with('employee:id,first_name,last_name')
+            ->whereHas('employee', fn ($q) => $q->where('company_id', $request->user()->company_id))
             ->when($request->employee_id, fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->status, fn($q) => $q->where('status', $request->status));
 
@@ -228,6 +252,15 @@ class AttendanceBiometricController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
 
+        // Chantier 32: the given employee_id must belong to the caller's own
+        // company (404, not 403 — matching this app's established
+        // not-your-tenant-data-doesn't-exist-to-you convention).
+        $shiftEmployee = \Modules\HR\Models\Employee::findOrFail($validated['employee_id']);
+        abort_unless(
+            ((int) ($request->user()->company_id ?? 0)) === ((int) ($shiftEmployee->company_id ?? 0)),
+            404
+        );
+
         $shift = ShiftSchedule::create($validated);
         return response()->json($shift, 201);
     }
@@ -239,7 +272,10 @@ class AttendanceBiometricController extends Controller
      */
     public function listTimeOffRequests(Request $request): JsonResponse
     {
+        // Chantier 32: TimeOffRequest has no company_id column of its own —
+        // resolved via the employee it belongs to, same as listExceptions().
         $query = TimeOffRequest::with(['employee:id,first_name,last_name', 'approvedBy:id,name'])
+            ->whereHas('employee', fn ($q) => $q->where('company_id', $request->user()->company_id))
             ->when($request->employee_id, fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->orderByDesc('start_date');
@@ -298,7 +334,11 @@ class AttendanceBiometricController extends Controller
     {
         $this->authorize('viewAnalytics', BiometricDevice::class);
 
+        // Chantier 32: AttendanceAnalytics has no company_id column of its
+        // own — resolved via the employee it belongs to, same as
+        // listExceptions().
         $query = AttendanceAnalytics::with('employee:id,first_name,last_name')
+            ->whereHas('employee', fn ($q) => $q->where('company_id', $request->user()->company_id))
             ->when($request->employee_id, fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->year, fn($q) => $q->where('year', $request->year))
             ->when($request->month, fn($q) => $q->where('month', $request->month))

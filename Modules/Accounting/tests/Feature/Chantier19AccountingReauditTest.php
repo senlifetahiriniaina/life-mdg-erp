@@ -177,8 +177,8 @@ test('bank reconciliation auto-match finds a real journal entry created via the 
         'date' => now()->toDateString(),
         'description' => 'Real posted sale',
         'lines' => [
-            ['account_code' => '512', 'debit' => 250000, 'credit' => 0],
-            ['account_code' => '707', 'debit' => 0, 'credit' => 250000],
+            ['account_code' => '5211', 'debit' => 250000, 'credit' => 0],
+            ['account_code' => '701', 'debit' => 0, 'credit' => 250000],
         ],
     ]);
     $storeResp->assertCreated();

@@ -7,7 +7,12 @@ use Modules\Inventory\Http\Controllers\Web\InventoryWebController;
 use Modules\Inventory\Http\Controllers\Web\ProductController;
 use Modules\Inventory\Http\Controllers\Web\WarehouseController;
 
-Route::middleware(['auth', 'module:Inventory'])->group(function () {
+// Chantier 32: matches the role gate already used by routes/api.php — this
+// group previously had no role tier at all (only auth+module), so any
+// authenticated user of any role could reach the same server-rendered
+// pages that write/read company-scoped data, regardless of whether they
+// hold an Inventory role.
+Route::middleware(['auth', 'module:Inventory', 'role:employee,logistics-manager,warehouse-operator,purchasing-manager,inventory-analyst,manager,admin'])->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('dashboard');
     Route::resource('products', ProductController::class);
     Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');

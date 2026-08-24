@@ -2,6 +2,8 @@
   <AppLayout>
     <Head title="BI · Hub" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <!-- Header -->
     <div class="page-head">
       <div>
@@ -135,6 +137,10 @@
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import KpiCard from '@/Components/BI/KpiCard.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('BI', 'view_hub')
 
 defineProps({
   kpis:          { type: Array, default: () => [] },

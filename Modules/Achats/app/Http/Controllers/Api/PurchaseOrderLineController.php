@@ -30,6 +30,24 @@ class PurchaseOrderLineController extends Controller
 
     public function __construct(protected PurchaseOrderService $service) {}
 
+    /**
+     * Chantier 32.13 (layer 6, security deep — a real IDOR, confirmed
+     * empirically): show()/update()/destroy() only ever checked that the
+     * URL's {purchase_order} belonged to the caller's company — never that
+     * the URL's {line} actually belongs to THAT SPECIFIC purchase order.
+     * Since PurchaseOrderLine has no company_id of its own, a caller could
+     * put any PO they own in the URL slot and pass ANY line id — including
+     * one belonging to a completely different company's purchase order —
+     * and view/edit/delete it. Confirmed via a real HTTP request: PUT
+     * purchase-orders/{ownPo}/lines/{anotherPosLine} returned 200 and
+     * silently updated a line the caller had no real relationship to at
+     * all. Same-shape fix applied to RFQLineController below.
+     */
+    private function assertLineBelongsToOrder(PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line): void
+    {
+        abort_unless($purchase_order_line->purchase_order_id === $purchase_order->id, 404);
+    }
+
     public function index(Request $request, PurchaseOrder $purchase_order)
     {
         $this->assertSameCompany($request, $purchase_order);
@@ -65,6 +83,7 @@ class PurchaseOrderLineController extends Controller
     public function show(Request $request, PurchaseOrder $purchase_order, PurchaseOrderLine $purchase_order_line)
     {
         $this->assertSameCompany($request, $purchase_order);
+        $this->assertLineBelongsToOrder($purchase_order, $purchase_order_line);
 
         return $purchase_order_line;
     }
@@ -81,6 +100,7 @@ class PurchaseOrderLineController extends Controller
     {
         $this->authorize('update', $purchase_order_line);
         $this->assertSameCompany($request, $purchase_order);
+        $this->assertLineBelongsToOrder($purchase_order, $purchase_order_line);
 
         abort_if(! $purchase_order->isDraft(), 422, 'Cannot update lines on a non-draft purchase order');
 
@@ -109,6 +129,7 @@ class PurchaseOrderLineController extends Controller
     {
         $this->authorize('delete', $purchase_order_line);
         $this->assertSameCompany($request, $purchase_order);
+        $this->assertLineBelongsToOrder($purchase_order, $purchase_order_line);
 
         abort_if(! $purchase_order->isDraft(), 422, 'Cannot remove lines from a non-draft purchase order');
 

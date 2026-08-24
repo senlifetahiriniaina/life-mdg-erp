@@ -32,8 +32,16 @@ class PayrollIntegrationServiceTest extends TestCase
         // User's tenant_id — set up both to match how the fixed service
         // actually resolves them.
         $this->user = User::factory()->create(['tenant_id' => 1]);
+        // Chantier 32: Employee now has a real, populated company_id column
+        // (HR had zero company/tenant scoping anywhere at all — see
+        // Modules\HR\Policies\EmployeePolicy's docblock) and
+        // generatePayslips() below now filters by it — set it explicitly to
+        // match the tenantId this test passes in, matching the same
+        // "set up fixtures to match how the fixed service actually
+        // resolves them" precedent already used elsewhere in this setUp().
         $this->employee = Employee::factory()->create([
             'user_id'          => $this->user->id,
+            'company_id'       => $this->user->tenant_id,
             'status'           => 'active',
             'termination_date' => null,
         ]);
@@ -156,7 +164,9 @@ class PayrollIntegrationServiceTest extends TestCase
     /** @test */
     public function it_generates_payslips_for_all_active_employees(): void
     {
-        $secondEmployee = Employee::factory()->create(['status' => 'active']);
+        // Chantier 32: company_id must match the tenantId passed to
+        // generatePayslips() below (see setUp()'s comment).
+        $secondEmployee = Employee::factory()->create(['status' => 'active', 'company_id' => $this->user->tenant_id]);
         EmployeeCompensation::factory()->create([
             'employee_id'    => $secondEmployee->id,
             'base_salary'    => 400_000,

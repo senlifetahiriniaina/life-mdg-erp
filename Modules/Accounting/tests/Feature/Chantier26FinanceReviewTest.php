@@ -47,7 +47,7 @@ function financeReviewUser(string $role = 'finance-manager'): User
 function postFrLedgerEntry(int $companyIgnored, string $accountCode, float $debit, float $credit, \Carbon\Carbon $date, string $ref): void
 {
     $account = ChartOfAccount::where('code', $accountCode)->firstOrFail();
-    $bank    = ChartOfAccount::where('code', '512')->firstOrFail();
+    $bank    = ChartOfAccount::where('code', '5211')->firstOrFail();
     $journal = Journal::first();
 
     $entry = JournalEntry::create([
@@ -158,20 +158,20 @@ describe('FinanceReviewService — budget realization reads the real ledger, nev
             'status'      => 'draft',
         ]);
 
-        $account707 = ChartOfAccount::where('code', '707')->firstOrFail();
+        $account701 = ChartOfAccount::where('code', '701')->firstOrFail();
         BudgetLine::create([
             'budget_id'       => $budget->id,
-            'account_id'      => $account707->id,
+            'account_id'      => $account701->id,
             // actual_amount deliberately left at its default 0 — the service
             // must never read it, only the real ledger.
             'budgeted_amount' => 100000,
-            'category'        => '707',
+            'category'        => '701',
             'period'          => '2026-01',
             'period_month'    => 1,
             'period_year'     => 2026,
         ]);
 
-        postFrLedgerEntry($user->company_id, '707', 0, 120000, \Carbon\Carbon::create(2026, 1, 10), 'FR-1');
+        postFrLedgerEntry($user->company_id, '701', 0, 120000, \Carbon\Carbon::create(2026, 1, 10), 'FR-1');
 
         $response = $this->getJson('/api/v1/accounting/finance-reviews/realization?'.http_build_query([
             'period_start' => '2026-01-01',

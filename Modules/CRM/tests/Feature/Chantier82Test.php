@@ -16,8 +16,10 @@ use Tests\TestCase;
  *   (which called TerritoryManagementService methods that didn't exist at all).
  * - The 4 previously-unrouted Web pages (Quotes/Territories/Forecast/Opportunity
  *   Scoring) now have real routes.
- * - CampaignController/WorkflowBuilderController now enforce their policies —
- *   a non-owner without the edit permission must be blocked.
+ * - CampaignController now enforces its policy — a non-owner without the edit permission
+ *   must be blocked. (The WorkflowBuilderController test previously here was removed at
+ *   Chantier 32.15 — that whole subsystem was confirmed dead/fake and deleted; see the
+ *   accompanying migration's docblock.)
  */
 class Chantier82Test extends TestCase
 {
@@ -99,20 +101,6 @@ class Chantier82Test extends TestCase
         $response = $this->postJson('/api/v1/crm/campaigns', [
             'name' => 'Unauthorized Campaign',
             'type' => 'email',
-        ]);
-
-        $response->assertForbidden();
-    }
-
-    public function test_user_without_workflow_permission_cannot_create_workflow(): void
-    {
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
-
-        $response = $this->postJson('/api/v1/crm/workflows', [
-            'name' => 'Unauthorized Workflow',
-            'trigger_type' => 'manual',
         ]);
 
         $response->assertForbidden();

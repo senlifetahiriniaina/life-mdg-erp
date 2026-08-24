@@ -22,9 +22,28 @@ class SheetWebController extends Controller
     {
         $period = TimesheetPeriod::with(['employee', 'submitter', 'approver'])->findOrFail($sheet);
 
+        // Chantier 32.19 (Timesheets deep 14-layer audit): this server-
+        // rendered Inertia page had zero authorization call at all —
+        // TimesheetPeriodPolicy::view() exists and is correctly written
+        // (own period OR admin/manager/hr-manager) but nothing here ever
+        // called it, and the web route group only gates on
+        // ['auth', 'module:Timesheets'] with no role restriction — any
+        // authenticated Timesheets user could view any other employee's
+        // full weekly timesheet (hours/task descriptions/notes) just by
+        // changing the {sheet} id in the URL, confirmed empirically. The
+        // props are embedded in the real server response regardless of
+        // what the Vue page chooses to render.
+        $this->authorize('view', $period);
+
+        // Chantier 32.19: whereDate() bounds, not whereBetween() on the raw
+        // column — see TimesheetAdvancedController::approvePeriod()'s
+        // docblock for the full write-up. This page previously silently
+        // omitted the period's own last day's entries from the Sheets/
+        // Show.vue detail view.
         $entries = TimesheetEntry::with('project:id,name')
             ->where('employee_id', $period->employee_id)
-            ->whereBetween('entry_date', [$period->period_start, $period->period_end])
+            ->whereDate('entry_date', '>=', $period->period_start)
+            ->whereDate('entry_date', '<=', $period->period_end)
             ->orderBy('entry_date')
             ->get()
             ->map(fn (TimesheetEntry $entry) => [
@@ -64,6 +83,12 @@ class SheetWebController extends Controller
     public function edit(int $sheet): Response
     {
         $period = TimesheetPeriod::findOrFail($sheet);
+
+        // Chantier 32.19: same missing-authorize() gap as show() above —
+        // 'update' correctly requires ownership + draft status (or an
+        // admin/manager override), matching Show.vue's own edit-link
+        // v-if="sheet.status === 'draft'".
+        $this->authorize('update', $period);
 
         return Inertia::render('Timesheets/Sheets/Form', [
             'sheet' => [

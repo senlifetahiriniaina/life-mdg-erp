@@ -46,6 +46,10 @@ onMounted(async () => {
     const res  = await fetch('/api/v1/calendar/sync/status')
     if (res.ok) {
       const data = await res.json()
+      // Chantier 32.12: status() used to return a bare keyed object — this
+      // page's own `.data ?? {}` always resolved to {} regardless of real
+      // connection state, so every provider always showed "Non connecté".
+      // Fixed backend-side to wrap the response in {data: {...}}.
       const statuses = data.data ?? {}
       integrations.value = integrations.value.map(i => ({
         ...i,
@@ -71,8 +75,12 @@ async function connectIntegration(id) {
   const res = await fetch(`/api/v1/calendar/sync/${id}/auth`)
   if (res.ok) {
     const data = await res.json()
-    if (data.auth_url) {
-      window.location.href = data.auth_url
+    // Chantier 32.12: the real endpoints (googleAuth()/outlookAuth()) return
+    // `{url: '...'}`, never `auth_url` — confirmed empirically that clicking
+    // "Connecter" for Google/Outlook has never actually redirected anywhere,
+    // since `data.auth_url` was always undefined.
+    if (data.url) {
+      window.location.href = data.url
     }
   }
 }

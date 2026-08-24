@@ -9,37 +9,62 @@ use Illuminate\Support\Facades\DB;
 use Modules\CRM\Models\PipelineSnapshot;
 use Modules\CRM\Models\WinLossRecord;
 
+/**
+ * Chantier 32.15 (CRM 14-layer audit): every method here was fully tenant-unfiltered — win/
+ * loss records, pipeline snapshots, and every raw crm_opportunities aggregate (dashboard,
+ * conversion funnel, stage distribution, top performers, win/loss reasons, sales velocity,
+ * avg sales cycle) mixed every company's business metrics together, confirmed empirically
+ * before this fix. crm_win_loss_records/crm_pipeline_snapshots already carried a real
+ * `tenant_id` column, just never populated/filtered — every public method here now takes an
+ * explicit `?int $companyId`, threaded from the caller's own company_id at the controller.
+ */
 class PipelineAnalyticsService
 {
     /**
      * Record a win for an opportunity.
      */
-    public function recordWin(int $opportunityId, array $data = []): WinLossRecord
+    public function recordWin(int $opportunityId, array $data = [], ?int $companyId = null): WinLossRecord
     {
-        return $this->recordOutcome($opportunityId, 'won', 'closed_won', $data);
+        return $this->recordOutcome($opportunityId, 'won', 'closed_won', $data, $companyId);
     }
 
     /**
      * Record a loss for an opportunity.
      */
-    public function recordLoss(int $opportunityId, array $data = []): WinLossRecord
+    public function recordLoss(int $opportunityId, array $data = [], ?int $companyId = null): WinLossRecord
     {
-        return $this->recordOutcome($opportunityId, 'lost', 'closed_lost', $data);
+        return $this->recordOutcome($opportunityId, 'lost', 'closed_lost', $data, $companyId);
     }
 
-    private function recordOutcome(int $opportunityId, string $outcome, string $newStatus, array $data): WinLossRecord
+    /**
+     * $companyId is deliberately still consulted even when null (an internal/console caller
+     * with no real tenant context) — the opportunity lookup below only skips the tenant
+     * filter when the caller passes true `null`-as-"don't scope" is not supported here since
+     * an opportunity record itself always resolves a real tenant_id; a null $companyId simply
+     * means "the record must also have no tenant_id", matching this module's established
+     * where($col, null) -> whereNull() convention.
+     */
+    private function recordOutcome(int $opportunityId, string $outcome, string $newStatus, array $data, ?int $companyId): WinLossRecord
     {
-        $opportunity = DB::table('crm_opportunities')->where('id', $opportunityId)->first();
+        $opportunity = DB::table('crm_opportunities')
+            ->where('id', $opportunityId)
+            ->where('tenant_id', $companyId)
+            ->first();
+
+        if (! $opportunity) {
+            throw new \Illuminate\Database\Eloquent\ModelNotFoundException("Opportunity {$opportunityId} not found.");
+        }
 
         $salesCycleDays = null;
-        if ($opportunity && $opportunity->created_at) {
+        if ($opportunity->created_at) {
             $createdAt = Carbon::parse($opportunity->created_at);
             $salesCycleDays = (int) $createdAt->diffInDays(now());
         }
 
-        $dealValue = $opportunity ? (float) ($opportunity->amount ?? 0) : 0.0;
+        $dealValue = (float) ($opportunity->amount ?? 0);
 
         $record = WinLossRecord::create([
+            'tenant_id' => $companyId,
             'opportunity_id' => $opportunityId,
             'outcome' => $outcome,
             'reason' => $data['reason'] ?? null,
@@ -60,9 +85,10 @@ class PipelineAnalyticsService
     /**
      * Get win rate as a percentage (0-100).
      */
-    public function getWinRate(?Carbon $from = null, ?Carbon $to = null): float
+    public function getWinRate(?Carbon $from = null, ?Carbon $to = null, ?int $companyId = null): float
     {
-        $query = WinLossRecord::query();
+        $query = WinLossRecord::query()
+            ->where('tenant_id', $companyId);
 
         if ($from !== null) {
             $query->where('recorded_at', '>=', $from);
@@ -84,10 +110,11 @@ class PipelineAnalyticsService
     /**
      * Get conversion funnel for a pipeline.
      */
-    public function getConversionFunnel(int $pipelineId): array
+    public function getConversionFunnel(int $pipelineId, ?int $companyId = null): array
     {
         $stages = DB::table('crm_opportunities')
             ->where('pipeline_id', $pipelineId)
+            ->where('tenant_id', $companyId)
             ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as value'))
             ->groupBy('stage')
             ->get();
@@ -114,9 +141,10 @@ class PipelineAnalyticsService
     /**
      * Get sales velocity (deals per day value).
      */
-    public function getSalesVelocity(?Carbon $from = null, ?Carbon $to = null): float
+    public function getSalesVelocity(?Carbon $from = null, ?Carbon $to = null, ?int $companyId = null): float
     {
-        $query = WinLossRecord::where('outcome', 'won');
+        $query = WinLossRecord::where('outcome', 'won')
+            ->where('tenant_id', $companyId);
 
         if ($from !== null) {
             $query->where('recorded_at', '>=', $from);
@@ -132,7 +160,7 @@ class PipelineAnalyticsService
         }
 
         $opportunities = $wonDeals->count();
-        $winRate = $this->getWinRate($from, $to) / 100;
+        $winRate = $this->getWinRate($from, $to, $companyId) / 100;
         $avgDealSize = $wonDeals->avg('deal_value') ?? 0.0;
         $avgSalesCycle = $wonDeals->whereNotNull('sales_cycle_days')->avg('sales_cycle_days') ?? 0.0;
 
@@ -146,10 +174,11 @@ class PipelineAnalyticsService
     /**
      * Get stage distribution for a pipeline.
      */
-    public function getStageDistribution(int $pipelineId): array
+    public function getStageDistribution(int $pipelineId, ?int $companyId = null): array
     {
         $rows = DB::table('crm_opportunities')
             ->where('pipeline_id', $pipelineId)
+            ->where('tenant_id', $companyId)
             ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as total_value'))
             ->groupBy('stage')
             ->get();
@@ -172,10 +201,11 @@ class PipelineAnalyticsService
     /**
      * Take a pipeline snapshot.
      */
-    public function takeSnapshot(int $pipelineId): PipelineSnapshot
+    public function takeSnapshot(int $pipelineId, ?int $companyId = null): PipelineSnapshot
     {
         $rows = DB::table('crm_opportunities')
             ->where('pipeline_id', $pipelineId)
+            ->where('tenant_id', $companyId)
             ->whereNull('deleted_at')
             ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as value'))
             ->groupBy('stage')
@@ -192,6 +222,7 @@ class PipelineAnalyticsService
         ])->values()->all();
 
         return PipelineSnapshot::create([
+            'tenant_id' => $companyId,
             'pipeline_id' => $pipelineId,
             'snapshot_date' => now()->toDateString(),
             'total_value' => $totalValue,
@@ -204,11 +235,12 @@ class PipelineAnalyticsService
     /**
      * Get pipeline trend (snapshots over time).
      */
-    public function getPipelineTrend(int $pipelineId, int $days = 30): array
+    public function getPipelineTrend(int $pipelineId, int $days = 30, ?int $companyId = null): array
     {
         $from = now()->subDays($days);
 
         return PipelineSnapshot::where('pipeline_id', $pipelineId)
+            ->where('tenant_id', $companyId)
             ->where('snapshot_date', '>=', $from->toDateString())
             ->orderBy('snapshot_date')
             ->get()
@@ -224,10 +256,11 @@ class PipelineAnalyticsService
     /**
      * Get top performers by won deals.
      */
-    public function getTopPerformers(int $limit = 5): array
+    public function getTopPerformers(int $limit = 5, ?int $companyId = null): array
     {
         return DB::table('crm_win_loss_records')
             ->where('crm_win_loss_records.outcome', 'won')
+            ->where('crm_win_loss_records.tenant_id', $companyId)
             ->join('users', 'users.id', '=', 'crm_win_loss_records.recorded_by')
             ->select(
                 'crm_win_loss_records.recorded_by as user_id',
@@ -252,10 +285,11 @@ class PipelineAnalyticsService
     /**
      * Get win/loss reasons breakdown.
      */
-    public function getWinLossReasons(string $outcome = 'lost'): array
+    public function getWinLossReasons(string $outcome = 'lost', ?int $companyId = null): array
     {
         $rows = DB::table('crm_win_loss_records')
             ->where('outcome', $outcome)
+            ->where('tenant_id', $companyId)
             ->whereNotNull('reason')
             ->select('reason', DB::raw('count(*) as count'))
             ->groupBy('reason')
@@ -279,9 +313,10 @@ class PipelineAnalyticsService
     /**
      * Get average sales cycle in days (from won deals).
      */
-    public function getAvgSalesCycle(): float
+    public function getAvgSalesCycle(?int $companyId = null): float
     {
         $avg = WinLossRecord::where('outcome', 'won')
+            ->where('tenant_id', $companyId)
             ->whereNotNull('sales_cycle_days')
             ->avg('sales_cycle_days');
 
@@ -291,20 +326,22 @@ class PipelineAnalyticsService
     /**
      * Get overall analytics dashboard.
      */
-    public function getDashboard(): array
+    public function getDashboard(?int $companyId = null): array
     {
-        $winRate = $this->getWinRate();
+        $winRate = $this->getWinRate(null, null, $companyId);
         $openDeals = (int) DB::table('crm_opportunities')
             ->whereNull('deleted_at')
             ->whereNotIn('status', ['closed_won', 'closed_lost'])
+            ->where('tenant_id', $companyId)
             ->count();
         $pipelineValue = (float) DB::table('crm_opportunities')
             ->whereNull('deleted_at')
             ->whereNotIn('status', ['closed_won', 'closed_lost'])
+            ->where('tenant_id', $companyId)
             ->sum('amount');
         $avgDealSize = $openDeals > 0 ? round($pipelineValue / $openDeals, 4) : 0.0;
-        $salesVelocity = $this->getSalesVelocity();
-        $avgSalesCycle = $this->getAvgSalesCycle();
+        $salesVelocity = $this->getSalesVelocity(null, null, $companyId);
+        $avgSalesCycle = $this->getAvgSalesCycle($companyId);
 
         return [
             'win_rate' => $winRate,

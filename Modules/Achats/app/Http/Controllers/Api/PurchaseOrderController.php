@@ -137,12 +137,23 @@ class PurchaseOrderController extends Controller
         return new PurchaseOrderResource($purchase_order->refresh());
     }
 
+    /**
+     * Chantier 32.13: markAsApproved()/markAsRejected() now guard against
+     * an already-resolved PO's status (approved/rejected/cancelled/
+     * received/invoiced) — caught here for a real 422 rather than an
+     * uncaught 500, matching this controller's own deposit/balance
+     * endpoints' established try/catch pattern.
+     */
     public function approve(Request $request, PurchaseOrder $purchase_order)
     {
         $this->authorize('approve', $purchase_order);
         $this->assertSameCompany($request, $purchase_order);
 
-        $this->service->markAsApproved($purchase_order, auth()->user());
+        try {
+            $this->service->markAsApproved($purchase_order, auth()->user());
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return new PurchaseOrderResource($purchase_order->refresh());
     }
@@ -152,7 +163,11 @@ class PurchaseOrderController extends Controller
         $this->authorize('reject', $purchase_order);
         $this->assertSameCompany($request, $purchase_order);
 
-        $this->service->markAsRejected($purchase_order, auth()->user(), $request->get('reason', 'Rejeté'));
+        try {
+            $this->service->markAsRejected($purchase_order, auth()->user(), $request->get('reason', 'Rejeté'));
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return new PurchaseOrderResource($purchase_order->refresh());
     }

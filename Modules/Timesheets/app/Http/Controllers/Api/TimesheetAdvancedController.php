@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
+use Modules\Projects\Models\Project;
+use Modules\Timesheets\Models\ProjectBilling;
 use Modules\Timesheets\Models\TimesheetEntry;
 use Modules\Timesheets\Models\TimesheetPeriod;
 use Modules\Timesheets\Services\ProjectBillingService;
@@ -301,9 +303,30 @@ class TimesheetAdvancedController extends Controller
             'approved_at' => now(),
         ]);
 
-        // Mark timesheet entries in the period range as approved
+        // Mark timesheet entries in the period range as approved.
+        //
+        // Chantier 32.19 (Timesheets deep 14-layer audit, layer 4/5 —
+        // confirmed via tinker, not just read): TimesheetEntry.entry_date
+        // is a real, migrated `date` column, but Laravel's own `date` cast
+        // does NOT truncate the time component on write for this app's
+        // model/version — a value assigned as e.g. now() persists with its
+        // full HH:MM:SS, confirmed by inspecting the raw column value.
+        // whereBetween('entry_date', [$from, $to]) on a bare Y-m-d upper
+        // bound does a lexicographic string comparison, so any entry dated
+        // exactly on the period's LAST day (the single most common real
+        // case — the day a sheet is actually submitted) sorted PAST that
+        // bound and was silently excluded — the entry stayed 'submitted'
+        // forever even though its own period was 'approved'. The same bug
+        // shape was found across 6 more call sites in this file/module
+        // (weeklyView/teamView/utilization/employeeHoursReport/
+        // utilizationReport/aggregateAndSubmit, plus TimesheetEntry's own
+        // scopeByDateRange, TimesheetPeriod::entries(), and
+        // SheetWebController::show()) and fixed the same way throughout:
+        // whereDate() truncates both sides to their date component before
+        // comparing, sidestepping the string-boundary trap entirely.
         TimesheetEntry::where('employee_id', $period->employee_id)
-            ->whereBetween('entry_date', [$period->period_start, $period->period_end])
+            ->whereDate('entry_date', '>=', $period->period_start)
+            ->whereDate('entry_date', '<=', $period->period_end)
             ->where('status', 'submitted')
             ->update(['status' => 'approved']);
 
@@ -367,8 +390,11 @@ class TimesheetAdvancedController extends Controller
 
         $weekEnd = Carbon::parse($weekStart)->endOfWeek()->format('Y-m-d');
 
+        // Chantier 32.19: whereDate() bounds, not whereBetween — see
+        // approvePeriod()'s docblock above for the full write-up of why.
         $entries = TimesheetEntry::where('employee_id', $employeeId)
-            ->whereBetween('entry_date', [$weekStart, $weekEnd])
+            ->whereDate('entry_date', '>=', $weekStart)
+            ->whereDate('entry_date', '<=', $weekEnd)
             ->orderBy('entry_date')
             ->get()
             ->map(fn (TimesheetEntry $t) => array_merge($t->toArray(), [
@@ -417,8 +443,10 @@ class TimesheetAdvancedController extends Controller
                 ->pluck('employee_id');
 
             foreach ($employees as $employeeId) {
+                // Chantier 32.19: whereDate() bounds — see approvePeriod().
                 $totals = TimesheetEntry::where('employee_id', $employeeId)
-                    ->whereBetween('entry_date', [$from, $to])
+                    ->whereDate('entry_date', '>=', $from)
+                    ->whereDate('entry_date', '<=', $to)
                     ->selectRaw('SUM(hours_worked) as total, SUM(billable_hours) as billable')
                     ->first();
 
@@ -462,8 +490,10 @@ class TimesheetAdvancedController extends Controller
         $tenantId = $request->user()?->company_id ?? 0;
 
         try {
+            // Chantier 32.19: whereDate() bounds — see approvePeriod().
             $stats = TimesheetEntry::where('tenant_id', $tenantId)
-                ->whereBetween('entry_date', [$from, $to])
+                ->whereDate('entry_date', '>=', $from)
+                ->whereDate('entry_date', '<=', $to)
                 ->selectRaw('
                     SUM(hours_worked) as total_hours,
                     SUM(billable_hours) as billable_hours,
@@ -532,46 +562,23 @@ class TimesheetAdvancedController extends Controller
         $from = $request->query('from_date', now()->subDays(30)->format('Y-m-d'));
         $to   = $request->query('to_date', now()->format('Y-m-d'));
 
-        $entries = TimesheetEntry::with(['project:id,name', 'employee'])
-            ->whereBetween('entry_date', [$from, $to])
-            ->where('billable_hours', '>', 0)
-            ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', $request->project_id))
-            ->get();
-
-        $byProject = $entries->groupBy('project_id')->map(function ($group) {
-            $first        = $group->first();
-            $billableHours = (float) $group->sum('billable_hours');
-            $amount        = (float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount);
-
-            return [
-                'project_name'    => $first->project?->name,
-                'billable_hours'  => round($billableHours, 2),
-                'avg_hourly_rate' => round((float) $group->avg('hourly_rate'), 2),
-                'billable_amount' => round($amount, 2),
-                'employee_count'  => $group->pluck('employee_id')->unique()->count(),
-                'entry_count'     => $group->count(),
-            ];
-        })->values();
-
-        $byEmployeeProject = $entries->groupBy(fn (TimesheetEntry $e) => "{$e->project_id}:{$e->employee_id}")
-            ->map(function ($group) {
-                $first = $group->first();
-
-                return [
-                    'project_name'   => $first->project?->name,
-                    'employee_name'  => $first->employee?->full_name,
-                    'billable_hours' => round((float) $group->sum('billable_hours'), 2),
-                    'hourly_rate'    => round((float) $group->avg('hourly_rate'), 2),
-                    'amount'         => round((float) $group->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
-                ];
-            })->values();
+        // Chantier 32.19 (layer 14c): extracted to
+        // ProjectBillingService::getProjectBillingReportData() so the exact
+        // same real aggregation also backs the new PDF/Excel export
+        // (TimesheetReportExportController) — no behavior change to this
+        // endpoint's own response shape.
+        $data = $this->billingService->getProjectBillingReportData(
+            $from,
+            $to,
+            $request->filled('project_id') ? (int) $request->project_id : null,
+        );
 
         return response()->json([
-            'total_billable_hours'  => round((float) $entries->sum('billable_hours'), 2),
-            'total_billable_amount' => round((float) $entries->sum(fn (TimesheetEntry $e) => $e->billable_amount), 2),
-            'avg_hourly_rate'       => round((float) $entries->avg('hourly_rate'), 2),
-            'by_project'            => $byProject,
-            'by_employee_project'   => $byEmployeeProject,
+            'total_billable_hours'  => $data['total_billable_hours'],
+            'total_billable_amount' => $data['total_billable_amount'],
+            'avg_hourly_rate'       => $data['avg_hourly_rate'],
+            'by_project'            => $data['by_project'],
+            'by_employee_project'   => $data['by_employee_project'],
         ]);
     }
 
@@ -583,8 +590,10 @@ class TimesheetAdvancedController extends Controller
         $from = $request->query('from_date', now()->subDays(30)->format('Y-m-d'));
         $to   = $request->query('to_date', now()->format('Y-m-d'));
 
+        // Chantier 32.19: whereDate() bounds — see approvePeriod().
         $entries = TimesheetEntry::with(['employee', 'project:id,name'])
-            ->whereBetween('entry_date', [$from, $to])
+            ->whereDate('entry_date', '>=', $from)
+            ->whereDate('entry_date', '<=', $to)
             ->when($request->filled('employee_id'), fn ($q) => $q->where('employee_id', $request->employee_id))
             ->get();
 
@@ -636,8 +645,10 @@ class TimesheetAdvancedController extends Controller
         $from = $request->query('from_date', now()->subDays(30)->format('Y-m-d'));
         $to   = $request->query('to_date', now()->format('Y-m-d'));
 
+        // Chantier 32.19: whereDate() bounds — see approvePeriod().
         $entries = TimesheetEntry::with('employee.department')
-            ->whereBetween('entry_date', [$from, $to])
+            ->whereDate('entry_date', '>=', $from)
+            ->whereDate('entry_date', '<=', $to)
             ->get();
 
         $byEmployee = $entries->groupBy('employee_id')->map(function ($group) {
@@ -695,8 +706,10 @@ class TimesheetAdvancedController extends Controller
     /**
      * GET /api/v1/projects/{id}/billing
      */
-    public function billingHistory(int $id): JsonResponse
+    public function billingHistory(Request $request, int $id): JsonResponse
     {
+        $this->assertProjectAccessible($request, $id);
+
         $history = $this->billingService->getBillingHistory($id);
 
         return response()->json(['data' => $history]);
@@ -707,6 +720,8 @@ class TimesheetAdvancedController extends Controller
      */
     public function billByMilestone(Request $request, int $id): JsonResponse
     {
+        $this->assertProjectAccessible($request, $id);
+
         $validated = $request->validate([
             'milestone_id' => 'required|integer',
         ]);
@@ -721,6 +736,8 @@ class TimesheetAdvancedController extends Controller
      */
     public function billByPercentage(Request $request, int $id): JsonResponse
     {
+        $this->assertProjectAccessible($request, $id);
+
         $validated = $request->validate([
             'percentage' => 'required|numeric|min:0.01|max:100',
         ]);
@@ -737,6 +754,8 @@ class TimesheetAdvancedController extends Controller
      */
     public function billTimeAndMaterial(Request $request, int $id): JsonResponse
     {
+        $this->assertProjectAccessible($request, $id);
+
         $validated = $request->validate([
             'period_start' => 'required|date',
             'period_end'   => 'required|date|after_or_equal:period_start',
@@ -754,8 +773,10 @@ class TimesheetAdvancedController extends Controller
     /**
      * GET /api/v1/projects/{id}/billing/invoiceable
      */
-    public function invoiceable(int $id): JsonResponse
+    public function invoiceable(Request $request, int $id): JsonResponse
     {
+        $this->assertProjectAccessible($request, $id);
+
         $data = $this->billingService->getInvoiceableAmount($id);
 
         return response()->json(['data' => $data]);
@@ -764,8 +785,18 @@ class TimesheetAdvancedController extends Controller
     /**
      * POST /api/v1/projects/{id}/billing/{billingId}/generate-invoice
      */
-    public function generateInvoice(int $id, int $billingId): JsonResponse
+    public function generateInvoice(Request $request, int $id, int $billingId): JsonResponse
     {
+        $this->assertProjectAccessible($request, $id);
+
+        // Chantier 32.19: a caller who owns project $id (passes the check
+        // above) could previously still pass ANY $billingId, including one
+        // belonging to a completely different project/company — generating
+        // and marking as "sent" a billing entry it has no relationship to
+        // at all. Confirmed empirically before this fix.
+        $billing = ProjectBilling::find($billingId);
+        abort_if($billing && (int) $billing->project_id !== $id, 404);
+
         $invoice = $this->billingService->generateInvoice($billingId);
 
         return response()->json(['data' => $invoice], 201);
@@ -779,11 +810,20 @@ class TimesheetAdvancedController extends Controller
      * Aggregate real TimesheetEntry hours for a period's date range and
      * transition it to 'submitted'. Shared by the weekStart-keyed
      * submitPeriod() and the id-keyed submitSheet().
+     *
+     * Chantier 32.19: this was the single most severe instance of the
+     * whereBetween('entry_date', ...) string-boundary bug documented on
+     * approvePeriod() above — confirmed empirically that submitting a real
+     * weekly sheet silently dropped the hours logged on the period's own
+     * LAST day (the day someone most naturally submits a timesheet on)
+     * from the aggregated total_hours/billable_hours/overtime_hours ever
+     * written to the period, with no error surfaced anywhere.
      */
     private function aggregateAndSubmit(TimesheetPeriod $period, ?int $submittedBy): void
     {
         $totals = TimesheetEntry::where('employee_id', $period->employee_id)
-            ->whereBetween('entry_date', [$period->period_start, $period->period_end])
+            ->whereDate('entry_date', '>=', $period->period_start)
+            ->whereDate('entry_date', '<=', $period->period_end)
             ->selectRaw('SUM(hours_worked) as total, SUM(billable_hours) as billable')
             ->first();
 
@@ -799,6 +839,32 @@ class TimesheetAdvancedController extends Controller
             'submitted_by'   => $submittedBy,
             'submitted_at'   => now(),
         ]);
+    }
+
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit): every one of the 6
+     * project-billing endpoints above resolved a project id straight from
+     * the URL with zero ownership check of any kind — any authenticated
+     * "employee" of any company could read another company's project
+     * billing history/invoiceable amount, or create real billing entries
+     * against it, just by knowing/guessing a project id, confirmed
+     * empirically over real HTTP requests. Mirrors the same 404-not-403,
+     * null-safe-when-either-side-lacks-a-real-company_id pattern already
+     * established for Project elsewhere in this app
+     * (Modules\Projects\...\ScopesToProjectCompany).
+     */
+    private function assertProjectAccessible(Request $request, int $projectId): void
+    {
+        $callerCompanyId = $request->user()?->company_id;
+        if ($callerCompanyId === null) {
+            return;
+        }
+
+        $project = Project::find($projectId);
+        if ($project && $project->company_id !== null
+            && (int) $project->company_id !== (int) $callerCompanyId) {
+            abort(404);
+        }
     }
 
     private function sheetPayload(TimesheetPeriod $period): array

@@ -23,8 +23,13 @@ class DepartmentController extends Controller
     {
         $this->authorize('viewAny', Department::class);
 
+        // Chantier 32.17 (HR deep 14-layer audit): zero tenant/company
+        // scoping at all before this — same cross-tenant leak already
+        // documented (and fixed) on EmployeeController::index().
         $perPage = $request->query('per_page', 15);
-        $departments = $this->service->getAllDepartments($perPage);
+        // Chantier 32: unconditional company_id scoping — see EmployeeController::index()'s
+        // comment for the confirmed empirical finding this closes.
+        $departments = $this->service->getAllDepartments($perPage, $request->user()?->company_id);
 
         return DepartmentResource::collection($departments);
     }
@@ -33,7 +38,12 @@ class DepartmentController extends Controller
     {
         $this->authorize('create', Department::class);
 
-        $department = $this->service->createDepartment($request->validated());
+        // Chantier 32: company_id always derived server-side, never from client input.
+        $data = array_merge($request->validated(), [
+            'company_id' => $request->user()->company_id,
+        ]);
+
+        $department = $this->service->createDepartment($data);
 
         return (new DepartmentResource($department))->response()->setStatusCode(201);
     }

@@ -168,14 +168,27 @@ test('can show an invoice', function () {
 // ── Mark Paid ─────────────────────────────────────────────────────────────────
 
 test('can mark invoice as paid', function () {
-    $user    = actingAsUser('accountant');
-    $invoice = Invoice::factory()->create(['created_by' => $user->id, 'status' => 'draft']);
+    $user = actingAsUser('accountant');
+    // Chantier 32.14 added a real lifecycle guard: a draft invoice must be
+    // sent before it can be marked paid (markPaid() 422s otherwise) —
+    // this fixture predates that fix and must start from 'sent', not 'draft'.
+    $invoice = Invoice::factory()->create(['created_by' => $user->id, 'status' => 'sent']);
 
     $this->postJson("/api/v1/accounting/invoices/{$invoice->id}/mark-paid")
         ->assertOk()
         ->assertJsonFragment(['status' => 'paid']);
 
     expect($invoice->fresh()->status)->toBe('paid');
+});
+
+test('cannot mark a draft invoice as paid without sending it first', function () {
+    $user    = actingAsUser('accountant');
+    $invoice = Invoice::factory()->create(['created_by' => $user->id, 'status' => 'draft']);
+
+    $this->postJson("/api/v1/accounting/invoices/{$invoice->id}/mark-paid")
+        ->assertStatus(422);
+
+    expect($invoice->fresh()->status)->toBe('draft');
 });
 
 // ── Destroy ───────────────────────────────────────────────────────────────────

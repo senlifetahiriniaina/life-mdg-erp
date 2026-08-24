@@ -7,6 +7,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Models\RedistributionRule;
 use Modules\Inventory\Models\TransferOrder;
 use Modules\Inventory\Models\Warehouse;
@@ -19,6 +20,8 @@ use Modules\Inventory\Services\StockRedistributionService;
  */
 class TransferOrderController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(private readonly StockRedistributionService $service) {}
 
     public function pending(): JsonResponse
@@ -29,6 +32,7 @@ class TransferOrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = TransferOrder::with(['fromWarehouse', 'toWarehouse'])
+            ->where('company_id', $this->companyId($request))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->type, fn ($q) => $q->where('type', $request->type))
             ->latest();
@@ -62,11 +66,16 @@ class TransferOrderController extends Controller
             ]
         );
 
+        // company_id is never trusted from client input — always the
+        // authenticated caller's own, set server-side after creation.
+        $order->update(['company_id' => $this->companyId($request)]);
+
         return response()->json($order, 201);
     }
 
-    public function show(TransferOrder $order): JsonResponse
+    public function show(Request $request, TransferOrder $order): JsonResponse
     {
+        $this->assertSameCompany($request, $order);
         $order->load(['lines.product', 'fromWarehouse', 'toWarehouse']);
 
         return response()->json($order->toArray());
@@ -74,6 +83,8 @@ class TransferOrderController extends Controller
 
     public function update(Request $request, TransferOrder $order): JsonResponse
     {
+        $this->assertSameCompany($request, $order);
+
         $validated = $request->validate([
             'notes' => 'nullable|string',
             'priority' => 'nullable|in:low,normal,high,urgent',
@@ -86,13 +97,15 @@ class TransferOrderController extends Controller
 
     public function approve(Request $request, TransferOrder $order): JsonResponse
     {
+        $this->assertSameCompany($request, $order);
         $order = $this->service->approveTransfer($order, $request->user()->id);
 
         return response()->json($order);
     }
 
-    public function ship(TransferOrder $order): JsonResponse
+    public function ship(Request $request, TransferOrder $order): JsonResponse
     {
+        $this->assertSameCompany($request, $order);
         $order = $this->service->shipTransfer($order);
 
         return response()->json($order);
@@ -100,6 +113,8 @@ class TransferOrderController extends Controller
 
     public function receive(Request $request, TransferOrder $order): JsonResponse
     {
+        $this->assertSameCompany($request, $order);
+
         $validated = $request->validate([
             'received_quantities' => 'nullable|array',
             'received_quantities.*' => 'numeric|min:0',
@@ -110,8 +125,9 @@ class TransferOrderController extends Controller
         return response()->json($order->load('lines'));
     }
 
-    public function cancel(TransferOrder $order): JsonResponse
+    public function cancel(Request $request, TransferOrder $order): JsonResponse
     {
+        $this->assertSameCompany($request, $order);
         $order = $this->service->cancelTransfer($order);
 
         return response()->json($order);

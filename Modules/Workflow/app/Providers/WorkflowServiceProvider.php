@@ -24,12 +24,11 @@ use Modules\Workflow\Services\Actions\ProjectsActionHandler;
 use Modules\Workflow\Services\Actions\QualityActionHandler;
 use Modules\Workflow\Services\Actions\SalesManufacturingActionHandler;
 use Modules\Workflow\Services\Actions\StrategyActionHandler;
-use Modules\Workflow\Services\ApprovalWorkflowService;
+use Modules\Workflow\Services\Automation\AiWorkflowAssistantService;
 use Modules\Workflow\Services\Automation\FlowExecutionEngine;
+use Modules\Workflow\Services\Automation\FlowSchedulerService;
 use Modules\Workflow\Services\Automation\NodeTypeRegistry;
-use Modules\Workflow\Services\TaskManagementService;
 use Modules\Workflow\Services\WorkflowActionRegistry;
-use Modules\Workflow\Services\WorkflowBuilderService;
 use Modules\Workflow\Services\WorkflowEngineService;
 
 class WorkflowServiceProvider extends ServiceProvider
@@ -38,11 +37,17 @@ class WorkflowServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        // ── Legacy / existing services ─────────────────────────────────────────
+        // ── Real, live engine ────────────────────────────────────────────────────
+        // Chantier 32.11: TaskManagementService/ApprovalWorkflowService/
+        // WorkflowBuilderService (grouped here previously as "Legacy /
+        // existing services") were deleted — confirmed via grep to have
+        // zero real callers anywhere outside their own isolated tests, each
+        // a Cache-backed uniqid()-id "store" with no Eloquent model/table
+        // ever persisting it. Task management and approval workflows are
+        // already real, live features in Modules/Projects and
+        // Modules/Validation respectively (Chantier 8.5-light). See this
+        // chantier's CLAUDE.md entry for the full rationale.
         $this->app->singleton(WorkflowEngineService::class);
-        $this->app->singleton(TaskManagementService::class);
-        $this->app->singleton(ApprovalWorkflowService::class);
-        $this->app->singleton(WorkflowBuilderService::class);
 
         // ── Phase-39 action handlers — original batch ──────────────────────────
         $this->app->singleton(AchatsInventoryActionHandler::class);
@@ -100,11 +105,21 @@ class WorkflowServiceProvider extends ServiceProvider
         $this->app->alias(NodeTypeRegistry::class,   'automation_node_registry');
         $this->app->alias(FlowExecutionEngine::class, 'automation_flow_engine');
 
+        // Chantier 32.11: real, well-built services with zero real callers
+        // (confirmed empirically, not just by grep) prior to this chantier —
+        // AutomationFlowController/WorkflowScheduleController/
+        // WorkflowTemplateController/WorkflowNodeController were fully
+        // written and unrouted; AiWorkflowController was a pure stub
+        // sitting in front of this real, fallback-first AI service that had
+        // never been wired to anything. All 4 controllers + this service
+        // are now routed for real (see routes/api.php) — explicit singleton
+        // bindings added here rather than relying on implicit
+        // auto-resolution, matching the rest of this provider's convention.
+        $this->app->singleton(FlowSchedulerService::class);
+        $this->app->singleton(AiWorkflowAssistantService::class);
+
         // ── Service aliases ────────────────────────────────────────────────────
         $this->app->alias(WorkflowEngineService::class,    'workflow_engine');
-        $this->app->alias(TaskManagementService::class,    'task_manager');
-        $this->app->alias(ApprovalWorkflowService::class,  'approval_workflow');
-        $this->app->alias(WorkflowBuilderService::class,   'workflow_builder');
         $this->app->alias(WorkflowActionRegistry::class,   'workflow_action_registry');
     }
 

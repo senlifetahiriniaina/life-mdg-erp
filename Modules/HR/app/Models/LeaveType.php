@@ -13,6 +13,7 @@ class LeaveType extends Model
     protected $table = 'hr_leave_types';
 
     protected $fillable = [
+        'company_id',
         'name',
         'code',
         'days_per_year',

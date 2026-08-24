@@ -41,8 +41,10 @@ class Supplier extends Model
     protected $table = 'inventory_suppliers';
 
     protected $fillable = [
+        'company_id',
         'name', 'code', 'email', 'phone', 'website', 'address',
         'country', 'currency', 'payment_terms', 'lead_time_days', 'notes', 'is_active',
+        'company_id',
     ];
 
     protected $casts = ['is_active' => 'boolean'];

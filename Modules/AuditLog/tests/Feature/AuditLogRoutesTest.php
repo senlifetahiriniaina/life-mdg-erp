@@ -64,9 +64,9 @@ test('ai assist endpoint requires authentication', function () {
         ->assertStatus(401);
 });
 
-test('ai assist returns guidance for view_logs action', function () {
+test('ai assist returns guidance for view_audit_log action', function () {
     $response = $this->postJson('/api/v1/audit-logs/ai/assist', [
-        'action' => 'view_logs',
+        'action' => 'view_audit_log',
         'locale' => 'fr',
     ]);
 
@@ -84,9 +84,9 @@ test('ai assist returns guidance for export_audit action', function () {
     $response->assertStatus(200);
 });
 
-test('ai assist returns guidance for anomaly_detection action', function () {
+test('ai assist returns guidance for filter_events action', function () {
     $response = $this->postJson('/api/v1/audit-logs/ai/assist', [
-        'action' => 'anomaly_detection',
+        'action' => 'filter_events',
         'locale' => 'fr',
     ]);
 
@@ -99,19 +99,9 @@ test('ai assist validates required action field', function () {
         ->assertJsonValidationErrors(['action']);
 });
 
-test('ai assist accepts compliance_report action', function () {
-    $response = $this->postJson('/api/v1/audit-logs/ai/assist', [
-        'action'  => 'compliance_report',
-        'context' => ['standard' => 'GDPR', 'period' => '2026-Q1'],
-        'locale'  => 'fr',
-    ]);
-
-    $response->assertStatus(200);
-});
-
 test('ai assist response has correct structure', function () {
     $response = $this->postJson('/api/v1/audit-logs/ai/assist', [
-        'action' => 'view_logs',
+        'action' => 'view_audit_log',
     ]);
 
     $response->assertStatus(200);
@@ -121,3 +111,12 @@ test('ai assist response has correct structure', function () {
         ->and($data['enabled'])->toBeBool()
         ->and($data['how_to_do'])->toBeArray();
 });
+
+// Chantier 32.4: the previous versions of the 3 tests above used fictional
+// action keys (view_logs, anomaly_detection, compliance_report) — none of
+// which are registered in AiContextualAssistantService::supportedModules()
+// (the real, registered AuditLog actions are view_audit_log, export_audit,
+// filter_events) — corrected to the real ones. Since every test in this
+// file runs behind the beforeEach mock above, real (unmocked) fallback-text
+// coverage for these 3 actions lives in Chantier32AuditLogDeepAuditTest.php
+// instead, where it can actually exercise the live service.

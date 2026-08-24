@@ -11,7 +11,9 @@ use Illuminate\Http\Request;
 use Modules\HR\Models\Employee;
 use Modules\Payroll\Data\StatutorySchemes;
 use Modules\Payroll\Models\Payslip;
+use Modules\Payroll\Models\PayrollRun;
 use Modules\Payroll\Services\PayrollIntegrationService;
+use Modules\Payroll\Services\PayrollService;
 
 /**
  * @group Payroll
@@ -20,7 +22,21 @@ use Modules\Payroll\Services\PayrollIntegrationService;
  */
 class PayrollController extends Controller
 {
-    public function __construct(private readonly PayrollIntegrationService $service) {}
+    public function __construct(
+        private readonly PayrollIntegrationService $service,
+        // Chantier 32.18 (Payroll deep audit): PayrollService's run-lifecycle
+        // methods (validateRun()/processRun()) already existed, real and
+        // tested via their one live Workflow-automation consumer
+        // (createRun()), but no real controller ever called them — confirmed
+        // empirically that approveBatch()/processPayment() below updated
+        // every affected Payslip's status directly while the PayrollRun
+        // header record grouping them (its own status/total_gross/
+        // total_deductions/total_net/validated_at) stayed frozen at
+        // 'draft'/0 forever, even after every payslip underneath it was
+        // paid. Wired in below rather than left as a silent data-integrity
+        // gap.
+        private readonly PayrollService $payrollService,
+    ) {}
 
     /**
      * List payslips for the current tenant and period.
@@ -89,10 +105,31 @@ class PayrollController extends Controller
         [$year, $month] = explode('-', $validated['period']);
         $periodDate = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth()->toDateString();
 
-        $count = Payslip::where('tenant_id', $this->tenantId($request))
+        // Chantier 32.18: was a bulk Payslip::where(...)->update(...) query-
+        // builder update — Eloquent model events (and therefore
+        // PayslipObserver, wired in above) never fire on a mass query-
+        // builder update, only on a real model save. Switched to iterate
+        // and save each record individually, matching processPayment()'s
+        // own already-correct $records->each(fn ($r) => $r->update(...))
+        // pattern immediately below, so an employee is actually notified
+        // when their payslip is approved.
+        $draftPayslips = Payslip::where('tenant_id', $this->tenantId($request))
             ->whereDate('period', $periodDate)
             ->where('status', 'draft')
-            ->update(['status' => 'approved']);
+            ->get();
+        $draftPayslips->each(fn ($p) => $p->update(['status' => 'approved']));
+        $count = $draftPayslips->count();
+
+        // Chantier 32.18: keep the PayrollRun header record (the same
+        // ['tenant_id','period']-unique run every Payslip in this batch
+        // points at) in sync with its payslips' real approval state,
+        // instead of leaving it frozen at 'draft' forever.
+        $run = PayrollRun::where('tenant_id', $this->tenantId($request))
+            ->whereDate('period', $periodDate)
+            ->first();
+        if ($run) {
+            $this->payrollService->validateRun($run);
+        }
 
         return response()->json(['approved_count' => $count]);
     }
@@ -120,6 +157,21 @@ class PayrollController extends Controller
 
         $records->each(fn ($r) => $r->update(['status' => 'paid', 'paid_at' => now()]));
 
+        // Chantier 32.18: recompute the run's totals from its now-paid
+        // payslips (processRun()) then mark it paid — PayrollService's own
+        // markAsPaid() was deliberately NOT reused here: it flips every
+        // still-DRAFT payslip straight to 'paid' unconditionally, bypassing
+        // the approval step this controller enforces above (only
+        // 'approved' payslips are ever paid here) — that would be a real
+        // business-rule violation, not a lifecycle-sync fix.
+        $run = PayrollRun::where('tenant_id', $this->tenantId($request))
+            ->whereDate('period', $periodDate)
+            ->first();
+        if ($run) {
+            $this->payrollService->processRun($run);
+            $run->update(['status' => 'paid']);
+        }
+
         return response()->json([
             'paid_count' => $records->count(),
             'accounting' => $accountingResult,
@@ -144,9 +196,14 @@ class PayrollController extends Controller
         [$year, $month] = explode('-', $request->input('period', now()->format('Y-m')));
         $start = Carbon::createFromDate((int) $year, (int) $month, 1)->startOfMonth();
 
+        // Chantier 32.18: getPayrollSummary() now derives the real currency
+        // itself (from the period's own payslips, or the tenant's Company
+        // record) — this used to unconditionally overwrite it with a
+        // hardcoded 'XOF' regardless of the real data, confirmed empirically
+        // to render "XOF 525,000" on a real MGA payslip's dashboard card.
         $summary = $this->service->getPayrollSummary($this->tenantId($request), $start, $start);
 
-        return response()->json(['statistics' => array_merge($summary, ['currency' => 'XOF'])]);
+        return response()->json(['statistics' => $summary]);
     }
 
     /**

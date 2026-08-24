@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Core\Http\Controllers\Api\AccountController;
 use Modules\Core\Http\Controllers\Api\AIAssistantController;
-use Modules\Core\Http\Controllers\Api\ApprovalController;
 use Modules\Core\Http\Controllers\Api\AuditLogController;
 use Modules\Core\Http\Controllers\Api\AuthController;
 use Modules\Core\Http\Controllers\Api\ConsentController;
@@ -21,7 +20,6 @@ use Modules\Core\Http\Controllers\Api\SyncController;
 use Modules\Core\Http\Controllers\Api\TenantController;
 use Modules\Core\Http\Controllers\Api\TenantExchangeController;
 use Modules\Core\Http\Controllers\Api\TenantRegistrationController;
-use Modules\Core\Http\Controllers\Api\WorkflowController;
 
 /*
 |--------------------------------------------------------------------------
@@ -150,19 +148,20 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    // ─── GDPR Compliance ─────────────────────────────────────────────────────
-    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('gdpr')->group(function () {
-        Route::get('sar-status', [GdprController::class, 'getSARStatus']);
-        Route::get('export', [GdprController::class, 'exportPersonalData']);
-        Route::get('compliance-status', [GdprController::class, 'complianceStatus']);
-        Route::get('requests', [GdprController::class, 'listRequests']);
-        Route::get('export/{request_id}/download', [GdprController::class, 'downloadExport']);
-        Route::middleware('throttle:create_post')->group(function () {
-            Route::post('request-sar', [GdprController::class, 'requestSAR']);
-            Route::post('delete-account', [GdprController::class, 'deleteAccount']);
-            Route::post('delete', [GdprController::class, 'deletePersonalData']);
-        });
-    });
+    // Chantier 32.1: an entire old "gdpr/*" prefix route group used to live
+    // here, calling GdprController methods that have never existed on the
+    // class at all — getSARStatus(), exportPersonalData(), complianceStatus(),
+    // listRequests(), requestSAR(), deleteAccount(), deletePersonalData() —
+    // a guaranteed fatal "call to undefined method" on 6 of its 7 routes'
+    // first real call, and confirmed (grep across resources/js, Modules/**/
+    // resources/js, and every test file) to have zero caller anywhere, ever.
+    // The real, current, correctly-wired equivalent — same GDPR concepts,
+    // renamed/refactored methods that DO exist (submitSAR/gdprDeleteAccount/
+    // exportPersonalDataForUser/dataRequests/etc) — is the "core/gdpr/*"
+    // group further below, which the one real frontend GDPR consumer
+    // (GdprConsent.vue, POST core/gdpr/sar) actually calls. Deleted the dead
+    // duplicate rather than fix its method names, since the working
+    // superset already exists.
 
     // Simple consent update endpoint (used by frontend)
     Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:create_post'])->put('consent', function (\Illuminate\Http\Request $request) {
@@ -230,28 +229,22 @@ Route::prefix('v1')->group(function () {
         Route::get('{auditLog}', [AuditLogController::class, 'show']);
     });
 
-    // ─── Workflow Engine ──────────────────────────────────────────────────────
-    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('core/workflows')->group(function () {
-        Route::get('/', [WorkflowController::class, 'index']);
-        Route::get('{module}/{type}', [WorkflowController::class, 'show']);
-        Route::get('{module}/{type}/{subjectId}/state', [WorkflowController::class, 'state']);
-        Route::middleware('throttle:create_post')->post('{module}/{type}/{subjectId}/transition', [WorkflowController::class, 'transition']);
-    });
-
-    // ─── Approval Workflows ───────────────────────────────────────────────────
-    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('core/approvals')->group(function () {
-        Route::get('workflows', [ApprovalController::class, 'indexWorkflows']);
-        Route::get('workflows/{approvalWorkflow}', [ApprovalController::class, 'showWorkflow']);
-        Route::get('pending', [ApprovalController::class, 'pending']);
-        Route::get('instances/{subjectType}/{subjectId}', [ApprovalController::class, 'getInstance']);
-        Route::middleware('throttle:create_post')->group(function () {
-            Route::post('workflows', [ApprovalController::class, 'storeWorkflow']);
-            Route::put('workflows/{approvalWorkflow}', [ApprovalController::class, 'updateWorkflow']);
-            Route::delete('workflows/{approvalWorkflow}', [ApprovalController::class, 'destroyWorkflow']);
-            Route::post('instances/{approvalInstance}/decide', [ApprovalController::class, 'decide']);
-            Route::post('instances/{approvalInstance}/cancel', [ApprovalController::class, 'cancel']);
-        });
-    });
+    // Chantier 32.1: two generic, self-contained engines that used to live
+    // here — "core/workflows/*" (a generic FSM engine: WorkflowController/
+    // WorkflowService/WorkflowDefinition/WorkflowState) and "core/approvals/*"
+    // (a generic multi-step approval engine: ApprovalController/
+    // ApprovalService/ApprovalWorkflow/ApprovalInstance/ApprovalDecision) —
+    // were both deleted as confirmed-dead by the Chantier 32.1 deep audit:
+    // zero real caller anywhere in the app ever drove either one (no domain
+    // module ever created a WorkflowState or called
+    // ApprovalService::startApproval() outside the controllers' own code),
+    // their only frontend consumers (WorkflowVisualizer.vue/ApprovalCard.vue)
+    // were never mounted by any real page, and zero test covered either
+    // beyond RBAC-shape assertions. Real approval chains in this app already
+    // go through Modules\Validation (Achats/Accounting/HR — see CLAUDE.md's
+    // Chantier 31 entry); this was a dead-parallel-subsystem duplicate of
+    // that, the same pattern already found and deleted repeatedly this
+    // session. See Modules/Core.md and CLAUDE.md's Chantier 32.1 entry.
 
     // ─── Cross-Tenant Data Exchange ───────────────────────────────────────────
     Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('core/exchanges')->group(function () {
@@ -279,9 +272,32 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    // ─── Realtime Updates (WebSocket/SSE) ─────────────────────────────────────
+    // Chantier 38.1: SessionManagementDashboard (device fingerprinting,
+    // hijack detection, concurrent-session limits — Modules\Core\Services\
+    // SessionSecurityService) was fully real and tested but had zero
+    // controller/route consumer anywhere ("my sessions" self-service was never
+    // built). See SessionManagementController's own docblock for the
+    // empirically-confirmed caveat: SessionEnhanced rows are only ever written
+    // for token-based auth (AuthController::login()), not this app's real
+    // primary Inertia session-cookie login flow, which resolves a Sanctum
+    // TransientToken that SanctumSessionSecurity middleware deliberately
+    // skips.
+    // ─── Session Management (self-service) ──────────────────────────────────
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('sessions')->group(function () {
+        Route::get('/', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'index']);
+        Route::get('{id}', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'show']);
+        Route::get('{id}/timeline', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'timeline']);
+        Route::middleware('throttle:create_post')->group(function () {
+            Route::delete('{id}', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'destroy']);
+            Route::post('terminate-others', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'terminateOthers']);
+        });
+    });
+
+    // ─── Realtime Updates ──────────────────────────────────────────────────────
+    // Chantier 32.1: dropped the dead demo-only SSE `subscribe` route — see
+    // RealtimeController's own docblock. Real-time delivery in this app
+    // goes through Reverb + Echo, not this endpoint.
     Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('realtime')->group(function () {
-        Route::get('subscribe', [RealtimeController::class, 'subscribe']);
         Route::get('health', [RealtimeController::class, 'health']);
     });
 

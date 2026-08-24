@@ -262,11 +262,19 @@ class DefaultDataSeeder extends Seeder
         // migration's docblock for why not a FK), so this seeder stays
         // independent of whether AccountingDatabaseSeeder has run yet.
         $accountMappings = [
-            $matieresPremieres->id => ['default_stock_account_code' => '310', 'default_purchase_account_code' => '601', 'default_sale_account_code' => null, 'default_variance_account_code' => '6031'],
-            $accessoires->id       => ['default_stock_account_code' => '312', 'default_purchase_account_code' => '602', 'default_sale_account_code' => null, 'default_variance_account_code' => '6032'],
-            $semiFinis->id         => ['default_stock_account_code' => '335', 'default_purchase_account_code' => null,  'default_sale_account_code' => null, 'default_variance_account_code' => '6035'],
-            $produitsFinis->id     => ['default_stock_account_code' => '355', 'default_purchase_account_code' => null,  'default_sale_account_code' => '701', 'default_variance_account_code' => '7135'],
-            $marchandises->id      => ['default_stock_account_code' => '370', 'default_purchase_account_code' => '607', 'default_sale_account_code' => '707', 'default_variance_account_code' => '6037'],
+            // Chantier 36 — remapped onto the real user-provided chart of
+            // accounts. "Matières premières" and "Accessoires" deliberately
+            // share the same purchase (602) and variance (6032) accounts:
+            // SYSCOHADA's real 602/6032 labels ("Achats/Variation des
+            // stocks de matières premières ET fournitures liées") already
+            // group raw materials with tied-in supplies as one class —
+            // this isn't a copy-paste duplicate, it's the real account
+            // structure.
+            $matieresPremieres->id => ['default_stock_account_code' => '32',  'default_purchase_account_code' => '602', 'default_sale_account_code' => null, 'default_variance_account_code' => '6032'],
+            $accessoires->id       => ['default_stock_account_code' => '323', 'default_purchase_account_code' => '602', 'default_sale_account_code' => null, 'default_variance_account_code' => '6032'],
+            $semiFinis->id         => ['default_stock_account_code' => '34',  'default_purchase_account_code' => null,  'default_sale_account_code' => null, 'default_variance_account_code' => '734'],
+            $produitsFinis->id     => ['default_stock_account_code' => '36',  'default_purchase_account_code' => null,  'default_sale_account_code' => '702', 'default_variance_account_code' => '736'],
+            $marchandises->id      => ['default_stock_account_code' => '31',  'default_purchase_account_code' => '601', 'default_sale_account_code' => '701', 'default_variance_account_code' => '6031'],
             $services->id          => ['default_stock_account_code' => null,  'default_purchase_account_code' => null,  'default_sale_account_code' => '706', 'default_variance_account_code' => null],
         ];
         foreach ($accountMappings as $categoryId => $codes) {

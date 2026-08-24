@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Core\Traits\RecordsActivity;
 use Modules\HR\Database\Factories\JobPositionFactory;
 
 /**
@@ -19,7 +20,9 @@ use Modules\HR\Database\Factories\JobPositionFactory;
  */
 class JobPosition extends Model
 {
-    use HasFactory;
+    // Chantier 32.17 (HR deep 14-layer audit): no PII on this model — see
+    // Employee's own docblock for the full RecordsActivity rationale.
+    use HasFactory, RecordsActivity;
 
     protected static function newFactory(): JobPositionFactory
     {
@@ -28,7 +31,9 @@ class JobPosition extends Model
 
     protected $table = 'hr_job_positions';
 
-    protected $fillable = ['department_id', 'title', 'level', 'description', 'requirements', 'is_active'];
+    // Chantier 32: 'company_id' closes the same cross-tenant leak fixed on
+    // Employee/Department in the same chantier.
+    protected $fillable = ['company_id', 'department_id', 'title', 'level', 'description', 'requirements', 'is_active'];
 
     protected $casts = [
         'requirements' => 'array',

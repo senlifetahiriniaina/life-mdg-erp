@@ -99,6 +99,30 @@ class SandboxService
             ->get();
     }
 
+    /**
+     * Return every active sandbox across every tenant.
+     *
+     * Chantier 32.1: SandboxController::index() (role:super-admin-only)
+     * used to default to $request->user()?->tenant_id — the well-documented
+     * phantom users.tenant_id column, always null — which listByParent()
+     * then filtered on as an empty string, matching zero real sandboxes.
+     * Confirmed empirically that the real frontend (resources/js/Pages/
+     * Admin/Sandboxes/Index.vue) never passes a parent_tenant_id at all, so
+     * this admin page has always shown an empty list regardless of how many
+     * sandboxes actually exist. A super-admin is trusted to see every
+     * tenant's sandboxes globally by this route's own gate (matching
+     * SuperadminController::index()/stats()/auditLog(), none of which
+     * implicitly scope to "the caller's own tenant" either) — so the real
+     * fix is a genuine "list everything" method, not a different single-
+     * tenant resolution.
+     */
+    public function listAll(): Collection
+    {
+        return Sandbox::active()
+            ->with(['tenant', 'parentTenant'])
+            ->get();
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // UPDATE
     // ──────────────────────────────────────────────────────────────────────────

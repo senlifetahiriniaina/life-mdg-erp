@@ -50,11 +50,21 @@ class SetupController extends Controller
     {
         $this->authorize('create', ImportJob::class);
 
+        // Chantier 32.10: target_module/target_entity used to be plain free
+        // text — harmless on its own now that ImportExecutorService only
+        // ever resolves a destination table via TargetSchemas' hardcoded
+        // allowlist (an unrecognised pair simply can never be executed),
+        // but validating it here gives a real, immediate 422 instead of a
+        // confusing failure only surfacing at /execute time.
         $validator = Validator::make($request->all(), [
             'name'             => 'required|string|max:100',
             'source_type'      => ['required', Rule::in(['excel', 'csv', 'pdf', 'database'])],
             'target_module'    => 'required|string|max:50',
-            'target_entity'    => 'required|string|max:50',
+            'target_entity'    => ['required', 'string', 'max:50', function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                if (TargetSchemas::table((string) $request->input('target_module'), (string) $value) === null) {
+                    $fail("Unknown import target '{$request->input('target_module')}/{$value}'.");
+                }
+            }],
             // File sources
             'file'             => 'required_if:source_type,excel,csv,pdf|file|max:51200',
             // DB sources
@@ -242,10 +252,27 @@ class SetupController extends Controller
             return response()->json(['message' => 'Job is not in an editable state.'], 409);
         }
 
+        // Chantier 32.10 (security, critical): target_field used to be plain
+        // `string|max:100` with zero allowlist — combined with
+        // ImportExecutorService's now-fixed table-resolution bug (see its
+        // own docblock), this was one half of an arbitrary-column write
+        // primitive. `target_field` is now constrained to the real column
+        // names the resolved destination table actually declares for this
+        // job's own target_module/target_entity (TargetSchemas::getSchema())
+        // — a caller can no longer write to any column they choose, only to
+        // one of the fields this app deliberately exposes for that entity.
+        // `target_table` is still accepted (the real frontend still sends
+        // it) but is NEVER trusted for resolution — see
+        // ImportExecutorService::resolveTargetTable()'s own docblock.
+        $allowedTargetFields = array_column(
+            TargetSchemas::getSchema($job->target_module, $job->target_entity),
+            'field',
+        );
+
         $validator = Validator::make($request->all(), [
             'mappings'                       => 'required|array|min:1',
             'mappings.*.source_field'        => 'required|string|max:100',
-            'mappings.*.target_field'        => 'required|string|max:100',
+            'mappings.*.target_field'        => ['required', 'string', 'max:100', Rule::in($allowedTargetFields)],
             'mappings.*.target_table'        => 'required|string|max:100',
             'mappings.*.transform_type'      => ['required', Rule::in(['direct', 'date_format', 'number_format', 'lookup', 'concat', 'split', 'custom'])],
             'mappings.*.transform_config'    => 'nullable|array',

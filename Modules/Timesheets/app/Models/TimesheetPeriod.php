@@ -125,10 +125,17 @@ class TimesheetPeriod extends Model
      * column that model didn't even declare. Repointed to the real
      * TimesheetEntry model / entry_date column.
      */
+    /**
+     * Chantier 32.19 (Timesheets deep 14-layer audit): was whereBetween()
+     * on the raw column — see TimesheetAdvancedController::approvePeriod()'s
+     * docblock for the full write-up of why a bare Y-m-d upper bound
+     * silently excludes any entry dated exactly on period_end.
+     */
     public function entries(): HasMany
     {
         return $this->hasMany(TimesheetEntry::class, 'employee_id', 'employee_id')
-            ->whereBetween('entry_date', [$this->period_start, $this->period_end]);
+            ->whereDate('entry_date', '>=', $this->period_start)
+            ->whereDate('entry_date', '<=', $this->period_end);
     }
 
     public function employee(): BelongsTo

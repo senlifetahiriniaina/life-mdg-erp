@@ -37,7 +37,13 @@ class EmployeeController extends Controller
         $perPage = min((int) ($request->query('per_page', 15)), 100);
 
         // Eager load all frequently-accessed relationships
-        $query = Employee::with('department', 'jobPosition', 'manager', 'user');
+        // Chantier 32: this module had zero company/tenant scoping anywhere
+        // at all — any authenticated user of any company could list every
+        // other company's employees (confirmed empirically, see CLAUDE.md /
+        // Chantier19HRReauditTest.php). Unconditional company_id filter,
+        // matching the established RFQController::index() precedent.
+        $query = Employee::with('department', 'jobPosition', 'manager', 'user')
+            ->where('company_id', $request->user()->company_id);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -69,7 +75,14 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', Employee::class);
 
-        $employee = $this->service->createEmployee($request->validated());
+        // Chantier 32: company_id is always derived server-side from the
+        // acting user — never trusted from client input (StoreEmployeeRequest
+        // has no company_id rule at all, so there is nothing to strip).
+        $data = array_merge($request->validated(), [
+            'company_id' => $request->user()->company_id,
+        ]);
+
+        $employee = $this->service->createEmployee($data);
 
         return (new EmployeeResource($employee))->response()->setStatusCode(201);
     }
@@ -145,28 +158,42 @@ class EmployeeController extends Controller
         return new EmployeeResource($updated);
     }
 
-    public function destroy(Employee $employee)
+    public function destroy(Request $request, Employee $employee)
     {
         $this->authorize('delete', $employee);
+
+        // Chantier 32.17 (HR deep 14-layer audit): this had zero business
+        // rule at all — a real, if never-wired-up, guard for exactly this
+        // ("Cannot delete an active employee without force") already
+        // existed on the confirmed-dead, zero-caller Modules\HR\Services\
+        // EmployeeService (deleted in the same chantier, redundant with
+        // this controller/HRService in every other respect) — folded the
+        // one genuinely useful rule it demonstrated into the real,
+        // routed delete path instead of losing it.
+        if ($employee->status === 'active' && ! $request->boolean('force')) {
+            return response()->json([
+                'message' => 'Cannot delete an active employee without force. Pass ?force=1 to override.',
+            ], 409);
+        }
 
         $employee->delete();
 
         return response()->noContent();
     }
 
-    public function byDepartment(int $departmentId)
+    public function byDepartment(Request $request, int $departmentId)
     {
         $this->authorize('viewAny', Employee::class);
 
-        $employees = $this->service->getEmployeesByDepartment($departmentId);
+        $employees = $this->service->getEmployeesByDepartment($departmentId, $request->user()->company_id);
 
         return EmployeeResource::collection($employees);
     }
 
-    public function metrics()
+    public function metrics(Request $request)
     {
         $this->authorize('viewAny', Employee::class);
 
-        return response()->json($this->service->getHRMetrics());
+        return response()->json($this->service->getHRMetrics($request->user()->company_id));
     }
 }

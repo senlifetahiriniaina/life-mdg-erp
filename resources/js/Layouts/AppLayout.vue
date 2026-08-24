@@ -159,6 +159,16 @@ const allNavGroups: NavGroup[] = [
   ]},
   { label: 'Ventes & clients', items: [
     { key: 'crm', module: 'CRM', href: '/crm/contacts', icon: 'pi pi-users' },
+    // Chantier 32.16 (Sales deep 14-layer audit, layer 3 — vue): the entire
+    // Sales module (orders, quotations, the deposit/balance cycle,
+    // recurring orders, AI-assisted objectives) had zero nav entry
+    // anywhere in this file — confirmed via grep across the whole sidebar
+    // definition — reachable only by typing a URL directly. 'Sales' only
+    // ever appeared in ROLE_MODULE_ACCESS below (which gates *visibility*
+    // of an item, not whether one exists), so no role — not even
+    // sales-manager, whose own name suggests otherwise — has ever had a
+    // link to this module.
+    { key: 'sales', module: 'Sales', href: '/sales', icon: 'pi pi-shopping-cart' },
     { key: 'accounting', module: 'Accounting', href: '/accounting/invoices', icon: 'pi pi-receipt' },
     { key: 'helpdesk', module: 'Helpdesk', href: '/helpdesk/tickets', icon: 'pi pi-headphones' },
   ]},

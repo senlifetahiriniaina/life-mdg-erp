@@ -42,6 +42,11 @@ class SalesQuotation extends Model
         'tenant_id',
         'reference',
         'contact_id',
+        // Chantier 32.16 (Sales deep 14-layer audit): account_id is a real,
+        // migrated column (2026_06_08_000003_create_sales_quotations_table)
+        // that was never mass-assignable — activated for real symmetry with
+        // SalesOrder, which already supports both contact_id and account_id.
+        'account_id',
         'status',
         'currency',
         'total',

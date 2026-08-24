@@ -11,7 +11,6 @@ use Modules\HR\Models\Department;
 use Modules\HR\Models\Employee;
 use Modules\HR\Models\LeaveRequest;
 use Modules\HR\Models\LeaveType;
-use Modules\HR\Models\Position;
 
 class HrDashboardService
 {
@@ -20,11 +19,18 @@ class HrDashboardService
      *
      * @return array<string, mixed>
      */
-    public function getStats(): array
+    // Chantier 32: threaded an optional $companyId through every aggregate
+    // below — this module had zero company/tenant scoping anywhere at all
+    // (see EmployeePolicy's docblock for the full rationale); the dashboard
+    // controller now passes the acting user's real company_id.
+    public function getStats(?int $companyId = null): array
     {
-        $headcount = Employee::where('status', 'active')->count();
+        $headcount = Employee::where('status', 'active')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
+            ->count();
 
         $absentToday = LeaveRequest::where('status', 'approved')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->whereDate('start_date', '<=', today())
             ->whereDate('end_date', '>=', today())
             ->count();
@@ -43,25 +49,27 @@ class HrDashboardService
         // yields other(now)-this(hire_date) = a positive value.
         $avgTenureMonths = Employee::where('status', 'active')
             ->whereNotNull('hire_date')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->get()
             ->avg(fn (Employee $e) => $e->hire_date ? Carbon::parse($e->hire_date)->diffInMonths(now()) : 0);
 
-        // Chantier 19 (HR): Modules\HR\Models\Position (table hr_positions) is
-        // a confirmed-dead, always-empty model — zero routes/controllers
-        // anywhere reference it (only JobPosition, a genuinely different,
-        // real/populated model with no headcount-target field of its own,
-        // is actually routed/used) and nothing in this app's real write
-        // paths (DemoSeeder included) ever populates hr_positions. Position::
-        // sum('headcount') therefore always returns 0, so this always
-        // computed a nonsensical negative "open positions" count on every
-        // real dashboard load. There's no real per-position headcount-target
-        // data source anywhere in this trimmed HR scope to compute a
-        // genuine open-positions figure from (building one would mean
-        // adding a new field/UI, not fixing existing wiring) — clamped to 0
-        // rather than surfacing a misleading negative number, matching this
-        // app's established fallback-first degradation pattern (see
-        // Strategy's training_roi/time_to_fill ratios).
-        $openPositions = max(0, (int) Position::sum('headcount') - $headcount);
+        // Chantier 19 (HR) originally clamped this to 0 rather than surface a
+        // misleading negative number, since Modules\HR\Models\Position (table
+        // hr_positions) was a confirmed-dead, always-empty model — zero
+        // routes/controllers anywhere referenced it (only JobPosition, a
+        // genuinely different, real/populated model with no headcount-target
+        // field of its own, is actually routed/used) and nothing in this
+        // app's real write paths ever populated hr_positions.
+        // Chantier 32.17 (HR deep 14-layer audit): Position + hr_positions
+        // dropped for good (Layer 9 fake/dead — see the migration and
+        // Department::jobPositions() docblock). Still no real per-position
+        // headcount-target data source anywhere in this trimmed HR scope to
+        // compute a genuine open-positions figure from (building one would
+        // mean adding a new field/UI, not fixing existing wiring) — kept at
+        // the same 0 fallback, matching this app's established
+        // fallback-first degradation pattern (see Strategy's training_roi/
+        // time_to_fill ratios).
+        $openPositions = 0;
 
         return [
             'headcount' => $headcount,
@@ -76,9 +84,10 @@ class HrDashboardService
      *
      * @return array<string, int>
      */
-    public function getDepartmentDistribution(): array
+    public function getDepartmentDistribution(?int $companyId = null): array
     {
         $rows = Employee::where('hr_employees.status', 'active')
+            ->when($companyId !== null, fn ($q) => $q->where('hr_employees.company_id', $companyId))
             ->join('hr_departments', 'hr_departments.id', '=', 'hr_employees.department_id')
             ->groupBy('hr_departments.id', 'hr_departments.name')
             ->select('hr_departments.name', DB::raw('count(*) as total'))
@@ -90,7 +99,9 @@ class HrDashboardService
         }
 
         // Employees without a department
-        $unassigned = Employee::where('hr_employees.status', 'active')->whereNull('department_id')->count();
+        $unassigned = Employee::where('hr_employees.status', 'active')
+            ->when($companyId !== null, fn ($q) => $q->where('hr_employees.company_id', $companyId))
+            ->whereNull('department_id')->count();
         if ($unassigned > 0) {
             $result['Unassigned'] = $unassigned;
         }
@@ -103,11 +114,14 @@ class HrDashboardService
      *
      * @return array<string, int>
      */
-    public function getLeaveStats(): array
+    public function getLeaveStats(?int $companyId = null): array
     {
-        $pending = LeaveRequest::where('status', 'pending')->count();
+        $pending = LeaveRequest::where('status', 'pending')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
+            ->count();
 
         $approvedThisMonth = LeaveRequest::where('status', 'approved')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->whereMonth('approved_at', now()->month)
             ->whereYear('approved_at', now()->year)
             ->count();
@@ -144,24 +158,29 @@ class HrDashboardService
      *
      * @return array<string, int>
      */
-    public function getAttendanceToday(): array
+    public function getAttendanceToday(?int $companyId = null): array
     {
-        $totalActive = Employee::where('status', 'active')->count();
+        $totalActive = Employee::where('status', 'active')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
+            ->count();
 
         // Present: clocked in today (any type except remote)
         $present = AttendanceRecord::whereDate('clock_in', today())
             ->where('type', '!=', 'remote')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->distinct('employee_id')
             ->count('employee_id');
 
         // Remote: clocked in today with type = remote
         $remote = AttendanceRecord::whereDate('clock_in', today())
             ->where('type', 'remote')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->distinct('employee_id')
             ->count('employee_id');
 
         // On leave today
         $onLeave = LeaveRequest::where('status', 'approved')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->whereDate('start_date', '<=', today())
             ->whereDate('end_date', '>=', today())
             ->count();
@@ -186,10 +205,13 @@ class HrDashboardService
      *
      * @return array<string, mixed>
      */
-    public function getLeaveAnalytics(int $year, ?int $departmentId = null): array
+    // Chantier 32: threaded an optional $companyId through — same rationale
+    // as getStats()/getDepartmentDistribution() above.
+    public function getLeaveAnalytics(int $year, ?int $departmentId = null, ?int $companyId = null): array
     {
         $requestsQuery = LeaveRequest::query()
             ->whereYear('start_date', $year)
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->when($departmentId, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('department_id', $departmentId)));
 
         $totalTaken = (int) (clone $requestsQuery)->where('status', 'approved')->sum('days');
@@ -211,6 +233,7 @@ class HrDashboardService
         }
 
         $leaveTypeStats = LeaveType::query()
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->withCount(['leaveRequests as taken_count' => function ($q) use ($year, $departmentId) {
                 $q->where('status', 'approved')
                     ->whereYear('start_date', $year)
@@ -225,11 +248,14 @@ class HrDashboardService
 
         $employees = Employee::query()
             ->where('status', 'active')
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->with('department:id,name')
             ->get(['id', 'first_name', 'last_name', 'department_id']);
 
-        $leaveTypes = LeaveType::where('is_active', true)->get(['id', 'days_per_year']);
+        $leaveTypes = LeaveType::where('is_active', true)
+            ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId))
+            ->get(['id', 'days_per_year']);
         $totalAnnualDays = (float) $leaveTypes->sum('days_per_year');
 
         $takenByEmployee = LeaveRequest::where('status', 'approved')

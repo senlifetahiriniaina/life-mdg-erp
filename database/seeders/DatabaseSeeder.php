@@ -71,7 +71,22 @@ class DatabaseSeeder extends Seeder
         // docblock.
         $this->call(\Modules\Achats\Database\Seeders\AchatsDatabaseSeeder::class);
 
-        $this->call(WorkflowDefinitionsSeeder::class);
+        // Chantier 32.1: WorkflowDefinitionsSeeder (and the whole Core generic
+        // FSM engine it fed — Modules\Core\Services\WorkflowService/
+        // WorkflowController/WorkflowDefinition/WorkflowState, routed at
+        // core/workflows/*) was deleted as confirmed-dead: zero real caller
+        // anywhere ever created a WorkflowState for a real Invoice/Ticket/
+        // Task/etc (WorkflowService::getOrCreateState() had zero callers
+        // outside its own class), zero frontend page ever called
+        // core/workflows/*, zero test covered any of it, and 4 of its 10
+        // seeded definitions targeted modules entirely outside this app's
+        // scope (manufacturing/pos/ecommerce). Every in-scope resource type
+        // it named (Invoice, PurchaseOrder, Leave, Ticket, Task, Opportunity)
+        // already has its own real status/state field and its own real
+        // domain-specific transition logic — this generic engine was a
+        // dead-parallel-subsystem duplicate, the same pattern already
+        // deleted repeatedly this session (TerritoryManagementController,
+        // wh_*/lgx_*, the Legacy Workflow Engine block, etc).
 
         // Chantier 12: minimal real-world defaults (company, customer,
         // supplier) distinct from DemoSeeder's illustrative French/EUR
@@ -81,6 +96,24 @@ class DatabaseSeeder extends Seeder
         // Chantier 17: textile/clothing product-template catalogue — depends
         // on the categories/units DefaultDataSeeder just created above.
         $this->call(\Modules\Inventory\Database\Seeders\ProductTemplateSeeder::class);
+
+        // Chantier 32.12: CalendarDatabaseSeeder (3 default calendars for
+        // the bootstrap admin, user_id=1) existed but was never actually
+        // called from anywhere — confirmed via grep, the same "orphaned
+        // module seeder" gap already fixed for Accounting at Chantier 12.
+        // Idempotent (no-op once any calendar already exists).
+        $this->call(\Modules\Calendar\Database\Seeders\CalendarDatabaseSeeder::class);
+
+        // Chantier 32.22: ReportTemplateSeeder (10 real, pre-built
+        // SYSCOHADA/OHADA report templates) existed, fully written, but was
+        // never called from anywhere — the same orphaned-module-seeder gap
+        // already fixed for Accounting (Chantier 12) and Calendar
+        // (Chantier 32.12). Confirmed empirically: on a fresh install none
+        // of the 10 templates existed, so every one of ReportsIndex.vue's
+        // 4 "quick report" tiles 404'd on `POST .../reports/{slug}/execute`
+        // — the module's headline discoverable feature had never worked.
+        // Idempotent (updateOrCreate on `slug`).
+        $this->call(\Modules\Reporting\Database\Seeders\ReportTemplateSeeder::class);
 
         $this->call(DemoSeeder::class);
     }

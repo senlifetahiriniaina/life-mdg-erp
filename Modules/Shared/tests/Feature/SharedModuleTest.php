@@ -4,16 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Model;
 use Modules\Shared\Exceptions\BaseException;
-use Modules\Shared\Exceptions\ForecastingException;
 use Modules\Shared\Exceptions\PersonalizationException;
-use Modules\Shared\Exceptions\SentimentException;
 use Modules\Shared\Exceptions\TenantException;
-use Modules\Shared\Exceptions\ValidationException;
-use Modules\Shared\Jobs\BaseAsyncJob;
 use Modules\Shared\Services\BaseService;
-use Modules\Shared\Services\SentimentAnalysisService;
-use Modules\Shared\Services\UnifiedForecastingService;
-use Modules\Shared\Traits\MultiTenantScope;
 
 // ─── Concrete stubs for abstract classes ─────────────────────────────────────
 
@@ -78,22 +71,17 @@ test('TenantException::multiTenancyNotConfigured creates 500 exception', functio
 });
 
 // ─── Specialist exceptions ────────────────────────────────────────────────────
-
-test('ForecastingException class exists and extends BaseException', function () {
-    expect(class_exists(ForecastingException::class))->toBeTrue();
-    expect(new ForecastingException('test'))->toBeInstanceOf(BaseException::class);
-});
+//
+// Chantier 32.8: ForecastingException/SentimentException/ValidationException
+// deleted alongside their (confirmed fully dead) owners — see
+// SharedServicesTest.php's own docblock for the full rationale. Only
+// PersonalizationException survives, since PersonalizationFramework (real,
+// genuinely extended by Modules\Helpdesk\SatisfactionPredictionService and
+// Modules\BI\EnhancedPredictiveAnalyticsService, both real if currently
+// unrouted in their own modules) still throws it for real.
 
 test('PersonalizationException class exists', function () {
     expect(class_exists(PersonalizationException::class))->toBeTrue();
-});
-
-test('SentimentException class exists', function () {
-    expect(class_exists(SentimentException::class))->toBeTrue();
-});
-
-test('ValidationException class exists', function () {
-    expect(class_exists(ValidationException::class))->toBeTrue();
 });
 
 // ─── BaseService ──────────────────────────────────────────────────────────────
@@ -145,36 +133,3 @@ test('BaseService verifyCompanyOwnership passes when company matches', function 
     expect(true)->toBeTrue();
 });
 
-// ─── SentimentAnalysisService ─────────────────────────────────────────────────
-
-test('SentimentAnalysisService can be instantiated with valid company_id', function () {
-    $service = new SentimentAnalysisService(1);
-    expect($service)->toBeInstanceOf(SentimentAnalysisService::class);
-});
-
-test('SentimentAnalysisService rejects invalid company_id', function () {
-    expect(fn () => new SentimentAnalysisService(0))->toThrow(TenantException::class);
-});
-
-test('SentimentAnalysisService analyze returns sentiment keys', function () {
-    $service = new SentimentAnalysisService(1);
-    $result  = $service->analyze('Great product, very happy!');
-
-    expect($result)->toHaveKey('sentiment')
-        ->toHaveKey('score');
-});
-
-test('SentimentAnalysisService analyze positive text returns positive sentiment', function () {
-    $service = new SentimentAnalysisService(1);
-    $result  = $service->analyze('Excellent service, I am very satisfied!');
-
-    expect($result['sentiment'])->toBe('positive');
-});
-
-test('SentimentAnalysisService analyze empty text returns neutral', function () {
-    $service = new SentimentAnalysisService(1);
-    $result  = $service->analyze('');
-
-    expect($result['sentiment'])->toBe('neutral')
-        ->and($result['score'])->toBe(0);
-});

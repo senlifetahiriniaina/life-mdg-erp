@@ -114,11 +114,18 @@ class IntegrationManager
     /**
      * Returns all available integrations with their current status for this tenant.
      *
+     * Chantier 32.6: type-hints widened to int|string and cast to string
+     * internally — integrations.tenant_id is a string(36) column (same
+     * leftover UUID-tenant-design pattern already documented on this
+     * module's IntegrationConnector/WhbConnection models), so every caller
+     * must compare consistently rather than rely on implicit int-to-string
+     * coercion at the query layer.
+     *
      * @return array<string, mixed>
      */
-    public function getAvailable(int $tenantId): array
+    public function getAvailable(int|string $tenantId): array
     {
-        $connected = Integration::where('tenant_id', $tenantId)
+        $connected = Integration::where('tenant_id', (string) $tenantId)
             ->get()
             ->keyBy('integration_key');
 
@@ -141,7 +148,7 @@ class IntegrationManager
     /**
      * Connects/authenticates a new integration for the tenant.
      */
-    public function connect(int $tenantId, string $integrationKey, array $credentials): Integration
+    public function connect(int|string $tenantId, string $integrationKey, array $credentials): Integration
     {
         $this->assertKeyExists($integrationKey);
 
@@ -149,7 +156,7 @@ class IntegrationManager
 
         /** @var Integration $integration */
         $integration = Integration::updateOrCreate(
-            ['tenant_id' => $tenantId, 'integration_key' => $integrationKey],
+            ['tenant_id' => (string) $tenantId, 'integration_key' => $integrationKey],
             [
                 'name'        => $meta['name'],
                 'status'      => 'connected',
@@ -167,9 +174,9 @@ class IntegrationManager
     /**
      * Disconnects an integration.
      */
-    public function disconnect(int $tenantId, string $integrationKey): void
+    public function disconnect(int|string $tenantId, string $integrationKey): void
     {
-        Integration::where('tenant_id', $tenantId)
+        Integration::where('tenant_id', (string) $tenantId)
             ->where('integration_key', $integrationKey)
             ->update(['status' => 'disconnected', 'credentials' => null]);
 
@@ -178,10 +185,28 @@ class IntegrationManager
 
     /**
      * Tests the connection to an external API (ping).
+     *
+     * Chantier 32.6: confirmed empirically that only the 4 mobile-money
+     * connectors (Orange Money/Wave/MTN MoMo/M-Pesa) implement ping() at
+     * all — Shopify/WooCommerce/Jumia/GoogleWorkspace/Zapier do not. Before
+     * this fix, calling $connector->ping() unconditionally on any of those
+     * 5 threw an Error (undefined method), silently swallowed by the catch
+     * block below into a generic "error" status regardless of whether the
+     * stored credentials were actually valid — a misleading false negative,
+     * not a real connectivity check. Failing loudly and honestly here (a
+     * real 501-style RuntimeException the controller surfaces as-is) is
+     * more correct than a fabricated status, matching this session's
+     * fallback-first/never-silently-lie precedent.
      */
     public function testConnection(Integration $integration): bool
     {
         $connector = $this->resolveConnector($integration);
+
+        if (! method_exists($connector, 'ping')) {
+            throw new \RuntimeException(
+                "Connection testing is not implemented yet for '{$integration->integration_key}'."
+            );
+        }
 
         try {
             $result = $connector->ping();
@@ -204,6 +229,28 @@ class IntegrationManager
     public function sync(Integration $integration, string $direction = 'both'): array
     {
         $connector = $this->resolveConnector($integration);
+
+        // Chantier 32.6: confirmed empirically (grep across all 9 Connector
+        // classes) that NONE of them implements syncIn()/syncOut() — every
+        // real call to this method has always silently "succeeded" with 0
+        // records synced, regardless of connector type or real API state,
+        // since both method_exists() checks below always fail and $result
+        // stays at its zeroed default. Failing loudly here instead of
+        // persisting a misleading "success" IntegrationSyncLog. Wiring each
+        // connector's real, differently-named, platform-specific sync
+        // methods (syncProducts()/syncOrders() for Shopify/WooCommerce,
+        // syncListings() for Jumia, syncCalendarEvents()/syncContacts() for
+        // Google Workspace — and no sync concept at all for the 4 payment
+        // connectors) into which local ERP module each should write to
+        // (Inventory/Sales/Calendar/CRM) is genuine new cross-module
+        // business logic, not a wiring fix — flagged in CLAUDE.md as a
+        // dedicated future chantier, matching the established
+        // PurchaseIntegrationService precedent for this exact situation.
+        if (! method_exists($connector, 'syncIn') && ! method_exists($connector, 'syncOut')) {
+            throw new \RuntimeException(
+                "Data sync is not implemented yet for '{$integration->integration_key}'."
+            );
+        }
 
         $log = IntegrationSyncLog::create([
             'integration_id' => $integration->id,

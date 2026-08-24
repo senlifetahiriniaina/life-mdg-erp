@@ -1,4 +1,5 @@
 <template>
+  <AppLayout>
   <div class="max-w-4xl mx-auto">
     <div class="flex items-center justify-between mb-6">
       <div>
@@ -11,6 +12,8 @@
         ← Retour aux approbations
       </Link>
     </div>
+
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
 
     <div class="space-y-6">
       <!-- Request Details -->
@@ -53,17 +56,23 @@
       <p v-if="error" class="text-sm text-red-700 dark:text-red-300">{{ error }}</p>
     </div>
   </div>
+  </AppLayout>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
+import AppLayout from '@/Layouts/AppLayout.vue'
 import ApprovalPanel from '@/Components/UI/ApprovalPanel.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const props = defineProps({
   approvalRequest: { type: Object, required: true },
 })
+
+const { guidance } = useAiAssistant('Validation', 'view_approval_request')
 
 const error = ref('')
 

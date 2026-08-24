@@ -18,6 +18,13 @@ const dayNames   = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
 onMounted(async () => {
   try {
+    // Chantier 32.12: `events` used to be fetched with no start/end params
+    // at all — the backend used to require both (a guaranteed 422 on every
+    // real load, silently swallowed by the .catch() below). The backend
+    // now defaults to a broad window when they're omitted, so this call is
+    // left as-is; both endpoints now correctly respond `{data: [...]}`
+    // (previously bare arrays, which `.data ?? []` always resolved to an
+    // empty list for regardless of real content).
     const [ev, cal] = await Promise.all([
       fetch('/api/v1/calendar/events?per_page=200').then(r => r.json()).catch(() => ({ data: [] })),
       fetch('/api/v1/calendar/calendars').then(r => r.json()).catch(() => ({ data: [] })),

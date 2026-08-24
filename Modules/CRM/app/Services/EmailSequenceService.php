@@ -114,12 +114,24 @@ class EmailSequenceService
         return true;
     }
 
-    public function processDueEnrollments(): int
+    /**
+     * Chantier 38.3: never scoped by tenant at all, and reachable via
+     * `POST crm/email-sequences/process-due` behind only auth:sanctum+module:CRM (no
+     * authorize()/role check) — any authenticated CRM user of ANY company could trigger a
+     * real, immediate, global send sweep across every other company's due enrollments,
+     * confirmed via code read of the route + this method's own unfiltered query. `$companyId`
+     * is optional and left unfiltered when null — the new scheduled command below (the real
+     * fix for "this has never actually run automatically," a second bug found alongside)
+     * deliberately calls it with no company, since a cron sweep is supposed to cover every
+     * tenant in one pass; the HTTP controller now always passes the caller's own company_id.
+     */
+    public function processDueEnrollments(?int $companyId = null): int
     {
         $count = 0;
 
         SequenceEnrollment::where('status', 'active')
             ->where('next_send_at', '<=', now())
+            ->when($companyId !== null, fn ($q) => $q->whereHas('sequence', fn ($sq) => $sq->where('tenant_id', $companyId)))
             ->with('sequence.steps')
             ->each(function (SequenceEnrollment $enrollment) use (&$count): void {
                 if ($this->processEnrollment($enrollment)) {

@@ -2,6 +2,8 @@
   <AppLayout>
     <Head :title="project.name" />
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="page-head">
       <div style="display:flex;align-items:center;gap:12px">
         <a href="/projects" class="btn btn-icon"><i class="pi pi-arrow-left" style="font-size:14px" /></a>
@@ -11,7 +13,6 @@
             <span :class="['wh-badge', statusClass(project.status)]">
               <span class="wh-badge-dot" />{{ statusLabel(project.status) }}
             </span>
-            <span :class="['wh-badge', priorityClass(project.priority)]">{{ priorityLabel(project.priority) }}</span>
           </div>
         </div>
       </div>
@@ -107,16 +108,30 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import TeamPanel from '@/Components/Projects/TeamPanel.vue'
 import TimeTracker from '@/Components/Projects/TimeTracker.vue'
 import ExportButton from '@/Components/Projects/ExportButton.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const props = defineProps({
   project: { type: Object, required: true },
 })
 
+const { guidance } = useAiAssistant('Projects', 'view_project')
+
 const today = new Date()
 
 const budgetProgress = computed(() => {
+  // Chantier 32.17 (14-layer deep audit): Project has no spent_budget
+  // column anywhere in the backend (Modules\Projects\Models\Project's
+  // $fillable never had it, confirmed via Schema::getColumnListing —
+  // spending is tracked separately by ProjectBudgetService's EVM
+  // endpoints, not exposed on this page's props) — spent_budget was
+  // therefore always undefined here, so this always rendered "NaN%" for
+  // any project with a non-zero budget. Default to 0 rather than
+  // silently NaN, honestly reflecting that no actual-spend figure
+  // reaches this page yet.
+  const spent = Number(props.project.spent_budget) || 0
   if (!props.project.budget || props.project.budget == 0) return 0
-  return Math.min(100, Math.round((props.project.spent_budget / props.project.budget) * 100))
+  return Math.min(100, Math.round((spent / props.project.budget) * 100))
 })
 
 const infoFields = computed(() => [

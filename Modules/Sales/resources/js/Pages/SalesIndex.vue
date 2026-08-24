@@ -81,14 +81,29 @@
               <span class="font-mono text-sm font-medium text-primary-600">{{ data.reference }}</span>
             </template>
           </Column>
-          <Column field="customer" header="Client">
+          <Column field="reference" header="Client">
             <template #body="{ data }">
-              <span class="font-medium text-surface-900 dark:text-surface-50">{{ data.customer?.name ?? '—' }}</span>
+              <!--
+                Chantier 32.16 (Sales deep 14-layer audit): this column read
+                data.customer?.name / data.amount / data.order_date, none of
+                which the real GET /api/v1/sales/orders response has ever
+                carried — SalesOrder has no customer relation at all (only
+                contact_id/account_id, never eager-loaded here), the real
+                total field is `total` not `amount`, and there is no
+                order_date column (only created_at/expected_delivery_date).
+                Confirmed via a real HTTP call that this table has shown
+                "—" for every customer and "NaN"/"Invalid Date" for every
+                amount/date since it was built. Fixed to the real response
+                shape.
+              -->
+              <span class="font-medium text-surface-900 dark:text-surface-50">
+                {{ customerLabel(data) }}
+              </span>
             </template>
           </Column>
-          <Column field="amount" header="Montant" style="width: 140px">
+          <Column field="total" header="Montant" style="width: 140px">
             <template #body="{ data }">
-              <span class="font-semibold">{{ formatAmount(data.amount, data.currency) }}</span>
+              <span class="font-semibold">{{ formatAmount(data.total, data.currency) }}</span>
             </template>
           </Column>
           <Column field="status" header="Statut" style="width: 120px">
@@ -100,9 +115,9 @@
               />
             </template>
           </Column>
-          <Column field="order_date" header="Date" style="width: 160px">
+          <Column field="created_at" header="Date" style="width: 160px">
             <template #body="{ data }">
-              {{ formatDate(data.order_date) }}
+              {{ formatDate(data.created_at) }}
             </template>
           </Column>
           <Column header="Actions" style="width: 100px">
@@ -155,11 +170,12 @@ const { isAdmin, isElevated, hasAnyRole } = useRoleAccess()
 interface SalesOrder {
   id: number
   reference: string
-  customer: { id: number; name: string } | null
-  amount: number
+  contact: { id: number; first_name: string; last_name: string } | null
+  account: { id: number; name: string } | null
+  total: number
   currency: string
   status: string
-  order_date: string
+  created_at: string
 }
 
 const loading = ref(false)
@@ -216,9 +232,21 @@ const clearFilters = () => {
   fetchOrders()
 }
 
-const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+const formatDate = (d: string) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
 const formatAmount = (amount: number, currency = 'XOF') =>
-  new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount)
+  new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount ?? 0)
+
+// Chantier 32.16: account (a CRM company/account) takes priority over an
+// individual contact — same precedent already established server-side by
+// SalesDepositService::resolveCustomerName().
+const customerLabel = (order: SalesOrder) => {
+  if (order.account?.name) return order.account.name
+  if (order.contact) {
+    const name = `${order.contact.first_name ?? ''} ${order.contact.last_name ?? ''}`.trim()
+    if (name) return name
+  }
+  return '—'
+}
 
 const statusLabel = (s: string) => ({ draft: 'Brouillon', confirmed: 'Confirmée', processing: 'En cours', delivered: 'Livrée', cancelled: 'Annulée' }[s] ?? s)
 const statusSeverity = (s: string) => ({ draft: 'secondary', confirmed: 'info', processing: 'warning', delivered: 'success', cancelled: 'danger' }[s] ?? 'secondary')

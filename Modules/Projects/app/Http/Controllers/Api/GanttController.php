@@ -60,6 +60,23 @@ class GanttController extends Controller
         }
 
         $dependsOnTask = Task::findOrFail($validated['depends_on_task_id']);
+
+        // Chantier 32.17 (14-layer deep audit): neither the request
+        // validation ('exists:prj_tasks,id' has no project scope) nor
+        // TaskDependency::booted()'s creating() cycle-check verified that
+        // $dependsOnTask actually belongs to the same project as $task — a
+        // real cross-tenant IDOR (create a dependency edge from your own
+        // company's task onto ANY other company's task by id, then
+        // GanttController::updateDates()'s propagate-to-successors logic
+        // would silently shift the foreign task's dates on every date
+        // update to your own task). Dependencies are inherently
+        // project-scoped in this schema (Gantt/critical-path are computed
+        // per-project) — same-project also implies same-company since
+        // Project::company_id is the tenant boundary.
+        if ($dependsOnTask->project_id !== $task->project_id) {
+            return response()->json(['message' => 'A task can only depend on another task in the same project.'], 422);
+        }
+
         $cycleCheck = $this->cycleService->checkCycleOnAdd($task, $dependsOnTask);
         if ($cycleCheck['cycle']) {
             return response()->json(['message' => $cycleCheck['message']], 422);

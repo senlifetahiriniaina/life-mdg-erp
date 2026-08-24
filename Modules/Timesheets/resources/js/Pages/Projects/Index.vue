@@ -12,6 +12,8 @@
       </div>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <Card
         v-for="project in projects"
@@ -187,7 +189,11 @@ import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
-import Dropdown from 'primevue/dropdown'
+import Dropdown from 'primevue/select'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+const { guidance } = useAiAssistant('Timesheets', 'manage_projects')
 
 const store = useTimesheetsStore()
 

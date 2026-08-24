@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Modules\AI\Services\AiContextualAssistantService;
-use Modules\AI\Services\AutomatedInsightsService;
-use Modules\AI\Services\NaturalLanguageProcessingService;
-use Modules\AI\Services\PredictiveAnalyticsService;
-use Modules\AI\Services\RecommendationEngineService;
 use Modules\AI\Providers\AIServiceProvider;
 
 // ---------------------------------------------------------------------------
@@ -77,8 +73,19 @@ test('supportedModules returns array with 7 modules', function () {
 
     // Chantier 30 added 'Strategy' (previously called from 2 real Vue pages
     // but never registered here — see AiContextualAssistantService.php).
-    expect($modules)->toBeArray()->toHaveCount(34);
-    expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup', 'Strategy');
+    // Chantier 32.2 added 'Analytics'/'Integration'/'Security' (same bug
+    // class, 3 more real modules called from real pages but never
+    // registered — see supportedModules()'s own comments). Chantier 32.7
+    // added 'Validation' (identical bug class, again — see
+    // AiContextualAssistantService.php's own comment on that entry).
+    // Chantier 32.28 added 'Messaging' (same bug class again). Chantier 38.1
+    // (second deep 14-layer audit of Modules\Core) added 'Core' (same bug
+    // class once more — 'Core' was the one conspicuously absent module from
+    // this otherwise near-complete registry, despite the real, routed
+    // AI-assisted import pipeline behind Import/Index.vue never calling
+    // useAiAssistant() at all).
+    expect($modules)->toBeArray()->toHaveCount(40);
+    expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup', 'Strategy', 'Analytics', 'Integration', 'Security');
 });
 
 test('fallback guidance covers all supported module and action pairs', function () {
@@ -192,18 +199,10 @@ test('Setup import_file fallback has next_actions pointing to map_columns', func
     expect($actions)->toContain('map_columns');
 });
 
-test('AutomatedInsightsService class can be resolved from container', function () {
-    expect(class_exists(AutomatedInsightsService::class))->toBeTrue();
-});
-
-test('NaturalLanguageProcessingService class exists', function () {
-    expect(class_exists(NaturalLanguageProcessingService::class))->toBeTrue();
-});
-
-test('PredictiveAnalyticsService class exists', function () {
-    expect(class_exists(PredictiveAnalyticsService::class))->toBeTrue();
-});
-
-test('RecommendationEngineService class exists', function () {
-    expect(class_exists(RecommendationEngineService::class))->toBeTrue();
-});
+// AutomatedInsightsService / NaturalLanguageProcessingService /
+// PredictiveAnalyticsService / RecommendationEngineService were deleted in
+// Chantier 32.2 (14-layer deep audit) — confirmed zero real callers
+// anywhere in the repo outside these now-deleted `class_exists()` checks
+// and their own dedicated tests. See AIServiceProvider::register()'s
+// docblock for the full rationale (each was either fake demo scaffolding
+// or a functional duplicate of a real, live implementation elsewhere).

@@ -16,7 +16,7 @@
 
 **Tous les checks sauf `deploy.yml` sont informationnels** (`continue-on-error: true`) — voir `docs/09-RBAC-SECURITE/SECURITE.md` pour la justification de ce choix. Le workflow `mobile-release.yml` présent dans Widehalo-ERP a été retiré : life-mdg-erp n'a pas de module Mobile dans son périmètre de 27 modules.
 
-**Pour déployer, voir en premier lieu le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md)** — ce README documente les workflows CI/CD et l'état de chaque brique ; le guide simple donne la marche à suivre complète (DNS, `.env`, `scripts/deploy.sh`) en une page.
+**Pour déployer, voir en premier lieu le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md)** — ce README documente les workflows CI/CD et l'état de chaque brique ; le guide simple donne la marche à suivre complète (DNS, `.env`, `scripts/deploy.sh`) en une page. Si vous déployez sur **AWS Lightsail** et n'avez pas encore de serveur, `scripts/lightsail-deploy.sh` automatise le provisionnement (instance, IP statique, zone DNS) — voir [AWS-LIGHTSAIL.md](AWS-LIGHTSAIL.md). Sur **Google Cloud Platform**, `scripts/gcp-deploy.sh` fait de même (instance Compute Engine, IP statique, zone Cloud DNS) — voir [GCP.md](GCP.md).
 
 ### Validation effectuée
 
@@ -37,7 +37,7 @@ Chaque workflow a été corrigé pour fonctionner avec la structure réelle de l
 
 **Voir le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md) pour la marche à suivre complète.** Résumé de l'architecture :
 
-- `docker-compose.prod.yml` (racine) lance 7 services : `app` (php-fpm), `queue` (worker), `scheduler` (cron interne), `reverb` (serveur WebSocket — notifications temps réel + Messaging, voir `CLAUDE.md` § Chantier 20), `mysql`, `redis`, et `caddy` (reverse-proxy + certificat SSL Let's Encrypt automatique, seul service exposé sur les ports 80/443 — relaie aussi `/app/*` vers `reverb`).
+- `docker-compose.prod.yml` (racine) lance 8 services : `app` (php-fpm), `queue` (worker), `scheduler` (cron interne), `reverb` (serveur WebSocket — notifications temps réel + Messaging, voir `CLAUDE.md` § Chantier 20), `mysql`, `redis`, `meilisearch` (moteur de recherche indexé par Laravel Scout — recherche CRM, voir `CLAUDE.md` § Chantier 34), et `caddy` (reverse-proxy + certificat SSL Let's Encrypt automatique, seul service exposé sur les ports 80/443 — relaie aussi `/app/*` vers `reverb`).
 - `scripts/deploy.sh` orchestre le déploiement en une commande depuis un clone frais : construction de l'image, démarrage de la stack, migrations, vérification santé.
 - `Caddyfile` définit le seul bloc de configuration nécessaire (`php_fastcgi` vers le service `app`) — Caddy gère lui-même l'obtention/le renouvellement du certificat SSL, aucune étape certbot manuelle.
 

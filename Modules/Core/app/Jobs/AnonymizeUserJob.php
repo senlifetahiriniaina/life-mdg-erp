@@ -23,13 +23,36 @@ use Spatie\Activitylog\Models\Activity;
  *
  * Note: User is a system-wide entity. Company_id context is not applicable.
  * We use company_id = 0 as a system job indicator.
+ *
+ * Chantier 32.1 found and fixed two real, previously-undocumented,
+ * guaranteed-fatal bugs on this exact job — confirmed empirically (tinker,
+ * with the app's real QUEUE_CONNECTION=sync driver) that `php artisan
+ * gdpr:anonymize-user <id>` has never actually completed, on any input,
+ * since it was written; both went undetected because zero test anywhere
+ * covers this job or its console command:
+ * 1. `parent::__construct(0)` — BaseAsyncJob (and every trait it uses)
+ *    declares no constructor at all anywhere in its inheritance chain, and
+ *    PHP fatals with "Cannot call constructor" when a subclass calls
+ *    parent::__construct() and no parent constructor exists anywhere up the
+ *    chain — this call was removed rather than routed to a real base
+ *    constructor, since BaseAsyncJob never accepted a company/tenant id
+ *    parameter to begin with.
+ * 2. No handle() method — BaseAsyncJob doesn't define one either, so
+ *    Laravel's queue dispatcher falls back to __invoke(), which doesn't
+ *    exist, a guaranteed "Call to undefined method ...::__invoke()" fatal
+ *    on every real dispatch. Fixed locally (see ExtractAndMapImportJob's
+ *    docblock for why this wasn't fixed on the shared base class itself —
+ *    28 other job classes across Accounting and other modules outside this
+ *    chantier's scope share the same defect, flagged for a future chantier
+ *    in CLAUDE.md's Chantier 32.1 entry).
  */
 class AnonymizeUserJob extends BaseAsyncJob
 {
-    public function __construct(public readonly int $userId)
+    public function __construct(public readonly int $userId) {}
+
+    public function handle(): void
     {
-        // System job: user anonymization is global, not company-scoped
-        parent::__construct(0);
+        $this->execute();
     }
 
     protected function execute(): void

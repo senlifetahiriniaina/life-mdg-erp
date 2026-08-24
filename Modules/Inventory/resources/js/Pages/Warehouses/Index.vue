@@ -20,6 +20,8 @@
         />
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <!-- DataTable -->
       <div class="bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
         <DataTable
@@ -216,6 +218,10 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import Paginator from 'primevue/paginator'
 import ConfirmDialog from 'primevue/confirmdialog'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+
+const { guidance } = useAiAssistant('Inventory', 'manage_warehouses')
 
 interface Warehouse {
   id: number

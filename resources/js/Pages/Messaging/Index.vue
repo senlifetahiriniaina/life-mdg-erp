@@ -14,6 +14,8 @@
       </div>
     </div>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="msg-page">
       <!-- Conversation list -->
       <div class="wh-panel msg-panel-list">
@@ -108,8 +110,16 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Head, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 
 const currentUserId = usePage().props.auth?.user?.id
+
+// Chantier 32.28: this real, routed, mounted page never called
+// useAiAssistant() at all before this — the same "real page, no AI panel"
+// gap already found and fixed for Strategy (Chantier 30) and several other
+// modules across the Chantier 32.x series.
+const { guidance } = useAiAssistant('Messaging', 'view_dashboard')
 
 const conversations = ref([])
 const loadingList = ref(false)

@@ -49,6 +49,16 @@ class SettingsService
 
     /**
      * Persist (upsert) a setting for the current tenant and flush the cache entry.
+     *
+     * Chantier 32.9 (14-layer deep audit, layer 4/6): this only ever forgot
+     * the single-key cache entry, never the module-level `getModule()`
+     * cache — confirmed empirically via tinker: priming `getModule($module)`
+     * then calling `set()` on one of that module's keys left the cached
+     * module snapshot stale for up to CACHE_TTL (1h), so any real caller
+     * hitting `SettingsController::showModule()` right after a real
+     * `update()`/`bulk()` write could see the pre-write value for an hour.
+     * Fixed to also forget the module-level key, matching what setMany()
+     * already correctly does.
      */
     public function set(string $module, string $key, mixed $value): void
     {
@@ -56,6 +66,7 @@ class SettingsService
 
         $tenantId = $this->currentTenantId();
         Cache::forget($this->cacheKey($tenantId, $module, $key));
+        Cache::forget($this->moduleKey($tenantId, $module));
     }
 
     /**
@@ -78,6 +89,10 @@ class SettingsService
             ['value' => $raw, 'value_type' => $valueType]
         );
 
+        // Chantier 32.9: same module-level staleness bug as set() above,
+        // fixed alongside it.
+        Cache::forget($this->moduleKey($tenantId, $module));
+
         Cache::forget($this->cacheKey($tenantId, $module, $key));
     }
 
@@ -85,37 +100,91 @@ class SettingsService
      * Retrieve all settings for a module as an associative array.
      * Keys are the setting key names, values are typed.
      *
+     * Chantier 32.9 (14-layer deep audit, layer 4 — real bug found by
+     * execution, not by reading): the query orders tenant-specific rows
+     * first (`tenant_id IS NULL ASC` — correct, and what Setting::get()'s
+     * own `->first()` correctly relies on), but this method's merge loop
+     * used plain `$result[$key] = ...` overwrite semantics — since PHP
+     * array assignment always takes the LAST write, and global rows are
+     * ordered LAST, every global default silently overwrote its own
+     * tenant-specific override instead of the reverse. Confirmed
+     * empirically via tinker: a real global `theme=global-theme` plus a
+     * real tenant override `theme=tenant-theme` for the SAME tenant
+     * produced `getModule()` => `theme: 'global-theme'` — the tenant's own
+     * override was invisible — while `Setting::get()` on the identical
+     * data correctly returned `'tenant-theme'`. The pre-existing code
+     * comment ("tenant-specific wins") already documented the *intended*
+     * behavior; the code just never implemented it. Fixed with `??=` so
+     * only the first (tenant-specific-first, per the ORDER BY) occurrence
+     * of each key is kept.
+     *
+     * Chantier 32.9 (14-layer deep audit, layer 6 — security, secrets/PII):
+     * SettingPolicy::view()'s own docblock/comment on
+     * SettingsController::showModule() explicitly describes non-public
+     * settings as gated by `view()`/belongsToTenant() — but this method
+     * never actually applied that per-record check, so any caller who
+     * clears the (deliberately permissive-by-design) class-level
+     * `viewAny()` ability got EVERY setting for a module, `is_public` or
+     * not, with an `encrypted` value_type setting returned fully
+     * decrypted. Confirmed empirically that a plain employee with no
+     * `settings.view` permission (a real, if currently unseeded-by-default,
+     * scenario — every route-gated role in this app's seeder happens to
+     * carry `settings.view` today, but nothing in the code enforced it)
+     * would see a decrypted `encrypted`-type "secret" value regardless.
+     * Fixed by filtering non-public entries to callers who hold
+     * `settings.view` — matching SettingPolicy::view()'s own rule, minus
+     * the tenant-ownership half (getModule()'s query already scopes to
+     * the caller's own tenant). The underlying per-tenant cache still
+     * stores the FULL unfiltered snapshot (with each entry's own
+     * `is_public` flag) rather than a pre-filtered one, and the visibility
+     * filter is re-applied on every call after the cache read — so a
+     * privileged caller priming the cache can never leak a private value
+     * to a later, less-privileged caller sharing the same cache key.
+     *
      * @return array<string, mixed>
      */
     public function getModule(string $module): array
     {
         $tenantId = $this->currentTenantId();
+        $cacheKey = $this->moduleKey($tenantId, $module);
 
-        /** @var array<string, mixed>|null $cached */
-        $cached = Cache::get($this->moduleKey($tenantId, $module));
-        if ($cached !== null) {
-            return $cached;
+        /** @var array<string, array{value: mixed, is_public: bool}>|null $cached */
+        $cached = Cache::get($cacheKey);
+
+        if ($cached === null) {
+            $settings = Setting::withoutGlobalScope('tenant')
+                ->forModule($module)
+                ->where(function ($q) use ($tenantId) {
+                    if ($tenantId) {
+                        $q->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+                    } else {
+                        $q->whereNull('tenant_id');
+                    }
+                })
+                ->orderByRaw('tenant_id IS NULL ASC') // tenant-specific first
+                ->get();
+
+            // Merge: tenant-specific override wins, global is only the
+            // fallback for a key the tenant hasn't overridden.
+            $cached = [];
+            foreach ($settings as $setting) {
+                $cached[$setting->key] ??= [
+                    'value'     => $setting->getCastedValue(),
+                    'is_public' => (bool) $setting->is_public,
+                ];
+            }
+
+            Cache::put($cacheKey, $cached, self::CACHE_TTL);
         }
 
-        $settings = Setting::withoutGlobalScope('tenant')
-            ->forModule($module)
-            ->where(function ($q) use ($tenantId) {
-                if ($tenantId) {
-                    $q->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
-                } else {
-                    $q->whereNull('tenant_id');
-                }
-            })
-            ->orderByRaw('tenant_id IS NULL ASC') // tenant-specific wins
-            ->get();
+        $canViewPrivate = (bool) auth()?->user()?->can('settings.view');
 
-        // Merge: global base then tenant overrides
         $result = [];
-        foreach ($settings as $setting) {
-            $result[$setting->key] = $setting->getCastedValue();
+        foreach ($cached as $key => $entry) {
+            if ($entry['is_public'] || $canViewPrivate) {
+                $result[$key] = $entry['value'];
+            }
         }
-
-        Cache::put($this->moduleKey($tenantId, $module), $result, self::CACHE_TTL);
 
         return $result;
     }
@@ -199,6 +268,12 @@ class SettingsService
     private function moduleKey(int|string|null $tenantId, string $module): string
     {
         $tid = $tenantId ?? 'global';
-        return "settings:{$tid}:{$module}";
+        // Chantier 32.9: bumped to a ":v2" suffix when the cached shape
+        // changed from a flat `key => value` map to `key => {value,
+        // is_public}` (needed for the new per-record visibility filter
+        // below) — guarantees a rolling deploy never misreads a
+        // pre-existing flat-shaped cache entry as the new shape (which
+        // would fatal on `$entry['is_public']` against a scalar).
+        return "settings:{$tid}:{$module}:v2";
     }
 }

@@ -57,3 +57,13 @@ Thumbs.db
 /.vscode
 /.fleet
 /.claude
+
+# AWS Lightsail deployment config (scripts/lightsail-deploy.sh) — real values
+# and the downloaded default SSH private key, never committed.
+/deploy/lightsail.config
+/deploy/lightsail-default-key-*.pem
+
+# GCP deployment config (scripts/gcp-deploy.sh) — real values, never
+# committed. No private-key pattern needed here: unlike Lightsail, gcloud
+# manages its own ephemeral SSH key pair outside this repo by default.
+/deploy/gcp.config

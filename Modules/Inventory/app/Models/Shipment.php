@@ -66,6 +66,7 @@ class Shipment extends Model
         'shipped_at',
         'estimated_delivery_at',
         'delivered_at',
+        'company_id',
     ];
 
     protected $casts = [

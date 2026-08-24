@@ -35,19 +35,23 @@ use Modules\Payroll\Services\PayrollService;
  *    only gross_salary, so this went undetected.
  *
  * 2. generatePayslip()'s idempotency check ignored tenant_id entirely
- *    (Employee has no company/tenant-scoping column of its own anywhere —
- *    confirmed via Schema::hasColumn, out of this module's scope to fix),
- *    so once ANY tenant generated a payslip for an employee+period, every
- *    OTHER tenant's later generate call for that same employee+period
+ *    (at the time, Employee had no company/tenant-scoping column of its own
+ *    anywhere — confirmed via Schema::hasColumn, out of this module's scope
+ *    to fix), so once ANY tenant generated a payslip for an employee+period,
+ *    every OTHER tenant's later generate call for that same employee+period
  *    silently returned the FIRST tenant's payslip instead of creating its
  *    own — permanently blocking that tenant from ever generating a
  *    correctly-tenant-tagged payslip for that employee/period. Fixed by
  *    scoping the idempotency lookup by tenant_id, matching PayrollRun's
- *    own ['tenant_id','period'] uniqueness. This does NOT fully close the
- *    underlying gap (Employee still has zero real per-company ownership,
- *    so "generate for tenant A" still pulls in every active employee
- *    system-wide) — that root cause lives in Modules\HR\Models\Employee
- *    and is out of this module's scope; documented in the chantier report.
+ *    own ['tenant_id','period'] uniqueness.
+ *    Chantier 32 update: the underlying root cause this item originally
+ *    flagged as out of scope — Employee having zero real per-company
+ *    ownership, so "generate for tenant A" pulled in every active employee
+ *    system-wide — is now closed for real (see
+ *    Modules\HR\Policies\EmployeePolicy's docblock): Employee has a real,
+ *    populated company_id column, and generatePayslips() now filters by it.
+ *    The idempotency-scoping test below was rewritten accordingly (a single
+ *    employee can no longer be "shared" and visible to two tenants at once).
  *
  * 3. postPayslipsToAccounting() never wrote to the real ledger at all —
  *    it created two bare JournalEntry HEADER rows per payslip using the
@@ -122,23 +126,34 @@ test('calculateIncomeTax returns 0 for 0 gross salary across the real StatutoryS
     expect($service->calculateIncomeTax(340_000, 'MG'))->toBe(3_000.0);
 });
 
-test('generatePayslips scopes idempotency per tenant, not globally, over the real HTTP generate endpoint', function () {
-    // Modules\HR\Models\Employee has no company/tenant-scoping column of
-    // its own anywhere (confirmed via Schema::hasColumn during this
-    // chantier's investigation) — generatePayslips() therefore pulls in
-    // every active employee system-wide regardless of caller, a documented,
-    // out-of-Payroll's-scope gap. This test locks in the narrower, real,
-    // in-scope fix: once company A generates a payslip for a shared
-    // employee, company B's own later generate call must still produce
-    // its OWN tenant-B-tagged payslip for that same employee/period,
-    // rather than silently reusing/blocking on company A's.
+// Chantier 32 note: at the time this test was written, Employee had no real
+// company/tenant-scoping column of its own anywhere — a single employee row
+// was necessarily "shared" and visible to every tenant's generate call
+// regardless of caller, and this test's original point was that the
+// idempotency LOOKUP still needed to be scoped by tenant_id even though the
+// employee SELECTION couldn't be. Employee now has a real, populated
+// company_id column (see Modules\HR\Policies\EmployeePolicy's docblock) and
+// generatePayslips() filters by it for real — an employee genuinely belongs
+// to one company now, so "the same employee visible to two tenants" is no
+// longer a real scenario to test. Rewritten to cover what's still real and
+// still worth locking in: (1) the idempotency check itself stays correctly
+// scoped by tenant_id — calling generate twice for the SAME company/period
+// does not create a duplicate payslip; (2) two different companies, each
+// with their own employee, get their own independent payslip via the same
+// real HTTP endpoint, with zero cross-company leakage (mirroring
+// Modules\HR\tests\Feature\Chantier32HRTenantIsolationTest.php's own
+// generatePayslips() coverage, but exercised here over the real HTTP path).
+test('generatePayslips stays idempotent per tenant and never leaks another company employee, over the real HTTP generate endpoint', function () {
     $companyA = Company::factory()->create();
     $companyB = Company::factory()->create();
 
     $userA = payroll19User($companyA, 'payroll-officer');
     $userB = payroll19User($companyB, 'payroll-officer');
 
-    $sharedEmployee = payroll19Employee(baseSalary: 400_000);
+    $employeeA = payroll19Employee(baseSalary: 400_000);
+    $employeeA->update(['company_id' => $companyA->id]);
+    $employeeB = payroll19Employee(baseSalary: 450_000);
+    $employeeB->update(['company_id' => $companyB->id]);
 
     $period = now()->format('Y-m');
 
@@ -146,23 +161,35 @@ test('generatePayslips scopes idempotency per tenant, not globally, over the rea
         ->postJson('/api/v1/payroll/generate', ['period' => $period]);
     $responseA->assertStatus(201);
 
+    // Calling generate again for the same company/period must not create a
+    // second payslip for the same employee — real per-tenant idempotency.
+    $responseARepeat = test()->actingAs($userA, 'sanctum')
+        ->postJson('/api/v1/payroll/generate', ['period' => $period]);
+    $responseARepeat->assertStatus(201);
+
     $responseB = test()->actingAs($userB, 'sanctum')
         ->postJson('/api/v1/payroll/generate', ['period' => $period]);
     $responseB->assertStatus(201);
 
     $periodDate = now()->startOfMonth()->toDateString();
 
-    $hasA = Payslip::where('tenant_id', $companyA->id)
-        ->where('employee_id', $sharedEmployee->id)
+    $countA = Payslip::where('tenant_id', $companyA->id)
+        ->where('employee_id', $employeeA->id)
+        ->whereDate('period', $periodDate)
+        ->count();
+    $hasB = Payslip::where('tenant_id', $companyB->id)
+        ->where('employee_id', $employeeB->id)
         ->whereDate('period', $periodDate)
         ->exists();
-    $hasB = Payslip::where('tenant_id', $companyB->id)
-        ->where('employee_id', $sharedEmployee->id)
-        ->whereDate('period', $periodDate)
+    // Company B's own generate call must never have created a payslip for
+    // company A's employee, and vice versa.
+    $companyBHasCompanyAEmployee = Payslip::where('tenant_id', $companyB->id)
+        ->where('employee_id', $employeeA->id)
         ->exists();
 
-    expect($hasA)->toBeTrue();
+    expect($countA)->toBe(1);
     expect($hasB)->toBeTrue();
+    expect($companyBHasCompanyAEmployee)->toBeFalse();
 });
 
 test('postPayslipsToAccounting posts a real balanced journal entry with real account lines', function () {
@@ -190,10 +217,48 @@ test('postPayslipsToAccounting posts a real balanced journal entry with real acc
     expect(round($totalDebit, 2))->toBe(round($totalCredit, 2));
     expect(round($totalDebit, 2))->toBe(round((float) $payslip->gross_salary, 2));
 
-    // Real seeded chart-of-account codes, not a phantom/never-seeded one.
+    // Real seeded chart-of-account codes. Chantier 37 note: this assertion
+    // originally expected the pre-Chantier-36 codes 641/421 — stale, since
+    // Chantier 36's real Life MDG chart of accounts has no '641' at all and
+    // '421' means something else entirely ("Personnel, avances et
+    // acomptes", an asset — advances paid TO personnel — not what's posted
+    // here). The real codes this service has posted since Chantier 36 (now
+    // resolved dynamically via AccountRoleService, Chantier 37) are 661
+    // ("Rémunérations directes versées au personnel national", the real
+    // expense account) and 422 ("Personnel, rémunérations dues", the real
+    // salary-payable liability) — confirmed via
+    // AccountRoleService::DEFAULT_ROLES' own default_code for
+    // personnel_remuneration_expense/salary_payable_liability.
     $accountCodes = $lines->map(fn ($l) => ChartOfAccount::find($l->account_id)?->code)->filter()->values();
-    expect($accountCodes)->toContain('641'); // Rémunérations du personnel
-    expect($accountCodes)->toContain('421'); // Personnel — Rémunérations dues
+    expect($accountCodes)->toContain('661'); // Rémunérations directes versées au personnel national
+    expect($accountCodes)->toContain('422'); // Personnel, rémunérations dues
+});
+
+test('Chantier 37: overriding personnel_remuneration_expense/salary_payable_liability changes which accounts the payslip is posted to', function () {
+    test()->seed(\Modules\Accounting\Database\Seeders\AccountingDatabaseSeeder::class);
+
+    $company = Company::factory()->create();
+    $user = payroll19User($company, 'payroll-officer');
+    test()->actingAs($user, 'sanctum');
+
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('personnel_remuneration_expense', '62');
+    app(\Modules\Accounting\Services\AccountRoleService::class)->setRole('salary_payable_liability', '46');
+
+    $employee = payroll19Employee(baseSalary: 700_000);
+
+    $service = app(PayrollIntegrationService::class);
+    $payslip = $service->generatePayslip($employee, now()->startOfMonth(), now()->endOfMonth(), tenantId: $company->id);
+    $payslip->update(['status' => 'approved']);
+
+    $service->postPayslipsToAccounting([$payslip->id]);
+
+    $entry = JournalEntry::where('reference_type', 'Payslip')->where('reference_id', $payslip->id)->first();
+    $accountCodes = $entry->lines()->get()->map(fn ($l) => ChartOfAccount::find($l->account_id)?->code)->filter()->values();
+
+    expect($accountCodes)->toContain('62');
+    expect($accountCodes)->toContain('46');
+    expect($accountCodes)->not->toContain('661');
+    expect($accountCodes)->not->toContain('422');
 });
 
 test('an employee can view their own payslip via the real self-service endpoint but not another employee\'s', function () {

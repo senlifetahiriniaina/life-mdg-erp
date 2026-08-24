@@ -2,6 +2,10 @@
   <AppLayout>
     <Head title="AI Sales Forecasting" />
 
+    <!-- Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+         called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiGuidancePanel" :guidance="guidance" @close="showAiGuidancePanel = false" />
+
     <div class="page-head">
       <div>
         <h1 class="wh-page-title">AI Sales Forecasting</h1>
@@ -121,8 +125,17 @@
 import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 import { Button, DataTable, Column, Dialog } from 'primevue'
 import axios from 'axios'
+
+// Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never
+// called useAiAssistant() at all before this fix — distinct from the
+// existing "Analyse IA" (aiAnalyse()) button below, which calls the
+// Einstein forecasting service, not the contextual-guidance endpoint.
+const { guidance } = useAiAssistant('CRM', 'view_sales_forecast')
+const showAiGuidancePanel = ref(true)
 
 const forecasts = ref([])
 const loading = ref(false)

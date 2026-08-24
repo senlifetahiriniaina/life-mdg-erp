@@ -4,6 +4,8 @@
       <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Timesheets Dashboard</h1>
     </template>
 
+    <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <!-- Total Hours Card -->
       <Card class="bg-white dark:bg-surface-800">
@@ -153,6 +155,15 @@ import Card from 'primevue/card'
 import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import ProgressBar from 'primevue/progressbar'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+// Chantier 32.19 (Timesheets deep 14-layer audit): 'Timesheets.view_dashboard'
+// has had static fallback guidance since this app's original extraction, but
+// this page — the module's own dashboard — never actually called
+// useAiAssistant() at all. Confirmed via grep: zero of the module's 11 real
+// pages did.
+const { guidance } = useAiAssistant('Timesheets', 'view_dashboard')
 
 const store = useTimesheetsStore()
 

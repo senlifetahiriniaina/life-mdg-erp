@@ -47,6 +47,7 @@ class TransferOrder extends Model
         'reference', 'from_warehouse_id', 'to_warehouse_id', 'status', 'type',
         'priority', 'requested_by', 'approved_by', 'approved_at', 'shipped_at',
         'received_at', 'expected_delivery_date', 'notes', 'total_items', 'total_value',
+        'company_id',
     ];
 
     protected $casts = [

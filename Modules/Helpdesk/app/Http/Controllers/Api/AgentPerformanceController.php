@@ -272,6 +272,26 @@ class AgentPerformanceController extends Controller
 
     public function report(Request $request, int $agent): JsonResponse
     {
+        $data = $this->buildReportData($agent);
+
+        return response()->json([
+            'agent_id' => $agent,
+            'report' => $data['metrics'],
+            'summary' => $data['summary'],
+            'metrics' => $data['metrics'],
+            'highlights' => $data['highlights'],
+            'concerns' => $data['concerns'],
+        ]);
+    }
+
+    /**
+     * Shared by report() (JSON) and reportExport() (real PDF/Excel,
+     * Chantier 32.21) so the two can never structurally diverge.
+     *
+     * @return array{metrics: array<string, mixed>, summary: array<string, mixed>, highlights: array<int, string>, concerns: array<int, string>}
+     */
+    private function buildReportData(int $agent): array
+    {
         $metrics = $this->buildMetrics($agent);
         $skillGaps = $this->service->identifySkillGaps($agent);
         $expertise = $this->service->identifyExpertiseAreas($agent);
@@ -295,28 +315,64 @@ class AgentPerformanceController extends Controller
             $highlights[] = "Strong performance in {$area['category']}";
         }
 
-        return response()->json([
-            'agent_id' => $agent,
-            'report' => $metrics,
+        return [
+            'metrics' => $metrics,
             'summary' => [
                 'total_tickets' => $metrics['total_tickets'],
                 'resolved_tickets' => $metrics['resolved_tickets'],
                 'average_satisfaction_score' => $metrics['average_satisfaction_score'],
                 'sla_compliance_rate' => $metrics['sla_compliance_rate'],
             ],
-            'metrics' => $metrics,
             'highlights' => $highlights,
             'concerns' => $concerns,
-        ]);
+        ];
     }
 
+    /**
+     * Chantier 32.21 (layer 14c): this endpoint used to return a
+     * fabricated `export_url` pointing at a file that was never actually
+     * generated — a 404 on every real download attempt, confirmed via
+     * grep that neither a PDF library call nor any write to that storage
+     * path existed anywhere in the class. Now generates a real file
+     * (DomPDF/Maatwebsite\Excel, matching this session's established
+     * export pattern — see Accounting/Strategy/BI's Chantier 29 exports)
+     * from the exact same buildReportData() the JSON report() endpoint
+     * already returns, and saves it to the public disk so the response's
+     * `export_url` is a real, working link — kept as a JSON envelope
+     * (rather than switching to an inline binary download) to preserve
+     * this endpoint's existing tested contract (`getJson()` + `export_url`).
+     */
     public function reportExport(Request $request, int $agent): JsonResponse
     {
-        $format = in_array($request->query('format'), ['pdf', 'csv', 'xlsx'], true) ? $request->query('format') : 'pdf';
+        $format = in_array($request->query('format'), ['pdf', 'xlsx', 'csv'], true) ? $request->query('format') : 'pdf';
+        $data = $this->buildReportData($agent);
+        $agentUser = \App\Models\User::find($agent);
+        $filename = $agent . '-' . now()->format('YmdHis') . '.' . ($format === 'csv' ? 'xlsx' : $format);
+        $path = 'exports/agent-performance/' . $filename;
+
+        if ($format === 'pdf') {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('helpdesk::exports.agent-performance-report', [
+                'agentId' => $agent,
+                'agentName' => $agentUser?->name ?? "Agent #{$agent}",
+                'generatedAt' => now(),
+                'metrics' => $data['metrics'],
+                'summary' => $data['summary'],
+                'highlights' => $data['highlights'],
+                'concerns' => $data['concerns'],
+            ])->setPaper('a4', 'portrait');
+
+            \Illuminate\Support\Facades\Storage::disk('public')->put($path, $pdf->output());
+        } else {
+            \Maatwebsite\Excel\Facades\Excel::store(
+                new \Modules\Helpdesk\Exports\AgentPerformanceReportExport($agent, $agentUser?->name ?? "Agent #{$agent}", $data),
+                $path,
+                'public',
+            );
+        }
 
         return response()->json([
             'agent_id' => $agent,
-            'export_url' => url('/storage/exports/agent-performance/' . $agent . '-' . now()->format('YmdHis') . '.' . $format),
+            'export_url' => \Illuminate\Support\Facades\Storage::disk('public')->url($path),
         ]);
     }
 
@@ -412,12 +468,47 @@ class AgentPerformanceController extends Controller
         ]);
     }
 
+    /**
+     * Chantier 32.21: the same fake-URL bug as reportExport() above, found
+     * independently while reading this class — zero data query, a
+     * fabricated URL to a file nobody ever wrote. Not given an
+     * authorize()/permission check here: its sibling bulkMetrics() (view
+     * metrics for a caller-specified set of agent IDs) has none either and
+     * is pre-existing, tested, permissive-by-design behavior — adding a
+     * stricter gate only to the export flavor would be an inconsistent
+     * security model rather than a real fix (a caller blocked here could
+     * still get the same data via bulkMetrics() with every agent ID). That
+     * broader "any authenticated Helpdesk user can view any agent's
+     * aggregate metrics via bulk-metrics/metrics-export" gap is real but
+     * pre-existing and out of this fix's narrow scope (a fake-file bug) —
+     * documented here rather than silently left unmentioned.
+     */
     public function metricsExport(Request $request): JsonResponse
     {
         $format = in_array($request->query('format'), ['csv', 'xlsx'], true) ? $request->query('format') : 'csv';
 
+        // Spatie's role() query scope throws RoleDoesNotExist when the named
+        // role has never been seeded at all (not merely "zero users hold it")
+        // — a real 500 confirmed empirically on an unseeded database. Query
+        // the pivot directly instead, which degrades to an empty collection
+        // rather than a fatal error when the role doesn't exist yet.
+        $rows = \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'support-agent'))
+            ->get()
+            ->map(function ($agentUser) {
+                return array_merge($this->buildMetrics($agentUser->id), ['agent_name' => $agentUser->name]);
+            });
+
+        $filename = 'all-agents-' . now()->format('YmdHis') . '.xlsx';
+        $path = 'exports/agent-performance/' . $filename;
+
+        \Maatwebsite\Excel\Facades\Excel::store(
+            new \Modules\Helpdesk\Exports\AgentMetricsExport($rows),
+            $path,
+            'public',
+        );
+
         return response()->json([
-            'export_url' => url('/storage/exports/agent-performance/all-agents-' . now()->format('YmdHis') . '.' . $format),
+            'export_url' => \Illuminate\Support\Facades\Storage::disk('public')->url($path),
         ]);
     }
 

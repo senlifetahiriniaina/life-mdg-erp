@@ -39,7 +39,16 @@ class VoipService
             ->post("https://api.twilio.com/2010-04-01/Accounts/{$this->accountSid}/Calls.json", [
                 'To' => $to,
                 'From' => $this->fromNumber,
-                'Url' => route('crm.voip.webhook'),
+                // Chantier 38.3: RouteServiceProvider registers this whole module's
+                // routes/api.php group under Route::name('api.') (confirmed via
+                // `php artisan route:list --name=crm.voip`: the real registered name is
+                // `api.crm.voip.webhook`) — `route('crm.voip.webhook')` (no `api.` prefix)
+                // has thrown a fatal RouteNotFoundException on every real call to this
+                // method since the file was created (confirmed via git history: unchanged
+                // since the initial extraction commit), meaning a real outbound call has
+                // never actually completed — the fatal error happens before the Twilio HTTP
+                // request is even built.
+                'Url' => route('api.crm.voip.webhook'),
             ]);
 
         $data = $response->json();
@@ -48,6 +57,18 @@ class VoipService
             'contact_id' => $contact?->id,
             'lead_id' => null,
             'user_id' => $agent->id,
+            // Chantier 32.15: crm_call_logs already carried a real `tenant_id` column, never
+            // populated anywhere — every call log silently had no tenant boundary at all,
+            // confirmed empirically before this fix (the underlying cross-tenant read leak on
+            // VoipController::callLogs()/showCallLog() is fixed separately, at the controller).
+            'tenant_id' => $agent->company_id,
+            // Chantier 38.3: crm_call_logs never had a call_sid column at all — the real
+            // Twilio SID this method already fetches (below) was silently thrown away,
+            // permanently disabling startRecording()'s real Twilio API call (its
+            // `$callLog->call_sid ?? null` guard could never be true) and leaving
+            // VoipController::status() with nothing real to look a call up by. See this
+            // migration's own docblock: 2026_10_10_000001_add_call_sid_to_crm_call_logs.php.
+            'call_sid' => $data['sid'] ?? null,
             'direction' => 'outbound',
             'status' => 'initiated',
             'phone_number' => $to,
@@ -89,7 +110,14 @@ class VoipService
         $recording = CallRecording::create([
             'call_id'    => $callId,
             'status'     => CallRecording::STATUS_RECORDING,
-            'company_id' => $callLog->company_id ?? 0,
+            // Chantier 32.15: was reading $callLog->company_id, a column CallLog has never
+            // had (only tenant_id) — every CallRecording silently got company_id=0 regardless
+            // of the real caller's company, meaning CallRecordingController::show()/
+            // summarize()/getSummary() (already correctly scoped by company_id since
+            // Chantier 10) could never actually find a real company's own recording — the
+            // whole AI call-summary feature was unreachable for any real company. Fixed to
+            // read the call log's real tenant_id (now populated by initiateCall() above).
+            'company_id' => $callLog->tenant_id ?? 0,
         ]);
 
         if ($this->accountSid && $this->authToken && $callLog->call_sid ?? null) {

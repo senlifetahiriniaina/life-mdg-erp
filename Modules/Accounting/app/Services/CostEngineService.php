@@ -31,25 +31,33 @@ use Modules\Accounting\Models\CostRollup;
 class CostEngineService
 {
     /** OHADA chart-of-accounts mapping. */
+    /**
+     * Chantier 36 — remapped onto the real user-provided chart of
+     * accounts. Confirmed dead code (no consumer anywhere in the repo
+     * besides a docblock comment in an Inventory migration) — corrected
+     * for consistency rather than left stale, on the same "close the
+     * landmine before a future caller trips it" precedent used elsewhere
+     * in this session.
+     */
     public const OHADA_ACCOUNT_MAP = [
         'CAPEX'  => [
             'class'    => '2',
-            'accounts' => ['2818', '2828', '6813', '6814'],
+            'accounts' => ['28', '29', '68'],
             'label'    => 'Immobilisations / Amortissements',
         ],
         'OPEX'   => [
             'class'    => '6',
-            'accounts' => ['601', '602', '604', '641', '658'],
+            'accounts' => ['601', '602', '604', '661', '658'],
             'label'    => 'Charges d\'exploitation',
         ],
         'FINEX'  => [
             'class'    => '67',
-            'accounts' => ['671', '672', '673', '676'],
+            'accounts' => ['671', '676'],
             'label'    => 'Frais financiers',
         ],
         'RISKEX' => [
             'class'    => '69',
-            'accounts' => ['691', '694', '697'],
+            'accounts' => ['69'],
             'label'    => 'Dotations aux provisions / Charges HAO',
         ],
     ];

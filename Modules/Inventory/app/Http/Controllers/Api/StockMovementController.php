@@ -4,6 +4,7 @@ namespace Modules\Inventory\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Modules\Inventory\Http\Controllers\Api\Concerns\ScopesToCompany;
 use Modules\Inventory\Http\Requests\RecordStockMovementRequest;
 use Modules\Inventory\Http\Resources\StockMovementResource;
 use Modules\Inventory\Models\Product;
@@ -14,9 +15,15 @@ use Modules\Inventory\Services\InventoryService;
  * @group Controllers - Stock Movement
  *
  * Manage Stock Movement resources.
+ *
+ * Chantier 32: authorize() (permission, 403) + assertSameCompany()
+ * (per-record ownership, 404) as two separate calls, matching Achats'
+ * real precedent.
  */
 class StockMovementController extends Controller
 {
+    use ScopesToCompany;
+
     public function __construct(protected InventoryService $service) {}
 
     public function index(Request $request)
@@ -28,7 +35,7 @@ class StockMovementController extends Controller
         $type = $request->query('type');
         $perPage = $request->query('per_page', 50);
 
-        $query = StockMovement::query();
+        $query = $this->scopeToCompany(StockMovement::query(), $request);
 
         if ($productId) {
             $query->where('product_id', $productId);
@@ -53,6 +60,9 @@ class StockMovementController extends Controller
     {
         $this->authorize('create', StockMovement::class);
 
+        $data = $request->validated();
+        $data['company_id'] = $this->companyId($request);
+
         // Was calling recordStockMovement(), a bare `StockMovement::create()`
         // that only ever wrote the audit-trail row — every movement recorded
         // through this endpoint (the real one Stock/Movements.vue posts to)
@@ -61,7 +71,7 @@ class StockMovementController extends Controller
         // does both (with pessimistic locking) — only the barcode-scan flow
         // (BarcodeController::stockMovement()) was ever calling it.
         try {
-            $movement = $this->service->recordMovement($request->validated());
+            $movement = $this->service->recordMovement($data);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -79,15 +89,18 @@ class StockMovementController extends Controller
      * ever GETs and POSTs, never PUTs/DELETEs one) and no frontend page
      * anywhere calls either verb.
      */
-    public function show(StockMovement $stockMovement)
+    public function show(Request $request, StockMovement $stockMovement)
     {
         $this->authorize('view', $stockMovement);
+        $this->assertSameCompany($request, $stockMovement);
 
         return new StockMovementResource($stockMovement->load('product', 'warehouse'));
     }
 
     public function productHistory(Product $product, Request $request)
     {
+        $this->assertSameCompany($request, $product);
+
         $limit = $request->query('limit', 50);
         $movements = $this->service->getStockHistory($product, $limit);
 

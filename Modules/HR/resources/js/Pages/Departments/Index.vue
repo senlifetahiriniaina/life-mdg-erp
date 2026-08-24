@@ -2,6 +2,10 @@
   <AppLayout>
     <Head :title="$t('hr.departments')" />
 
+    <!-- Chantier 32.17 (HR deep 14-layer audit): this real, routed page
+         never called useAiAssistant() at all before this fix. -->
+    <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
+
     <div class="space-y-6">
       <!-- Page header -->
       <div class="flex items-center justify-between">
@@ -159,9 +163,16 @@ import Dialog from 'primevue/dialog'
 import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import ConfirmDialog from 'primevue/confirmdialog'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
 const confirm = useConfirm()
+
+// Chantier 32.17 (HR deep 14-layer audit): see the AIAssistantPanel comment
+// in the template — this page never called useAiAssistant() at all before.
+const showAiPanel = ref(true)
+const { guidance } = useAiAssistant('HR', 'manage_departments')
 
 const departments = ref([])
 const managers = ref([])

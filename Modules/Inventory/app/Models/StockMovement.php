@@ -16,8 +16,8 @@ class StockMovement extends Model
     public $timestamps = true;
 
     protected $fillable = [
+        'company_id',
         'product_id',
-        'sku_id',
         'warehouse_id',
         'type',
         'quantity',
@@ -26,6 +26,7 @@ class StockMovement extends Model
         'reference',
         'reason',
         'created_by',
+        'company_id',
     ];
 
     protected static function newFactory()
