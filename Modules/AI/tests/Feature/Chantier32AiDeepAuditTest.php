@@ -188,7 +188,12 @@ test('supportedModules() now reports 38 modules including the 3 newly-registered
     // Chantier 32.28 (14-layer deep audit of Modules\Messaging) added a
     // 39th: 'Messaging' had the identical gap (a real MessagingAiAssistController
     // existed since Chantier 20 but was never registered here).
-    expect($modules)->toHaveCount(39);
+    // Chantier 38.1 (second deep 14-layer audit of Modules\Core) added a
+    // 40th: 'Core' — the one conspicuously absent module from this
+    // otherwise near-complete registry, despite the real, routed
+    // AI-assisted import pipeline behind Import/Index.vue never calling
+    // useAiAssistant() at all.
+    expect($modules)->toHaveCount(40);
     expect(array_keys($modules))->toContain('Analytics', 'Integration', 'Security');
     expect($modules['Helpdesk'])->toContain('view_dashboard');
     expect($modules['Calendar'])->toContain('calendar_integrations', 'team_calendar', 'view_event');

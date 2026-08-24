@@ -796,4 +796,57 @@ describe('POST /api/v1/crm/email-sequences/process-due', function () {
             ->assertOk()
             ->assertJsonPath('processed', 0);
     });
+
+    /**
+     * Chantier 38.3: processDue() never scoped by tenant at all — any authenticated CRM user
+     * of any company could trigger a real, immediate send sweep across every OTHER company's
+     * due email enrollments, confirmed empirically before this fix (a real cross-tenant
+     * write/side-effect vector, not just a read leak).
+     */
+    it('only processes the caller own company due enrollments, never another company', function () {
+        $companyA = \App\Models\Company::create(['name' => 'Co A', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+        $companyB = \App\Models\Company::create(['name' => 'Co B', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+
+        $userA = User::factory()->create(['company_id' => $companyA->id]);
+        grantAdminRole($userA);
+        $tokenA = $userA->createToken('t')->plainTextToken;
+
+        $sequenceA = EmailSequence::factory()->create(['tenant_id' => $companyA->id]);
+        SequenceEnrollment::factory()->create([
+            'sequence_id' => $sequenceA->id,
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'active',
+            'next_send_at' => now()->subMinute(),
+        ]);
+
+        $sequenceB = EmailSequence::factory()->create(['tenant_id' => $companyB->id]);
+        $enrollmentB = SequenceEnrollment::factory()->create([
+            'sequence_id' => $sequenceB->id,
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'active',
+            'next_send_at' => now()->subMinute(),
+        ]);
+
+        $this->withToken($tokenA)
+            ->postJson('/api/v1/crm/email-sequences/process-due')
+            ->assertOk()
+            ->assertJsonPath('processed', 1);
+
+        // Company B's enrollment must be untouched — its next_send_at never advanced.
+        expect($enrollmentB->fresh()->next_send_at->timestamp)
+            ->toBe($enrollmentB->next_send_at->timestamp);
+    });
+
+    it('the new scheduled command processes every company in one sweep, unlike the per-tenant HTTP endpoint', function () {
+        $company = \App\Models\Company::create(['name' => 'Co C', 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
+        $sequence = EmailSequence::factory()->create(['tenant_id' => $company->id]);
+        SequenceEnrollment::factory()->create([
+            'sequence_id' => $sequence->id,
+            'contact_id' => Contact::factory()->create()->id,
+            'status' => 'active',
+            'next_send_at' => now()->subMinute(),
+        ]);
+
+        $this->artisan('crm:process-due-email-sequences')->assertExitCode(0);
+    });
 });

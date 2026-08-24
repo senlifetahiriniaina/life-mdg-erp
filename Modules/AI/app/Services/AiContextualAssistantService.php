@@ -265,6 +265,23 @@ class AiContextualAssistantService
             // the first place — the exact same double-gap Chantier 30 found
             // and fixed for 'Strategy'.
             'Messaging'        => ['view_dashboard', 'start_conversation'],
+            // Chantier 38.1 (Core deep 14-layer re-audit, second pass):
+            // confirmed via grep that 'Core' was the one conspicuously
+            // absent module from this otherwise near-complete registry.
+            // Modules\Core\Http\Controllers\Api\ImportController (the
+            // AI-assisted CSV/XLSX import pipeline, real and routed) backs
+            // the real resources/js/Pages/Import/Index.vue page, which was
+            // never wired to useAiAssistant() at all — the same
+            // "real page, zero AI wiring" pattern already found and fixed
+            // for Strategy (Chantier 30), Validation (Chantier 32.7), CRM
+            // (Chantier 32.15), Sales (Chantier 32.16), and HR (Chantier
+            // 32.17). The 7 root-level Admin/*.vue pages under
+            // app/Http/Controllers/Web/AdminWebController were deliberately
+            // NOT included here — confirmed via CLAUDE.md's own Chantier
+            // 32.2 entry that they belong to a separate, unreconciled
+            // root-`app/`-namespace "third audit system"
+            // (App\Models\Admin\AuditLog), not Modules\Core.
+            'Core'             => ['import_data'],
         ];
     }
 
@@ -385,7 +402,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function frenchMap(): array
     {
-        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216(), $this->frenchMapChantier3217(), $this->frenchMapChantier3219(), $this->frenchMapChantier3221(), $this->frenchMapHrDeepAudit(), $this->frenchMapChantier3222(), $this->frenchMapChantier3224(), $this->frenchMapChantier3228());
+        return array_merge($this->frenchMapCore(), $this->frenchMapExtended(), $this->frenchMapPhase52(), $this->frenchMapChantier30(), $this->frenchMapChantier32(), $this->frenchMapChantier327(), $this->frenchMapChantier3215(), $this->frenchMapChantier3216(), $this->frenchMapChantier3217(), $this->frenchMapChantier3219(), $this->frenchMapChantier3221(), $this->frenchMapHrDeepAudit(), $this->frenchMapChantier3222(), $this->frenchMapChantier3224(), $this->frenchMapChantier3228(), $this->frenchMapChantier381());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -2521,7 +2538,7 @@ PROMPT;
     /** @return array<string, array<string, mixed>> */
     private function englishMap(): array
     {
-        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216(), $this->englishMapChantier3217(), $this->englishMapChantier3219(), $this->englishMapChantier3221(), $this->englishMapHrDeepAudit(), $this->englishMapChantier3222(), $this->englishMapChantier3224(), $this->englishMapChantier3228());
+        return array_merge($this->englishMapCore(), $this->englishMapExtended(), $this->englishMapPhase52(), $this->englishMapChantier30(), $this->englishMapChantier32(), $this->englishMapChantier327(), $this->englishMapChantier3215(), $this->englishMapChantier3216(), $this->englishMapChantier3217(), $this->englishMapChantier3219(), $this->englishMapChantier3221(), $this->englishMapHrDeepAudit(), $this->englishMapChantier3222(), $this->englishMapChantier3224(), $this->englishMapChantier3228(), $this->englishMapChantier381());
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -8205,6 +8222,67 @@ PROMPT;
                     ['label' => 'Track production', 'action' => 'manage_production_orders', 'module' => 'Inventory'],
                 ],
                 'tips'                => [],
+            ],
+        ];
+    }
+
+    /**
+     * Chantier 38.1 (Core deep 14-layer re-audit, second pass — the first
+     * pass was already run as "Chantier 32.1"): confirmed via grep across
+     * Modules/AI's own supportedModules() array that 'Core' was the one
+     * module conspicuously absent from an otherwise near-complete registry
+     * spanning 40+ modules ('API' was the other, already covered by a
+     * concurrent session's own pass on Modules/API). Modules\Core\Http\
+     * Controllers\Api\ImportController (the AI-assisted CSV/XLSX import
+     * pipeline behind resources/js/Pages/Import/Index.vue) is real and
+     * routed, but had zero AiContextualAssistantService entry — every real
+     * call from that page's frontend degraded silently to emptyGuidance()
+     * (enabled:false, every field blank) instead of the fallback-first
+     * static guidance this app's own design principle promises. Named
+     * "Chantier381" (not a bare numeric chantier suffix) to avoid colliding
+     * with the "3217"/"3222" etc. numbering already claimed by concurrent
+     * module-audit sessions on this same shared file.
+     */
+    private function frenchMapChantier381(): array
+    {
+        return [
+            'Core.import_data' => [
+                'what_to_do'          => 'Importez un fichier CSV/XLSX et laissez l\'IA proposer la correspondance des colonnes.',
+                'how_to_do'           => [
+                    'Choisissez le type de données à importer (contacts, produits, employés, factures…).',
+                    'Déposez le fichier — les colonnes sont extraites puis l\'IA propose une correspondance vers les champs réels.',
+                    'Vérifiez/corrigez la correspondance proposée avant de lancer l\'import, puis lancez-le.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Les lignes en échec restent consultables et exportables après l\'import — corrigez-les puis relancez si besoin.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Sans clé IA configurée, une correspondance de secours par nom de colonne est proposée — jamais un import bloqué faute d\'IA.',
+                ],
+            ],
+        ];
+    }
+
+    private function englishMapChantier381(): array
+    {
+        return [
+            'Core.import_data' => [
+                'what_to_do'          => 'Upload a CSV/XLSX file and let AI suggest the column mapping.',
+                'how_to_do'           => [
+                    'Choose what you\'re importing (contacts, products, employees, invoices…).',
+                    'Drop the file — its columns are extracted, then AI suggests a mapping to the real fields.',
+                    'Review/adjust the suggested mapping before running the import, then run it.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Failed rows stay reviewable and exportable after the import — fix them and re-run if needed.',
+                ],
+                'next_actions'        => [],
+                'tips'                => [
+                    'Without an AI key configured, a real fallback name-based mapping is still suggested — an import never blocks for lack of AI.',
+                ],
             ],
         ];
     }

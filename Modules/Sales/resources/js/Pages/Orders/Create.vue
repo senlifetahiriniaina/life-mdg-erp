@@ -69,6 +69,8 @@
           <Button label="Créer la commande" :disabled="submitting" @click="submit" />
         </div>
       </div>
+
+      <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
     </div>
   </AppLayout>
 </template>
@@ -79,6 +81,19 @@ import { Head, Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import Button from 'primevue/button'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+
+// Chantier 38.4 (Sales second-pass 14-layer audit, layer 13 — AI Assisted
+// First): confirmed via grep that this page (built new at Chantier 32.16,
+// alongside Edit.vue) never called useAiAssistant() at all — the same "N of
+// M real Vue pages never wired" pattern already found and fixed for the
+// module's other 3 pages at Chantier 32.16 itself. Reuses the already-real,
+// already-grounded 'create_order' fallback action rather than adding a new
+// one, so no change to Modules\AI\Services\AiContextualAssistantService is
+// needed here.
+const { guidance } = useAiAssistant('Sales', 'create_order')
+const showAiPanel = ref(true)
 
 // Chantier 32.16 (Sales deep 14-layer audit): SalesIndex.vue's
 // "Nouvelle commande" button has always navigated to /sales/orders/create,

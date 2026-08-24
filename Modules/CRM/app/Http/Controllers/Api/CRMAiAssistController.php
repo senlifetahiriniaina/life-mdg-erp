@@ -37,12 +37,16 @@ class CRMAiAssistController extends Controller
             'locale'  => ['sometimes', 'string', 'max:8'],
         ]);
 
+        // Chantier 38.3: $request->user()->role read the well-documented phantom
+        // `users.role` column (real, migrated, never populated by any real registration
+        // path) — the same bug class already fixed on Sales/Strategy/HR's own dedicated
+        // AI-assist controllers, missed here. Fixed to the real Spatie role assignment.
         $guidance = $this->assistant->getGuidance(
             module:   'CRM',
             action:   $validated['action'],
             context:  $validated['context'] ?? [],
             locale:   $validated['locale'] ?? 'fr',
-            userRole: $request->user()?->role ?? 'user',
+            userRole: $request->user()?->getRoleNames()->first() ?? 'user',
         );
 
         return response()->json($guidance);

@@ -272,6 +272,27 @@ Route::prefix('v1')->group(function () {
         });
     });
 
+    // Chantier 38.1: SessionManagementDashboard (device fingerprinting,
+    // hijack detection, concurrent-session limits — Modules\Core\Services\
+    // SessionSecurityService) was fully real and tested but had zero
+    // controller/route consumer anywhere ("my sessions" self-service was never
+    // built). See SessionManagementController's own docblock for the
+    // empirically-confirmed caveat: SessionEnhanced rows are only ever written
+    // for token-based auth (AuthController::login()), not this app's real
+    // primary Inertia session-cookie login flow, which resolves a Sanctum
+    // TransientToken that SanctumSessionSecurity middleware deliberately
+    // skips.
+    // ─── Session Management (self-service) ──────────────────────────────────
+    Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'throttle:simple_get'])->prefix('sessions')->group(function () {
+        Route::get('/', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'index']);
+        Route::get('{id}', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'show']);
+        Route::get('{id}/timeline', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'timeline']);
+        Route::middleware('throttle:create_post')->group(function () {
+            Route::delete('{id}', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'destroy']);
+            Route::post('terminate-others', [\Modules\Core\Http\Controllers\Api\SessionManagementController::class, 'terminateOthers']);
+        });
+    });
+
     // ─── Realtime Updates ──────────────────────────────────────────────────────
     // Chantier 32.1: dropped the dead demo-only SSE `subscribe` route — see
     // RealtimeController's own docblock. Real-time delivery in this app

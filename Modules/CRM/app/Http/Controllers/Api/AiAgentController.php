@@ -106,18 +106,54 @@ class AiAgentController extends Controller
         return response()->json(null, 204);
     }
 
+    /**
+     * Chantier 38.3: `entity_type` had zero allowlist ('required', 'string' only) and
+     * `entity_id` was never checked against the caller's own company — confirmed empirically
+     * (real tinker run) that any authenticated CRM user could create an `add_note`/
+     * `create_task` agent, call run() with an arbitrary FQCN as entity_type (e.g.
+     * `App\Models\User`) and any id, and AiAgentService::runAgent() would raw-insert that
+     * FQCN straight into crm_activities.subject_type — a real cross-module information-
+     * disclosure vector once that activity is later read back via
+     * ActivityController::show()'s `$activity->load('subject')` (Eloquent's MorphTo resolves
+     * an unmapped string as a literal class name), disclosing the full attributes of an
+     * arbitrary model (confirmed: this leaked the seeded admin's real email). Fixed with the
+     * same allowlist + same-company check already established for
+     * ActivityController::assertSubjectSameCompany() — see that method's own docblock for the
+     * identical two-part IDOR this closes here.
+     */
     public function run(Request $request, AiAgent $agent): JsonResponse
     {
         $this->authorize('run', $agent);
 
         $validated = $request->validate([
-            'entity_type' => ['required', 'string'],
+            'entity_type' => ['required', 'string', 'in:contact,account,lead,opportunity'],
             'entity_id' => ['required', 'integer'],
         ]);
+
+        $this->assertEntitySameCompany($request, $validated['entity_type'], (int) $validated['entity_id']);
 
         $run = $this->service->runAgent($agent, $validated['entity_type'], (int) $validated['entity_id']);
 
         return response()->json($run);
+    }
+
+    /**
+     * Same allowlist + ownership check as ActivityController::assertSubjectSameCompany() —
+     * 404s rather than 403s to avoid confirming a cross-tenant id exists.
+     */
+    private function assertEntitySameCompany(Request $request, string $entityType, int $entityId): void
+    {
+        $companyId = $request->user()->company_id;
+
+        $exists = match ($entityType) {
+            'contact' => \Modules\CRM\Models\Contact::where('id', $entityId)->where('company_id', $companyId)->exists(),
+            'account' => \Modules\CRM\Models\Account::where('id', $entityId)->where('company_id', $companyId)->exists(),
+            'lead' => \Modules\CRM\Models\Lead::where('id', $entityId)->where('company_id', $companyId)->exists(),
+            'opportunity' => \Modules\CRM\Models\Opportunity::where('id', $entityId)->where('tenant_id', $companyId)->exists(),
+            default => false,
+        };
+
+        abort_unless($exists, 404, 'Entity record not found.');
     }
 
     public function history(AiAgent $agent, Request $request): JsonResponse

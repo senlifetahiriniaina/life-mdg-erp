@@ -21,7 +21,9 @@ class CallLogResource extends JsonResource
             'user_id' => $this->user_id,
             'direction' => $this->direction,
             'status' => $this->status,
-            'duration_seconds' => $this->duration_seconds,
+            // Chantier 38.3: the real column is `duration` — see CallLog's own docblock.
+            // External JSON key kept as `duration_seconds` for API-contract stability.
+            'duration_seconds' => $this->duration,
             'phone_number' => $this->phone_number,
             'recording_url' => $this->recording_url,
             'notes' => $this->notes,

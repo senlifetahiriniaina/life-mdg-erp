@@ -45,6 +45,7 @@ class SalesDepositService
 
     public function requestDeposit(SalesOrder $order, float $percent, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->deposit_invoice_id !== null) {
             throw new \RuntimeException("Un acompte a déjà été demandé pour la commande {$order->reference}.");
         }
@@ -86,6 +87,7 @@ class SalesDepositService
 
     public function requestBalance(SalesOrder $order, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->balance_invoice_id !== null) {
             throw new \RuntimeException("Le solde a déjà été demandé pour la commande {$order->reference}.");
         }
@@ -125,6 +127,7 @@ class SalesDepositService
 
     public function recordDepositPayment(SalesOrder $order, float $amount, ?string $method, ?string $reference, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->deposit_invoice_id === null) {
             throw new \RuntimeException('Aucun acompte n\'a été demandé pour cette commande.');
         }
@@ -150,6 +153,7 @@ class SalesDepositService
 
     public function recordBalancePayment(SalesOrder $order, float $amount, ?string $method, ?string $reference, ?int $userId): SalesOrder
     {
+        $this->assertOrderIsActive($order);
         if ($order->balance_invoice_id === null) {
             throw new \RuntimeException('Aucun solde n\'a été demandé pour cette commande.');
         }
@@ -268,6 +272,25 @@ class SalesDepositService
     private function generateInvoiceNumber(string $prefix, string $orderReference): string
     {
         return sprintf('%s-%s-%s', $prefix, $orderReference, now()->format('YmdHis'));
+    }
+
+    /**
+     * Chantier 38.4 (Sales second-pass 14-layer audit, layer 8 — business
+     * validation): none of the 4 public methods above ever checked the
+     * order's own status — confirmed empirically via tinker that a real
+     * `cancelled` SalesOrder could still have a deposit invoice requested
+     * AND paid, producing a real Invoice and a real balanced OHADA journal
+     * entry for an order that is, by this app's own already-established
+     * definition (SalesOrder::scopeActive(), excluding exactly 'cancelled'
+     * and 'returned'), dead. Guards against that one already-established
+     * definition rather than inventing a new "must be confirmed first"
+     * business rule nowhere else in this codebase currently asserts.
+     */
+    private function assertOrderIsActive(SalesOrder $order): void
+    {
+        if (in_array($order->status, ['cancelled', 'returned'], true)) {
+            throw new \RuntimeException("La commande {$order->reference} est {$order->status} — impossible de demander ou d'encaisser un acompte/solde.");
+        }
     }
 
     private function resolveCustomerName(SalesOrder $order): string

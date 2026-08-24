@@ -238,13 +238,22 @@ class SessionManagementDashboard
      */
     public function getSessionSummary(int|string $userId, ?string $tenantId = null): array
     {
-        $activeSessions = SessionEnhanced::forUser($userId)
+        // Chantier 38.1: materialize once into a real Collection before
+        // calling groupBy()/map() on it — SessionEnhanced::forUser(...)->active()
+        // returns a query Builder, and Builder::groupBy() sets a SQL clause
+        // and still returns a Builder, not a Collection (Builder has no
+        // map() method). This was never actually executed before this
+        // chantier activated the dashboard via a real controller, so this
+        // bug was dormant. Deriving all four summary values from one
+        // materialized Collection avoids re-querying repeatedly too.
+        $sessions = SessionEnhanced::forUser($userId)
             ->forTenant($tenantId)
-            ->active();
+            ->active()
+            ->get();
 
-        $totalActiveSessions = $activeSessions->count();
-        $oldestSession = $activeSessions->orderBy('created_at', 'asc')->first();
-        $newestSession = $activeSessions->orderBy('created_at', 'desc')->first();
+        $totalActiveSessions = $sessions->count();
+        $oldestSession = $sessions->sortBy('created_at')->first();
+        $newestSession = $sessions->sortByDesc('created_at')->first();
 
         // Suspicious activities in last 24 hours
         $suspiciousCount = SessionSecurityEvent::forUser($userId)
@@ -253,8 +262,8 @@ class SessionManagementDashboard
             ->count();
 
         // Device types
-        $deviceBreakdown = $activeSessions->groupBy('device_type')
-            ->map(fn($sessions) => $sessions->count())
+        $deviceBreakdown = $sessions->groupBy('device_type')
+            ->map(fn($group) => $group->count())
             ->toArray();
 
         return [

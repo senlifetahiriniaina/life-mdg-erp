@@ -404,13 +404,42 @@ test('an agent cannot be run against another company by id', function () {
 test('an agent-created note is tagged with the owning agent own company', function () {
     $owner = deepAuditUser('AIE');
     $agent = AiAgent::factory()->create(['tenant_id' => $owner->company_id, 'action_type' => 'add_note']);
+    // Chantier 38.3: run() now requires entity_id to be a real record owned by the caller's
+    // own company (closes the AiAgent-as-arbitrary-model-disclosure IDOR — see
+    // AiAgentController::run()'s own docblock) — a real Contact is required here, id=1 with
+    // no backing record would now correctly 404 rather than succeed.
+    $contact = Contact::factory()->create(['company_id' => $owner->company_id]);
     $token = $owner->createToken('t')->plainTextToken;
 
     $this->withToken($token)
-        ->postJson("/api/v1/crm/ai-agents/{$agent->id}/run", ['entity_type' => 'contact', 'entity_id' => 1])
+        ->postJson("/api/v1/crm/ai-agents/{$agent->id}/run", ['entity_type' => 'contact', 'entity_id' => $contact->id])
         ->assertOk();
 
     $this->assertDatabaseHas('crm_activities', ['type' => 'note', 'company_id' => $owner->company_id]);
+});
+
+test('run() rejects an entity_type outside the real allowlist', function () {
+    $owner = deepAuditUser('AIF');
+    $agent = AiAgent::factory()->create(['tenant_id' => $owner->company_id, 'action_type' => 'add_note']);
+    $token = $owner->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->postJson("/api/v1/crm/ai-agents/{$agent->id}/run", ['entity_type' => 'App\\Models\\User', 'entity_id' => 1])
+        ->assertStatus(422);
+});
+
+test('run() rejects an entity_id belonging to another company, even for an allowlisted type', function () {
+    $owner = deepAuditUser('AIG');
+    $other = deepAuditUser('AIH');
+    $agent = AiAgent::factory()->create(['tenant_id' => $owner->company_id, 'action_type' => 'add_note']);
+    $foreignContact = Contact::factory()->create(['company_id' => $other->company_id]);
+    $token = $owner->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->postJson("/api/v1/crm/ai-agents/{$agent->id}/run", ['entity_type' => 'contact', 'entity_id' => $foreignContact->id])
+        ->assertNotFound();
+
+    $this->assertDatabaseMissing('crm_activities', ['subject_type' => 'contact', 'subject_id' => $foreignContact->id]);
 });
 
 // ── Activity subject_type IDOR — real allowlist + cross-company subject check ──
@@ -627,4 +656,33 @@ test('CRM.supportedModules() lists every action a real CRM Vue page actually req
     ] as $action) {
         expect($modules['CRM'])->toContain($action);
     }
+});
+
+/**
+ * Chantier 38.3: CRMAiAssistController::assist() (the module's own dedicated
+ * `POST crm/ai/assist` endpoint, distinct from the generic `/api/v1/ai/assist` the real
+ * frontend composable actually calls — see the module-wide `useAiAssistant.ts` note
+ * elsewhere in this session, confirmed still true for CRM specifically) read
+ * `$request->user()?->role` — the well-documented phantom `users.role` column, never
+ * populated by any real registration path, the same bug class already fixed on Sales/
+ * Strategy/HR's own dedicated AI-assist controllers but missed here. Fixed to
+ * getRoleNames()->first(). This endpoint has no confirmed frontend caller today (never
+ * fixed nor exercised by any prior test) but is real, routed, module:CRM/auth-gated code —
+ * locks in that it returns real guidance rather than silently degrading on a role read that
+ * always resolved null before.
+ */
+test("CRM's own dedicated ai/assist endpoint resolves a real Spatie role, not the phantom users.role column", function () {
+    $user = actingAsUser('sales-rep');
+
+    $response = $this->postJson('/api/v1/crm/ai/assist', [
+        'action' => 'view_dashboard',
+        'locale' => 'fr',
+    ])->assertOk();
+
+    expect($response->json('what_to_do'))->not->toBeEmpty();
+    // The phantom column never held a real value — confirm the model attribute itself is
+    // null (the bug's actual root cause) while the endpoint still resolves real guidance via
+    // the real role assignment instead.
+    expect($user->getAttribute('role'))->toBeNull()
+        ->and($user->getRoleNames()->first())->toBe('sales-rep');
 });

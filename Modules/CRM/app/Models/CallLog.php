@@ -13,12 +13,13 @@ use Modules\CRM\Database\Factories\CallLogFactory;
 
 /**
  * @property int $id
+ * @property string|null $call_sid
  * @property int|null $contact_id
  * @property int|null $lead_id
  * @property int $user_id
  * @property string $direction
  * @property string $status
- * @property int|null $duration_seconds
+ * @property int|null $duration
  * @property string $phone_number
  * @property string|null $recording_url
  * @property string|null $notes
@@ -42,12 +43,17 @@ class CallLog extends Model
 
     protected $fillable = [
         'tenant_id',
+        'call_sid',
         'contact_id',
         'lead_id',
         'user_id',
         'direction',
         'status',
-        'duration_seconds',
+        // Chantier 38.3: the real crm_call_logs column is `duration` (confirmed via
+        // Schema::getColumnListing()) — `duration_seconds` was never a real column, so every
+        // mass-assignment of it was silently dropped. CallLogResource keeps exposing it under
+        // the external `duration_seconds` JSON key for API-contract stability.
+        'duration',
         'phone_number',
         'recording_url',
         'notes',
@@ -56,7 +62,7 @@ class CallLog extends Model
 
     protected $casts = [
         'called_at' => 'datetime',
-        'duration_seconds' => 'integer',
+        'duration' => 'integer',
     ];
 
     public function contact(): BelongsTo

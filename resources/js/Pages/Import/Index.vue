@@ -6,6 +6,8 @@
         <p class="subtitle">Upload CSV, XLSX, PDF or image files — AI will map your data automatically.</p>
       </div>
 
+      <AIAssistantPanel v-if="guidance" :guidance="guidance" />
+
       <!-- Step indicators -->
       <div class="steps-bar">
         <WorkflowStepper :steps="steps" :current-step="steps[currentStep].key" :show-actions="false" :show-details="false" />
@@ -235,8 +237,23 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import WorkflowStepper from '@/Components/UI/WorkflowStepper.vue'
+import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
+import { useAiAssistant } from '@/composables/useAiAssistant'
 
 const { t } = useI18n()
+
+// Chantier 38.1: this page's mutating fetch() calls (upload/mapping/execute/rollback)
+// previously sent no CSRF token at all — this app runs Sanctum's statefulApi(), which
+// activates real CSRF verification on every same-origin browser request; axios (used
+// by most of the app) auto-attaches X-XSRF-TOKEN, raw fetch() does not. Confirmed via
+// this exact established pattern (Logistics/Carriers/Index.vue and others) rather than
+// a synthetic guess. Pest cannot detect this bug (CSRF is always bypassed under
+// APP_ENV=testing), so this reads the real <meta name="csrf-token"> tag directly.
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+}
+
+const { guidance } = useAiAssistant('Core', 'import_data')
 
 interface ImportJob {
   id: number
@@ -375,7 +392,7 @@ async function uploadFile() {
   try {
     const res = await fetch('/api/v1/import/upload', {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
       credentials: 'same-origin',
       body: form,
     })
@@ -453,7 +470,7 @@ async function confirmMapping() {
   await fetch(`/api/v1/import/jobs/${id}/mapping`, {
     method: 'PUT',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
     body: JSON.stringify({ column_mapping: invertedMapping }),
   })
 
@@ -468,7 +485,7 @@ async function startImport() {
   await fetch(`/api/v1/import/jobs/${id}/execute`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
   })
   startPolling()
 }
@@ -489,7 +506,7 @@ async function rollback() {
   await fetch(`/api/v1/import/jobs/${id}/rollback`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': getCsrf() },
   })
   const res = await fetch(`/api/v1/import/jobs/${id}`, { credentials: 'same-origin' })
   if (res.ok) currentJob.value = await res.json()

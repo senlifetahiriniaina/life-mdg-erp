@@ -43,7 +43,7 @@ class SuperadminControllerTest extends TestCase
         ]);
 
         $provision->assertCreated();
-        $provision->assertJsonPath('tenant.settings.payment_methods', ['mvola', 'airtel_money', 'cash', 'bank_transfer']);
+        $provision->assertJsonPath('tenant.settings.payment_methods', ['mvola', 'orange_money', 'airtel_money', 'cash', 'bank_transfer']);
         $provision->assertJsonPath('tenant.settings.tax_rate', 20);
         $provision->assertJsonPath('tenant.settings.accounting_std', 'PCG');
         $tenantId = $provision->json('tenant.id');
@@ -75,6 +75,6 @@ class SuperadminControllerTest extends TestCase
 
         expect($defaults)->toHaveKeys(['tax_rate', 'tax_label', 'payment_methods', 'fiscal_year_start', 'mobile_country_code', 'accounting_std']);
         expect($defaults['tax_rate'])->toBe(20.0);
-        expect($defaults['payment_methods'])->toBe(['mvola', 'airtel_money', 'cash', 'bank_transfer']);
+        expect($defaults['payment_methods'])->toBe(['mvola', 'orange_money', 'airtel_money', 'cash', 'bank_transfer']);
     }
 }

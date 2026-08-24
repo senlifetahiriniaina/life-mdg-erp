@@ -142,19 +142,35 @@ class SalesOrder extends Model
      * vérité (le statut/amount_paid réel de chaque Invoice), pas de
      * double comptabilité à synchroniser. Valeurs : none, deposit_invoiced,
      * deposit_paid, balance_invoiced, paid_in_full.
+     *
+     * Chantier 38.4 (Sales second-pass 14-layer audit, layer 8 — business
+     * validation): SalesDepositService::requestBalance()/recordBalancePayment()
+     * never require the deposit invoice to be paid first (a deposit is
+     * optional at all — an order can go straight to a balance invoice for
+     * its full total) — confirmed empirically that a real order with a real
+     * unpaid 300,000 MGA deposit invoice still reported 'paid_in_full' the
+     * moment its (smaller, remaining) balance invoice alone was paid, a
+     * materially misleading financial status: real money is still owed.
+     * 'paid_in_full' now requires the balance paid AND, when a deposit was
+     * ever requested at all, that deposit also fully paid — matching the
+     * only case this accessor's own docblock and every existing passing
+     * test actually exercises (deposit paid before balance).
      */
     public function getPaymentStageAttribute(): string
     {
         $deposit = $this->depositInvoice;
         $balance = $this->balanceInvoice;
 
-        if ($balance !== null && (float) $balance->amount_paid >= (float) $balance->total && (float) $balance->total > 0) {
+        $depositPaid = $deposit !== null && (float) $deposit->amount_paid >= (float) $deposit->total && (float) $deposit->total > 0;
+        $balancePaid = $balance !== null && (float) $balance->amount_paid >= (float) $balance->total && (float) $balance->total > 0;
+
+        if ($balancePaid && ($deposit === null || $depositPaid)) {
             return 'paid_in_full';
         }
         if ($balance !== null) {
             return 'balance_invoiced';
         }
-        if ($deposit !== null && (float) $deposit->amount_paid >= (float) $deposit->total && (float) $deposit->total > 0) {
+        if ($depositPaid) {
             return 'deposit_paid';
         }
         if ($deposit !== null) {

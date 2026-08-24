@@ -8,7 +8,6 @@ use Modules\CRM\Http\Controllers\Api\CampaignController;
 use Modules\CRM\Http\Controllers\Api\ContactController;
 use Modules\CRM\Http\Controllers\Api\ContactEmailController;
 use Modules\CRM\Http\Controllers\Api\CrmAIController;
-use Modules\CRM\Http\Controllers\Api\CrmProspectingController;
 use Modules\CRM\Http\Controllers\Api\EinsteinForecastingController;
 use Modules\CRM\Http\Controllers\Api\EmailSequenceController;
 use Modules\CRM\Http\Controllers\Api\ForecastController;
@@ -172,14 +171,25 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
         Route::delete('crm/forms/{form}', [WebFormController::class, 'destroy'])->name('crm.forms.destroy');
     });
 
+    // Chantier 38.3: detect-duplicates/generate-prospecting-email/draft-prospecting-email/
+    // analyze-sentiment used to route to CrmProspectingController — a thinner duplicate of
+    // CrmAIController that reads $request->contact_id/contact_data/conversation directly with
+    // ZERO validation, unlike CrmAIController's own real generateProspectingEmail()/
+    // analyzeSentiment()/detectDuplicates() methods (which had matching $request->validate()
+    // calls but were dead — never routed at all, shadowed by CrmProspectingController's
+    // registration further down this same file). Confirmed empirically: POSTing without the
+    // exact expected field name threw a fatal TypeError (CrmAIService's methods are
+    // type-hinted array/int, not nullable) instead of a clean 422. Repointed onto the
+    // already-written, already-validated CrmAIController methods and deleted the redundant,
+    // zero-caller, unvalidated CrmProspectingController outright.
     Route::middleware('throttle:ai')->prefix('crm/ai')->group(function () {
         Route::post('score-leads', [CrmAIController::class, 'scoreLeads']);
         Route::post('suggest-next-action', [CrmAIController::class, 'suggestNextAction']);
         Route::post('draft-follow-up', [CrmAIController::class, 'draftFollowUp']);
-        Route::post('detect-duplicates', [CrmProspectingController::class, 'detectDuplicates']);
-        Route::post('generate-prospecting-email', [CrmProspectingController::class, 'generateEmail']);
-        Route::post('draft-prospecting-email', [CrmProspectingController::class, 'generateEmail']);
-        Route::post('analyze-sentiment', [CrmProspectingController::class, 'analyzeSentiment']);
+        Route::post('detect-duplicates', [CrmAIController::class, 'detectDuplicates']);
+        Route::post('generate-prospecting-email', [CrmAIController::class, 'generateProspectingEmail']);
+        Route::post('draft-prospecting-email', [CrmAIController::class, 'generateProspectingEmail']);
+        Route::post('analyze-sentiment', [CrmAIController::class, 'analyzeSentiment']);
         Route::post('transcribe-call', [CrmAIController::class, 'transcribeCall']);
     });
 
@@ -281,6 +291,10 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'module:C
     // VoIP
     Route::get('crm/voip/call-logs', [VoipController::class, 'callLogs'])->name('crm.voip.call-logs');
     Route::get('crm/voip/call-logs/{callLog}', [VoipController::class, 'showCallLog'])->name('crm.voip.call-logs.show');
+    // Chantier 38.3: the real, already-existing ClickToCallButton.vue polls this exact path
+    // for a live call's status — it never existed as a route at all. See
+    // VoipController::status()'s own docblock.
+    Route::get('crm/voip/status', [VoipController::class, 'status'])->name('crm.voip.status');
     Route::middleware('throttle:create_post')->group(function () {
         Route::post('crm/voip/call', [VoipController::class, 'call'])->name('crm.voip.call');
         Route::post('crm/voip/webhook', [VoipController::class, 'webhook'])->name('crm.voip.webhook');

@@ -166,7 +166,16 @@ const fetchAccounts = async () => {
     ;(data.data ?? []).forEach((a: { code: string; name: string }) => {
       accounts.push({ code: a.code, name: a.name, displayLabel: `${a.code} — ${a.name}` })
     })
-    lastPage = data.last_page ?? 1
+    // Chantier 38.2: ChartOfAccountController::index() returns Laravel's
+    // standard paginated-resource shape ({data, links, meta}) — the real
+    // last_page lives under `data.meta.last_page`, never a top-level
+    // `data.last_page`. The old `data.last_page ?? 1` read always fell
+    // through to the `?? 1` default (confirmed empirically: real response
+    // has no top-level `last_page` key at all), so this loop silently
+    // stopped after page 1 on every real chart with more than 100 active
+    // accounts — 109 of the real 209 seeded accounts (Chantier 36) never
+    // reached the dropdown.
+    lastPage = data.meta?.last_page ?? 1
     page += 1
   } while (page <= lastPage)
 

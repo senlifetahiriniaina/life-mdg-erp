@@ -16,9 +16,21 @@ class AiAgentService
         return AiAgent::create($data);
     }
 
+    /**
+     * Chantier 38.3: defense-in-depth for the write path — AiAgentController::run() now
+     * validates entity_type against the real contact/account/lead/opportunity allowlist and
+     * checks entity_id ownership before ever reaching here, but this service method is also
+     * reachable directly (e.g. the orphaned runEventAgents(), zero real callers today but a
+     * future one could wire it up) — so the raw crm_activities insert below only ever writes
+     * a real, allowlisted alias as subject_type, never an arbitrary caller-supplied string.
+     * Closes the landmine at the actual write site, not just at today's one real caller.
+     */
+    private const ALLOWED_ENTITY_TYPES = ['contact', 'account', 'lead', 'opportunity'];
+
     public function runAgent(AiAgent $agent, string $entityType, int $entityId): AiAgentRun
     {
         $startTime = microtime(true);
+        $safeSubjectType = in_array($entityType, self::ALLOWED_ENTITY_TYPES, true) ? $entityType : null;
 
         // Validate conditions (always pass in this stub)
         $run = new AiAgentRun([
@@ -42,8 +54,8 @@ class AiAgentService
                     'company_id' => $agent->tenant_id,
                     'type' => 'note',
                     'title' => 'AI Agent Note',
-                    'subject_type' => $entityType,
-                    'subject_id' => $entityId,
+                    'subject_type' => $safeSubjectType,
+                    'subject_id' => $safeSubjectType !== null ? $entityId : null,
                     'status' => 'done',
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -56,8 +68,8 @@ class AiAgentService
                     'company_id' => $agent->tenant_id,
                     'type' => 'task',
                     'title' => 'AI Agent Task',
-                    'subject_type' => $entityType,
-                    'subject_id' => $entityId,
+                    'subject_type' => $safeSubjectType,
+                    'subject_id' => $safeSubjectType !== null ? $entityId : null,
                     'status' => 'planned',
                     'created_at' => now(),
                     'updated_at' => now(),

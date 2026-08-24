@@ -78,8 +78,13 @@ test('supportedModules returns array with 7 modules', function () {
     // registered — see supportedModules()'s own comments). Chantier 32.7
     // added 'Validation' (identical bug class, again — see
     // AiContextualAssistantService.php's own comment on that entry).
-    // Chantier 32.28 added 'Messaging' (same bug class again).
-    expect($modules)->toBeArray()->toHaveCount(39);
+    // Chantier 32.28 added 'Messaging' (same bug class again). Chantier 38.1
+    // (second deep 14-layer audit of Modules\Core) added 'Core' (same bug
+    // class once more — 'Core' was the one conspicuously absent module from
+    // this otherwise near-complete registry, despite the real, routed
+    // AI-assisted import pipeline behind Import/Index.vue never calling
+    // useAiAssistant() at all).
+    expect($modules)->toBeArray()->toHaveCount(40);
     expect(array_keys($modules))->toContain('CRM', 'Accounting', 'HR', 'Inventory', 'Sales', 'POS', 'Setup', 'Strategy', 'Analytics', 'Integration', 'Security');
 });
 

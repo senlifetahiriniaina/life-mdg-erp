@@ -2,6 +2,7 @@
 
 namespace Modules\CRM\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -153,18 +154,27 @@ class CRMServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            \Modules\CRM\Console\Commands\ProcessDueEmailSequencesCommand::class,
+        ]);
     }
 
     /**
      * Register command Schedules.
+     *
+     * Chantier 38.3: was a literal commented-out stub — the same "never actually scheduled"
+     * bug class already fixed for BI/Sales/Reporting/Setup/Helpdesk/Analytics elsewhere this
+     * session, confirmed via `php artisan schedule:list` after this fix. See
+     * ProcessDueEmailSequencesCommand's own docblock for the real functional gap this closes.
      */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('inspire')->hourly();
-        // });
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('crm:process-due-email-sequences')
+                ->name('crm:process-due-email-sequences')
+                ->everyFifteenMinutes()
+                ->withoutOverlapping();
+        });
     }
 
     /**

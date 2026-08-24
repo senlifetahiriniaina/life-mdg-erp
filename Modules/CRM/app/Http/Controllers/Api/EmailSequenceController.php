@@ -224,9 +224,18 @@ class EmailSequenceController extends Controller
         return response()->json($this->service->getSequenceStats($sequence));
     }
 
-    public function processDue(): JsonResponse
+    /**
+     * Chantier 38.3: never scoped by tenant — any authenticated CRM user of any company could
+     * trigger a real, immediate send sweep across every other company's due email enrollments.
+     * See EmailSequenceService::processDueEnrollments()'s own docblock for the full finding
+     * (this also surfaced a second, related bug: nothing anywhere in this module ever actually
+     * scheduled this to run automatically — see the new
+     * Modules\CRM\Console\Commands\ProcessDueEmailSequencesCommand, which now does, globally,
+     * unlike this per-tenant HTTP endpoint).
+     */
+    public function processDue(Request $request): JsonResponse
     {
-        $count = $this->service->processDueEnrollments();
+        $count = $this->service->processDueEnrollments($request->user()->company_id);
 
         return response()->json(['processed' => $count]);
     }
