@@ -14,8 +14,14 @@
         </div>
       </div>
 
-      <TabView>
-        <TabPanel header="Prévision CA">
+      <Tabs value="0">
+        <TabList>
+          <Tab value="0">Prévision CA</Tab>
+          <Tab value="1">Anomalies détectées</Tab>
+          <Tab value="2">Modèles ML</Tab>
+        </TabList>
+        <TabPanels>
+        <TabPanel value="0">
           <div v-if="revenueTrend" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Card><template #content>
               <div class="text-xl font-bold text-blue-600">{{ nextForecastValue }} XOF</div>
@@ -62,7 +68,7 @@
           <div v-else-if="!loading" class="text-center py-12 text-surface-400">Aucune donnée de revenu disponible.</div>
         </TabPanel>
 
-        <TabPanel header="Anomalies détectées">
+        <TabPanel value="1">
           <Card>
             <template #header><div class="px-4 pt-4 font-semibold">Anomalies sur les métriques suivies</div></template>
             <template #content>
@@ -101,7 +107,7 @@
           </Card>
         </TabPanel>
 
-        <TabPanel header="Modèles ML">
+        <TabPanel value="2">
           <DataTable :value="models" stripedRows :loading="loading">
             <Column field="name" header="Modèle" />
             <Column field="model_type" header="Type" />
@@ -136,7 +142,8 @@
           </DataTable>
           <p v-if="!loading && !models.length" class="text-center text-surface-400 py-6">Aucun modèle prédictif configuré.</p>
         </TabPanel>
-      </TabView>
+        </TabPanels>
+      </Tabs>
     </div>
   </AppLayout>
 </template>
@@ -151,7 +158,10 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import ProgressBar from 'primevue/progressbar'
-import TabView from 'primevue/tabview'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import Select from 'primevue/select'
 import AppLayout from '@/Layouts/AppLayout.vue'

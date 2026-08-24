@@ -190,7 +190,7 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Select as Dropdown } from 'primevue'
 import axios from 'axios'
 
 interface Condition {

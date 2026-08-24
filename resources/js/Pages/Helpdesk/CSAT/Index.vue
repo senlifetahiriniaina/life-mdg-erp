@@ -200,7 +200,7 @@
 <script setup>
 import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown, InputNumber } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Select as Dropdown, InputNumber } from 'primevue'
 import axios from 'axios'
 import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'

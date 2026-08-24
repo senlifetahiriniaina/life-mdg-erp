@@ -166,7 +166,7 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Dropdown, InputNumber } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Select as Dropdown, InputNumber } from 'primevue'
 import axios from 'axios'
 
 // Chantier 32.15 (CRM deep 14-layer audit): this real, routed page never

@@ -125,7 +125,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, Dropdown, DataTable, Column, Tag, Checkbox } from 'primevue'
+import { Button, Select as Dropdown, DataTable, Column, Tag, Checkbox } from 'primevue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 

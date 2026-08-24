@@ -28,9 +28,15 @@
       </div>
 
       <!-- Connected / Catalogue / Federation -->
-      <TabView v-model:activeIndex="activeTab">
+      <Tabs v-model:value="activeTab">
+        <TabList>
+          <Tab value="0">Connecteurs actifs</Tab>
+          <Tab value="1">Catalogue</Tab>
+          <Tab v-if="isAdmin" value="2">Fédération (WHB)</Tab>
+        </TabList>
+        <TabPanels>
         <!-- Connected generic webhook connectors -->
-        <TabPanel header="Connecteurs actifs">
+        <TabPanel value="0">
           <div v-if="loadingConnectors" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
             <Skeleton v-for="i in 3" :key="i" height="8rem" />
           </div>
@@ -77,7 +83,7 @@
         </TabPanel>
 
         <!-- Africa First mobile-money / e-commerce / business-tools catalogue -->
-        <TabPanel header="Catalogue">
+        <TabPanel value="1">
           <div v-if="loadingExternal" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
             <Skeleton v-for="i in 3" :key="i" height="8rem" />
           </div>
@@ -128,7 +134,7 @@
         </TabPanel>
 
         <!-- WideHalo Bridge (WHB) federation partners — admin/super-admin only -->
-        <TabPanel v-if="isAdmin" header="Fédération (WHB)">
+        <TabPanel v-if="isAdmin" value="2">
           <p class="text-sm text-surface-500 pt-4">
             Échange de données inter-entreprises (factures, commandes, contacts…) avec un
             partenaire WideHalo/Life MDG, sur ce même serveur ou un serveur distant.
@@ -137,7 +143,8 @@
             <Button label="Voir les connexions fédérées" outlined @click="router.visit('/integration')" />
           </div>
         </TabPanel>
-      </TabView>
+        </TabPanels>
+      </Tabs>
       <AIAssistantPanel v-if="showAiPanel" :guidance="guidance" @close="showAiPanel = false" />
     </div>
 
@@ -227,13 +234,16 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
-import TabView from 'primevue/tabview'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import Tag from 'primevue/tag'
 import Skeleton from 'primevue/skeleton'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
-import Dropdown from 'primevue/dropdown'
+import Dropdown from 'primevue/select'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
@@ -247,7 +257,7 @@ const canDelete = computed(() => isAdmin.value)
 
 const { guidance } = useAiAssistant('Integration', 'view_dashboard')
 const showAiPanel = ref(false)
-const activeTab = ref(0)
+const activeTab = ref('0')
 
 // ---------------------------------------------------------------------------
 // CSRF helper — this page uses raw fetch() throughout, which (unlike axios)
