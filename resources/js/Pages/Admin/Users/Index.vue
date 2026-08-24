@@ -41,9 +41,15 @@
 
       <!-- User detail dialog -->
       <Dialog v-model:visible="showUserDialog" :header="selectedUser?.name ?? 'Utilisateur'" :style="{ width: '600px' }" modal>
-        <TabView v-if="selectedUser">
+        <Tabs v-if="selectedUser" value="0">
+          <TabList>
+            <Tab value="0">Informations</Tab>
+            <Tab value="1">Rôles & Permissions</Tab>
+            <Tab value="2">Activité récente</Tab>
+          </TabList>
+          <TabPanels>
           <!-- Info tab -->
-          <TabPanel header="Informations">
+          <TabPanel value="0">
             <div class="space-y-3 py-2">
               <div><span class="text-surface-500 text-sm">Nom :</span> <span class="font-medium">{{ selectedUser.name }}</span></div>
               <div><span class="text-surface-500 text-sm">Email :</span> <span class="font-medium">{{ selectedUser.email }}</span></div>
@@ -52,7 +58,7 @@
           </TabPanel>
 
           <!-- Roles tab -->
-          <TabPanel header="Rôles & Permissions">
+          <TabPanel value="1">
             <div class="py-2 space-y-4">
               <div>
                 <h3 class="font-semibold mb-3">Rôles assignés</h3>
@@ -72,7 +78,7 @@
           </TabPanel>
 
           <!-- Activity tab -->
-          <TabPanel header="Activité récente">
+          <TabPanel value="2">
             <div class="py-2">
               <p class="text-surface-500 text-sm">Les logs d'activité récente de cet utilisateur sont disponibles dans la section Audit.</p>
               <div class="mt-3">
@@ -82,7 +88,8 @@
               </div>
             </div>
           </TabPanel>
-        </TabView>
+          </TabPanels>
+        </Tabs>
       </Dialog>
     </div>
   </AppLayout>
@@ -97,7 +104,10 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
-import TabView from 'primevue/tabview'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'

@@ -11,9 +11,14 @@
       </div>
 
       <!-- Tabs -->
-      <TabView>
+      <Tabs value="0">
+        <TabList>
+          <Tab value="0">Sauvegardes</Tab>
+          <Tab value="1">Planifications</Tab>
+        </TabList>
+        <TabPanels>
         <!-- Backups tab -->
-        <TabPanel header="Sauvegardes">
+        <TabPanel value="0">
           <DataTable :value="backups.data" striped-rows class="mt-4">
             <Column header="Type">
               <template #body="{ data }">
@@ -73,7 +78,7 @@
         </TabPanel>
 
         <!-- Schedules tab -->
-        <TabPanel header="Planifications">
+        <TabPanel value="1">
           <div class="flex justify-end mt-2 mb-4">
             <Button size="small" icon="pi pi-plus" label="Nouvelle planification" @click="showScheduleDialog = true" />
           </div>
@@ -104,7 +109,8 @@
             </Column>
           </DataTable>
         </TabPanel>
-      </TabView>
+        </TabPanels>
+      </Tabs>
 
       <!-- Create backup dialog -->
       <Dialog v-model:visible="showCreateDialog" header="Nouvelle sauvegarde" :style="{ width: '420px' }" modal>
@@ -198,7 +204,10 @@ import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
-import TabView from 'primevue/tabview'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'

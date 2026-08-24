@@ -69,7 +69,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Dropdown, Badge } from 'primevue'
+import { Button, DataTable, Column, Dialog, Tag, InputText, Textarea, Select as Dropdown, Badge } from 'primevue'
 import axios from 'axios'
 import { router } from '@inertiajs/vue3'
 import AiAssistantPanel from '@/Components/AI/AiAssistantPanel.vue'

@@ -146,7 +146,7 @@ import { Head } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AIAssistantPanel from '@/Components/UI/AIAssistantPanel.vue'
 import { useAiAssistant } from '@/composables/useAiAssistant'
-import { Dropdown, Tag } from 'primevue'
+import { Select as Dropdown, Tag } from 'primevue'
 import axios from 'axios'
 
 interface EpicItem {
