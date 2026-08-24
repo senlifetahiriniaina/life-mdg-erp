@@ -80,4 +80,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Chantier 26 (volet D) — revue finance mensuelle/trimestrielle
     Route::get('finance-review', fn () => \Inertia\Inertia::render('Accounting/FinanceReview/Index'))->name('finance-review.index');
+
+    // Chantier 32 (volet A) — années d'exercice + dettes fournisseurs
+    Route::get('fiscal-years', fn () => \Inertia\Inertia::render('Accounting/FiscalYears/Index'))->name('fiscal-years.index');
+    Route::get('supplier-debt', fn () => \Inertia\Inertia::render('Accounting/SupplierDebt/Index'))->name('supplier-debt.index');
+
+    // Chantier 32 (volet C) — scan de facture fournisseur (Claude vision + validation humaine)
+    Route::get('supplier-invoice-scan', fn () => \Inertia\Inertia::render('Accounting/SupplierInvoiceScan/Index'))->name('supplier-invoice-scan.index');
 });

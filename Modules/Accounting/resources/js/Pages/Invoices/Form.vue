@@ -87,10 +87,10 @@
 
               <div class="flex flex-col gap-1">
                 <label class="text-sm font-medium text-surface-700 dark:text-surface-200">Currency</label>
-                <InputText
+                <Select
                   v-model="form.currency"
-                  placeholder="USD"
-                  maxlength="3"
+                  :options="currencyOptions"
+                  class="w-full"
                 />
               </div>
             </div>
@@ -249,6 +249,15 @@ import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
+// Chantier 32 (volet B) — remplace le champ libre par un vrai sélecteur ;
+// les 4 devises explicitement demandées d'abord (MGA en tête, cohérent
+// avec le reste de l'app), puis le reste des devises réellement seedées
+// (shared_currencies, Chantier 17) pour ne pas retirer de choix existant.
+const currencyOptions = [
+  'MGA', 'EUR', 'USD', 'CNY',
+  'XOF', 'XAF', 'MAD', 'NGN', 'GHS', 'KES', 'TZS', 'INR', 'EGP',
+]
+
 interface InvoiceLine {
   id?: number
   description: string
@@ -303,7 +312,7 @@ const form = reactive({
   partner_type: props.invoice?.partner_type ?? 'customer',
   invoice_date: parseDateProp(props.invoice?.invoice_date ?? null) as Date | null,
   due_date: parseDateProp(props.invoice?.due_date ?? null) as Date | null,
-  currency: props.invoice?.currency ?? 'USD',
+  currency: props.invoice?.currency ?? 'MGA',
   lines: (props.invoice?.lines?.map(l => ({
     id: l.id,
     description: l.description,

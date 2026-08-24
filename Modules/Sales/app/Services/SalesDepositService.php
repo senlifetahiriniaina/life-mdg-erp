@@ -15,6 +15,7 @@ use Modules\CRM\Models\Account;
 use Modules\CRM\Models\Contact;
 use Modules\Core\Services\ParticipantNotificationService;
 use Modules\Sales\Models\SalesOrder;
+use Modules\Shared\Models\Currency;
 
 /**
  * Chantier 22 (volet B de la feuille de route Chantier 21) — cycle
@@ -226,6 +227,16 @@ class SalesDepositService
             ? "Acompte reçu — commande {$order->reference}"
             : "Solde reçu — commande {$order->reference}";
 
+        // Chantier 32 (volet B) — le grand livre est toujours en MGA
+        // (même convention que FinancialSimulationService/BudgetGenerationService
+        // ailleurs dans l'app) ; une commande dans une autre devise (EUR/
+        // USD/CNY) postait jusqu'ici son montant brut tel quel, corrompant
+        // silencieusement les états financiers consolidés dès qu'une
+        // commande non-MGA existait — confirmé empiriquement avant ce
+        // correctif. La devise déclarée de la facture (Invoice.currency)
+        // n'est pas modifiée, seule l'écriture de journal l'est.
+        $postedAmount = $this->convertToMga($amount, $order->currency ?? 'MGA');
+
         $sequence = JournalEntry::where('journal_id', $journal->id)->count() + 1;
 
         $entry = JournalEntry::create([
@@ -233,7 +244,7 @@ class SalesDepositService
             'date' => now()->toDateString(),
             'entry_date' => now()->toDateString(),
             'description' => $label,
-            'currency' => $order->currency ?? 'MGA',
+            'currency' => 'MGA',
             'journal_id' => $journal->id,
             'status' => 'posted',
             'posted_at' => now(),
@@ -242,8 +253,38 @@ class SalesDepositService
             'reference_id' => $order->id,
         ]);
 
-        $entry->lines()->create(['account_id' => $treasuryAccount->id, 'description' => $label, 'debit' => $amount, 'credit' => 0]);
-        $entry->lines()->create(['account_id' => $counterpartAccount->id, 'description' => $label, 'debit' => 0, 'credit' => $amount]);
+        $entry->lines()->create(['account_id' => $treasuryAccount->id, 'description' => $label, 'debit' => $postedAmount, 'credit' => 0]);
+        $entry->lines()->create(['account_id' => $counterpartAccount->id, 'description' => $label, 'debit' => 0, 'credit' => $postedAmount]);
+    }
+
+    /**
+     * Convertit un montant vers MGA en réutilisant les taux réels déjà
+     * seedés (shared_currencies, Chantier 17) — même formule que
+     * SourcingBenchmarkService::convert()/CostingSheetService, dupliquée
+     * plutôt que partagée suivant le précédent déjà établi dans ce
+     * dépôt pour cette logique transverse légère. Repli fallback-first :
+     * si un taux réel manque, le montant brut est posté tel quel plutôt
+     * que de bloquer l'écriture — mieux vaut une écriture non convertie
+     * mais réellement postée qu'aucune écriture du tout.
+     */
+    private function convertToMga(float $amount, string $from): float
+    {
+        $from = strtoupper($from);
+        if ($from === 'MGA') {
+            return round($amount, 2);
+        }
+
+        $fromCurrency = Currency::where('code', $from)->first();
+        $toCurrency = Currency::where('code', 'MGA')->first();
+
+        if ($fromCurrency === null || $toCurrency === null
+            || $fromCurrency->exchange_rate_to_usd === null || $toCurrency->exchange_rate_to_usd === null) {
+            return round($amount, 2);
+        }
+
+        $amountInUsd = $amount / (float) $fromCurrency->exchange_rate_to_usd;
+
+        return round($amountInUsd * (float) $toCurrency->exchange_rate_to_usd, 2);
     }
 
     /**

@@ -158,13 +158,16 @@ test('CRM module has exactly 3 actions', function () {
         ->toContain('create_opportunity');
 });
 
-test('Accounting module has 4 actions including ohada_report', function () {
+test('Accounting module has 12 actions including ohada_report', function () {
     $service = new AiContextualAssistantService();
     $modules = $service->supportedModules();
 
     // Chantier 30 added 'import_treasury' (bulk cash/bank import assist)
     // and 'view_income_statement' (the IncomeStatement.vue export page).
-    expect($modules['Accounting'])->toHaveCount(9)
+    // Chantier 32 added 'scan_supplier_invoice'/'view_aged_payables'/
+    // 'manage_fiscal_years' (fiscal years, supplier aged payables, and
+    // supplier invoice capture by scan/photo/PDF).
+    expect($modules['Accounting'])->toHaveCount(12)
         ->toContain('ohada_report');
 });
 

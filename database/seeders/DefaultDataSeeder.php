@@ -88,6 +88,26 @@ class DefaultDataSeeder extends Seeder
         $this->seedCurrencies();
         $this->seedCountries();
         $this->seedInventoryDefaults();
+        $this->seedFiscalYears($company);
+    }
+
+    /**
+     * Chantier 32 (volet A1) — jusqu'ici `Modules\Accounting\Models\FiscalYear`
+     * était un modèle totalement orphelin (zéro contrôleur/route/policy/seed,
+     * voir CLAUDE.md). Sème les deux exercices explicitement demandés :
+     * 2025 et 2026, tous deux du 1er janvier au 31 décembre.
+     */
+    private function seedFiscalYears(Company $company): void
+    {
+        \Modules\Accounting\Models\FiscalYear::firstOrCreate(
+            ['company_id' => $company->id, 'name' => 'Exercice 2025'],
+            ['start_date' => '2025-01-01', 'end_date' => '2025-12-31', 'is_closed' => false, 'status' => 'open']
+        );
+
+        \Modules\Accounting\Models\FiscalYear::firstOrCreate(
+            ['company_id' => $company->id, 'name' => 'Exercice 2026'],
+            ['start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'is_closed' => false, 'status' => 'open']
+        );
     }
 
     /**

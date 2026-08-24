@@ -20,8 +20,19 @@ Route::middleware(['web', 'auth', 'module:Sales'])->group(function () {
     // deposit/balance cycle needed anyway. Self-fetching page (GET
     // /api/v1/sales/orders/{id}), same closure pattern as the rest of
     // this repo's self-fetch routes.
+    // Chantier 32 (volet B) — SalesIndex.vue's createOrder()/editOrder()
+    // already navigate here (a second, previously-undocumented dead-link
+    // bug alongside the one already fixed at Chantier 22 for viewOrder());
+    // registered BEFORE the {id} wildcard route below so 'create' isn't
+    // swallowed by it.
+    Route::get('/sales/orders/create', fn () => Inertia::render('Sales/Orders/Create'))
+        ->name('sales.orders.create');
+
     Route::get('/sales/orders/{id}', fn ($id) => Inertia::render('Sales/Orders/Show', ['orderId' => (int) $id]))
         ->name('sales.orders.show');
+
+    Route::get('/sales/orders/{id}/edit', fn ($id) => Inertia::render('Sales/Orders/Edit', ['orderId' => (int) $id]))
+        ->name('sales.orders.edit');
 
     // Chantier 25 (volet E) — commandes récurrentes, self-fetch page,
     // même précédent que SalesIndex.vue.

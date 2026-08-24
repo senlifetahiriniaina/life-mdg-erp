@@ -76,7 +76,10 @@ class AiContextualAssistantService
             'CRM'                 => ['create_contact', 'view_dashboard', 'create_opportunity'],
             // 'view_income_statement'/'import_treasury' added Chantier 30 (bulk
             // treasury/cash import assistance, IncomeStatement.vue AI panel).
-            'Accounting'          => ['post_invoice', 'reconcile', 'view_balance_sheet', 'view_income_statement', 'ohada_report', 'invoice_approval', 'view_payment_schedule', 'cost_analysis', 'import_treasury'],
+            // 'scan_supplier_invoice'/'view_aged_payables'/'manage_fiscal_years'
+            // added Chantier 32 (volet A/C — fiscal years, supplier debt,
+            // supplier invoice capture by scan/photo/PDF via Claude vision).
+            'Accounting'          => ['post_invoice', 'reconcile', 'view_balance_sheet', 'view_income_statement', 'ohada_report', 'invoice_approval', 'view_payment_schedule', 'cost_analysis', 'import_treasury', 'scan_supplier_invoice', 'view_aged_payables', 'manage_fiscal_years'],
             'HR'                  => ['create_employee', 'approve_leave', 'run_payroll', 'onboarding'],
             // 'import_stock' added Chantier 30 (bulk stock import assistance).
             'Inventory'           => ['receive_stock', 'create_product', 'low_stock_alert', 'import_stock'],
@@ -4893,6 +4896,54 @@ PROMPT;
                 ],
                 'tips'                => [],
             ],
+            'Accounting.scan_supplier_invoice' => [
+                'what_to_do'          => 'Photographiez ou importez une facture fournisseur — l\'IA propose une extraction des champs, à vérifier avant enregistrement.',
+                'how_to_do'           => [
+                    'Déposez une image (JPEG/PNG/WEBP) ou un PDF de la facture.',
+                    'Relisez et corrigez les champs extraits (fournisseur, date, lignes, montants) — rien n\'est encore enregistré.',
+                    'Enregistrez pour créer la facture fournisseur réelle.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Si l\'IA n\'est pas configurée ou échoue, un formulaire vierge s\'ouvre — la saisie reste possible manuellement.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Voir les dettes fournisseurs', 'action' => 'view_aged_payables', 'module' => 'Accounting'],
+                ],
+                'tips'                => [
+                    'Le document original est conservé et lié à la facture créée.',
+                ],
+            ],
+            'Accounting.view_aged_payables' => [
+                'what_to_do'          => 'Consultez la balance âgée des dettes fournisseurs — calculée en direct, jamais un montant préchargé.',
+                'how_to_do'           => [
+                    'Repérez les fournisseurs avec un solde en retard (colonnes 61-90j / 90+j).',
+                    'Ouvrez le détail par facture pour voir l\'étape de paiement (acompte/solde).',
+                    'Priorisez le règlement des factures les plus en retard.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'Un solde 90+ jours signale un vrai risque de rupture de relation fournisseur.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Scanner une facture fournisseur', 'action' => 'scan_supplier_invoice', 'module' => 'Accounting'],
+                ],
+                'tips'                => [],
+            ],
+            'Accounting.manage_fiscal_years' => [
+                'what_to_do'          => 'Créez et clôturez les années d\'exercice comptable de l\'entreprise.',
+                'how_to_do'           => [
+                    'Créez un exercice avec sa date de début et de fin (généralement 1er janvier au 31 décembre).',
+                    'Les écritures comptables sont automatiquement rattachées à l\'exercice couvrant leur date.',
+                    'Clôturez un exercice une fois toutes les écritures de la période enregistrées — un exercice clôturé n\'est jamais supprimé, seulement marqué comme tel.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'Voir le bilan', 'action' => 'view_balance_sheet', 'module' => 'Accounting'],
+                ],
+                'tips'                => [],
+            ],
         ];
     }
 
@@ -5077,6 +5128,54 @@ PROMPT;
                 'decision_indicators' => [
                     ['label' => 'Net result', 'value' => '—', 'status' => 'ok'],
                 ],
+                'warnings'            => [],
+                'next_actions'        => [
+                    ['label' => 'View balance sheet', 'action' => 'view_balance_sheet', 'module' => 'Accounting'],
+                ],
+                'tips'                => [],
+            ],
+            'Accounting.scan_supplier_invoice' => [
+                'what_to_do'          => 'Photograph or upload a supplier invoice — the AI proposes an extraction of the fields, to review before saving.',
+                'how_to_do'           => [
+                    'Drop an image (JPEG/PNG/WEBP) or a PDF of the invoice.',
+                    'Review and correct the extracted fields (supplier, date, lines, amounts) — nothing is saved yet.',
+                    'Save to create the real supplier invoice.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'If the AI is not configured or fails, a blank form opens — manual entry is always possible.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'View aged payables', 'action' => 'view_aged_payables', 'module' => 'Accounting'],
+                ],
+                'tips'                => [
+                    'The original document is kept and linked to the created invoice.',
+                ],
+            ],
+            'Accounting.view_aged_payables' => [
+                'what_to_do'          => 'Review the supplier aged-payables report — calculated live, never a pre-loaded amount.',
+                'how_to_do'           => [
+                    'Spot suppliers with an overdue balance (61-90d / 90+d columns).',
+                    'Open the per-invoice detail to see the payment stage (deposit/balance).',
+                    'Prioritize paying the most overdue invoices.',
+                ],
+                'decision_indicators' => [],
+                'warnings'            => [
+                    'A 90+ day balance signals a real risk of straining a supplier relationship.',
+                ],
+                'next_actions'        => [
+                    ['label' => 'Scan a supplier invoice', 'action' => 'scan_supplier_invoice', 'module' => 'Accounting'],
+                ],
+                'tips'                => [],
+            ],
+            'Accounting.manage_fiscal_years' => [
+                'what_to_do'          => 'Create and close the company\'s accounting fiscal years.',
+                'how_to_do'           => [
+                    'Create a fiscal year with its start and end date (typically January 1 to December 31).',
+                    'Journal entries are automatically attached to the fiscal year covering their date.',
+                    'Close a fiscal year once every entry for the period is recorded — a closed fiscal year is never deleted, only marked as closed.',
+                ],
+                'decision_indicators' => [],
                 'warnings'            => [],
                 'next_actions'        => [
                     ['label' => 'View balance sheet', 'action' => 'view_balance_sheet', 'module' => 'Accounting'],

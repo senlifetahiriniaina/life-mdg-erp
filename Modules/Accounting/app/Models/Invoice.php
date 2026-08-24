@@ -78,6 +78,9 @@ class Invoice extends Model
         'payment_terms',
         'paid_at',
         'sent_at',
+        // Chantier 32 (volet C) — chemin du fichier scanné (image/PDF) source
+        // d'une facture fournisseur capturée via SupplierInvoiceScanController.
+        'scan_path',
     ];
 
     protected $casts = [

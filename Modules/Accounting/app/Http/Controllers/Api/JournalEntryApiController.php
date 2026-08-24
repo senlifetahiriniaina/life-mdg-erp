@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Modules\Accounting\Models\ChartOfAccount;
+use Modules\Accounting\Models\FiscalYear;
 use Modules\Accounting\Models\JournalEntry;
 use Modules\Accounting\Services\AccountingService;
 
@@ -71,12 +72,19 @@ class JournalEntryApiController extends Controller
             ], 422);
         }
 
+        // Chantier 32 (volet A1) — résout l'exercice comptable couvrant la
+        // date de l'écriture. Jamais bloquant si aucun exercice ne couvre
+        // la date (fallback-first, cohérent avec le reste de l'app) :
+        // l'écriture se poste quand même, simplement sans exercice lié.
+        $fiscalYear = FiscalYear::coveringDate($validated['date'], $request->user()?->company_id);
+
         $entry = JournalEntry::create([
-            'date'        => $validated['date'],
-            'entry_date'  => $validated['date'],
-            'description' => $validated['description'],
-            'currency'    => $validated['currency'] ?? 'MGA',
-            'status'      => 'draft',
+            'date'           => $validated['date'],
+            'entry_date'     => $validated['date'],
+            'description'    => $validated['description'],
+            'currency'       => $validated['currency'] ?? 'MGA',
+            'status'         => 'draft',
+            'fiscal_year_id' => $fiscalYear?->id,
         ]);
 
         foreach ($validated['lines'] as $line) {

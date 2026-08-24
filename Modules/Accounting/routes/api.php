@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use Modules\Accounting\Http\Controllers\Api\BudgetController;
 use Modules\Accounting\Http\Controllers\Api\BudgetManagementController;
 use Modules\Accounting\Http\Controllers\Api\FinanceReviewController;
+use Modules\Accounting\Http\Controllers\Api\FiscalYearController;
+use Modules\Accounting\Http\Controllers\Api\AgedPayablesController;
+use Modules\Accounting\Http\Controllers\Api\SupplierInvoiceScanController;
 use Modules\Accounting\Http\Controllers\Api\ChartOfAccountController;
 use Modules\Accounting\Http\Controllers\Api\ExpenseController;
 use Modules\Accounting\Http\Controllers\Api\FinancialRatiosController;
@@ -176,6 +179,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
     // Finance Review (Chantier 26, volet D) — réalisation objectifs/budget calculée en direct
     Route::get('finance-reviews', [FinanceReviewController::class, 'index']);
     Route::get('finance-reviews/realization', [FinanceReviewController::class, 'realization']);
+
+    // Fiscal Years (Chantier 32, volet A1)
+    Route::get('fiscal-years', [FiscalYearController::class, 'index']);
+    Route::get('fiscal-years/{fiscalYear}', [FiscalYearController::class, 'show']);
+
+    // Supplier debt / aged payables (Chantier 32, volet A3)
+    Route::get('supplier-debt/aged-payables', [AgedPayablesController::class, 'index']);
 });
 
 // Write operations (150 req/min)
@@ -468,6 +478,16 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user', 'role:acc
         Route::get('performance/slow-queries', [PerformanceOptimizationController::class, 'slowQueries']);
         Route::get('performance/index-health', [PerformanceOptimizationController::class, 'indexHealth']);
     });
+
+    // Supplier invoice scan (Chantier 32, volet C) — preview→commit, jamais de persistance
+    // sur preview(). Placé ici (pas dans le bloc "8.1b" plus bas, permission-gated via
+    // authorize()) parce que SupplierInvoiceScanController n'a aucun contrôle
+    // d'autorisation propre — un vrai trou RBAC trouvé empiriquement (un `sales-rep`
+    // pouvait créer une facture fournisseur via ce endpoint) avant que ce placement ne
+    // soit corrigé : le rôle protège l'accès, exactement comme `invoices` (POST) juste
+    // au-dessus dans ce même bloc.
+    Route::post('supplier-invoice-scan/preview', [SupplierInvoiceScanController::class, 'preview']);
+    Route::post('supplier-invoice-scan/commit', [SupplierInvoiceScanController::class, 'commit']);
 });
 
 // ── AI Assisted First — Contextual AI guidance ────────────────────────────
@@ -552,4 +572,13 @@ Route::middleware(['auth:sanctum', 'session.security', 'tenancy.user'])->group(f
     Route::post('finance-reviews', [FinanceReviewController::class, 'store']);
     Route::put('finance-reviews/{financeReview}', [FinanceReviewController::class, 'update']);
     Route::delete('finance-reviews/{financeReview}', [FinanceReviewController::class, 'destroy']);
+
+    // Fiscal Years (Chantier 32, volet A1) — reste dans ce bloc, permission-gated
+    // via FiscalYearController::authorize()/FiscalYearPolicy (chaque méthode
+    // mutative appelle déjà $this->authorize(), contrairement à
+    // SupplierInvoiceScanController ci-dessus).
+    Route::post('fiscal-years', [FiscalYearController::class, 'store']);
+    Route::put('fiscal-years/{fiscalYear}', [FiscalYearController::class, 'update']);
+    Route::post('fiscal-years/{fiscalYear}/close', [FiscalYearController::class, 'close']);
+    Route::delete('fiscal-years/{fiscalYear}', [FiscalYearController::class, 'destroy']);
 });

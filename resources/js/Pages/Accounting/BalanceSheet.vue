@@ -9,6 +9,8 @@
       </div>
       <div class="page-actions">
         <Link href="/accounting/financial-simulations" class="btn btn-secondary"><i class="pi pi-chart-line" style="font-size:13px" /> Simulation financière</Link>
+        <Link href="/accounting/fiscal-years" class="btn btn-secondary"><i class="pi pi-calendar" style="font-size:13px" /> Années d'exercice</Link>
+        <Link href="/accounting/supplier-debt" class="btn btn-secondary"><i class="pi pi-wallet" style="font-size:13px" /> Dettes fournisseurs</Link>
         <button class="btn btn-secondary" @click="print"><i class="pi pi-print" style="font-size:13px" /> Imprimer / PDF</button>
         <button class="btn btn-secondary" @click="exportFile('pdf')" :disabled="exporting">
           <i class="pi pi-file-pdf" style="font-size:13px" /> Exporter PDF

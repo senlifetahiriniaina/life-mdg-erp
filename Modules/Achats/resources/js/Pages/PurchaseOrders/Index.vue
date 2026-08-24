@@ -5,9 +5,14 @@
         <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-50">Purchase Orders</h1>
         <p class="mt-2 text-surface-600 dark:text-surface-400">Create and manage purchase orders with suppliers</p>
       </div>
-      <Link href="/purchase-orders/create" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-        + New Purchase Order
-      </Link>
+      <div class="flex items-center gap-2">
+        <Link href="/accounting/supplier-invoice-scan" class="px-4 py-2 border border-subtle rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700">
+          Scanner une facture fournisseur
+        </Link>
+        <Link href="/purchase-orders/create" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          + New Purchase Order
+        </Link>
+      </div>
     </div>
 
     <div class="bg-canvas dark:bg-surface-800 rounded-lg shadow">

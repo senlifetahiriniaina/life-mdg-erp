@@ -173,6 +173,10 @@ class InvoiceController extends Controller
             'total' => 'nullable|numeric|min:0',
             'subtotal' => 'nullable|numeric|min:0',
             'tax_amount' => 'nullable|numeric|min:0',
+            // Chantier 32 (volet B): update() had no `currency` field at
+            // all despite store() accepting one — an invoice's currency
+            // was silently immutable once created, confirmed empirically.
+            'currency' => 'nullable|string|size:3',
             'notes' => 'nullable|string',
             'due_date' => 'nullable|date',
             'invoice_date' => 'nullable|date',

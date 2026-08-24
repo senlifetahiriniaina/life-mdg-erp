@@ -6,16 +6,20 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
+use Modules\Accounting\Console\Commands\ImportChartOfAccountsCommand;
+use Modules\Accounting\Console\Commands\ImportTreasuryHistoryCommand;
 use Modules\Accounting\Models\Company;
 use Modules\Accounting\Models\FinanceReview;
 use Modules\Accounting\Models\FinancialSimulation;
 use Modules\Accounting\Models\FinancialSimulationLine;
+use Modules\Accounting\Models\FiscalYear;
 use Modules\Accounting\Models\GLAccount;
 use Modules\Accounting\Models\Invoice;
 use Modules\Accounting\Observers\InvoiceObserver;
 use Modules\Accounting\Policies\CompanyPolicy;
 use Modules\Accounting\Policies\FinanceReviewPolicy;
 use Modules\Accounting\Policies\FinancialSimulationPolicy;
+use Modules\Accounting\Policies\FiscalYearPolicy;
 use Modules\Accounting\Policies\GLAccountPolicy;
 use Modules\Accounting\Services\AccountingService;
 
@@ -34,6 +38,8 @@ class AccountingServiceProvider extends ServiceProvider {
 
     public function boot(): void
     {
+        $this->registerCommands();
+
         // Resolve Accounting factories from module namespace
         Factory::guessFactoryNamesUsing(function (string $modelName) {
             if (str_starts_with($modelName, 'Modules\\Accounting\\')) {
@@ -63,9 +69,24 @@ class AccountingServiceProvider extends ServiceProvider {
         // against FinanceReview — registered explicitly, matching the
         // Modules-namespaced-policies-don't-auto-discover precedent.
         Gate::policy(FinanceReview::class, FinanceReviewPolicy::class);
+        // Chantier 32 (volet A1): FiscalYearController calls authorize()
+        // against FiscalYear — registered explicitly, same precedent.
+        Gate::policy(FiscalYear::class, FiscalYearPolicy::class);
         // Payment model does not exist yet; PaymentObserver available for future use
         // \Modules\Accounting\Models\Payment::observe(\Modules\Accounting\Observers\PaymentObserver::class);
 $this->loadMigrationsFrom(module_path($this->name, 'database/migrations'));
         $this->loadTranslationsFrom(__DIR__.'/../../lang', 'accounting');
+    }
+
+    /**
+     * Chantier 32 (volet A2) — commandes d'import formalisées au
+     * déploiement (historique de trésorerie, plan comptable).
+     */
+    protected function registerCommands(): void
+    {
+        $this->commands([
+            ImportTreasuryHistoryCommand::class,
+            ImportChartOfAccountsCommand::class,
+        ]);
     }
 }

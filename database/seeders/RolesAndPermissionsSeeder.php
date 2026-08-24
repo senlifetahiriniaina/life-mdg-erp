@@ -373,7 +373,8 @@ class RolesAndPermissionsSeeder extends Seeder
         'achats'           => ['rfq', 'purchase-order', 'purchase-receipt', 'supplier', 'purchaseorderline'],
         // Chantier 26 (volet D): 'financereview' (revue finance mensuelle/
         // trimestrielle — objectifs commerciaux + budget) added.
-        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario', 'financial-simulation', 'financereview'],
+        // Chantier 32 (volet A1): 'fiscalyear' (année d'exercice comptable) added.
+        'accounting'       => ['invoice', 'journal', 'chart-of-account', 'bank-account', 'expense', 'tax_compliance', 'consolidation', 'depreciation', 'intercompany', 'asset_impairment', 'depreciation_policy', 'budget', 'budget_scenario', 'financial-simulation', 'financereview', 'fiscalyear'],
         'helpdesk'         => ['ticket', 'team', 'agent-performance'],
         'bi'               => ['dashboard', 'kpi', 'report', 'bidatasource'],
         'analytics'        => ['forecast', 'anomaly'],
