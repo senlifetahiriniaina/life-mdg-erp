@@ -67,3 +67,9 @@ Thumbs.db
 # committed. No private-key pattern needed here: unlike Lightsail, gcloud
 # manages its own ephemeral SSH key pair outside this repo by default.
 /deploy/gcp.config
+
+# GitHub token file written by scripts/deploy.sh from .env's optional
+# GITHUB_TOKEN, mounted into the Docker build as a BuildKit secret
+# (docker-compose.prod.yml) to authenticate composer install against the
+# GitHub API — never committed, chmod 600.
+/deploy/github_token.secret

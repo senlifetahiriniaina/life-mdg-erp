@@ -27,6 +27,14 @@ jobs:
           tags: life-mdg-erp:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Authenticates the Dockerfile's `composer install` against the
+          # GitHub API (60/hour anonymous → 5,000/hour) — see the Dockerfile's
+          # own comment on this step for why ~150 unauthenticated dist
+          # downloads on every fresh (lockless) build is a real exposure.
+          # secrets.GITHUB_TOKEN is always present in every workflow run, no
+          # repo configuration needed.
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
       - name: Validate DeepSeek compose file
         # Syntax/interpolation check only — does not pull the Ollama image or
         # the DeepSeek model (too slow/heavy to run on every push).

@@ -41,6 +41,15 @@
 # Sourcées depuis .env (docker compose lit automatiquement le .env du même
 # répertoire que ce fichier pour l'interpolation ${...}, en plus de la
 # lecture via `env_file:` pour l'environnement runtime des conteneurs).
+#
+# `secrets: [github_token]` monte un secret BuildKit optionnel que le
+# Dockerfile utilise pour authentifier `composer install` contre l'API
+# GitHub (voir le commentaire du Dockerfile — évite la limite anonyme de
+# 60 requêtes/heure sur les ~150 paquets sans composer.lock). Le fichier
+# source par défaut est `/dev/null` (toujours présent, toujours vide) —
+# `scripts/deploy.sh` le fait pointer vers un vrai fichier via
+# `GITHUB_TOKEN_FILE` uniquement si `GITHUB_TOKEN` est renseigné dans
+# `.env` ; sans cela, le build se comporte exactement comme avant (anonyme).
 x-build: &app-build
   build:
     context: .
@@ -50,6 +59,8 @@ x-build: &app-build
       VITE_REVERB_HOST: ${APP_DOMAIN:-localhost}
       VITE_REVERB_PORT: "443"
       VITE_REVERB_SCHEME: https
+    secrets:
+      - github_token
   image: life-mdg-erp:${IMAGE_TAG:-latest}
 
 # Plafond de taille de logs appliqué à chaque service (résilience — voir
@@ -285,3 +296,13 @@ volumes:
 networks:
   life-mdg-erp:
     driver: bridge
+
+# Secret BuildKit optionnel pour `composer install` (voir x-build ci-dessus
+# et le commentaire du Dockerfile). `file:` plutôt que `environment:` — un
+# secret source `environment:` fait échouer `docker compose build` quand la
+# variable n'est pas définie, alors qu'un fichier `/dev/null` par défaut
+# existe toujours et se lit comme vide, ce que le montage `required=false`
+# du Dockerfile tolère déjà nativement.
+secrets:
+  github_token:
+    file: ${GITHUB_TOKEN_FILE:-/dev/null}

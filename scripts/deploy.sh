@@ -62,6 +62,17 @@ warn "généralement quelques minutes. Vérifiez avec : dig +short ${APP_DOMAIN}
 echo
 
 # ── 4. Lancement de la stack ────────────────────────────────────────────────
+# Si GITHUB_TOKEN est renseigné dans .env, l'écrire dans un fichier local
+# (jamais commité, chmod 600) et le monter en secret BuildKit — authentifie
+# `composer install` contre l'API GitHub pour éviter la limite anonyme de
+# 60 req/heure sur les ~150 paquets sans composer.lock (voir Dockerfile et
+# .env.example). Absent, le build reste anonyme comme avant.
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    printf '%s' "$GITHUB_TOKEN" > deploy/github_token.secret
+    chmod 600 deploy/github_token.secret
+    export GITHUB_TOKEN_FILE="$(pwd)/deploy/github_token.secret"
+fi
+
 log "Construction et démarrage de la stack Docker (app, queue, scheduler, mysql, redis, caddy)..."
 docker compose -f "$COMPOSE_FILE" up -d --build
 

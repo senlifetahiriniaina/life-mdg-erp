@@ -56,6 +56,12 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # See docker-build.yml / Dockerfile: authenticates composer install
+          # against the GitHub API to avoid the 60/hour anonymous rate limit
+          # on ~150 unauthenticated dist downloads (no lockfile, every build
+          # resolves fresh).
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
 
   deploy:
     name: Deploy to ${{ inputs.environment || 'production' }}

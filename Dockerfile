@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Build stage
 FROM php:8.5-fpm AS builder
 
@@ -28,8 +29,31 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # repo, see CLAUDE.md — composer install below resolves fresh)
 COPY composer.json ./
 
-# Install PHP dependencies
-RUN composer install --no-scripts --no-dev --prefer-dist --no-interaction
+# Install PHP dependencies. composer.lock is intentionally gitignored (see
+# above), so every build resolves ~150 packages fresh against live
+# Packagist — nearly all of them (laravel/framework, spatie/*, stancl/tenancy,
+# nwidart/laravel-modules, maatwebsite/excel, ...) ship their dist zip via
+# GitHub's own REST API (`api.github.com/repos/.../zipball/...`), which is
+# subject to GitHub's unauthenticated rate limit of 60 requests/hour per IP —
+# easily exhausted by a single fresh install on this scale, especially on a
+# VPS sharing a NAT'd IP with other traffic. This is a well-documented,
+# common real-world cause of `composer install` failing mid-build with no
+# useful local error (confirmed as a live, currently-real exposure for this
+# exact composer.json — every major dependency checked resolves via
+# api.github.com, not a Packagist-hosted mirror).
+#
+# The optional `github_token` BuildKit secret (never baked into image layers,
+# unlike an ARG) authenticates Composer against the GitHub API when supplied,
+# raising the cap to 5,000/hour — CI already wires this from the workflow's
+# own `secrets.GITHUB_TOKEN` (always available, no configuration needed) via
+# .github/workflows/{docker-build,deploy}.yml; a server-side build supplies
+# it via docker-compose.prod.yml's `github_token` secret (sourced from an
+# optional GITHUB_TOKEN in .env, see .env.example). Absent entirely, the
+# build proceeds exactly as before (anonymous) — this is a resilience
+# improvement, not a new requirement.
+RUN --mount=type=secret,id=github_token,required=false \
+    sh -c 'if [ -s /run/secrets/github_token ]; then composer config -g github-oauth.github.com "$(cat /run/secrets/github_token)"; fi' \
+    && composer install --no-scripts --no-dev --prefer-dist --no-interaction
 
 # Copy application
 COPY . .
