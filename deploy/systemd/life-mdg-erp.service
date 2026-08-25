@@ -1,0 +1,33 @@
+# Reprise automatique de la stack Docker au démarrage de la VM — voir
+# CLAUDE.md § "Résilience du déploiement" et
+# docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md § "Résilience".
+#
+# `restart: unless-stopped` (docker-compose.prod.yml) ne gouverne que les
+# redémarrages de conteneur pendant que le démon Docker tourne déjà — après
+# un arrêt complet de la VM (ex. mise en pause pour économiser des coûts),
+# rien ne garantit que Docker lui-même redémarre ni que la stack soit
+# relevée. Cette unité comble ce trou : elle se déclenche juste après
+# `docker.service` (déjà activé par défaut sur toute installation Docker
+# standard) et relève toute la stack, qu'elle ait été arrêtée 5 minutes ou
+# 5 mois.
+#
+# Ce fichier est un GABARIT : {{APP_DIR}} est substitué par
+# scripts/install-resilience.sh au moment de l'installation — ne pas
+# installer ce fichier tel quel dans /etc/systemd/system/.
+
+[Unit]
+Description=Life MDG ERP — reprise de la stack Docker Compose au démarrage
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{APP_DIR}}
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml stop
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

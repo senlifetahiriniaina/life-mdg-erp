@@ -117,8 +117,32 @@ Le script reconstruit l'image, redémarre les conteneurs et applique les migrati
 | La base de données ne démarre pas | `DB_ROOT_PASSWORD` absent ou vide dans `.env` | Le script refuse de démarrer si cette variable est vide — vérifiez `.env` |
 | Page blanche / erreur 502 malgré un certificat SSL valide | php-fpm indisponible | `docker compose -f docker-compose.prod.yml logs app` puis `docker compose -f docker-compose.prod.yml restart app` |
 
+## Résilience — VM arrêtée/mise en pause, clone à mettre à jour
+
+Un VPS peut être arrêté ou mis en pause pour économiser des coûts, et du code peut être poussé sur la branche déployée pendant que le serveur est hors ligne. Deux mécanismes couvrent ces cas, installés en une commande après le tout premier `scripts/deploy.sh` réussi :
+
+```bash
+sudo ./scripts/install-resilience.sh
+```
+
+Ce script installe deux unités systemd (nécessite systemd — la quasi-totalité des distributions Linux modernes pour serveur) :
+
+- **`life-mdg-erp.service`** — relève automatiquement toute la stack Docker Compose au démarrage de la VM (`docker compose up -d`), qu'elle ait été arrêtée 5 minutes ou 5 mois. `restart: unless-stopped` (déjà présent sur chaque service de `docker-compose.prod.yml`) ne fait rien après un arrêt complet de la VM — cette unité comble ce trou.
+- **`life-mdg-erp-reconcile.timer`** — toutes les 15 minutes (et une fois au démarrage), exécute `scripts/reconcile.sh` : vérifie si `origin/<branche>` a avancé, et si oui rattrape le code (`git pull` + rebuild + migrations), avec un rollback automatique vers l'image précédente si le nouveau code ne passe pas le healthcheck. C'est ce qui permet au serveur de se remettre à jour tout seul même si `.github/workflows/deploy.yml` n'a pas pu le joindre en SSH pendant qu'il était hors ligne au moment d'un push. Le même passage relève aussi tout conteneur resté arrêté malgré `restart: unless-stopped`.
+
+Vérifier l'état :
+
+```bash
+systemctl status life-mdg-erp.service
+systemctl list-timers life-mdg-erp-reconcile.timer
+journalctl -u life-mdg-erp-reconcile.service -n 50
+tail -f storage/logs/reconcile.log
+```
+
+Sur une machine sans systemd, `scripts/reconcile.sh` reste utilisable directement (ex. via un `crontab -e` avec une entrée `@reboot` et une entrée `*/15 * * * *`) — seul `scripts/install-resilience.sh` (l'installateur des unités systemd) est spécifique à systemd.
+
 ## Ce que ce guide ne couvre pas
 
 - **Sauvegardes** : voir `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md` (section `BACKUP_*`, `spatie/laravel-backup`) — non automatisé par `scripts/deploy.sh`.
-- **Déploiement continu automatique** (push sur `main` → déploiement) : voir `.github/workflows/deploy.yml`, qui build+push une image vers GHCR puis se connecte en SSH au serveur pour relancer la stack — nécessite d'avoir déjà fait le déploiement manuel initial décrit ci-dessus sur le serveur cible, et de configurer les secrets GitHub listés dans `docs/07-DEPLOIEMENT/README.md`.
+- **Déploiement continu automatique** (push sur `main` → déploiement) : voir `.github/workflows/deploy.yml`, qui build+push une image vers GHCR puis se connecte en SSH au serveur pour relancer la stack — nécessite d'avoir déjà fait le déploiement manuel initial décrit ci-dessus sur le serveur cible, et de configurer les secrets GitHub listés dans `docs/07-DEPLOIEMENT/README.md`. Le cas où la VM est hors ligne au moment du push est couvert par la minuterie de réconciliation ci-dessus, pas par ce workflow lui-même.
 - **Multi-serveur / haute disponibilité** : cette stack est conçue pour un VPS unique, conformément au périmètre demandé (simplicité).

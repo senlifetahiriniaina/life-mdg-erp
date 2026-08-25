@@ -1,0 +1,17 @@
+# Exécute scripts/reconcile.sh (rattrapage git + auto-guérison de la stack)
+# — déclenché périodiquement par life-mdg-erp-reconcile.timer, voir
+# CLAUDE.md § "Résilience du déploiement".
+#
+# Ce fichier est un GABARIT : {{APP_DIR}} est substitué par
+# scripts/install-resilience.sh au moment de l'installation.
+
+[Unit]
+Description=Life MDG ERP — réconciliation périodique (rattrapage git + auto-guérison)
+After=docker.service life-mdg-erp.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory={{APP_DIR}}
+ExecStart=/bin/bash {{APP_DIR}}/scripts/reconcile.sh
+TimeoutStartSec=600

@@ -1,0 +1,16 @@
+# Déclenche life-mdg-erp-reconcile.service toutes les 15 minutes, plus une
+# fois au démarrage (avec un court délai pour laisser life-mdg-erp.service
+# terminer de relever la stack en premier) — voir CLAUDE.md §
+# "Résilience du déploiement".
+
+[Unit]
+Description=Life MDG ERP — minuterie de réconciliation périodique
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Unit=life-mdg-erp-reconcile.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

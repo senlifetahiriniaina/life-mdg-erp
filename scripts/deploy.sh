@@ -109,3 +109,13 @@ until curl -fsS -o /dev/null "$health_url" 2>/dev/null; do
 done
 
 log "Déploiement terminé — application accessible sur https://${APP_DOMAIN}"
+
+# ── 9. Résilience (une seule fois, optionnel) ───────────────────────────────
+if command -v systemctl >/dev/null 2>&1 && [ ! -f /etc/systemd/system/life-mdg-erp.service ]; then
+    echo
+    warn "Résilience non installée : si la VM peut être arrêtée/mise en pause, ou si"
+    warn "le code peut être poussé pendant qu'elle est hors ligne, installez la reprise"
+    warn "automatique et la réconciliation périodique (voir CLAUDE.md § \"Résilience du"
+    warn "déploiement\") avec :"
+    warn "  sudo ./scripts/install-resilience.sh"
+fi

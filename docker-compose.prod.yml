@@ -52,9 +52,21 @@ x-build: &app-build
       VITE_REVERB_SCHEME: https
   image: life-mdg-erp:${IMAGE_TAG:-latest}
 
+# Plafond de taille de logs appliqué à chaque service (résilience — voir
+# CLAUDE.md "Résilience du déploiement") : sans lui, une VM qui tourne
+# longtemps sans supervision (le scénario même que ce chantier adresse) peut
+# voir ses logs Docker remplir tout le disque, un mode de panne silencieux
+# indépendant de tout crash applicatif.
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   app-publish:
-    <<: *app-build
+    <<: [*app-build, *default-logging]
     user: root
     entrypoint: ["/bin/sh", "-c"]
     command: ["mkdir -p /shared/public && cp -r /app/public/. /shared/public/"]
@@ -64,7 +76,7 @@ services:
       - life-mdg-erp
 
   app:
-    <<: *app-build
+    <<: [*app-build, *default-logging]
     restart: unless-stopped
     depends_on:
       app-publish:
@@ -92,7 +104,7 @@ services:
       - life-mdg-erp
 
   queue:
-    <<: *app-build
+    <<: [*app-build, *default-logging]
     restart: unless-stopped
     command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
     depends_on:
@@ -111,11 +123,19 @@ services:
       MEILISEARCH_HOST: http://meilisearch:7700
     volumes:
       - storage_data:/app/storage/app
+    # `queue:work` a un mode "process en boucle", pas de port à sonder — on
+    # vérifie donc que le process lui-même est bien vivant dans le conteneur.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'artisan queue:work' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - life-mdg-erp
 
   scheduler:
-    <<: *app-build
+    <<: [*app-build, *default-logging]
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]
     command: ["while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
@@ -135,11 +155,20 @@ services:
       MEILISEARCH_HOST: http://meilisearch:7700
     volumes:
       - storage_data:/app/storage/app
+    # Même logique que "queue" — la boucle `while true` est le process à
+    # surveiller (son PID reste stable ; php lui-même est relancé toutes les
+    # 60s comme sous-process, ce qui est le comportement normal).
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'while true; do php artisan schedule:run' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - life-mdg-erp
 
   reverb:
-    <<: *app-build
+    <<: [*app-build, *default-logging]
     restart: unless-stopped
     command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
     depends_on:
@@ -154,12 +183,21 @@ services:
       SESSION_DRIVER: redis
       QUEUE_CONNECTION: redis
       REVERB_HOST: 0.0.0.0
+    # Même patron TCP-connect que docker/health-check.php (php-fpm), pointé
+    # sur le port WebSocket de Reverb — voir docker/reverb-health-check.php.
+    healthcheck:
+      test: ["CMD", "php", "/app/docker/reverb-health-check.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - life-mdg-erp
 
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    <<: *default-logging
     environment:
       MYSQL_DATABASE: ${DB_DATABASE:-life_mdg_erp}
       MYSQL_USER: ${DB_USERNAME:-life_mdg}
@@ -179,6 +217,7 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
+    <<: *default-logging
     volumes:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -206,6 +245,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    <<: *default-logging
     depends_on:
       app-publish:
         condition: service_completed_successfully
@@ -221,6 +261,15 @@ services:
       - app_public:/srv/public:ro
       - caddy_data:/data
       - caddy_config:/config
+    # `wget` est présent dans l'image caddy:2-alpine (busybox) — vérifie que
+    # Caddy répond localement, indépendamment de la validité du certificat
+    # SSL/DNS externe (qui peut être en cours d'obtention au démarrage).
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - life-mdg-erp
 

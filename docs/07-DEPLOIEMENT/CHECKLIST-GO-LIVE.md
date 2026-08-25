@@ -17,6 +17,7 @@
 - [ ] `ANTHROPIC_API_KEY` configurée si les guidances IA dynamiques sont souhaitées dès le lancement (sinon repli statique automatique, non bloquant)
 - [ ] Temps réel (notifications, Messaging — voir `CLAUDE.md` § Chantier 20) fonctionnel après déploiement : ouvrir la console développeur du navigateur sur l'app déployée, confirmer une connexion WebSocket établie vers `wss://$APP_DOMAIN/app/...` (pas d'erreur de connexion refusée) — `docker compose -f docker-compose.prod.yml ps reverb` doit être `Up`
 - [ ] Recherche CRM (Meilisearch — voir `CLAUDE.md` § Chantier 34) fonctionnelle : créer un contact CRM de test via l'API/l'UI ne renvoie pas d'erreur 500 — `docker compose -f docker-compose.prod.yml ps meilisearch` doit être `Up`
+- [ ] Résilience installée (voir `CLAUDE.md` § "Résilience du déploiement" et `docs/07-DEPLOIEMENT/GUIDE-DEPLOIEMENT-SIMPLE.md` § "Résilience") : `sudo ./scripts/install-resilience.sh` exécuté, `systemctl is-active life-mdg-erp.service` répond `active`, `systemctl list-timers life-mdg-erp-reconcile.timer` montre une prochaine exécution planifiée
 
 ## Après le premier déploiement
 
