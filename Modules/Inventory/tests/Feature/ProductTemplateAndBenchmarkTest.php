@@ -37,28 +37,33 @@ describe('Currency seeding (Chantier 17 — prerequisite for cross-currency benc
 
 describe('Category account-mapping (data format layer)', function () {
     test('the 4 clothing-domain categories carry their suggested chart-of-accounts codes', function () {
+        // Chantier 36 remapped Inventory's category account routing onto the
+        // real user-provided chart of accounts (see DefaultDataSeeder's
+        // seedInventoryDefaults() docblock) — these assertions follow that
+        // real mapping, not the pre-Chantier-36 codes this test originally
+        // asserted.
         $mp = Category::where('name', 'Matières premières')->firstOrFail();
-        expect($mp->default_stock_account_code)->toBe('310');
-        expect($mp->default_purchase_account_code)->toBe('601');
-        expect($mp->default_variance_account_code)->toBe('6031');
+        expect($mp->default_stock_account_code)->toBe('32');
+        expect($mp->default_purchase_account_code)->toBe('602');
+        expect($mp->default_variance_account_code)->toBe('6032');
 
         $accessoires = Category::where('name', 'Accessoires')->firstOrFail();
-        expect($accessoires->default_stock_account_code)->toBe('312');
+        expect($accessoires->default_stock_account_code)->toBe('323');
 
         $semiFinis = Category::where('name', 'Vêtements semi-finis')->firstOrFail();
-        expect($semiFinis->default_stock_account_code)->toBe('335');
+        expect($semiFinis->default_stock_account_code)->toBe('34');
 
         $produitsFinis = Category::where('name', 'Produits finis')->firstOrFail();
-        expect($produitsFinis->default_stock_account_code)->toBe('355');
-        expect($produitsFinis->default_sale_account_code)->toBe('701');
+        expect($produitsFinis->default_stock_account_code)->toBe('36');
+        expect($produitsFinis->default_sale_account_code)->toBe('702');
     });
 
     test('the seeded accessoires/semi-fini accounting codes exist as real chart-of-accounts entries', function () {
-        $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '312']);
-        $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '335']);
+        $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '323']);
+        $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '34']);
         $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '602']);
         $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '6032']);
-        $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '6035']);
+        $this->assertDatabaseHas('acc_chart_of_accounts', ['code' => '736']);
     });
 });
 
@@ -72,7 +77,7 @@ describe('Product Templates API (route + controller + RBAC layers)', function ()
         expect($response->json('families'))->toHaveKeys(['matiere_premiere', 'accessoire', 'semi_fini', 'produit_fini']);
 
         $tissu = collect($response->json('data'))->firstWhere('code', 'mp-tissu-coton');
-        expect($tissu['category']['default_stock_account_code'])->toBe('310');
+        expect($tissu['category']['default_stock_account_code'])->toBe('32');
     });
 
     test('filters by family', function () {
