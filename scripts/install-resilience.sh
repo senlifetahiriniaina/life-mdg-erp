@@ -10,6 +10,9 @@
 #      du code a été poussé pendant que la VM était hors ligne, avec
 #      rollback automatique en cas d'échec (couvre le cas "clone à mettre à
 #      jour").
+#   3. Une minuterie systemd qui sauvegarde quotidiennement les volumes
+#      Docker nommés (scripts/backup-volumes.sh — voir
+#      docs/07-DEPLOIEMENT/HETZNER.md § "Sauvegarde/restauration").
 #
 # À exécuter une fois, après un premier `scripts/deploy.sh` réussi. Requiert
 # systemd et les droits root (sudo). Idempotent — peut être relancé sans
@@ -34,7 +37,7 @@ SRC_DIR="$APP_DIR/deploy/systemd"
 
 log "Installation des unités systemd depuis $SRC_DIR vers $UNIT_DIR (répertoire applicatif : $APP_DIR)..."
 
-for unit in life-mdg-erp.service life-mdg-erp-reconcile.service life-mdg-erp-reconcile.timer; do
+for unit in life-mdg-erp.service life-mdg-erp-reconcile.service life-mdg-erp-reconcile.timer life-mdg-erp-backup-volumes.service life-mdg-erp-backup-volumes.timer; do
     [ -f "$SRC_DIR/$unit" ] || die "Gabarit manquant : $SRC_DIR/$unit"
     sed "s#{{APP_DIR}}#${APP_DIR}#g" "$SRC_DIR/$unit" > "$UNIT_DIR/$unit"
     log "  → $UNIT_DIR/$unit"
@@ -49,9 +52,14 @@ systemctl enable --now life-mdg-erp.service
 log "Activation de la minuterie de réconciliation (toutes les 15 min, life-mdg-erp-reconcile.timer)..."
 systemctl enable --now life-mdg-erp-reconcile.timer
 
+log "Activation de la minuterie de sauvegarde des volumes (quotidienne 02:30 UTC, life-mdg-erp-backup-volumes.timer)..."
+systemctl enable --now life-mdg-erp-backup-volumes.timer
+
 echo
 log "Installation terminée. Vérifications utiles :"
 echo "  systemctl status life-mdg-erp.service"
-echo "  systemctl list-timers life-mdg-erp-reconcile.timer"
+echo "  systemctl list-timers life-mdg-erp-reconcile.timer life-mdg-erp-backup-volumes.timer"
 echo "  journalctl -u life-mdg-erp-reconcile.service -n 50"
+echo "  journalctl -u life-mdg-erp-backup-volumes.service -n 50"
 echo "  tail -f ${APP_DIR}/storage/logs/reconcile.log"
+echo "  tail -f ${APP_DIR}/storage/logs/backup-volumes.log"

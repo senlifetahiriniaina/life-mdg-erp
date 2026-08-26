@@ -16,7 +16,7 @@
 
 **Tous les checks sauf `deploy.yml` sont informationnels** (`continue-on-error: true`) — voir `docs/09-RBAC-SECURITE/SECURITE.md` pour la justification de ce choix. Le workflow `mobile-release.yml` présent dans Widehalo-ERP a été retiré : life-mdg-erp n'a pas de module Mobile dans son périmètre de 27 modules.
 
-**Pour déployer, voir en premier lieu le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md)** — ce README documente les workflows CI/CD et l'état de chaque brique ; le guide simple donne la marche à suivre complète (DNS, `.env`, `scripts/deploy.sh`) en une page. Si vous déployez sur **AWS Lightsail** et n'avez pas encore de serveur, `scripts/lightsail-deploy.sh` automatise le provisionnement (instance, IP statique, zone DNS) — voir [AWS-LIGHTSAIL.md](AWS-LIGHTSAIL.md). Sur **Google Cloud Platform**, `scripts/gcp-deploy.sh` fait de même (instance Compute Engine, IP statique, zone Cloud DNS) — voir [GCP.md](GCP.md).
+**Pour déployer, voir en premier lieu le [Guide de déploiement simple](GUIDE-DEPLOIEMENT-SIMPLE.md)** — ce README documente les workflows CI/CD et l'état de chaque brique ; le guide simple donne la marche à suivre complète (DNS, `.env`, `scripts/deploy.sh`) en une page. Si vous déployez sur **AWS Lightsail** et n'avez pas encore de serveur, `scripts/lightsail-deploy.sh` automatise le provisionnement (instance, IP statique, zone DNS) — voir [AWS-LIGHTSAIL.md](AWS-LIGHTSAIL.md). Sur **Google Cloud Platform**, `scripts/gcp-deploy.sh` fait de même (instance Compute Engine, IP statique, zone Cloud DNS) — voir [GCP.md](GCP.md). Sur **Hetzner Cloud**, `scripts/hetzner-deploy.sh` fait de même (serveur `cx33` par défaut, pare-feu, zone Hetzner DNS) — voir [HETZNER.md](HETZNER.md).
 
 ### Validation effectuée
 

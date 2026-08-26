@@ -24,6 +24,11 @@
 /storage/logs/*
 !/storage/logs/.gitignore
 
+# backup:database (app/Console/Commands/BackupDatabase.php) and
+# scripts/backup-volumes.sh both write real local backup archives here —
+# never committed.
+/storage/backups/
+
 .env
 .env.backup
 .env.local
@@ -67,6 +72,12 @@ Thumbs.db
 # committed. No private-key pattern needed here: unlike Lightsail, gcloud
 # manages its own ephemeral SSH key pair outside this repo by default.
 /deploy/gcp.config
+
+# Hetzner Cloud deployment config (scripts/hetzner-deploy.sh) — real values
+# (including the Hetzner DNS Console API token), never committed. No
+# private-key pattern needed: the SSH key itself must already be registered
+# in the Hetzner Cloud project before this repo ever touches it.
+/deploy/hetzner.config
 
 # GitHub token file written by scripts/deploy.sh from .env's optional
 # GITHUB_TOKEN, mounted into the Docker build as a BuildKit secret
