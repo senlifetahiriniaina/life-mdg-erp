@@ -21,7 +21,7 @@ use Spatie\Permission\Models\Permission;
  */
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-function deepAuditUser(string $suffix, string $role = 'sales-manager'): User
+function salesDeepAuditUser(string $suffix, string $role = 'sales-manager'): User
 {
     if (Permission::count() === 0) {
         test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
@@ -51,7 +51,7 @@ test('SalesOrderPolicy has been removed — no Gate policy is registered for Sal
     // The flat permission checks + forTenant() scoping the controller
     // already performs remain the sole, sufficient authorization layer —
     // re-confirmed end to end below and throughout this file.
-    $user = deepAuditUser('PolicyRemoved');
+    $user = salesDeepAuditUser('PolicyRemoved');
     test()->actingAs($user, 'sanctum')->getJson('/api/v1/sales/orders')->assertOk();
 });
 
@@ -59,8 +59,8 @@ test('SalesOrderPolicy has been removed — no Gate policy is registered for Sal
 //     endpoint's tenant scoping + permission gate with 2 real companies ─────
 
 test('every order endpoint is tenant-scoped and permission-gated for a company with zero sales permission', function () {
-    $companyless = deepAuditUser('NoPerm', 'warehouse-operator'); // no sales.* permission
-    $owner       = deepAuditUser('Owner');
+    $companyless = salesDeepAuditUser('NoPerm', 'warehouse-operator'); // no sales.* permission
+    $owner       = salesDeepAuditUser('Owner');
     $order       = app(SalesService::class)->createOrder([
         'tenant_id'  => $owner->company_id,
         'currency'   => 'MGA',
@@ -84,8 +84,8 @@ test('every order endpoint is tenant-scoped and permission-gated for a company w
 });
 
 test('every quotation endpoint is tenant-scoped for a real cross-company id', function () {
-    $userA  = deepAuditUser('QuoteA');
-    $userB  = deepAuditUser('QuoteB');
+    $userA  = salesDeepAuditUser('QuoteA');
+    $userB  = salesDeepAuditUser('QuoteB');
     $quoteA = app(SalesService::class)->createQuotation([
         'tenant_id'  => $userA->company_id,
         'currency'   => 'MGA',
@@ -106,8 +106,8 @@ test('every quotation endpoint is tenant-scoped for a real cross-company id', fu
 });
 
 test('recurring order templates and sales objectives are also cross-tenant isolated', function () {
-    $userA = deepAuditUser('CrossA');
-    $userB = deepAuditUser('CrossB');
+    $userA = salesDeepAuditUser('CrossA');
+    $userB = salesDeepAuditUser('CrossB');
 
     $templateA = RecurringOrderTemplate::factory()->create(['tenant_id' => $userA->company_id, 'created_by' => $userA->id]);
     $templateA->lines()->create(['description' => 'x', 'quantity' => 1, 'unit_price' => 1000, 'sequence' => 0]);
@@ -140,7 +140,7 @@ test('recurring order templates and sales objectives are also cross-tenant isola
 // ─── Layer 8 — deposit/balance business validation re-verified end to end ───
 
 test('deposit/balance cycle end to end produces 2 balanced journal entries, and paying an already-fully-paid deposit again is rejected', function () {
-    $user  = deepAuditUser('CycleFull');
+    $user  = salesDeepAuditUser('CycleFull');
     $order = app(SalesService::class)->createOrder([
         'tenant_id'  => $user->company_id,
         'currency'   => 'MGA',
@@ -179,7 +179,7 @@ test('deposit/balance cycle end to end produces 2 balanced journal entries, and 
 // ─── Layer 8 — quotation double-conversion race guard ────────────────────────
 
 test('a quotation cannot be converted twice even when re-checked against a freshly-locked row', function () {
-    $user  = deepAuditUser('Convert');
+    $user  = salesDeepAuditUser('Convert');
     $quote = app(SalesService::class)->createQuotation([
         'tenant_id'  => $user->company_id,
         'currency'   => 'MGA',
@@ -200,7 +200,7 @@ test('a quotation cannot be converted twice even when re-checked against a fresh
 // ─── Layer 8 — recurring order double-invocation, re-verified ────────────────
 
 test('generateDueOrders never double-processes a template across repeated invocations the same day', function () {
-    $user = deepAuditUser('Recurring');
+    $user = salesDeepAuditUser('Recurring');
 
     $template = RecurringOrderTemplate::factory()->create([
         'tenant_id'   => $user->company_id,
@@ -243,7 +243,7 @@ test('SalesOrder/SalesOrderLine/SalesQuotation factories produce real, schema-co
 // ─── Layer 5/10 — sales_quotations.account_id activated ──────────────────────
 
 test('a quotation can now be tied to a CRM account, not just a contact, matching orders', function () {
-    $user = deepAuditUser('QuoteAccount');
+    $user = salesDeepAuditUser('QuoteAccount');
 
     $response = test()->actingAs($user, 'sanctum')->postJson('/api/v1/sales/quotations', [
         'account_id' => 77,
@@ -258,7 +258,7 @@ test('a quotation can now be tied to a CRM account, not just a contact, matching
 // ─── Layer 8 — sales_rep_id must reference a real user ───────────────────────
 
 test('storing an order with a non-existent sales_rep_id is rejected', function () {
-    $user = deepAuditUser('RepValidation');
+    $user = salesDeepAuditUser('RepValidation');
 
     test()->actingAs($user, 'sanctum')->postJson('/api/v1/sales/orders', [
         'currency'     => 'MGA',
@@ -270,7 +270,7 @@ test('storing an order with a non-existent sales_rep_id is rejected', function (
 // ─── Layer 12 — API contract: real customer name / real total / real date ───
 
 test('GET sales/orders returns a real contact/account payload SalesIndex.vue can actually render', function () {
-    $user    = deepAuditUser('Contract');
+    $user    = salesDeepAuditUser('Contract');
     $contact = \Modules\CRM\Models\Contact::factory()->create(['first_name' => 'Jean', 'last_name' => 'Rakoto']);
 
     app(SalesService::class)->createOrder([
@@ -293,7 +293,7 @@ test('GET sales/orders returns a real contact/account payload SalesIndex.vue can
 // ─── Layer 12 — search filter, previously silently ignored server-side ──────
 
 test('the search query param on GET sales/orders now actually filters by reference', function () {
-    $user = deepAuditUser('Search');
+    $user = salesDeepAuditUser('Search');
     $svc  = app(SalesService::class);
 
     $matching = $svc->createOrder([
@@ -322,7 +322,7 @@ test('listing orders with deposit/balance invoices does not scale query count wi
     // across a warm vs cold cache and would make an HTTP-level query-count
     // assertion flaky for reasons unrelated to the N+1 fix itself — this
     // was confirmed empirically before settling on this approach).
-    $user = deepAuditUser('N1Guard');
+    $user = salesDeepAuditUser('N1Guard');
     $svc  = app(SalesService::class);
     $dep  = app(\Modules\Sales\Services\SalesDepositService::class);
 
@@ -381,7 +381,7 @@ test('listing orders with deposit/balance invoices does not scale query count wi
 // ─── Layer 3 — the 2 previously-dead-link web pages are now reachable ───────
 
 test('the create-order web page is reachable and creates a real order end to end', function () {
-    $user = deepAuditUser('CreatePage');
+    $user = salesDeepAuditUser('CreatePage');
 
     test()->actingAs($user)
         ->get('/sales/orders/create')
@@ -399,7 +399,7 @@ test('the create-order web page is reachable and creates a real order end to end
 });
 
 test('the edit-order web page is reachable and updates header fields on a draft order', function () {
-    $user  = deepAuditUser('EditPage');
+    $user  = salesDeepAuditUser('EditPage');
     $order = app(SalesService::class)->createOrder([
         'tenant_id' => $user->company_id, 'currency' => 'MGA', 'created_by' => $user->id,
         'lines'     => [['description' => 'x', 'quantity' => 1, 'unit_price' => 1000]],
@@ -437,7 +437,7 @@ test('AiContextualAssistantService has real grounded fallback text for the 3 new
 });
 
 test('the real /api/v1/ai/assist endpoint (the one useAiAssistant() actually calls) returns real Sales guidance', function () {
-    $user = deepAuditUser('AiAssist');
+    $user = salesDeepAuditUser('AiAssist');
 
     $response = test()->actingAs($user, 'sanctum')->postJson('/api/v1/ai/assist', [
         'module' => 'Sales',
@@ -451,7 +451,7 @@ test('the real /api/v1/ai/assist endpoint (the one useAiAssistant() actually cal
 // ─── Layer 13 (Chantier 26 volet B) spot-check — objectives still grounded ──
 
 test('sales objective proposals remain grounded in real historical order data, never invented', function () {
-    $user = deepAuditUser('ObjectiveGrounded');
+    $user = salesDeepAuditUser('ObjectiveGrounded');
     $svc  = app(SalesService::class);
 
     foreach ([90, 60, 30] as $daysAgo) {

@@ -1,0 +1,69 @@
+# ─── HETZNER CLOUD — paramètres de provisionnement ─────────────────────────
+# Copiez ce fichier vers deploy/hetzner.config (gitignoré) et éditez les
+# valeurs avant de lancer scripts/hetzner-deploy.sh.
+#
+# Deux authentifications distinctes sont nécessaires, aucune des deux
+# stockée dans ce fichier :
+#   1. Un contexte `hcloud` actif (`hcloud context create <nom>`, demande un
+#      jeton API de projet Hetzner Cloud — Cloud Console → Sécurité → Jetons API).
+#   2. Le jeton HETZNER_DNS_API_TOKEN ci-dessous (Hetzner DNS Console — un
+#      produit séparé du Cloud Console, avec son propre jeton API), lui,
+#      doit être renseigné directement dans ce fichier gitignoré (l'API DNS
+#      Hetzner n'a pas de CLI officielle, contrairement au Cloud Console).
+#
+# Voir docs/07-DEPLOIEMENT/HETZNER.md pour la marche à suivre complète.
+
+# ─── Serveur ───────────────────────────────────────────────────────────────
+# Nom du serveur dans votre projet Hetzner Cloud (identifiant unique).
+HETZNER_SERVER_NAME=life-mdg-erp
+
+# Type de serveur (taille/plan). Cette stack fait tourner php-fpm + mysql +
+# redis + un worker de file d'attente + un scheduler + reverb + meilisearch +
+# caddy sur une seule machine — cx33 (8 Go RAM / 4 vCPU) couvre largement le
+# minimum recommandé de 4 Go. Liste des types disponibles :
+# `hcloud server-type list`.
+HETZNER_SERVER_TYPE=cx33
+
+# Emplacement (région) du serveur. Liste : `hcloud location list`.
+# nbg1=Nuremberg, fsn1=Falkenstein, hel1=Helsinki, ash=Ashburn (USA),
+# hil=Hillsboro (USA).
+HETZNER_LOCATION=nbg1
+
+# Image de base du serveur. Liste des images système disponibles :
+# `hcloud image list --type system`.
+HETZNER_IMAGE=ubuntu-22.04
+
+# ─── Accès SSH ─────────────────────────────────────────────────────────────
+# Nom d'une clé SSH déjà enregistrée dans votre projet Hetzner Cloud
+# (`hcloud ssh-key list`). Contrairement à GCP, Hetzner Cloud n'a pas de
+# mécanisme de clé éphémère type "ssh géré automatiquement au premier
+# usage" — une clé doit exister dans le projet AVANT la création du
+# serveur pour y avoir un accès pratique.
+HETZNER_SSH_KEY_NAME=life-mdg-erp
+
+# Chemin local vers une clé publique SSH existante (ex. ~/.ssh/id_ed25519.pub),
+# utilisée UNIQUEMENT pour créer HETZNER_SSH_KEY_NAME dans le projet Hetzner
+# si elle n'existe pas encore. Laissez vide si la clé nommée ci-dessus existe
+# déjà dans le projet.
+HETZNER_SSH_PUBLIC_KEY_FILE=
+
+# ─── Domaine / sous-domaine ────────────────────────────────────────────────
+# Nom de domaine racine, déjà enregistré chez un bureau d'enregistrement
+# quelconque (ce script ne l'achète pas). Une zone Hetzner DNS sera créée
+# pour ce domaine — après le premier lancement, vous devrez déléguer les
+# serveurs de noms (NS) affichés vers Hetzner DNS chez votre bureau
+# d'enregistrement (étape manuelle, non scriptable — voir la documentation).
+HETZNER_DOMAIN=example.com
+
+# Sous-domaine sur lequel l'application sera exposée (ex. "erp" pour
+# erp.example.com). Laissez vide pour utiliser directement le domaine racine.
+HETZNER_SUBDOMAIN=erp
+
+# Jeton API de la Hetzner DNS Console (https://dns.hetzner.com/ → Jetons
+# API — distinct du jeton du contexte hcloud ci-dessus). Jamais commité.
+HETZNER_DNS_API_TOKEN=
+
+# ─── Renseigné automatiquement par scripts/hetzner-deploy.sh ──────────────
+# Adresse IPv4 publique réellement allouée — purement informatif, jamais lu
+# comme entrée par le script (toujours résolu depuis l'API Hetzner Cloud).
+HETZNER_SERVER_IP=

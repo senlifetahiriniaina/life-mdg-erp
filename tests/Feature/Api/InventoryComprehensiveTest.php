@@ -259,7 +259,7 @@ test('can adjust stock level', function () {
     ])->assertOk();
 
     $stock = Stock::where('product_id', $product->id)->first();
-    expect($stock->quantity)->toBe(150);
+    expect((int) $stock->quantity)->toBe(150);
 });
 
 test('validates low stock alerts', function () {
@@ -304,12 +304,12 @@ test('can transfer stock between warehouses', function () {
         'quantity'          => 30,
     ])->assertOk();
 
-    expect(Stock::where([
+    expect((int) Stock::where([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse1->id,
     ])->first()->quantity)->toBe(70);
 
-    expect(Stock::where([
+    expect((int) Stock::where([
         'product_id'   => $product->id,
         'warehouse_id' => $warehouse2->id,
     ])->first()->quantity)->toBe(80);

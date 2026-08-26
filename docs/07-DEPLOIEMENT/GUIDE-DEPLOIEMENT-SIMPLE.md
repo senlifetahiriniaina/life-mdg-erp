@@ -24,6 +24,8 @@ Ces deux étapes doivent être faites avant de lancer le script — rien ne peut
 > **Vous provisionnez sur AWS Lightsail et n'avez pas encore de serveur ?** `scripts/lightsail-deploy.sh` automatise la création de l'instance, l'IP statique, et le pointage DNS via la zone DNS Lightsail — voir [docs/07-DEPLOIEMENT/AWS-LIGHTSAIL.md](AWS-LIGHTSAIL.md). Une fois ce script exécuté, revenez ici à la section [Déploiement](#déploiement) ci-dessous.
 >
 > **Vous provisionnez sur Google Cloud Platform et n'avez pas encore de serveur ?** `scripts/gcp-deploy.sh` automatise de la même façon la création de l'instance Compute Engine, l'IP statique, et le pointage DNS via une zone Cloud DNS — voir [docs/07-DEPLOIEMENT/GCP.md](GCP.md).
+>
+> **Vous provisionnez sur Hetzner Cloud et n'avez pas encore de serveur ?** `scripts/hetzner-deploy.sh` automatise de la même façon la création du serveur (type `cx33` par défaut), le pare-feu, et le pointage DNS via une zone Hetzner DNS — voir [docs/07-DEPLOIEMENT/HETZNER.md](HETZNER.md).
 
 ### 1. Un serveur (VPS) avec Docker installé
 
@@ -125,24 +127,27 @@ Un VPS peut être arrêté ou mis en pause pour économiser des coûts, et du co
 sudo ./scripts/install-resilience.sh
 ```
 
-Ce script installe deux unités systemd (nécessite systemd — la quasi-totalité des distributions Linux modernes pour serveur) :
+Ce script installe trois unités systemd (nécessite systemd — la quasi-totalité des distributions Linux modernes pour serveur) :
 
 - **`life-mdg-erp.service`** — relève automatiquement toute la stack Docker Compose au démarrage de la VM (`docker compose up -d`), qu'elle ait été arrêtée 5 minutes ou 5 mois. `restart: unless-stopped` (déjà présent sur chaque service de `docker-compose.prod.yml`) ne fait rien après un arrêt complet de la VM — cette unité comble ce trou.
 - **`life-mdg-erp-reconcile.timer`** — toutes les 15 minutes (et une fois au démarrage), exécute `scripts/reconcile.sh` : vérifie si `origin/<branche>` a avancé, et si oui rattrape le code (`git pull` + rebuild + migrations), avec un rollback automatique vers l'image précédente si le nouveau code ne passe pas le healthcheck. C'est ce qui permet au serveur de se remettre à jour tout seul même si `.github/workflows/deploy.yml` n'a pas pu le joindre en SSH pendant qu'il était hors ligne au moment d'un push. Le même passage relève aussi tout conteneur resté arrêté malgré `restart: unless-stopped`.
+- **`life-mdg-erp-backup-volumes.timer`** — quotidiennement à 02:30 UTC, exécute `scripts/backup-volumes.sh` : sauvegarde individuellement (un fichier `.tar.gz` par volume) les volumes Docker nommés `storage_data`/`redis_data`/`meilisearch_data`/`caddy_data`. Complète `backup:database` (voir `ENV-PRODUCTION.md`), qui ne couvre que la base de données. Restauration : `scripts/restore-volumes.sh <horodatage> [volume]`.
 
 Vérifier l'état :
 
 ```bash
 systemctl status life-mdg-erp.service
-systemctl list-timers life-mdg-erp-reconcile.timer
+systemctl list-timers life-mdg-erp-reconcile.timer life-mdg-erp-backup-volumes.timer
 journalctl -u life-mdg-erp-reconcile.service -n 50
+journalctl -u life-mdg-erp-backup-volumes.service -n 50
 tail -f storage/logs/reconcile.log
+tail -f storage/logs/backup-volumes.log
 ```
 
 Sur une machine sans systemd, `scripts/reconcile.sh` reste utilisable directement (ex. via un `crontab -e` avec une entrée `@reboot` et une entrée `*/15 * * * *`) — seul `scripts/install-resilience.sh` (l'installateur des unités systemd) est spécifique à systemd.
 
 ## Ce que ce guide ne couvre pas
 
-- **Sauvegardes** : voir `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md` (section `BACKUP_*`, `spatie/laravel-backup`) — non automatisé par `scripts/deploy.sh`.
+- **Sauvegardes** : la base de données (`backup:database`/`backup:restore`, voir `docs/07-DEPLOIEMENT/ENV-PRODUCTION.md`) et les volumes Docker (`scripts/backup-volumes.sh`/`scripts/restore-volumes.sh`, voir la section Résilience ci-dessus) ont chacun un mécanisme réel — mais aucun des deux n'est automatisé par `scripts/deploy.sh` lui-même (installation séparée via `scripts/install-resilience.sh`), et **les deux restent stockés localement sur le VPS pour l'instant** — la perte du disque/serveur entraînerait une perte de données. `BACKUP_DISK=s3` existe dans `.env.example` mais reste un gap documenté non résolu (adaptateur Flysystem S3 jamais installé — voir `CLAUDE.md` § Chantier 14/28).
 - **Déploiement continu automatique** (push sur `main` → déploiement) : voir `.github/workflows/deploy.yml`, qui build+push une image vers GHCR puis se connecte en SSH au serveur pour relancer la stack — nécessite d'avoir déjà fait le déploiement manuel initial décrit ci-dessus sur le serveur cible, et de configurer les secrets GitHub listés dans `docs/07-DEPLOIEMENT/README.md`. Le cas où la VM est hors ligne au moment du push est couvert par la minuterie de réconciliation ci-dessus, pas par ce workflow lui-même.
 - **Multi-serveur / haute disponibilité** : cette stack est conçue pour un VPS unique, conformément au périmètre demandé (simplicité).

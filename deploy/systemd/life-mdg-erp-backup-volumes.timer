@@ -1,0 +1,16 @@
+# Déclenche life-mdg-erp-backup-volumes.service tous les jours à 02:30 UTC —
+# volontairement 30 minutes après le `backup:database` planifié à 02:00 UTC
+# (bootstrap/app.php's withSchedule()) pour ne pas concurrencer les deux
+# sauvegardes sur les mêmes I/O disque. Voir CLAUDE.md §
+# "Résilience du déploiement".
+
+[Unit]
+Description=Life MDG ERP — minuterie de sauvegarde quotidienne des volumes Docker
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+Unit=life-mdg-erp-backup-volumes.service
+
+[Install]
+WantedBy=timers.target

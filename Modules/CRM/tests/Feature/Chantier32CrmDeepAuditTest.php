@@ -32,7 +32,7 @@ use Spatie\Permission\Models\Role;
  * OpportunityHistory, stage validation, the new duplicates endpoint, and the dead-code
  * deletions).
  */
-function deepAuditUser(string $companySuffix, string $role = 'admin'): User
+function crmDeepAuditUser(string $companySuffix, string $role = 'admin'): User
 {
     if (Permission::count() === 0) {
         test()->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
@@ -65,7 +65,7 @@ function deepAuditUser(string $companySuffix, string $role = 'admin'): User
 // ── Dead/fake code: deleted for real, not just documented ──────────────────────
 
 test('the dead no-code workflow builder route no longer exists', function () {
-    $user = deepAuditUser('WF');
+    $user = crmDeepAuditUser('WF');
     $token = $user->createToken('t')->plainTextToken;
 
     $this->withToken($token)
@@ -94,8 +94,8 @@ test('crm_workflows/crm_customers/crm_companies tables are dropped', function ()
 // ── VoipController / CallLog — new tenant isolation ─────────────────────────────
 
 test('call logs are scoped to the caller own company', function () {
-    $userA = deepAuditUser('CLA');
-    $userB = deepAuditUser('CLB');
+    $userA = crmDeepAuditUser('CLA');
+    $userB = crmDeepAuditUser('CLB');
 
     $logA = CallLog::factory()->create(['tenant_id' => $userA->company_id, 'phone_number' => '+261340000001']);
     CallLog::factory()->create(['tenant_id' => $userB->company_id, 'phone_number' => '+261340000002']);
@@ -110,8 +110,8 @@ test('call logs are scoped to the caller own company', function () {
 });
 
 test('a call log cannot be viewed by another company', function () {
-    $userA = deepAuditUser('CLC');
-    $userB = deepAuditUser('CLD');
+    $userA = crmDeepAuditUser('CLC');
+    $userB = crmDeepAuditUser('CLD');
 
     $logB = CallLog::factory()->create(['tenant_id' => $userB->company_id]);
 
@@ -125,8 +125,8 @@ test('a call log cannot be viewed by another company', function () {
 // ── EmailSequenceController — new tenant isolation ──────────────────────────────
 
 test('email sequences are scoped to the caller own company', function () {
-    $userA = deepAuditUser('ESA');
-    $userB = deepAuditUser('ESB');
+    $userA = crmDeepAuditUser('ESA');
+    $userB = crmDeepAuditUser('ESB');
 
     $seqA = EmailSequence::factory()->create(['tenant_id' => $userA->company_id, 'name' => 'A seq']);
     EmailSequence::factory()->create(['tenant_id' => $userB->company_id, 'name' => 'B seq']);
@@ -141,8 +141,8 @@ test('email sequences are scoped to the caller own company', function () {
 });
 
 test('a company cannot view or mutate another company email sequence', function () {
-    $userA = deepAuditUser('ESC');
-    $userB = deepAuditUser('ESD');
+    $userA = crmDeepAuditUser('ESC');
+    $userB = crmDeepAuditUser('ESD');
 
     $seqB = EmailSequence::factory()->create(['tenant_id' => $userB->company_id]);
 
@@ -154,7 +154,7 @@ test('a company cannot view or mutate another company email sequence', function 
 });
 
 test('a newly created email sequence is tagged with the creator own company', function () {
-    $user = deepAuditUser('ESE');
+    $user = crmDeepAuditUser('ESE');
     $token = $user->createToken('t')->plainTextToken;
 
     $this->withToken($token)
@@ -167,8 +167,8 @@ test('a newly created email sequence is tagged with the creator own company', fu
 // ── QuoteController / CpqService — new tenant isolation ─────────────────────────
 
 test('quotes are scoped to the caller own company', function () {
-    $userA = deepAuditUser('QA');
-    $userB = deepAuditUser('QB');
+    $userA = crmDeepAuditUser('QA');
+    $userB = crmDeepAuditUser('QB');
 
     $quoteA = Quote::factory()->create(['tenant_id' => $userA->company_id, 'reference' => 'QT-A']);
     Quote::factory()->create(['tenant_id' => $userB->company_id, 'reference' => 'QT-B']);
@@ -182,8 +182,8 @@ test('quotes are scoped to the caller own company', function () {
 });
 
 test('a quote cannot be viewed, duplicated, or exported by another company', function () {
-    $userA = deepAuditUser('QC');
-    $userB = deepAuditUser('QD');
+    $userA = crmDeepAuditUser('QC');
+    $userB = crmDeepAuditUser('QD');
 
     $quoteB = Quote::factory()->create(['tenant_id' => $userB->company_id]);
 
@@ -195,7 +195,7 @@ test('a quote cannot be viewed, duplicated, or exported by another company', fun
 });
 
 test('a newly created quote is tagged with the creator own company and the pdf uses Ar not euros', function () {
-    $user = deepAuditUser('QE');
+    $user = crmDeepAuditUser('QE');
     $token = $user->createToken('t')->plainTextToken;
 
     $create = $this->withToken($token)
@@ -211,8 +211,8 @@ test('a newly created quote is tagged with the creator own company and the pdf u
 // ── TerritoryController / TerritoryService / TerritoryForecastService — new tenant isolation ──
 
 test('territories are scoped to the caller own company', function () {
-    $userA = deepAuditUser('TA');
-    $userB = deepAuditUser('TB');
+    $userA = crmDeepAuditUser('TA');
+    $userB = crmDeepAuditUser('TB');
 
     $terrA = Territory::factory()->create(['company_id' => $userA->company_id, 'name' => 'Territory A']);
     Territory::factory()->create(['company_id' => $userB->company_id, 'name' => 'Territory B']);
@@ -226,8 +226,8 @@ test('territories are scoped to the caller own company', function () {
 });
 
 test('a territory cannot be viewed, updated, deleted or forecast by another company', function () {
-    $userA = deepAuditUser('TC');
-    $userB = deepAuditUser('TD');
+    $userA = crmDeepAuditUser('TC');
+    $userB = crmDeepAuditUser('TD');
 
     $terrB = Territory::factory()->create(['company_id' => $userB->company_id]);
 
@@ -240,8 +240,8 @@ test('a territory cannot be viewed, updated, deleted or forecast by another comp
 });
 
 test('team quotas and coverage only aggregate the caller own company territories', function () {
-    $userA = deepAuditUser('TE');
-    $userB = deepAuditUser('TF');
+    $userA = crmDeepAuditUser('TE');
+    $userB = crmDeepAuditUser('TF');
 
     Territory::factory()->create(['company_id' => $userA->company_id, 'name' => 'Only A', 'is_active' => true]);
     Territory::factory()->create(['company_id' => $userB->company_id, 'name' => 'Only B', 'is_active' => true]);
@@ -256,8 +256,8 @@ test('team quotas and coverage only aggregate the caller own company territories
 });
 
 test('opportunity assignment to a territory is blocked across companies', function () {
-    $userA = deepAuditUser('TG');
-    $userB = deepAuditUser('TH');
+    $userA = crmDeepAuditUser('TG');
+    $userB = crmDeepAuditUser('TH');
 
     $terrA = Territory::factory()->create(['company_id' => $userA->company_id]);
     $pipeline = Pipeline::factory()->create();
@@ -274,8 +274,8 @@ test('opportunity assignment to a territory is blocked across companies', functi
 // ── WebFormController — new tenant isolation + fixed Lead data-loss bug ─────────
 
 test('web forms are scoped to the caller own company', function () {
-    $userA = deepAuditUser('WFA');
-    $userB = deepAuditUser('WFB');
+    $userA = crmDeepAuditUser('WFA');
+    $userB = crmDeepAuditUser('WFB');
 
     $formA = WebForm::factory()->create(['tenant_id' => $userA->company_id, 'name' => 'Form A', 'slug' => 'form-a']);
     WebForm::factory()->create(['tenant_id' => $userB->company_id, 'name' => 'Form B', 'slug' => 'form-b']);
@@ -291,7 +291,7 @@ test('web forms are scoped to the caller own company', function () {
 });
 
 test('public web form submission tags the resulting lead with the form own company and preserves email/phone/company', function () {
-    $owner = deepAuditUser('WFC');
+    $owner = crmDeepAuditUser('WFC');
 
     $form = WebForm::factory()->create([
         'tenant_id' => $owner->company_id,
@@ -332,8 +332,8 @@ test('public web form submission tags the resulting lead with the form own compa
 // ── PipelineAnalyticsController / PipelineAnalyticsService — new tenant isolation ──
 
 test('pipeline analytics dashboard and win rate only aggregate the caller own company', function () {
-    $userA = deepAuditUser('PAA');
-    $userB = deepAuditUser('PAB');
+    $userA = crmDeepAuditUser('PAA');
+    $userB = crmDeepAuditUser('PAB');
 
     $pipeline = Pipeline::factory()->create();
     $oppA = Opportunity::factory()->create(['pipeline_id' => $pipeline->id, 'tenant_id' => $userA->company_id, 'amount' => 1000]);
@@ -358,8 +358,8 @@ test('pipeline analytics dashboard and win rate only aggregate the caller own co
 });
 
 test('a company cannot record a win or loss for another company opportunity', function () {
-    $userA = deepAuditUser('PAC');
-    $userB = deepAuditUser('PAD');
+    $userA = crmDeepAuditUser('PAC');
+    $userB = crmDeepAuditUser('PAD');
 
     $pipeline = Pipeline::factory()->create();
     $oppB = Opportunity::factory()->create(['pipeline_id' => $pipeline->id, 'tenant_id' => $userB->company_id]);
@@ -374,8 +374,8 @@ test('a company cannot record a win or loss for another company opportunity', fu
 // ── AiAgentController — new tenant isolation + cross-tenant run() write vector ──
 
 test('ai agents are scoped to the caller own company', function () {
-    $userA = deepAuditUser('AIA');
-    $userB = deepAuditUser('AIB');
+    $userA = crmDeepAuditUser('AIA');
+    $userB = crmDeepAuditUser('AIB');
 
     $agentA = AiAgent::factory()->create(['tenant_id' => $userA->company_id, 'name' => 'Agent A']);
     AiAgent::factory()->create(['tenant_id' => $userB->company_id, 'name' => 'Agent B']);
@@ -389,8 +389,8 @@ test('ai agents are scoped to the caller own company', function () {
 });
 
 test('an agent cannot be run against another company by id', function () {
-    $userA = deepAuditUser('AIC');
-    $userB = deepAuditUser('AID');
+    $userA = crmDeepAuditUser('AIC');
+    $userB = crmDeepAuditUser('AID');
 
     $agentB = AiAgent::factory()->create(['tenant_id' => $userB->company_id, 'action_type' => 'add_note']);
 
@@ -402,7 +402,7 @@ test('an agent cannot be run against another company by id', function () {
 });
 
 test('an agent-created note is tagged with the owning agent own company', function () {
-    $owner = deepAuditUser('AIE');
+    $owner = crmDeepAuditUser('AIE');
     $agent = AiAgent::factory()->create(['tenant_id' => $owner->company_id, 'action_type' => 'add_note']);
     // Chantier 38.3: run() now requires entity_id to be a real record owned by the caller's
     // own company (closes the AiAgent-as-arbitrary-model-disclosure IDOR — see
@@ -419,7 +419,7 @@ test('an agent-created note is tagged with the owning agent own company', functi
 });
 
 test('run() rejects an entity_type outside the real allowlist', function () {
-    $owner = deepAuditUser('AIF');
+    $owner = crmDeepAuditUser('AIF');
     $agent = AiAgent::factory()->create(['tenant_id' => $owner->company_id, 'action_type' => 'add_note']);
     $token = $owner->createToken('t')->plainTextToken;
 
@@ -429,8 +429,8 @@ test('run() rejects an entity_type outside the real allowlist', function () {
 });
 
 test('run() rejects an entity_id belonging to another company, even for an allowlisted type', function () {
-    $owner = deepAuditUser('AIG');
-    $other = deepAuditUser('AIH');
+    $owner = crmDeepAuditUser('AIG');
+    $other = crmDeepAuditUser('AIH');
     $agent = AiAgent::factory()->create(['tenant_id' => $owner->company_id, 'action_type' => 'add_note']);
     $foreignContact = Contact::factory()->create(['company_id' => $other->company_id]);
     $token = $owner->createToken('t')->plainTextToken;
@@ -445,7 +445,7 @@ test('run() rejects an entity_id belonging to another company, even for an allow
 // ── Activity subject_type IDOR — real allowlist + cross-company subject check ──
 
 test('activity subject_type rejects an arbitrary class name', function () {
-    $user = deepAuditUser('ACTA');
+    $user = crmDeepAuditUser('ACTA');
     $token = $user->createToken('t')->plainTextToken;
 
     $this->withToken($token)
@@ -459,8 +459,8 @@ test('activity subject_type rejects an arbitrary class name', function () {
 });
 
 test('activity subject_id must belong to the caller own company', function () {
-    $userA = deepAuditUser('ACTB');
-    $userB = deepAuditUser('ACTC');
+    $userA = crmDeepAuditUser('ACTB');
+    $userB = crmDeepAuditUser('ACTC');
 
     $contactB = Contact::factory()->create(['company_id' => $userB->company_id]);
     $tokenA = $userA->createToken('t')->plainTextToken;
@@ -476,7 +476,7 @@ test('activity subject_id must belong to the caller own company', function () {
 });
 
 test('activity subject_id linking a real own-company contact succeeds', function () {
-    $user = deepAuditUser('ACTD');
+    $user = crmDeepAuditUser('ACTD');
     $contact = Contact::factory()->create(['company_id' => $user->company_id]);
     $token = $user->createToken('t')->plainTextToken;
 
@@ -493,8 +493,8 @@ test('activity subject_id linking a real own-company contact succeeds', function
 // ── OpportunityHistoryController — missing authorize() fixed ────────────────────
 
 test('opportunity history cannot be read across companies', function () {
-    $userA = deepAuditUser('OHA');
-    $userB = deepAuditUser('OHB');
+    $userA = crmDeepAuditUser('OHA');
+    $userB = crmDeepAuditUser('OHB');
 
     $pipeline = Pipeline::factory()->create();
     $oppB = Opportunity::factory()->create(['pipeline_id' => $pipeline->id, 'tenant_id' => $userB->company_id]);
@@ -510,8 +510,8 @@ test('opportunity history cannot be read across companies', function () {
 // ── ContactEmailController::sendBulk — scoped to caller own contacts ────────────
 
 test('bulk contact email only sends to the caller own company contacts', function () {
-    $userA = deepAuditUser('CEA');
-    $userB = deepAuditUser('CEB');
+    $userA = crmDeepAuditUser('CEA');
+    $userB = crmDeepAuditUser('CEB');
 
     $ownContact = Contact::factory()->create(['company_id' => $userA->company_id, 'email' => 'own@example.com', 'status' => 'active']);
     $foreignContact = Contact::factory()->create(['company_id' => $userB->company_id, 'email' => 'foreign@example.com', 'status' => 'active']);
@@ -532,7 +532,7 @@ test('bulk contact email only sends to the caller own company contacts', functio
 // ── OpportunityController — real server-side stage validation ──────────────────
 
 test('an opportunity cannot be created or updated with a stage outside its pipeline real stages', function () {
-    $user = deepAuditUser('STGA');
+    $user = crmDeepAuditUser('STGA');
     $pipeline = Pipeline::factory()->create(['stages' => ['lead', 'qualified', 'won', 'lost']]);
     $token = $user->createToken('t')->plainTextToken;
 
@@ -561,7 +561,7 @@ test('an opportunity cannot be created or updated with a stage outside its pipel
 // ── DuplicateDetectionService — real, cheap consumer wired for the first time ──
 
 test('the contact duplicates endpoint is reachable and scoped to the caller own company', function () {
-    $user = deepAuditUser('DUPA');
+    $user = crmDeepAuditUser('DUPA');
     $contact = Contact::factory()->create(['company_id' => $user->company_id]);
     $token = $user->createToken('t')->plainTextToken;
 
@@ -576,8 +576,8 @@ test('the contact duplicates endpoint is reachable and scoped to the caller own 
 });
 
 test('the contact duplicates endpoint is denied across companies', function () {
-    $userA = deepAuditUser('DUPB');
-    $userB = deepAuditUser('DUPC');
+    $userA = crmDeepAuditUser('DUPB');
+    $userB = crmDeepAuditUser('DUPC');
 
     $contactB = Contact::factory()->create(['company_id' => $userB->company_id]);
     $tokenA = $userA->createToken('t')->plainTextToken;
@@ -590,8 +590,8 @@ test('the contact duplicates endpoint is denied across companies', function () {
 // ── Re-verification: previously-fixed core entities still hold ─────────────────
 
 test('re-verification: contacts, accounts, leads, opportunities, campaigns, pipelines and activities all still deny cross-company access', function () {
-    $userA = deepAuditUser('REVA');
-    $userB = deepAuditUser('REVB');
+    $userA = crmDeepAuditUser('REVA');
+    $userB = crmDeepAuditUser('REVB');
 
     $pipeline = Pipeline::factory()->create();
 
@@ -616,8 +616,8 @@ test('re-verification: contacts, accounts, leads, opportunities, campaigns, pipe
 // ── module's ~13 real Vue pages ever called useAiAssistant() at all ────────────────
 
 test('the real /api/v1/ai/assist endpoint returns real, non-empty guidance for every newly-wired CRM screen', function () {
-    // Uses the shared actingAsUser() helper (not deepAuditUser()) since this test needs
-    // no multi-company isolation, only the module:AI route gate satisfied — deepAuditUser()
+    // Uses the shared actingAsUser() helper (not crmDeepAuditUser()) since this test needs
+    // no multi-company isolation, only the module:AI route gate satisfied — crmDeepAuditUser()
     // deliberately only enables the 'CRM' module (its whole point being tight per-test
     // scoping), so 'AI' would 403 under it, same as any tenant with AI disabled.
     $user = actingAsUser('admin');

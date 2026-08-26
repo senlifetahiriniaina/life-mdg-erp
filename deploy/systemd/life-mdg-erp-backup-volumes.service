@@ -1,0 +1,23 @@
+# Exécute scripts/backup-volumes.sh (sauvegarde applicative des volumes
+# Docker nommés — storage_data/redis_data/meilisearch_data/caddy_data) —
+# déclenché quotidiennement par life-mdg-erp-backup-volumes.timer, voir
+# CLAUDE.md § "Résilience du déploiement" et docs/07-DEPLOIEMENT/HETZNER.md.
+#
+# Complète `backup:database` (Artisan, planifié via bootstrap/app.php's
+# withSchedule(), voir Chantier 14/19/28) — les deux tournent indépendamment,
+# celui-ci depuis l'hôte (accès au démon Docker requis, indisponible depuis
+# le conteneur `app`).
+#
+# Ce fichier est un GABARIT : {{APP_DIR}} est substitué par
+# scripts/install-resilience.sh au moment de l'installation.
+
+[Unit]
+Description=Life MDG ERP — sauvegarde quotidienne des volumes Docker
+After=docker.service life-mdg-erp.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory={{APP_DIR}}
+ExecStart=/bin/bash {{APP_DIR}}/scripts/backup-volumes.sh
+TimeoutStartSec=900

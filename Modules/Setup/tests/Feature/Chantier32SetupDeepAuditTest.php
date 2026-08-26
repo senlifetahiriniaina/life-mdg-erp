@@ -54,7 +54,7 @@ use Modules\Setup\Models\ImportJob;
 use Modules\Setup\Services\AiDataImportService;
 use Spatie\Permission\Models\Role;
 
-function deepAuditUser(string $role = 'admin'): User
+function setupDeepAuditUser(string $role = 'admin'): User
 {
     // Real permissions (setup.import.*, etc.) are needed here, not just a
     // Role row — several of the endpoints below go through
@@ -74,7 +74,7 @@ function deepAuditUser(string $role = 'admin'): User
 // ─── 1. Security — arbitrary table/column write is closed ────────────────
 
 it('rejects a client-spoofed target_field that is not a real column for the job entity', function () {
-    $user = deepAuditUser('admin');
+    $user = setupDeepAuditUser('admin');
 
     $job = ImportJob::factory()->create([
         'tenant_id'     => (string) $user->company_id,
@@ -125,7 +125,7 @@ it('never trusts a spoofed target_table — resolution is server-side only, via 
 
 it('imports a real contact through the live wizard pipeline and it is visible via the real CRM API', function () {
     Storage::fake('local');
-    $user = deepAuditUser('admin');
+    $user = setupDeepAuditUser('admin');
 
     $csv = UploadedFile::fake()->createWithContent('contacts.csv', "Nom,Prenom,Email\nDoe,Jane,jane@example.test\n");
 
@@ -182,7 +182,7 @@ it('imports a real contact through the live wizard pipeline and it is visible vi
 
 it('resolves acc_invoices, not the old wrong accounting_invoices/customer_name field names, for Accounting/invoices imports', function () {
     Storage::fake('local');
-    $user = deepAuditUser('admin');
+    $user = setupDeepAuditUser('admin');
 
     $csv = UploadedFile::fake()->createWithContent('invoices.csv', "Numero,Client,Emission,Total\nINV-900,ACME,2026-01-15,50000\n");
 
@@ -301,7 +301,7 @@ it('SetupWizardService state is keyed on company_id, matching SetupWebController
 // ─── 6. AI layer — the wizard's own contextual guidance ───────────────────
 
 it('the AI-assist endpoint returns real, non-empty guidance for every one of the 6 real wizard steps', function () {
-    $user = deepAuditUser('admin');
+    $user = setupDeepAuditUser('admin');
 
     foreach (['wizard_company', 'wizard_admin', 'wizard_modules', 'wizard_workflows', 'wizard_apps', 'wizard_complete'] as $action) {
         $response = $this->actingAs($user, 'sanctum')
@@ -322,7 +322,7 @@ it('the AI-assist endpoint returns real, non-empty guidance for every one of the
 });
 
 it('the AI-assist endpoint is genuinely reachable at its documented URL (no doubled route prefix)', function () {
-    $user = deepAuditUser('admin');
+    $user = setupDeepAuditUser('admin');
 
     $this->actingAs($user, 'sanctum')
         ->postJson('/api/v1/setup/ai/assist', ['action' => 'wizard_company'])
@@ -339,7 +339,7 @@ it('the AI-assist endpoint is genuinely reachable at its documented URL (no doub
 // ─── 7. Layer 9 — newly-activated real producers ──────────────────────────
 
 it('the new AI Import page is reachable and renders the real Inertia component', function () {
-    $user = deepAuditUser('admin');
+    $user = setupDeepAuditUser('admin');
 
     $this->actingAs($user)
         ->get('/setup/ai-import')
