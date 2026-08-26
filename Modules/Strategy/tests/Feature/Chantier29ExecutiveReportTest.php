@@ -28,7 +28,7 @@ uses(RefreshDatabase::class);
  * Sheet lisait la mauvaise clé et aurait silencieusement omis chaque
  * résultat clé de tout rapport généré.
  */
-function chantier29Report(): array
+function strategyChantier29Report(): array
 {
     $user = actingAsUser('finance-manager');
     $company = Company::create(['name' => 'Chantier29 Co '.uniqid(), 'currency' => 'MGA', 'timezone' => 'Indian/Antananarivo']);
@@ -108,7 +108,7 @@ function chantier29Report(): array
 
 describe('GET /api/v1/strategy/executive-report/export/{pdf,excel}', function () {
     test('PDF export streams a real, valid PDF containing the real seeded data', function () {
-        chantier29Report();
+        strategyChantier29Report();
 
         $response = $this->get('/api/v1/strategy/executive-report/export/pdf');
 
@@ -147,7 +147,7 @@ describe('GET /api/v1/strategy/executive-report/export/{pdf,excel}', function ()
     });
 
     test('Excel export streams a real, valid multi-sheet xlsx containing the real seeded data', function () {
-        chantier29Report();
+        strategyChantier29Report();
 
         $response = $this->get('/api/v1/strategy/executive-report/export/excel');
 

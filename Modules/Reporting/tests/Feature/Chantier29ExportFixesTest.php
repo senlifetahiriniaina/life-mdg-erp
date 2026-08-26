@@ -37,7 +37,7 @@ function chantier29ReportingUser(string $role = 'admin'): User
     return $user->fresh();
 }
 
-function chantier29Report(int $tenantId, array $overrides = []): ReportDefinition
+function reportingChantier29Report(int $tenantId, array $overrides = []): ReportDefinition
 {
     return ReportDefinition::create(array_merge([
         'tenant_id'      => $tenantId,
@@ -57,7 +57,7 @@ function chantier29Report(int $tenantId, array $overrides = []): ReportDefinitio
 
 test('downloading a completed execution as PDF returns real PDF bytes', function () {
     $user      = chantier29ReportingUser();
-    $report    = chantier29Report($user->company_id);
+    $report    = reportingChantier29Report($user->company_id);
     $service   = app(ReportingService::class);
     $execution = $service->execute($report, [], $user);
 
@@ -78,7 +78,7 @@ test('downloading a completed execution as PDF returns real PDF bytes', function
 
 test('downloading a completed execution as Excel returns a real XLSX file, not a CSV', function () {
     $user      = chantier29ReportingUser();
-    $report    = chantier29Report($user->company_id);
+    $report    = reportingChantier29Report($user->company_id);
     $service   = app(ReportingService::class);
     $execution = $service->execute($report, [], $user);
 
@@ -114,7 +114,7 @@ test('downloading a completed execution as Excel returns a real XLSX file, not a
 
 test('excel is the default format when none is specified', function () {
     $user      = chantier29ReportingUser();
-    $report    = chantier29Report($user->company_id);
+    $report    = reportingChantier29Report($user->company_id);
     $service   = app(ReportingService::class);
     $execution = $service->execute($report, [], $user);
 
@@ -131,7 +131,7 @@ test('excel is the default format when none is specified', function () {
 
 test('downloading a non-completed execution is rejected with 422', function () {
     $user      = chantier29ReportingUser();
-    $report    = chantier29Report($user->company_id);
+    $report    = reportingChantier29Report($user->company_id);
     $execution = ReportExecution::create([
         'tenant_id'            => $user->company_id,
         'report_definition_id' => $report->id,
@@ -148,7 +148,7 @@ test('downloading a non-completed execution is rejected with 422', function () {
 test('downloading an execution belonging to another tenant returns 404', function () {
     chantier29ReportingUser();
 
-    $otherReport = chantier29Report(99999);
+    $otherReport = reportingChantier29Report(99999);
     $execution   = ReportExecution::create([
         'tenant_id'            => 99999,
         'report_definition_id' => $otherReport->id,

@@ -78,7 +78,7 @@ use Modules\Calendar\Models\CalendarSyncToken;
 use Modules\Calendar\Services\ModuleEventAggregatorService;
 use Spatie\Permission\Models\Role;
 
-function deepAuditUser(string $role = 'employee'): User
+function calendarDeepAuditUser(string $role = 'employee'): User
 {
     Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
     $company = Company::factory()->create();
@@ -407,7 +407,7 @@ describe('Sync endpoints degrade gracefully with no real provider credentials co
 
 describe('RBAC — CalendarPolicy/CalendarEventPolicy still correctly Gate-registered', function () {
     test('the event owner can update their own event via the real HTTP route', function () {
-        $user     = deepAuditUser('employee');
+        $user     = calendarDeepAuditUser('employee');
         $calendar = Calendar::factory()->create(['user_id' => $user->id]);
         $event    = CalendarEvent::factory()->create(['calendar_id' => $calendar->id, 'created_by' => $user->id]);
 
@@ -419,7 +419,7 @@ describe('RBAC — CalendarPolicy/CalendarEventPolicy still correctly Gate-regis
     test('a same-company non-owner employee cannot update someone else\'s event', function () {
         $company = Company::factory()->create();
         $owner   = User::factory()->create(['company_id' => $company->id]);
-        $other   = deepAuditUser('employee');
+        $other   = calendarDeepAuditUser('employee');
         $other->update(['company_id' => $company->id]);
 
         $calendar = Calendar::factory()->create(['user_id' => $owner->id, 'tenant_id' => (string) $company->id]);
@@ -431,7 +431,7 @@ describe('RBAC — CalendarPolicy/CalendarEventPolicy still correctly Gate-regis
     });
 
     test('the calendar owner can delete their own calendar', function () {
-        $user     = deepAuditUser('employee');
+        $user     = calendarDeepAuditUser('employee');
         $calendar = Calendar::factory()->create(['user_id' => $user->id]);
 
         $this->actingAs($user, 'sanctum')
@@ -440,7 +440,7 @@ describe('RBAC — CalendarPolicy/CalendarEventPolicy still correctly Gate-regis
     });
 
     test('storeCalendar now calls authorize(create) and still succeeds (CalendarPolicy::create() is unconditionally true)', function () {
-        $user = deepAuditUser('employee');
+        $user = calendarDeepAuditUser('employee');
 
         $this->actingAs($user, 'sanctum')
             ->postJson('/api/v1/calendar/calendars', ['name' => 'Nouveau calendrier'])
@@ -452,7 +452,7 @@ describe('RBAC — CalendarPolicy/CalendarEventPolicy still correctly Gate-regis
 
 describe('Event edit page — a real, previously-dead link now resolves', function () {
     test('GET /calendar/events/{event}/edit renders the real Inertia component', function () {
-        $user     = deepAuditUser('employee');
+        $user     = calendarDeepAuditUser('employee');
         $calendar = Calendar::factory()->create(['user_id' => $user->id]);
         $event    = CalendarEvent::factory()->create(['calendar_id' => $calendar->id, 'created_by' => $user->id]);
 
