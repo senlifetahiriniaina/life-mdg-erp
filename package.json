@@ -52,7 +52,7 @@
         "@types/node": "^26.2.0",
         "@typescript-eslint/parser": "^8.59.2",
         "@vitejs/plugin-vue": "^6.0.6",
-        "@vitest/ui": "^4.1.6",
+        "@vitest/ui": "^5.0.0",
         "@vue/test-utils": "^2.4.10",
         "autoprefixer": "^10.4.20",
         "concurrently": "^10.0.5",
