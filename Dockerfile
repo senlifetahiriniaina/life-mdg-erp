@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build stage
-FROM php:8.5-fpm AS builder
+FROM php:8.6-fpm AS builder
 
 WORKDIR /app
 
@@ -109,7 +109,7 @@ RUN php artisan config:cache \
 
 ###############################################################################
 # Runtime stage
-FROM php:8.5-fpm
+FROM php:8.6-fpm
 
 WORKDIR /app
 
